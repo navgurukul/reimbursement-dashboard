@@ -1,48 +1,112 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/store/useAuthStore";
-import { toast } from "sonner";
-
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/useAuthStore";
+import { organizations, invites, profiles, InviteRow } from "@/lib/db";
+import supabase from "@/lib/supabase";
+import { toast } from "sonner";
+import Link from "next/link";
 
 export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+
   const { signup, error: authError, isLoading } = useAuthStore();
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [invite, setInvite] = useState<InviteRow | null>(null);
 
-  // Handle signup
+  // Load invite if present
+  useEffect(() => {
+    if (!token) return;
+    invites.getById(token).then(({ data, error }) => {
+      if (error || !data) {
+        setError("Invalid or expired invite.");
+      } else if (data.used) {
+        setError("This invite has already been used.");
+      } else {
+        setInvite(data);
+        setEmail(data.email);
+      }
+    });
+  }, [token]);
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    const toastId = toast.loading(
+      invite ? "Joining organization…" : "Creating account…"
+    );
 
     try {
-      const loadingToast = toast.loading("Creating your account...");
-      await signup(email, password);
-      toast.dismiss(loadingToast);
-      toast.success("Account created!", {
-        description: "Please check your email to verify your account.",
+      // 1) Sign up the user
+      let userId: string;
+      if (invite && token) {
+        const { data: signUpData, error: signUpError } =
+          await supabase.auth.signUp({
+            email: invite.email,
+            password,
+          });
+        if (signUpError || !signUpData.user) throw signUpError;
+        userId = signUpData.user.id;
+      } else {
+        const { data: signUpData, error: signUpError } =
+          await supabase.auth.signUp({
+            email,
+            password,
+          });
+        if (signUpError || !signUpData.user) throw signUpError;
+        userId = signUpData.user.id;
+      }
+
+      // 2) Upsert their profile row
+      const { error: profileError } = await profiles.upsert({
+        user_id: userId,
+        email: invite ? invite.email : email,
+        full_name: name || undefined,
       });
-      router.push("/auth/signin");
-      router.refresh();
+      if (profileError) throw profileError;
+
+      // 3) If this was an invite, link to org & mark used
+      if (invite && token) {
+        const { error: linkError } = await organizations.addUser(
+          invite.org_id,
+          userId,
+          invite.role
+        );
+        if (linkError) throw linkError;
+        await invites.markUsed(token);
+
+        const { data: orgData, error: orgError } = await organizations.getById(
+          invite.org_id
+        );
+        if (orgError || !orgData) throw orgError;
+
+        toast.dismiss(toastId);
+        toast.success("Joined successfully! Redirecting…");
+        router.push(`/org/${orgData.slug}`);
+      } else {
+        toast.dismiss(toastId);
+        toast.success("Account created! Check your email.");
+        router.push("/auth/signin");
+      }
     } catch (err: any) {
-      setError(err.message || "Signup failed");
-      toast.error("Signup failed", {
-        description:
-          err.message || "Please try again with different credentials.",
-      });
+      toast.dismiss(toastId);
+      setError(err.message || "Something went wrong.");
+      toast.error("Signup failed", { description: err.message });
     }
   };
 
@@ -50,83 +114,67 @@ export function SignupForm({
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
       <Card className="shadow-md border">
         <CardContent className="p-6 space-y-6">
-          <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold">Create an account</h1>
-            <p className="text-muted-foreground text-sm">
-              Sign up to get started
-            </p>
-          </div>
+          <h1 className="text-2xl font-bold text-center">
+            {invite ? "Complete Your Invite" : "Create Account"}
+          </h1>
 
           <form onSubmit={handleSignup} className="space-y-4">
-            {/* Email */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label>Name</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="Your full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>
 
-            {/* Password */}
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label>Email</Label>
               <Input
-                id="password"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                readOnly={!!invite}
+                className={invite ? "cursor-not-allowed" : ""}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input
                 type="password"
-                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                Password must be at least 6 characters long
-              </p>
             </div>
 
-            {/* Error */}
             {(error || authError) && (
               <p className="text-sm text-red-500">{error || authError}</p>
             )}
 
-            {/* Submit */}
             <Button
               type="submit"
               disabled={isLoading}
               className="w-full cursor-pointer"
             >
-              {isLoading ? "Creating account..." : "Sign Up"}
+              {invite ? "Join Organization" : "Sign Up"}
             </Button>
-
-            {/* Login link */}
-            <p className="text-center text-sm">
-              Already have an account?{" "}
-              <Link
-                href="/auth/signin"
-                className="text-slate-500 hover:underline"
-              >
-                Sign in
-              </Link>
-            </p>
           </form>
+          <p className="text-center text-sm">
+            Already have an account?{" "}
+            <Link
+              href="/auth/signin"
+              className="text-slate-500 hover:underline"
+            >
+              Sign in
+            </Link>
+          </p>
         </CardContent>
       </Card>
-
-      {/* Terms & Privacy */}
-      <p className="mt-4 text-center text-xs text-muted-foreground">
-        By signing up, you agree to our{" "}
-        <a href="#" className="underline underline-offset-2">
-          Terms of Service
-        </a>{" "}
-        and{" "}
-        <a href="#" className="underline underline-offset-2">
-          Privacy Policy
-        </a>
-        .
-      </p>
     </div>
   );
 }

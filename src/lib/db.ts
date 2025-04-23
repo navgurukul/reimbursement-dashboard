@@ -1,4 +1,6 @@
 import supabase from "./supabase";
+import { createClient } from "@supabase/supabase-js";
+import { StorageError } from "@supabase/storage-js";
 
 // Types
 export interface Organization {
@@ -43,6 +45,7 @@ export interface OrganizationMember {
   role: string;
   user_id: string;
   org_id: string;
+  full_name: string;
 }
 
 export interface Profile {
@@ -51,6 +54,100 @@ export interface Profile {
   email: string;
   full_name?: string;
   avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InviteRow {
+  id: string;
+  email: string;
+  org_id: string;
+  role: "member" | "admin" | "owner";
+  used: boolean;
+  created_at: string;
+}
+
+export interface Policy {
+  id: string;
+  org_id: string;
+  expense_type: string;
+  per_unit_cost: string | null;
+  upper_limit: number | null;
+  eligibility: string | null;
+  conditions: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ColumnType =
+  | "text"
+  | "number"
+  | "date"
+  | "dropdown"
+  | "radio"
+  | "checkbox"
+  | "textarea"
+  | "file";
+
+export interface ColumnConfig {
+  key: string;
+  label: string;
+  type: ColumnType;
+  visible: boolean;
+  options?: string[] | { value: string; label: string }[];
+  required?: boolean;
+}
+
+export interface BrandingConfig {
+  logoUrl?: string;
+  primaryColor?: string;
+  accentColor?: string;
+}
+
+export interface DatabaseError {
+  message: string;
+  details: string;
+  hint: string;
+  code: string;
+}
+
+export interface OrganizationSettings {
+  id: string;
+  org_id: string;
+  expense_columns: ColumnConfig[];
+  branding: BrandingConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ExpenseStatus = "submitted" | "approved" | "rejected";
+export type ValidationStatus = "valid" | "warning" | "violation";
+
+export interface ReceiptInfo {
+  filename: string;
+  path: string;
+  size: number;
+  mime_type: string;
+}
+
+export interface PolicyValidation {
+  policy_type: string;
+  status: ValidationStatus;
+  message: string | null;
+}
+
+export interface Expense {
+  id: string;
+  org_id: string;
+  user_id: string;
+  expense_type: string;
+  amount: number;
+  date: string;
+  status: ExpenseStatus;
+  receipt: ReceiptInfo | null;
+  custom_fields: Record<string, any>;
+  policy_validations: PolicyValidation[];
+  approver_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -89,6 +186,14 @@ export const organizations = {
       .from("organizations")
       .select("*")
       .eq("slug", slug)
+      .single();
+  },
+
+  getById: async (id: string) => {
+    return await supabase
+      .from("organizations")
+      .select("*")
+      .eq("id", id)
       .single();
   },
 
@@ -173,12 +278,16 @@ export const profiles = {
       .returns<Profile[]>();
   },
 
-  create: async (
+  /**
+   * Insert or update (upsert) a profile by user_id.
+   * If a row exists, it will update the email/full_name fields.
+   */
+  upsert: async (
     profile: Omit<Profile, "id" | "created_at" | "updated_at">
   ) => {
     return await supabase
       .from("profiles")
-      .insert([profile])
+      .upsert(profile, { onConflict: "user_id" })
       .select()
       .single()
       .returns<Profile>();
@@ -193,4 +302,485 @@ export const profiles = {
       .single()
       .returns<Profile>();
   },
+};
+
+// Invites functions
+export const invites = {
+  create: async (
+    org_id: string,
+    email: string,
+    role: "admin" | "manager" | "member"
+  ) =>
+    supabase
+      .from("invites")
+      .insert([{ org_id, email, role }])
+      .select()
+      .single(),
+
+  getById: async (inviteId: string) => {
+    return await supabase
+      .from("invites")
+      .select("id, email, org_id, role, used")
+      .eq("id", inviteId)
+      .maybeSingle()
+      .returns<InviteRow>();
+  },
+
+  // mark that invite as used
+  markUsed: async (inviteId: string) => {
+    return await supabase
+      .from("invites")
+      .update({ used: true })
+      .eq("id", inviteId);
+  },
+};
+
+// Policy functions
+export const policies = {
+  getPoliciesByOrgId: async (orgId: string) => {
+    return await supabase
+      .from("policies")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: true })
+      .returns<Policy[]>();
+  },
+
+  createPolicy: async (
+    policyData: Omit<Policy, "id" | "created_at" | "updated_at">
+  ) => {
+    return await supabase
+      .from("policies")
+      .insert([policyData])
+      .select()
+      .single()
+      .returns<Policy>();
+  },
+
+  updatePolicy: async (
+    policyId: string,
+    updates: Partial<
+      Omit<Policy, "id" | "org_id" | "created_at" | "updated_at">
+    >
+  ) => {
+    return await supabase
+      .from("policies")
+      .update(updates)
+      .eq("id", policyId)
+      .select()
+      .single()
+      .returns<Policy>();
+  },
+
+  deletePolicy: async (policyId: string) => {
+    return await supabase.from("policies").delete().eq("id", policyId);
+  },
+};
+
+// Organization Settings functions
+export const orgSettings = {
+  getByOrgId: async (orgId: string) => {
+    const { data, error } = await supabase
+      .from("org_settings")
+      .select("*")
+      .eq("org_id", orgId)
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as OrganizationSettings,
+      error: null,
+    };
+  },
+
+  /**
+   * Create or update organization settings
+   */
+  upsert: async (
+    orgId: string,
+    settings: Partial<
+      Omit<OrganizationSettings, "id" | "org_id" | "created_at" | "updated_at">
+    >
+  ) => {
+    const { data, error } = await supabase
+      .from("org_settings")
+      .upsert({
+        org_id: orgId,
+        ...settings,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as OrganizationSettings,
+      error: null,
+    };
+  },
+
+  /**
+   * Update expense columns configuration
+   */
+  updateExpenseColumns: async (orgId: string, columns: ColumnConfig[]) => {
+    const { data, error } = await supabase
+      .from("org_settings")
+      .upsert(
+        {
+          org_id: orgId,
+          expense_columns: columns,
+          branding: {}, // Include default branding if not exists
+        },
+        {
+          onConflict: "org_id",
+          ignoreDuplicates: false,
+        }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as OrganizationSettings,
+      error: null,
+    };
+  },
+
+  /**
+   * Update branding configuration
+   */
+  updateBranding: async (orgId: string, branding: BrandingConfig) => {
+    const { data, error } = await supabase
+      .from("org_settings")
+      .upsert({
+        org_id: orgId,
+        branding,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as OrganizationSettings,
+      error: null,
+    };
+  },
+};
+
+// Expenses functions
+export const expenses = {
+  /**
+   * Get all expenses for a user in an organization
+   */
+  getByOrgAndUser: async (orgId: string, userId: string) => {
+    const { data, error } = await supabase
+      .from("expenses")
+      .select(
+        `
+        *,
+        profiles!inner (
+          full_name
+        )
+      `
+      )
+      .eq("org_id", orgId)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as (Expense & { profiles: { full_name: string } })[],
+      error: null,
+    };
+  },
+
+  /**
+   * Get all expenses for an organization (admin only)
+   */
+  getByOrg: async (orgId: string) => {
+    const { data, error } = await supabase
+      .from("expenses")
+      .select(
+        `
+        *,
+        profiles!inner (
+          full_name
+        )
+      `
+      )
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as (Expense & { profiles: { full_name: string } })[],
+      error: null,
+    };
+  },
+
+  /**
+   * Get pending approvals for a user
+   */
+  getPendingApprovals: async (orgId: string, userId: string) => {
+    const { data, error } = await supabase
+      .from("expenses")
+      .select(
+        `
+        *,
+        profiles!inner (
+          full_name
+        )
+      `
+      )
+      .eq("org_id", orgId)
+      .eq("approver_id", userId)
+      .eq("status", "submitted")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as (Expense & { profiles: { full_name: string } })[],
+      error: null,
+    };
+  },
+
+  /**
+   * Upload a receipt file
+   */
+  uploadReceipt: async (
+    file: File,
+    userId: string,
+    orgId: string
+  ): Promise<{ path: string; error: StorageError | null }> => {
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const filePath = `${userId}/${orgId}/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from("expense-receipts")
+      .upload(filePath, file);
+
+    if (error) {
+      return { path: "", error: error };
+    }
+
+    return {
+      path: filePath,
+      error: null,
+    };
+  },
+
+  /**
+   * Get a download URL for a receipt
+   */
+  getReceiptUrl: async (
+    path: string
+  ): Promise<{ url: string; error: StorageError | null }> => {
+    const { data, error } = await supabase.storage
+      .from("expense-receipts")
+      .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+    if (error) {
+      return { url: "", error: error };
+    }
+
+    return {
+      url: data.signedUrl,
+      error: null,
+    };
+  },
+
+  /**
+   * Create a new expense with receipt
+   */
+  create: async (
+    expense: Omit<
+      Expense,
+      "id" | "status" | "policy_validations" | "created_at" | "updated_at"
+    >,
+    receiptFile?: File
+  ) => {
+    try {
+      let receipt: ReceiptInfo | null = null;
+
+      // Upload receipt if provided
+      if (receiptFile) {
+        const { path, error: uploadError } = await expenses.uploadReceipt(
+          receiptFile,
+          expense.user_id,
+          expense.org_id
+        );
+
+        if (uploadError) {
+          return {
+            data: null,
+            error: {
+              message: `Failed to upload receipt: ${uploadError.message}`,
+              details: uploadError.message,
+              hint: "Check file size and type",
+              code: "STORAGE_UPLOAD_ERROR",
+            },
+          };
+        }
+
+        receipt = {
+          filename: receiptFile.name,
+          path,
+          size: receiptFile.size,
+          mime_type: receiptFile.type,
+        };
+      }
+
+      // Create expense with receipt info
+      const { data, error } = await supabase
+        .from("expenses")
+        .insert([{ ...expense, receipt }])
+        .select()
+        .single();
+
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+
+      return {
+        data: data as Expense,
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        },
+      };
+    }
+  },
+
+  /**
+   * Update an expense
+   */
+  update: async (
+    id: string,
+    updates: Partial<
+      Omit<Expense, "id" | "org_id" | "user_id" | "created_at" | "updated_at">
+    >,
+    receiptFile?: File
+  ) => {
+    try {
+      const { data: expense } = await supabase
+        .from("expenses")
+        .select("user_id, org_id")
+        .eq("id", id)
+        .single();
+
+      if (!expense) {
+        throw new Error("Expense not found");
+      }
+
+      let receipt = updates.receipt;
+
+      // Upload new receipt if provided
+      if (receiptFile) {
+        const { path, error: uploadError } = await expenses.uploadReceipt(
+          receiptFile,
+          expense.user_id,
+          expense.org_id
+        );
+
+        if (uploadError) {
+          return {
+            data: null,
+            error: {
+              message: `Failed to upload receipt: ${uploadError.message}`,
+              details: uploadError.message,
+              hint: "Check file size and type",
+              code: "STORAGE_UPLOAD_ERROR",
+            },
+          };
+        }
+
+        receipt = {
+          filename: receiptFile.name,
+          path,
+          size: receiptFile.size,
+          mime_type: receiptFile.type,
+        };
+      }
+
+      // If status is being changed to submitted, validate the expense
+      if (updates.status === "submitted") {
+        const { data: validations } = await supabase.rpc(
+          "validate_expense_against_policies",
+          { expense_row: { ...expense, ...updates, receipt } }
+        );
+
+        if (validations?.some((v: any) => v.status === "violation")) {
+          return {
+            data: null,
+            error: {
+              message: "Expense validation failed",
+              details: validations
+                .filter((v: any) => v.status === "violation")
+                .map((v: any) => v.message)
+                .join(", "),
+              hint: "Please fix the validation errors",
+              code: "VALIDATION_ERROR",
+            },
+          };
+        }
+      }
+
+      // Update expense with new receipt info
+      const { data, error } = await supabase
+        .from("expenses")
+        .update({ ...updates, receipt })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+
+      return {
+        data: data as Expense,
+        error: null,
+      };
+    } catch (error) {
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        },
+      };
+    }
+  },
+
+  // ... rest of the expense functions ...
 };

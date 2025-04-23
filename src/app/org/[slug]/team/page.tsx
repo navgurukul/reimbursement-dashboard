@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import supabase from "@/lib/supabase";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { organizations, profiles } from "@/lib/db";
+import { invites, organizations, profiles } from "@/lib/db";
 import {
   Card,
   CardContent,
@@ -46,7 +46,9 @@ export default function TeamPage() {
   const userRole = useOrgStore((s) => s.userRole);
   const [members, setMembers] = useState<Member[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"member" | "admin">("member");
+  const [inviteRole, setInviteRole] = useState<"member" | "manager" | "admin">(
+    "member"
+  );
   const [loading, setLoading] = useState(false);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
 
@@ -106,17 +108,33 @@ export default function TeamPage() {
   // Handle invite form submission
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!org?.id || !inviteEmail) return;
-
+    if (!org?.id) return;
     setLoading(true);
+
     try {
-      // Here you would implement the invite logic
-      // For now, we'll just show a success message
-      toast.success("Invite sent successfully", {
-        description: `Invitation sent to ${inviteEmail}`,
+      const { data: inviteRow, error: inviteError } = await invites.create(
+        org.id,
+        inviteEmail,
+        inviteRole
+      );
+      if (inviteError || !inviteRow)
+        throw inviteError ?? new Error("No invite returned");
+
+      // build a link
+      const base = window.location.origin;
+      const url = `${base}/auth/signup?token=${inviteRow.id}`;
+
+      toast.success("Invite created!", {
+        description: (
+          <span>
+            Copy/paste this link to your teammate:{" "}
+            <a href={url} className="underline text-indigo-600">
+              {url}
+            </a>
+          </span>
+        ),
       });
 
-      // Reset form
       setInviteEmail("");
       setInviteRole("member");
     } catch (error: any) {
@@ -207,11 +225,16 @@ export default function TeamPage() {
                   <SelectContent>
                     <SelectGroup>
                       <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <Button type="submit" disabled={loading}>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="cursor-pointer"
+                >
                   {loading ? "Sending…" : "Send Invite"}
                 </Button>
               </div>

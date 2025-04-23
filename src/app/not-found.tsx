@@ -7,8 +7,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
+import { useOrgStore } from "@/store/useOrgStore";
 export default function NotFound() {
+  // const { organization } = useOrgStore();
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -26,9 +28,9 @@ export default function NotFound() {
             <Button asChild>
               <Link href="/">Return Home</Link>
             </Button>
-            <Button variant="outline" asChild>
-              <Link href="/org">Go to Organizations</Link>
-            </Button>
+            {/* <Button variant="outline" asChild>
+              <Link href={`/org/${organization?.slug}`}>Go to Dashboard</Link>
+            </Button> */}
           </div>
         </CardContent>
       </Card>

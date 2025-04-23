@@ -1,114 +1,84 @@
+// app/page.tsx (or wherever your landing page lives)
+
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store/useAuthStore";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { organizations } from "@/lib/db";
-import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useOrgStore } from "@/store/useOrgStore";
+import { useState, useEffect } from "react";
+import { profiles, Profile } from "@/lib/db";
 
-export default function Home() {
-  const { user, logout, refreshUser, isLoading } = useAuthStore();
-  const [checkedAuth, setCheckedAuth] = useState(false);
+export default function Hero() {
+  const { user, logout } = useAuthStore();
+  const { organization } = useOrgStore();
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      await refreshUser();
-      setCheckedAuth(true);
+    const loadProfile = async () => {
+      if (!user) return;
+      const { data, error } = await profiles.getByUserId(user.id);
+      if (error || !data) return;
+      setProfile(data as Profile);
     };
-
-    initializeAuth();
-  }, [refreshUser]);
-
-  // useEffect(() => {
-  //   const runChecks = async () => {
-  //     if (!checkedAuth || isLoading) return;
-
-  //     if (!user) {
-  //       router.push("/auth/signin");
-  //       return;
-  //     }
-
-  //     // If user exists, check organization membership
-  //     const { data, error } = await organizations.checkMembership(user.id);
-
-  //     if (error) {
-  //       console.error("Error checking org membership:", error.message);
-  //       toast.error("Error checking organization membership", {
-  //         description: "Please try refreshing the page.",
-  //       });
-  //       return;
-  //     }
-
-  //     if (!data) {
-  //       router.push("/create-organization");
-  //     }
-  //   };
-
-  //   runChecks();
-  // }, [user, isLoading, checkedAuth, router]);
-
-  // const handleSignOut = async () => {
-  //   try {
-  //     const loadingToast = toast.loading("Signing you out...");
-  //     await logout();
-  //     toast.dismiss(loadingToast);
-  //     toast.success("Signed out successfully", {
-  //       description: "You have been signed out of your account.",
-  //     });
-  //     router.push("/auth/signin");
-  //   } catch (error: any) {
-  //     console.error("Error signing out:", error.message);
-  //     toast.error("Error signing out", {
-  //       description: "Please try again.",
-  //     });
-  //   }
-  // };
-
-  if (isLoading || !checkedAuth) {
-    return <Spinner />;
-  }
+    loadProfile();
+  }, [user]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Welcome to Your Dashboard</CardTitle>
-          <CardDescription>You are signed in as {user?.email}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Avatar>
-                <AvatarFallback>
-                  {user?.email?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="text-sm font-medium">{user?.email}</p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-            </div>
-            <Link href="/auth/signin">Sign In</Link>
+    <main className="relative min-h-screen bg-gradient-to-b from-background to-muted flex items-center">
+      {/* Top‑right dynamic nav */}
+      <header className="absolute top-0 inset-x-0 flex justify-end p-6">
+        {user && (
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              className="cursor-pointer"
+              size="sm"
+              onClick={() => logout()}
+            >
+              Sign Out
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </header>
+
+      {/* Hero content */}
+      <div className="container mx-auto px-6 py-16 text-center space-y-6">
+        <h1 className="text-4xl lg:text-5xl font-extrabold">
+          {user
+            ? `Welcome back, ${profile?.full_name || user.email}`
+            : "Simplify Your Expense Reimbursements"}
+        </h1>
+        <p className="text-lg text-muted-foreground mx-auto">
+          {user
+            ? "Manage your expenses and reimbursements with ease."
+            : "Upload bills, generate vouchers, and get manager approvals — all in one sleek dashboard."}
+        </p>
+        {!user ? (
+          <div className="flex justify-center gap-4">
+            <Button asChild size="lg">
+              <Link href="/auth/signup">Get Started</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/auth/signin">Sign In</Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="flex justify-center gap-4">
+            <Button asChild size="lg">
+              <Link
+                href={
+                  organization
+                    ? `/org/${organization.slug}`
+                    : "/create-organization"
+                }
+              >
+                {organization ? "Go to Dashboard" : "Create Organization"}
+              </Link>
+            </Button>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
