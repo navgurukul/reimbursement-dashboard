@@ -61,6 +61,11 @@ export function AppSidebar() {
       icon: Receipt,
     },
     { title: "Team", href: `/org/${organization?.slug}/team`, icon: Users },
+    {
+      title: "Policies",
+      href: `/org/${organization?.slug}/policies`,
+      icon: Users,
+    },
   ];
 
   const adminRoutes = {
