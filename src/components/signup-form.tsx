@@ -28,7 +28,8 @@ export function SignupForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [invite, setInvite] = useState<InviteRow | null>(null);
-
+  const { syncExternalAuth } = useAuthStore.getState();
+  
   // Load invite if present
   useEffect(() => {
     if (!token) return;
@@ -103,6 +104,7 @@ export function SignupForm({
         toast.success("Account created! Check your email.");
         router.push("/auth/signin");
       }
+      await syncExternalAuth(userId);
     } catch (err: any) {
       toast.dismiss(toastId);
       setError(err.message || "Something went wrong.");
