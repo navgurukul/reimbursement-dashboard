@@ -3,6 +3,7 @@ const nextConfig = {
   images: {
     domains: ["avatars.githubusercontent.com"],
   },
+  devIndicators: false,
   async rewrites() {
     return {
       beforeFiles: [
