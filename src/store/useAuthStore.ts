@@ -19,6 +19,7 @@ interface AuthState {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  syncExternalAuth: (userId: string) => Promise<void>;
 }
 
 const { resetOrg } = useOrgStore.getState();
@@ -77,7 +78,16 @@ export const useAuthStore = create<AuthState>()(
 
           set({
             user: data.user,
-            profile: null, // Profile will be fetched on next login
+            profile: data.user
+              ? {
+                  id: data.user.id,
+                  user_id: data.user.id,
+                  email: email,
+                  full_name: name,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                }
+              : null,
             isLoading: false,
           });
         } catch (err: any) {
@@ -136,6 +146,41 @@ export const useAuthStore = create<AuthState>()(
           set({ profile: profileData as Profile, isLoading: false });
         } catch (err: any) {
           set({ error: err.message, isLoading: false });
+        }
+      },
+
+      syncExternalAuth: async (userId: string) => {
+        set({ isLoading: true });
+        try {
+          // Get the current user from Supabase
+          const { data: userData } = await auth.getUser();
+
+          // Sync the user data
+          set({ user: userData.user });
+
+          // Get and sync profile data
+          if (userData.user) {
+            const { data: profileData, error: profileError } =
+              await profiles.getByUserId(userData.user.id);
+
+            if (!profileError && profileData) {
+              set({ profile: profileData as Profile, isLoading: false });
+            } else {
+              // Create a minimal profile if not found
+              set({
+                profile: {
+                  id: userData.user.id,
+                  user_id: userData.user.id,
+                  email: userData.user.email || "",
+                  // Add any other required fields
+                } as Profile,
+                isLoading: false,
+              });
+            }
+          }
+        } catch (err: any) {
+          console.error("Error syncing auth:", err);
+          set({ isLoading: false, error: err.message });
         }
       },
     }),

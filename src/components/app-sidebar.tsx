@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useOrgStore } from "@/store/useOrgStore";
@@ -32,10 +33,21 @@ import {
 export function AppSidebar() {
   const pathname = usePathname();
   const { organization, userRole } = useOrgStore();
-  const { profile, logout } = useAuthStore();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isAdmin = userRole === "owner" || userRole === "admin";
+
+ const { profile, user, refreshProfile, logout } = useAuthStore();
+  
+  // Get email from multiple possible sources
+  const userEmail = profile?.email || user?.email || user?.user_metadata?.email || "";
+  const userName = profile?.full_name || userEmail.split('@')[0] || "?";
+
+   useEffect(() => {
+     if (user && !profile) {
+       refreshProfile();
+     }
+   }, [user, profile, refreshProfile]);
 
   const handleSignOut = async () => {
     try {
@@ -124,11 +136,9 @@ export function AppSidebar() {
                 {/* )} */}
               </Avatar>
               <div className="flex-1 text-left">
-                <p className="text-sm font-medium leading-none">
-                  {profile?.full_name ?? profile?.email}
-                </p>
+                <p className="text-sm font-medium leading-none">{userName}</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  {profile?.email}
+                  {userEmail}
                 </p>
               </div>
               <ChevronsUpDownIcon className="h-3 w-3 " aria-hidden />
