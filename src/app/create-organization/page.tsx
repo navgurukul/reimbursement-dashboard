@@ -48,6 +48,7 @@ export default function CreateOrganizationPage() {
   const { user } = useAuthStore();
   const { organization, setOrganization, setUserRole } = useOrgStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -82,6 +83,17 @@ export default function CreateOrganizationPage() {
           // User has an organization, set it as active
           setOrganization(membership.organizations);
           setUserRole(membership.role as "owner" | "admin" | "member");
+
+          // If the user already has an organization, redirect to their dashboard
+          const isLocal =
+            window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1";
+
+          if (isLocal) {
+            router.push(`/org/${membership.organizations.slug}`);
+          } else {
+            window.location.href = `https://${membership.organizations.slug}.yourdomain.com/`;
+          }
         }
       } catch (err) {
         console.error("Error checking user organization:", err);
@@ -91,9 +103,7 @@ export default function CreateOrganizationPage() {
     };
 
     checkUserOrganization();
-  }, [user, organization, setOrganization, setUserRole]);
-
-  ///////////////////////////////
+  }, [user, organization, setOrganization, setUserRole, router]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
@@ -104,9 +114,13 @@ export default function CreateOrganizationPage() {
       return;
     }
 
-    try {
-      const loadingToast = toast.loading("Creating your organization...");
+    // Prevent double submission
+    if (isSubmitting) return;
 
+    setIsSubmitting(true);
+    const loadingToast = toast.loading("Creating your organization...");
+
+    try {
       const { organizationName, subdomain } = values;
 
       // 1) Create organization
@@ -114,11 +128,13 @@ export default function CreateOrganizationPage() {
         organizationName,
         subdomain
       );
+
       if (orgError || !orgData) {
+        toast.dismiss(loadingToast);
         toast.error("Failed to create organization", {
           description: orgError?.message || "Please try again.",
         });
-        toast.dismiss(loadingToast);
+        setIsSubmitting(false);
         return;
       }
 
@@ -128,33 +144,44 @@ export default function CreateOrganizationPage() {
         user.id,
         "owner"
       );
+
       if (linkError) {
+        toast.dismiss(loadingToast);
         toast.error("Failed to set up organization", {
           description: linkError.message,
         });
-        toast.dismiss(loadingToast);
+        setIsSubmitting(false);
         return;
       }
 
-      // 3) Success + redirect
+      // 3) Update local state with new organization
+      setOrganization(orgData);
+      setUserRole("owner");
+
+      // 4) Success message
       toast.dismiss(loadingToast);
       toast.success("Organization created successfully!", {
         description: "Redirecting to your dashboard…",
       });
 
-      const isLocal =
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1";
+      // 5) Delay redirect to ensure state updates and API calls complete
+      setTimeout(() => {
+        const isLocal =
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1";
 
-      if (isLocal) {
-        router.push(`/org/${orgData.slug}`);
-      } else {
-        window.location.href = `https://${orgData.slug}.yourdomain.com/`;
-      }
+        if (isLocal) {
+          router.push(`/org/${orgData.slug}`);
+        } else {
+          window.location.href = `https://${orgData.slug}.yourdomain.com/`;
+        }
+      }, 1000); // 1 second delay for state to settle and toast to be visible
     } catch (err: any) {
+      toast.dismiss(loadingToast);
       toast.error("Something went wrong", {
-        description: err.message,
+        description: err.message || "Please try again later.",
       });
+      setIsSubmitting(false);
     }
   }
 
@@ -194,7 +221,11 @@ export default function CreateOrganizationPage() {
                   <FormItem>
                     <FormLabel>Organization Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Acme Inc." {...field} />
+                      <Input
+                        placeholder="Acme Inc."
+                        {...field}
+                        disabled={isSubmitting}
+                      />
                     </FormControl>
                     <FormDescription>
                       Your organization's display name.
@@ -211,7 +242,11 @@ export default function CreateOrganizationPage() {
                     <FormLabel>Subdomain</FormLabel>
                     <FormControl>
                       <div className="flex items-center">
-                        <Input placeholder="acme" {...field} />
+                        <Input
+                          placeholder="acme"
+                          {...field}
+                          disabled={isSubmitting}
+                        />
                         <span className="ml-2 text-muted-foreground">
                           .yourdomain.com
                         </span>
@@ -225,8 +260,12 @@ export default function CreateOrganizationPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full cursor-pointer">
-                Create Organization
+              <Button
+                type="submit"
+                className="w-full cursor-pointer"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Creating..." : "Create Organization"}
               </Button>
             </form>
           </Form>
