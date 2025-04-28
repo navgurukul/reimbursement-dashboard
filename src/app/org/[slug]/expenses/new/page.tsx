@@ -90,7 +90,7 @@ export default function NewExpensePage() {
           });
           return;
         }
-
+        console.log("Settings:", settings);
         if (settings) {
           setColumns(settings.expense_columns || []);
 
