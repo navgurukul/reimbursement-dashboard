@@ -23,6 +23,7 @@ import { ArrowLeft, Save, Upload } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations } from "@/lib/db";
+import { defaultExpenseColumns } from "@/lib/defaults";
 
 interface Column {
   key: string;
@@ -53,17 +54,68 @@ export default function NewExpensePage() {
   const orgId = organization?.id!;
   const slug = params.slug as string;
 
+  // Define default columns with the same structure as in SettingsPage
+  const defaultColumns: Column[] = [
+    { key: "date", label: "Date", type: "date", visible: true, required: true },
+    {
+      key: "category",
+      label: "Category",
+      type: "dropdown",
+      visible: true,
+      options: [],
+      required: true,
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      type: "number",
+      visible: true,
+      required: true,
+    },
+    {
+      key: "description",
+      label: "Description",
+      type: "textarea",
+      visible: true,
+      required: true,
+    },
+    {
+      key: "receipt",
+      label: "Receipt",
+      type: "file",
+      visible: true,
+      required: true,
+    },
+    {
+      key: "approver",
+      label: "Approver",
+      type: "dropdown",
+      visible: true,
+      options: [],
+      required: true,
+    },
+  ];
+
+  // Add this state for tracking client-side mounting
+  const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  // const [approvers, setApprovers] = useState
+  //   { id: string; full_name: string }[]
+  // >([]);
   const [approvers, setApprovers] = useState<
     { id: string; full_name: string }[]
   >([]);
 
-  // Fetch organization settings and approvers
+  // Add this effect to track when component is mounted on client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   useEffect(() => {
     async function fetchData() {
       if (!orgId) return;
@@ -77,26 +129,35 @@ export default function NewExpensePage() {
           organizations.getOrganizationMembers(orgId),
         ]);
 
-        if (settingsError) {
-          toast.error("Failed to load organization settings", {
-            description: settingsError.message,
-          });
-          return;
-        }
-
-        if (membersError) {
-          toast.error("Failed to load organization members", {
-            description: membersError.message,
-          });
-          return;
-        }
-
-        if (settings) {
-          setColumns(settings.expense_columns || []);
+        // If there's a settings error OR settings is null, use default columns
+        if (settingsError || !settings) {
+          console.log("No settings found, using defaults");
+          setColumns(defaultExpenseColumns);
 
           // Initialize form data with default values
           const initialData: Record<string, any> = {};
-          settings.expense_columns.forEach((col: any) => {
+          defaultExpenseColumns.forEach((col) => {
+            if (col.visible) {
+              initialData[col.key] = "";
+            }
+          });
+
+          // Set default date to today
+          initialData.date = new Date().toISOString().split("T")[0];
+
+          setFormData(initialData);
+        } else {
+          // Original logic when settings exist
+          const columnsToUse =
+            settings.expense_columns && settings.expense_columns.length > 0
+              ? settings.expense_columns
+              : defaultExpenseColumns;
+
+          setColumns(columnsToUse);
+
+          // Initialize form data with default values
+          const initialData: Record<string, any> = {};
+          columnsToUse.forEach((col: any) => {
             if (col.visible) {
               initialData[col.key] = "";
             }
@@ -108,7 +169,7 @@ export default function NewExpensePage() {
           setFormData(initialData);
         }
 
-        // Filter members to get only admins and owners
+        // Handle member/approver loading
         if (members) {
           const approverList = members
             .filter((m) => m.role === "admin" || m.role === "owner")
@@ -121,6 +182,19 @@ export default function NewExpensePage() {
       } catch (error) {
         console.error("Error fetching data:", error);
         toast.error("An unexpected error occurred");
+
+        // Fall back to defaults even in case of unexpected errors
+        setColumns(defaultExpenseColumns);
+
+        const initialData: Record<string, any> = {};
+        defaultExpenseColumns.forEach((col) => {
+          if (col.visible) {
+            initialData[col.key] = "";
+          }
+        });
+
+        initialData.date = new Date().toISOString().split("T")[0];
+        setFormData(initialData);
       } finally {
         setLoading(false);
       }
@@ -217,7 +291,8 @@ export default function NewExpensePage() {
     }
   };
 
-  if (loading) {
+  // Update loading check to include isMounted
+  if (loading || !isMounted) {
     return (
       <div className="flex items-center justify-center h-64">
         <Spinner size="lg" />
@@ -252,7 +327,7 @@ export default function NewExpensePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>New Expense</CardTitle>
+          <CardTitle>New Expense </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -468,7 +543,7 @@ export default function NewExpensePage() {
                     <SelectValue placeholder="Select an approver" />
                   </SelectTrigger>
                   <SelectContent>
-                    {approvers.map((approver) => (
+                    {approvers.map((approver: any) => (
                       <SelectItem key={approver.id} value={approver.id}>
                         {approver.full_name}
                       </SelectItem>
@@ -477,38 +552,6 @@ export default function NewExpensePage() {
                 </Select>
               </div>
             )}
-
-            {/* Receipt upload section */}
-            <div className="space-y-2">
-              <Label htmlFor="receipt">Receipt</Label>
-              <div className="flex items-center space-x-2">
-                <Input
-                  id="receipt"
-                  type="file"
-                  onChange={handleFileChange}
-                  accept="image/*,.pdf"
-                />
-                <Button type="button" variant="outline" disabled={!receiptFile}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload
-                </Button>
-              </div>
-              {receiptPreview && (
-                <div className="mt-2">
-                  {receiptPreview.startsWith("data:image") ? (
-                    <img
-                      src={receiptPreview}
-                      alt="Receipt preview"
-                      className="max-h-40 rounded-md"
-                    />
-                  ) : (
-                    <div className="p-2 border rounded-md">
-                      <p className="text-sm">PDF receipt selected</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </form>
         </CardContent>
       </Card>

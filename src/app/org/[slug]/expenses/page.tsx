@@ -199,7 +199,7 @@ export default function ExpensesPage() {
             <div className="flex items-center justify-between mb-4">
               <Button onClick={handleNew}>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                New Expense
+                New Expense 
               </Button>
               <div className="flex space-x-2">
                 <Button variant="outline">
@@ -258,6 +258,8 @@ export default function ExpensesPage() {
                                   ? formatCurrency(exp[c.key])
                                   : c.key === "date"
                                   ? new Date(exp[c.key]).toLocaleDateString()
+                                  : c.key === "receipt"
+                                  ? exp[c.key]?.filename || "No receipt"
                                   : exp[c.key]}
                               </TableCell>
                             ))}
