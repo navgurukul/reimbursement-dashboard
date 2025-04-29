@@ -234,70 +234,155 @@ export default function NewExpensePage() {
   };
 
   // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   setSaving(true);
 
-    try {
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
+  //   try {
+  //     if (!user?.id) {
+  //       throw new Error("User not authenticated");
+  //     }
 
-      // Prepare expense data
-      const expenseData: ExpenseData = {
-        org_id: orgId,
-        user_id: user.id,
-        expense_type: formData.expense_type || "Other",
-        amount: parseFloat(formData.amount) || 0,
-        date: formData.date,
-        status: "submitted",
-        receipt: null,
-        custom_fields: {},
+  //     // Prepare expense data
+  //     const expenseData: ExpenseData = {
+  //       org_id: orgId,
+  //       user_id: user.id,
+  //       expense_type: formData.expense_type || "Other",
+  //       amount: parseFloat(formData.amount) || 0,
+  //       date: formData.date,
+  //       status: "submitted",
+  //       receipt: null,
+  //       custom_fields: {},
+  //     };
+
+  //     // Add approver if selected (for admins and owners)
+  //     if (userRole !== "member" && formData.approver_id) {
+  //       expenseData.approver_id = formData.approver_id;
+  //     }
+
+  //     // Add custom fields
+  //     columns.forEach((col) => {
+  //       if (
+  //         col.visible &&
+  //         col.key !== "expense_type" &&
+  //         col.key !== "amount" &&
+  //         col.key !== "date" &&
+  //         col.key !== "approver_id"
+  //       ) {
+  //         expenseData.custom_fields[col.key] = formData[col.key];
+  //       }
+  //     });
+
+  //     // If voucher is used, add voucherData to custom_fields and skip receipt
+  //     let receiptToSend = receiptFile || undefined;
+  //     if (voucherData) {
+  //       expenseData.custom_fields.voucher = voucherData;
+  //       receiptToSend = undefined;
+  //     }
+
+  //     // Create expense with receipt if provided
+  //     const { data, error } = await expenses.create(expenseData, receiptToSend);
+
+  //     if (error) {
+  //       throw error;
+  //     }
+
+  //     toast.success("Expense created successfully");
+  //     router.push(`/org/${slug}/expenses`);
+  //   } catch (error: any) {
+  //     console.error("Error creating expense:", error);
+  //     toast.error("Failed to create expense", {
+  //       description: error.message,
+  //     });
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
+
+
+  // Replace the existing handleSubmit function in NewExpensePage.tsx
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setSaving(true);
+
+  try {
+    if (!user?.id) {
+      throw new Error("User not authenticated");
+    }
+
+    // Prepare expense data
+    const expenseData: ExpenseData = {
+      org_id: orgId,
+      user_id: user.id,
+      expense_type: formData.expense_type || "Other",
+      amount: parseFloat(formData.amount) || 0,
+      date: formData.date,
+      status: "submitted",
+      receipt: null,
+      custom_fields: {},
+    };
+
+    // Add approver if selected (for admins and owners)
+    if (userRole !== "member" && formData.approver_id) {
+      expenseData.approver_id = formData.approver_id;
+    }
+
+    // Check if this is a voucher submission
+    if (voucherModalOpen) {
+      // Add voucher details to custom_fields
+      expenseData.custom_fields = {
+        isVoucher: true,
+        yourName: formData.yourName,
+        voucherDate: formData.voucherDate || formData.date,
+        voucherAmount: parseFloat(formData.voucherAmount || formData.amount),
+        purpose: formData.purpose,
+        voucherCreditPerson: formData.voucherCreditPerson
       };
-
-      // Add approver if selected (for admins and owners)
-      if (userRole !== "member" && formData.approver_id) {
-        expenseData.approver_id = formData.approver_id;
-      }
-
-      // Add custom fields
-      columns.forEach((col) => {
-        if (
-          col.visible &&
-          col.key !== "expense_type" &&
-          col.key !== "amount" &&
-          col.key !== "date" &&
-          col.key !== "approver_id"
-        ) {
-          expenseData.custom_fields[col.key] = formData[col.key];
-        }
-      });
-
-      // If voucher is used, add voucherData to custom_fields and skip receipt
-      let receiptToSend = receiptFile || undefined;
-      if (voucherData) {
-        expenseData.custom_fields.voucher = voucherData;
-        receiptToSend = undefined;
-      }
-
-      // Create expense with receipt if provided
-      const { data, error } = await expenses.create(expenseData, receiptToSend);
-
+      
+      // For vouchers, we skip receipt upload
+      const { data, error } = await expenses.create(expenseData);
+      
       if (error) {
         throw error;
       }
-
-      toast.success("Expense created successfully");
+      
+      toast.success("Voucher created successfully");
       router.push(`/org/${slug}/expenses`);
-    } catch (error: any) {
-      console.error("Error creating expense:", error);
-      toast.error("Failed to create expense", {
-        description: error.message,
-      });
-    } finally {
-      setSaving(false);
+      return;
     }
-  };
+
+    // For regular expenses with receipt
+    // Add custom fields
+    columns.forEach((col) => {
+      if (
+        col.visible &&
+        col.key !== "expense_type" &&
+        col.key !== "amount" &&
+        col.key !== "date" &&
+        col.key !== "approver_id"
+      ) {
+        expenseData.custom_fields[col.key] = formData[col.key];
+      }
+    });
+
+    // Create expense with receipt if provided
+    const { data, error } = await expenses.create(expenseData, receiptFile || undefined);
+
+    if (error) {
+      throw error;
+    }
+
+    toast.success("Expense created successfully");
+    router.push(`/org/${slug}/expenses`);
+  } catch (error: any) {
+    console.error("Error creating expense:", error);
+    toast.error("Failed to create expense", {
+      description: error.message,
+    });
+  } finally {
+    setSaving(false);
+  }
+};
 
   // Update loading check to include isMounted
   if (loading || !isMounted) {

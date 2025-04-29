@@ -145,12 +145,18 @@ export interface Expense {
   date: string;
   status: ExpenseStatus;
   receipt: ReceiptInfo | null;
-  custom_fields: Record<string, any>;
+  custom_fields: Record<string, any> & {
+    isVoucher?: boolean;
+    yourName?: string;
+    voucherDate?: string;
+    voucherAmount?: number;
+    purpose?: string;
+    voucherCreditPerson?: string;
+  };
   policy_validations: PolicyValidation[];
   approver_id?: string;
   created_at: string;
   updated_at: string;
-  
 }
 
 // Auth functions
@@ -509,32 +515,60 @@ export const expenses = {
     };
   },
 
-  /**
-   * Get all expenses for an organization (admin only)
-   */
-  getByOrg: async (orgId: string) => {
-    const { data, error } = await supabase
-      .from("expenses")
-      .select(
-        `
-        *,
-        profiles!inner (
-          full_name
-        )
+/**
+ * Get all expenses for an organization (admin only)
+ */
+getByOrg: async (orgId: string) => {
+  const { data, error } = await supabase
+    .from("expenses")
+    .select(
       `
+      *,
+      profiles!inner (
+        full_name
       )
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false });
+    `
+    )
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false });
 
-    if (error) {
-      return { data: null, error: error as DatabaseError };
-    }
+  if (error) {
+    return { data: null, error: error as DatabaseError };
+  }
 
-    return {
-      data: data as (Expense & { profiles: { full_name: string } })[],
-      error: null,
-    };
-  },
+  return {
+    data: data as (Expense & { profiles: { full_name: string } })[],
+    error: null,
+  };
+},
+ 
+getById: async (id: string) => {
+  const { data, error } = await supabase
+    .from("expenses")
+    .select(`
+      *,
+      profiles:user_id (
+        full_name
+      ),
+      approver:approver_id (
+        full_name
+      )
+    `)
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    return { data: null, error: error as DatabaseError };
+  }
+
+  return {
+    data: data as (Expense & { 
+      profiles: { full_name: string }, 
+      approver?: { full_name: string } 
+    }),
+    error: null,
+  };
+},
 
   /**
    * Get pending approvals for a user
