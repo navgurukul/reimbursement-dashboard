@@ -16,8 +16,24 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { PlusCircle, Filter, Download } from "lucide-react";
+import {
+  PlusCircle,
+  Filter,
+  Download,
+  MoreHorizontal,
+  Eye,
+  Edit,
+  Trash,
+} from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { formatDate } from "@/lib/utils";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -148,6 +164,20 @@ export default function ExpensesPage() {
     router.push(`/org/${slug}/expenses/new`);
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await expenses.delete(id);
+      if (error) throw error;
+      toast.success("Expense deleted successfully");
+      // Refresh the expenses list
+      window.location.reload();
+    } catch (error: any) {
+      toast.error("Failed to delete expense", {
+        description: error.message,
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
@@ -199,7 +229,7 @@ export default function ExpensesPage() {
             <div className="flex items-center justify-between mb-4">
               <Button onClick={handleNew}>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                New Expense 
+                New Expense
               </Button>
               <div className="flex space-x-2">
                 <Button variant="outline">
@@ -321,8 +351,3 @@ export default function ExpensesPage() {
     </div>
   );
 }
-// TODO:
-// - add filters
-// - add export
-// - add search
-// - add pagination

@@ -3,7 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses, ReceiptInfo } from "@/lib/db";
+import {
+  orgSettings,
+  expenses,
+  ReceiptInfo,
+  vouchers,
+  Expense,
+} from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,9 +30,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
-import VoucherForm from "./VoucherForm";
-// import { Switch } from "@/components/ui/switch";
 import { Switch } from "@/components/ui/switch";
+import VoucherForm from "./VoucherForm";
 
 interface Column {
   key: string;
@@ -234,155 +239,122 @@ export default function NewExpensePage() {
   };
 
   // Handle form submission
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   setSaving(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
 
-  //   try {
-  //     if (!user?.id) {
-  //       throw new Error("User not authenticated");
-  //     }
+    try {
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
 
-  //     // Prepare expense data
-  //     const expenseData: ExpenseData = {
-  //       org_id: orgId,
-  //       user_id: user.id,
-  //       expense_type: formData.expense_type || "Other",
-  //       amount: parseFloat(formData.amount) || 0,
-  //       date: formData.date,
-  //       status: "submitted",
-  //       receipt: null,
-  //       custom_fields: {},
-  //     };
+      if (!params.slug) {
+        throw new Error("Organization slug is required");
+      }
 
-  //     // Add approver if selected (for admins and owners)
-  //     if (userRole !== "member" && formData.approver_id) {
-  //       expenseData.approver_id = formData.approver_id;
-  //     }
+      if (Array.isArray(params.slug)) {
+        throw new Error("Organization slug must be a string");
+      }
 
-  //     // Add custom fields
-  //     columns.forEach((col) => {
-  //       if (
-  //         col.visible &&
-  //         col.key !== "expense_type" &&
-  //         col.key !== "amount" &&
-  //         col.key !== "date" &&
-  //         col.key !== "approver_id"
-  //       ) {
-  //         expenseData.custom_fields[col.key] = formData[col.key];
-  //       }
-  //     });
+      const orgSlug: string = params.slug;
 
-  //     // If voucher is used, add voucherData to custom_fields and skip receipt
-  //     let receiptToSend = receiptFile || undefined;
-  //     if (voucherData) {
-  //       expenseData.custom_fields.voucher = voucherData;
-  //       receiptToSend = undefined;
-  //     }
+      if (!organization) {
+        throw new Error("Organization not found");
+      }
 
-  //     // Create expense with receipt if provided
-  //     const { data, error } = await expenses.create(expenseData, receiptToSend);
-
-  //     if (error) {
-  //       throw error;
-  //     }
-
-  //     toast.success("Expense created successfully");
-  //     router.push(`/org/${slug}/expenses`);
-  //   } catch (error: any) {
-  //     console.error("Error creating expense:", error);
-  //     toast.error("Failed to create expense", {
-  //       description: error.message,
-  //     });
-  //   } finally {
-  //     setSaving(false);
-  //   }
-  // };
-
-
-  // Replace the existing handleSubmit function in NewExpensePage.tsx
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setSaving(true);
-
-  try {
-    if (!user?.id) {
-      throw new Error("User not authenticated");
-    }
-
-    // Prepare expense data
-    const expenseData: ExpenseData = {
-      org_id: orgId,
-      user_id: user.id,
-      expense_type: formData.expense_type || "Other",
-      amount: parseFloat(formData.amount) || 0,
-      date: formData.date,
-      status: "submitted",
-      receipt: null,
-      custom_fields: {},
-    };
-
-    // Add approver if selected (for admins and owners)
-    if (userRole !== "member" && formData.approver_id) {
-      expenseData.approver_id = formData.approver_id;
-    }
-
-    // Check if this is a voucher submission
-    if (voucherModalOpen) {
-      // Add voucher details to custom_fields
-      expenseData.custom_fields = {
-        isVoucher: true,
-        yourName: formData.yourName,
-        voucherDate: formData.voucherDate || formData.date,
-        voucherAmount: parseFloat(formData.voucherAmount || formData.amount),
-        purpose: formData.purpose,
-        voucherCreditPerson: formData.voucherCreditPerson
+      // Create base expense data
+      const baseExpenseData = {
+        org_id: organization.id,
+        user_id: user.id,
+        status: "submitted" as const,
+        receipt: null,
+        amount: voucherModalOpen
+          ? parseFloat(formData.voucherAmount || "0")
+          : parseFloat(formData.amount || "0"),
+        expense_type: (formData.expense_type as string) || "Other",
+        date: new Date(formData.date).toISOString(),
+        custom_fields: {} as Record<string, any>,
       };
-      
-      // For vouchers, we skip receipt upload
-      const { data, error } = await expenses.create(expenseData);
-      
+
+      // If it's a voucher submission
+      if (voucherModalOpen) {
+        // Create expense record first
+        const { data: expenseData, error: expenseError } =
+          await expenses.create(baseExpenseData);
+
+        if (expenseError) {
+          toast.error("Failed to create expense");
+          return;
+        }
+
+        if (!expenseData) {
+          toast.error("No expense data returned");
+          return;
+        }
+
+        // Then create voucher record
+        const voucherData = {
+          expense_id: expenseData.id,
+          your_name: formData.yourName,
+          amount: parseFloat(formData.voucherAmount || "0"),
+          purpose: formData.purpose,
+          credit_person: formData.voucherCreditPerson,
+          signature_url: formData.signature_url,
+          manager_signature_url: formData.manager_signature_url,
+        };
+
+        const { error: voucherError } = await vouchers.create(voucherData);
+
+        if (voucherError) {
+          toast.error("Failed to create voucher");
+          return;
+        }
+
+        toast.success("Voucher submitted successfully");
+        router.push(`/org/${params.slug}/expenses`);
+        return;
+      }
+
+      // For regular expenses with receipt
+      const regularExpensePayload = {
+        ...baseExpenseData,
+        custom_fields: {} as Record<string, any>,
+      };
+
+      // Add custom fields for regular expense
+      columns.forEach((col) => {
+        if (
+          col.visible &&
+          col.key !== "expense_type" &&
+          col.key !== "amount" &&
+          col.key !== "date" &&
+          col.key !== "approver_id"
+        ) {
+          regularExpensePayload.custom_fields[col.key] = formData[col.key];
+        }
+      });
+
+      // Create regular expense with receipt
+      const { data, error } = await expenses.create(
+        regularExpensePayload,
+        receiptFile || undefined
+      );
+
       if (error) {
         throw error;
       }
-      
-      toast.success("Voucher created successfully");
+
+      toast.success("Expense created successfully");
       router.push(`/org/${slug}/expenses`);
-      return;
+    } catch (error: any) {
+      console.error("Error creating expense:", error);
+      toast.error("Failed to create expense", {
+        description: error.message,
+      });
+    } finally {
+      setSaving(false);
     }
-
-    // For regular expenses with receipt
-    // Add custom fields
-    columns.forEach((col) => {
-      if (
-        col.visible &&
-        col.key !== "expense_type" &&
-        col.key !== "amount" &&
-        col.key !== "date" &&
-        col.key !== "approver_id"
-      ) {
-        expenseData.custom_fields[col.key] = formData[col.key];
-      }
-    });
-
-    // Create expense with receipt if provided
-    const { data, error } = await expenses.create(expenseData, receiptFile || undefined);
-
-    if (error) {
-      throw error;
-    }
-
-    toast.success("Expense created successfully");
-    router.push(`/org/${slug}/expenses`);
-  } catch (error: any) {
-    console.error("Error creating expense:", error);
-    toast.error("Failed to create expense", {
-      description: error.message,
-    });
-  } finally {
-    setSaving(false);
-  }
-};
+  };
 
   // Update loading check to include isMounted
   if (loading || !isMounted) {
@@ -623,33 +595,9 @@ const handleSubmit = async (e: React.FormEvent) => {
               );
             })}
 
-            {/* Add approver selection for admins and owners */}
-            {userRole !== "member" && (
-              <div className="space-y-2">
-                <Label htmlFor="approver">Assign to Approver</Label>
-                <Select
-                  value={formData.approver_id}
-                  onValueChange={(value) =>
-                    handleInputChange("approver_id", value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an approver" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {approvers.map((approver: any) => (
-                      <SelectItem key={approver.id} value={approver.id}>
-                        {approver.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             {/* Receipt section */}
             <div className="space-y-4">
-              <div className="p-4 bg-white rounded-lg border">
+              <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
                 <div className="flex items-center space-x-2">
                   <span className="text-gray-500">
                     <svg
@@ -695,49 +643,49 @@ const handleSubmit = async (e: React.FormEvent) => {
                   >
                     No receipt? Create a voucher instead
                   </Label>
-                  <div className="flex-1" />
-                  <Switch
-                    checked={voucherModalOpen}
-                    onCheckedChange={setVoucherModalOpen}
-                    id="voucher-switch"
-                  />
                 </div>
-
-                {voucherModalOpen ? (
-                  <VoucherForm
-                    formData={formData}
-                    onInputChange={handleInputChange}
-                  />
-                ) : (
-                  <div className="mt-4">
-                    <Label htmlFor="receipt" className="text-sm font-medium">
-                      Receipt <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="receipt"
-                      type="file"
-                      onChange={handleFileChange}
-                      accept="image/*,.pdf"
-                      className="mt-1"
-                    />
-                    {receiptPreview && (
-                      <div className="mt-2">
-                        {receiptPreview.startsWith("data:image") ? (
-                          <img
-                            src={receiptPreview}
-                            alt="Receipt preview"
-                            className="max-h-40 rounded-md"
-                          />
-                        ) : (
-                          <div className="p-2 border rounded-md">
-                            <p className="text-sm">PDF receipt selected</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                <Switch
+                  checked={voucherModalOpen}
+                  onCheckedChange={setVoucherModalOpen}
+                  id="voucher-switch"
+                />
               </div>
+
+              {voucherModalOpen ? (
+                <VoucherForm
+                  formData={formData}
+                  onInputChange={handleInputChange}
+                  userRole={userRole}
+                />
+              ) : (
+                <div className="mt-4">
+                  <Label htmlFor="receipt" className="text-sm font-medium">
+                    Receipt <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="receipt"
+                    type="file"
+                    onChange={handleFileChange}
+                    accept="image/*,.pdf"
+                    className="mt-1"
+                  />
+                  {receiptPreview && (
+                    <div className="mt-2">
+                      {receiptPreview.startsWith("data:image") ? (
+                        <img
+                          src={receiptPreview}
+                          alt="Receipt preview"
+                          className="max-h-40 rounded-md"
+                        />
+                      ) : (
+                        <div className="p-2 border rounded-md">
+                          <p className="text-sm">PDF receipt selected</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </form>
         </CardContent>

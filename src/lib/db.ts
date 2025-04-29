@@ -159,6 +159,19 @@ export interface Expense {
   updated_at: string;
 }
 
+export interface Voucher {
+  id: string;
+  expense_id: string;
+  your_name: string;
+  created_at: string;
+  amount: number;
+  purpose: string;
+  credit_person: string;
+  signature_url?: string;
+  manager_signature_url?: string;
+  updated_at: string;
+}
+
 // Auth functions
 export const auth = {
   signIn: async (email: string, password: string) => {
@@ -515,37 +528,38 @@ export const expenses = {
     };
   },
 
-/**
- * Get all expenses for an organization (admin only)
- */
-getByOrg: async (orgId: string) => {
-  const { data, error } = await supabase
-    .from("expenses")
-    .select(
-      `
+  /**
+   * Get all expenses for an organization (admin only)
+   */
+  getByOrg: async (orgId: string) => {
+    const { data, error } = await supabase
+      .from("expenses")
+      .select(
+        `
       *,
       profiles!inner (
         full_name
       )
     `
-    )
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: false });
+      )
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    return { data: null, error: error as DatabaseError };
-  }
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
 
-  return {
-    data: data as (Expense & { profiles: { full_name: string } })[],
-    error: null,
-  };
-},
- 
-getById: async (id: string) => {
-  const { data, error } = await supabase
-    .from("expenses")
-    .select(`
+    return {
+      data: data as (Expense & { profiles: { full_name: string } })[],
+      error: null,
+    };
+  },
+
+  getById: async (id: string) => {
+    const { data, error } = await supabase
+      .from("expenses")
+      .select(
+        `
       *,
       profiles:user_id (
         full_name
@@ -553,22 +567,23 @@ getById: async (id: string) => {
       approver:approver_id (
         full_name
       )
-    `)
-    .eq("id", id)
-    .single();
+    `
+      )
+      .eq("id", id)
+      .single();
 
-  if (error) {
-    return { data: null, error: error as DatabaseError };
-  }
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
 
-  return {
-    data: data as (Expense & { 
-      profiles: { full_name: string }, 
-      approver?: { full_name: string } 
-    }),
-    error: null,
-  };
-},
+    return {
+      data: data as Expense & {
+        profiles: { full_name: string };
+        approver?: { full_name: string };
+      },
+      error: null,
+    };
+  },
 
   /**
    * Get pending approvals for a user
@@ -817,5 +832,112 @@ getById: async (id: string) => {
     }
   },
 
+  /**
+   * Delete an expense by ID
+   */
+  delete: async (id: string) => {
+    const { error } = await supabase.from("expenses").delete().eq("id", id);
+
+    return {
+      data: null,
+      error,
+    };
+  },
+
   // ... rest of the expense functions ...
+};
+
+// Vouchers functions
+export const vouchers = {
+  create: async (
+    data: Omit<
+      Voucher,
+      | "id"
+      | "created_at"
+      | "updated_at"
+      | "signature_url"
+      | "manager_signature_url"
+    >
+  ) => {
+    try {
+      const { data: response, error } = await supabase
+        .from("vouchers")
+        .insert([
+          {
+            expense_id: data.expense_id,
+            your_name: data.your_name,
+            amount: data.amount,
+            purpose: data.purpose,
+            credit_person: data.credit_person,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Voucher creation error:", error);
+        return {
+          data: null,
+          error,
+        };
+      }
+
+      return {
+        data: response,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Unexpected error:", error);
+      return {
+        data: null,
+        error,
+      };
+    }
+  },
+
+  /**
+   * Get a voucher by expense ID
+   */
+  getByExpenseId: async (expenseId: string) => {
+    const { data, error } = await supabase
+      .from("vouchers")
+      .select("*")
+      .eq("expense_id", expenseId)
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as Voucher,
+      error: null,
+    };
+  },
+
+  /**
+   * Update a voucher
+   */
+  update: async (
+    id: string,
+    updates: Partial<
+      Omit<Voucher, "id" | "expense_id" | "created_at" | "updated_at">
+    >
+  ) => {
+    const { data, error } = await supabase
+      .from("vouchers")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as Voucher,
+      error: null,
+    };
+  },
 };
