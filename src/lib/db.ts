@@ -150,6 +150,7 @@ export interface Expense {
   approver_id?: string;
   created_at: string;
   updated_at: string;
+  
 }
 
 // Auth functions

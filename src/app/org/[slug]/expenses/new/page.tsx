@@ -24,6 +24,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
+import VoucherForm from "./VoucherForm";
+// import { Switch } from "@/components/ui/switch";
+import { Switch } from "@/components/ui/switch";
 
 interface Column {
   key: string;
@@ -104,12 +107,13 @@ export default function NewExpensePage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  // const [approvers, setApprovers] = useState
-  //   { id: string; full_name: string }[]
-  // >([]);
   const [approvers, setApprovers] = useState<
     { id: string; full_name: string }[]
   >([]);
+
+  // Add state for voucher modal and data
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+  const [voucherData, setVoucherData] = useState(null);
 
   // Add this effect to track when component is mounted on client
   useEffect(() => {
@@ -269,11 +273,15 @@ export default function NewExpensePage() {
         }
       });
 
+      // If voucher is used, add voucherData to custom_fields and skip receipt
+      let receiptToSend = receiptFile || undefined;
+      if (voucherData) {
+        expenseData.custom_fields.voucher = voucherData;
+        receiptToSend = undefined;
+      }
+
       // Create expense with receipt if provided
-      const { data, error } = await expenses.create(
-        expenseData,
-        receiptFile || undefined
-      );
+      const { data, error } = await expenses.create(expenseData, receiptToSend);
 
       if (error) {
         throw error;
@@ -333,6 +341,7 @@ export default function NewExpensePage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {columns.map((col) => {
               if (!col.visible) return null;
+              if (col.key === "receipt") return null;
 
               return (
                 <div key={col.key} className="space-y-2">
@@ -552,6 +561,99 @@ export default function NewExpensePage() {
                 </Select>
               </div>
             )}
+
+            {/* Receipt section */}
+            <div className="space-y-4">
+              <div className="p-4 bg-white rounded-lg border">
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-500">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M20 6C20 4.89543 19.1046 4 18 4H6C4.89543 4 4 4.89543 4 6V18C4 19.1046 4.89543 20 6 20H18C19.1046 20 20 19.1046 20 18V6Z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M8 12H16"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M8 8H16"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M8 16H12"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <Label
+                    htmlFor="voucher-switch"
+                    className="text-base font-medium"
+                  >
+                    No receipt? Create a voucher instead
+                  </Label>
+                  <div className="flex-1" />
+                  <Switch
+                    checked={voucherModalOpen}
+                    onCheckedChange={setVoucherModalOpen}
+                    id="voucher-switch"
+                  />
+                </div>
+
+                {voucherModalOpen ? (
+                  <VoucherForm
+                    formData={formData}
+                    onInputChange={handleInputChange}
+                  />
+                ) : (
+                  <div className="mt-4">
+                    <Label htmlFor="receipt" className="text-sm font-medium">
+                      Receipt <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="receipt"
+                      type="file"
+                      onChange={handleFileChange}
+                      accept="image/*,.pdf"
+                      className="mt-1"
+                    />
+                    {receiptPreview && (
+                      <div className="mt-2">
+                        {receiptPreview.startsWith("data:image") ? (
+                          <img
+                            src={receiptPreview}
+                            alt="Receipt preview"
+                            className="max-h-40 rounded-md"
+                          />
+                        ) : (
+                          <div className="p-2 border rounded-md">
+                            <p className="text-sm">PDF receipt selected</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </form>
         </CardContent>
       </Card>
