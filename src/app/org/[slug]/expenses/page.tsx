@@ -248,37 +248,74 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      getCurrent().map((exp) => (
-                        <TableRow key={exp.id}>
-                          {columns
-                            .filter((c) => c.visible)
-                            .map((c) => (
-                              <TableCell key={c.key}>
-                                {c.key === "amount"
-                                  ? formatCurrency(exp[c.key])
-                                  : c.key === "date"
-                                  ? new Date(exp[c.key]).toLocaleDateString()
-                                  : exp[c.key]}
-                              </TableCell>
-                            ))}
-                          <TableCell>
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs ${
-                                exp.status === "approved"
-                                  ? "bg-green-100 text-green-800"
-                                  : exp.status === "rejected"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-amber-100 text-amber-800"
-                              }`}
-                            >
-                              {exp.status.charAt(0).toUpperCase() +
-                                exp.status.slice(1)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="space-x-2">
-                            {/* My tab */}
-                            {activeTab === "my" && (
-                              <>
+                      getCurrent().map((exp) => {
+                        console.log("Expense data:", exp);
+                        console.log("Receipt data:", exp.receipt);
+                        return (
+                          <TableRow key={exp.id}>
+                            {columns
+                              .filter((c) => c.visible)
+                              .map((c) => (
+                                <TableCell key={c.key}>
+                                  {c.key === "amount" ? (
+                                    formatCurrency(exp[c.key])
+                                  ) : c.key === "date" ? (
+                                    new Date(exp[c.key]).toLocaleDateString()
+                                  ) : // Need to handle when exp[c.key] is an object (like receipt)
+                                  typeof exp[c.key] === "object" &&
+                                    exp[c.key] !== null ? (
+                                    c.key === "receipt" ? (
+                                      exp.receipt ? (
+                                        <Button
+                                          variant="link"
+                                          size="sm"
+                                          onClick={() => {
+                                            if (exp.receipt?.path) {
+                                              expenses
+                                                .getReceiptUrl(exp.receipt.path)
+                                                .then(({ url, error }) => {
+                                                  if (error) {
+                                                    console.error(
+                                                      "Error getting receipt URL:",
+                                                      error
+                                                    );
+                                                    toast.error(
+                                                      "Failed to load receipt"
+                                                    );
+                                                  } else if (url) {
+                                                    window.open(url, "_blank");
+                                                  }
+                                                });
+                                            }
+                                          }}
+                                        >
+                                          View Receipt
+                                        </Button>
+                                      ) : null
+                                    ) : (
+                                      JSON.stringify(exp[c.key])
+                                    )
+                                  ) : (
+                                    exp[c.key]
+                                  )}
+                                </TableCell>
+                              ))}
+                            <TableCell>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs ${
+                                  exp.status === "approved"
+                                    ? "bg-green-100 text-green-800"
+                                    : exp.status === "rejected"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {exp.status.charAt(0).toUpperCase() +
+                                  exp.status.slice(1)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-2">
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -303,11 +340,11 @@ export default function ExpensesPage() {
                                     Edit
                                   </Button>
                                 )}
-                              </>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>

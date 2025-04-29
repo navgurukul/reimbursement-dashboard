@@ -481,6 +481,33 @@ export const orgSettings = {
 // Expenses functions
 export const expenses = {
   /**
+   * Get an expense by ID
+   */
+  getById: async (id: string) => {
+    const { data, error } = await supabase
+      .from("expenses")
+      .select(
+        `
+        *,
+        profiles!inner (
+          full_name
+        )
+      `
+      )
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as Expense & { profiles: { full_name: string } },
+      error: null,
+    };
+  },
+
+  /**
    * Get all expenses for a user in an organization
    */
   getByOrgAndUser: async (orgId: string, userId: string) => {
@@ -690,14 +717,37 @@ export const expenses = {
     receiptFile?: File
   ) => {
     try {
-      const { data: expense } = await supabase
+      // First check if expense exists
+      const { data: existingExpense, error: fetchError } = await supabase
         .from("expenses")
         .select("user_id, org_id")
         .eq("id", id)
         .single();
 
-      if (!expense) {
-        throw new Error("Expense not found");
+      if (fetchError) {
+        console.error("Error fetching expense:", fetchError);
+        return {
+          data: null,
+          error: {
+            message: "Error checking expense existence",
+            details: fetchError.message,
+            hint: "Check the expense ID and try again",
+            code: "FETCH_ERROR",
+          },
+        };
+      }
+
+      if (!existingExpense) {
+        console.error("Expense not found with ID:", id);
+        return {
+          data: null,
+          error: {
+            message: "Expense not found",
+            details: `No expense found with ID: ${id}`,
+            hint: "Check the expense ID and try again",
+            code: "EXPENSE_NOT_FOUND",
+          },
+        };
       }
 
       let receipt = updates.receipt;
@@ -706,11 +756,12 @@ export const expenses = {
       if (receiptFile) {
         const { path, error: uploadError } = await expenses.uploadReceipt(
           receiptFile,
-          expense.user_id,
-          expense.org_id
+          existingExpense.user_id,
+          existingExpense.org_id
         );
 
         if (uploadError) {
+          console.error("Error uploading receipt:", uploadError);
           return {
             data: null,
             error: {
@@ -730,30 +781,7 @@ export const expenses = {
         };
       }
 
-      // If status is being changed to submitted, validate the expense
-      if (updates.status === "submitted") {
-        const { data: validations } = await supabase.rpc(
-          "validate_expense_against_policies",
-          { expense_row: { ...expense, ...updates, receipt } }
-        );
-
-        if (validations?.some((v: any) => v.status === "violation")) {
-          return {
-            data: null,
-            error: {
-              message: "Expense validation failed",
-              details: validations
-                .filter((v: any) => v.status === "violation")
-                .map((v: any) => v.message)
-                .join(", "),
-              hint: "Please fix the validation errors",
-              code: "VALIDATION_ERROR",
-            },
-          };
-        }
-      }
-
-      // Update expense with new receipt info
+      // Update the expense
       const { data, error } = await supabase
         .from("expenses")
         .update({ ...updates, receipt })
@@ -762,7 +790,29 @@ export const expenses = {
         .single();
 
       if (error) {
-        return { data: null, error: error as DatabaseError };
+        console.error("Error updating expense:", error);
+        return {
+          data: null,
+          error: {
+            message: error.message,
+            details: error.details || "Unknown error occurred",
+            hint: error.hint || "Check your input and try again",
+            code: error.code || "UNKNOWN_ERROR",
+          },
+        };
+      }
+
+      if (!data) {
+        console.error("No data returned after update for ID:", id);
+        return {
+          data: null,
+          error: {
+            message: "Update failed",
+            details: "No data returned after update operation",
+            hint: "Check the expense ID and try again",
+            code: "UPDATE_FAILED",
+          },
+        };
       }
 
       return {
@@ -770,6 +820,7 @@ export const expenses = {
         error: null,
       };
     } catch (error) {
+      console.error("Unexpected error in update:", error);
       return {
         data: null,
         error: {
