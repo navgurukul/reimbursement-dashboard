@@ -35,6 +35,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/utils";
 
+const defaultExpenseColumns = [
+  { key: "date", label: "Date", visible: true },
+  { key: "category", label: "Category", visible: true },
+  { key: "amount", label: "Amount", visible: true },
+  { key: "description", label: "Description", visible: true },
+  { key: "receipt", label: "Receipt", visible: true },
+  { key: "approver", label: "Approver", visible: true },
+];
+
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -86,8 +95,11 @@ export default function ExpensesPage() {
       const { data: s, error: se } = await orgSettings.getByOrgId(orgId);
       if (se) {
         toast.error("Failed to load settings", { description: se.message });
+        setColumns(defaultExpenseColumns);
       } else {
-        setColumns(s?.expense_columns ?? []);
+        // Safely handle the case where settings or expense_columns might be undefined
+        const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+        setColumns(expenseColumns);
       }
 
       // 2) load expenses per role
@@ -284,13 +296,49 @@ export default function ExpensesPage() {
                             .filter((c) => c.visible)
                             .map((c) => (
                               <TableCell key={c.key}>
-                                {c.key === "amount"
-                                  ? formatCurrency(exp[c.key])
-                                  : c.key === "date"
-                                  ? new Date(exp[c.key]).toLocaleDateString()
-                                  : c.key === "receipt"
-                                  ? exp[c.key]?.filename || "No receipt"
-                                  : exp[c.key]}
+                                {c.key === "amount" ? (
+                                  formatCurrency(exp[c.key])
+                                ) : c.key === "date" ? (
+                                  formatDate(exp[c.key])
+                                ) : c.key === "receipt" ? (
+                                  exp.receipt ? (
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="p-0 h-auto font-normal"
+                                      onClick={() => {
+                                        if (exp.receipt?.path) {
+                                          expenses
+                                            .getReceiptUrl(exp.receipt.path)
+                                            .then(({ url, error }) => {
+                                              if (error) {
+                                                console.error(
+                                                  "Error getting receipt URL:",
+                                                  error
+                                                );
+                                                toast.error(
+                                                  "Failed to load receipt"
+                                                );
+                                              } else if (url) {
+                                                window.open(url, "_blank");
+                                              }
+                                            });
+                                        }
+                                      }}
+                                    >
+                                      View Receipt
+                                    </Button>
+                                  ) : (
+                                    "No receipt"
+                                  )
+                                ) : c.key === "approver" ? (
+                                  exp.approver?.full_name || "—"
+                                ) : typeof exp[c.key] === "object" &&
+                                  exp[c.key] !== null ? (
+                                  JSON.stringify(exp[c.key])
+                                ) : (
+                                  exp[c.key] || "—"
+                                )}
                               </TableCell>
                             ))}
                           <TableCell>
@@ -307,36 +355,42 @@ export default function ExpensesPage() {
                                 exp.status.slice(1)}
                             </span>
                           </TableCell>
-                          <TableCell className="space-x-2">
-                            {/* My tab */}
-                            {activeTab === "my" && (
-                              <>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  router.push(`/org/${slug}/expenses/${exp.id}`)
+                                }
+                              >
+                                View
+                              </Button>
+                              {exp.status === "submitted" && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   onClick={() =>
                                     router.push(
-                                      `/org/${slug}/expenses/${exp.id}`
+                                      `/org/${slug}/expenses/${exp.id}/edit`
                                     )
                                   }
                                 >
-                                  View
+                                  Edit
                                 </Button>
-                                {exp.status === "submitted" && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() =>
-                                      router.push(
-                                        `/org/${slug}/expenses/${exp.id}/edit`
-                                      )
-                                    }
-                                  >
-                                    Edit
-                                  </Button>
-                                )}
-                              </>
-                            )}
+                              )}
+                              {(userRole === "admin" ||
+                                userRole === "owner") && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-600"
+                                  onClick={() => handleDelete(exp.id)}
+                                >
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))

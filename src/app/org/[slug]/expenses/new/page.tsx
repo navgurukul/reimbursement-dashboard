@@ -138,24 +138,21 @@ export default function NewExpensePage() {
           organizations.getOrganizationMembers(orgId),
         ]);
 
-        // If there's a settings error OR settings is null, use default columns
-        if (settingsError || !settings) {
-          console.log("No settings found, using defaults");
-          setColumns(defaultExpenseColumns);
-
-          // Initialize form data with default values
-          const initialData: Record<string, any> = {};
-          defaultExpenseColumns.forEach((col) => {
-            if (col.visible) {
-              initialData[col.key] = "";
-            }
+        if (settingsError) {
+          toast.error("Failed to load organization settings", {
+            description: settingsError.message,
           });
+          return;
+        }
 
-          // Set default date to today
-          initialData.date = new Date().toISOString().split("T")[0];
-
-          setFormData(initialData);
-        } else {
+        if (membersError) {
+          toast.error("Failed to load organization members", {
+            description: membersError.message,
+          });
+          return;
+        }
+        console.log("Settings:", settings);
+        if (settings) {
           // Original logic when settings exist
           const columnsToUse =
             settings.expense_columns && settings.expense_columns.length > 0
@@ -167,6 +164,22 @@ export default function NewExpensePage() {
           // Initialize form data with default values
           const initialData: Record<string, any> = {};
           columnsToUse.forEach((col: any) => {
+            if (col.visible) {
+              initialData[col.key] = "";
+            }
+          });
+
+          // Set default date to today
+          initialData.date = new Date().toISOString().split("T")[0];
+
+          setFormData(initialData);
+        } else {
+          // When no settings exist, use default columns
+          setColumns(defaultExpenseColumns);
+
+          // Initialize form data with default values
+          const initialData: Record<string, any> = {};
+          defaultExpenseColumns.forEach((col) => {
             if (col.visible) {
               initialData[col.key] = "";
             }
