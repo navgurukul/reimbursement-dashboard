@@ -248,38 +248,51 @@ export default function NewExpensePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto py-8">
-      <div className="flex items-center justify-between">
+    <div className="max-w-[800px] mx-auto py-6">
+      <div className="flex items-center justify-between mb-6">
         <Button
           variant="ghost"
           onClick={() => router.push(`/org/${slug}/expenses`)}
-          className="flex items-center gap-2"
+          className="text-gray-600 hover:text-gray-900"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Expenses
         </Button>
         <Button
           onClick={handleSubmit}
           disabled={saving}
-          className="flex items-center gap-2 bg-primary text-white hover:bg-primary/90"
+          className="bg-black text-white hover:bg-black/90"
         >
           {saving ? (
             <>
-              <Spinner className="h-4 w-4" />
+              <Spinner className="mr-2 h-4 w-4" />
               Saving...
             </>
           ) : (
             <>
-              <Save className="h-4 w-4" />
+              <svg
+                className="mr-2 h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 17H19V7H5V17H7M7 21H17V13H7V21Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
               Save Expense
             </>
           )}
         </Button>
       </div>
 
-      <Card className="shadow-lg">
-        <CardHeader className="bg-gray-50/50">
-          <CardTitle className="text-xl font-semibold">New Expense</CardTitle>
+      <Card className="shadow-sm">
+        <CardHeader className="border-b">
+          <CardTitle className="text-lg font-medium">New Expense</CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -288,10 +301,13 @@ export default function NewExpensePage() {
 
               return (
                 <div key={col.key} className="space-y-2">
-                  <Label htmlFor={col.key} className="text-sm font-medium">
+                  <Label
+                    htmlFor={col.key}
+                    className="text-sm font-medium text-gray-700"
+                  >
                     {col.label}
                     {col.required && (
-                      <span className="text-red-500 ml-1">*</span>
+                      <span className="text-red-500 ml-1 text-sm">*</span>
                     )}
                   </Label>
 
@@ -348,7 +364,7 @@ export default function NewExpensePage() {
                   {col.type === "dropdown" && col.options && (
                     <Select
                       value={formData[col.key] || ""}
-                      onValueChange={(value) =>
+                      onValueChange={(value: string) =>
                         handleInputChange(col.key, value)
                       }
                     >
@@ -356,17 +372,25 @@ export default function NewExpensePage() {
                         <SelectValue placeholder="Select an option" />
                       </SelectTrigger>
                       <SelectContent>
-                        {col.options.map((option) => {
-                          const value =
-                            typeof option === "string" ? option : option.value;
-                          const label =
-                            typeof option === "string" ? option : option.label;
-                          return (
-                            <SelectItem key={value} value={value}>
-                              {label}
-                            </SelectItem>
-                          );
-                        })}
+                        {col.options.map(
+                          (
+                            option: string | { value: string; label: string }
+                          ) => {
+                            const value =
+                              typeof option === "string"
+                                ? option
+                                : option.value;
+                            const label =
+                              typeof option === "string"
+                                ? option
+                                : option.label;
+                            return (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            );
+                          }
+                        )}
                       </SelectContent>
                     </Select>
                   )}
@@ -375,50 +399,26 @@ export default function NewExpensePage() {
             })}
 
             <div className="space-y-4">
-              <div className="p-4 bg-white rounded-lg border">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-500">
-                      <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M20 6C20 4.89543 19.1046 4 18 4H6C4.89543 4 4 4.89543 4 6V18C4 19.1046 4.89543 20 6 20H18C19.1046 20 20 19.1046 20 18V6Z"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M8 12H16"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M8 8H16"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M8 16H12"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </span>
+              <div className="p-4 bg-gray-50/50 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <svg
+                      className="h-5 w-5 text-gray-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                     <Label
                       htmlFor="voucher-switch"
-                      className="text-base font-medium"
+                      className="text-sm font-medium text-gray-900"
                     >
                       No receipt? Create a voucher instead
                     </Label>
@@ -431,20 +431,20 @@ export default function NewExpensePage() {
                 </div>
 
                 {!voucherModalOpen && (
-                  <div>
+                  <div className="mt-4">
                     <Label
                       htmlFor="receipt"
                       className="text-sm font-medium text-gray-700"
                     >
                       Receipt <span className="text-red-500 ml-0.5">*</span>
                     </Label>
-                    <div className="mt-1">
+                    <div className="mt-2">
                       <Input
                         id="receipt"
                         type="file"
                         onChange={handleFileChange}
                         accept="image/*,.pdf"
-                        className="w-[500px] cursor-pointer border-gray-300 rounded-md shadow-sm text-gray-600"
+                        className="w-full cursor-pointer border-gray-200"
                       />
                       <div className="text-sm text-gray-500 mt-1">
                         {receiptFile ? receiptFile.name : "No file chosen"}
@@ -459,7 +459,7 @@ export default function NewExpensePage() {
                             className="max-h-40 rounded-md border"
                           />
                         ) : (
-                          <div className="p-4 bg-gray-50 rounded-md border">
+                          <div className="p-3 bg-gray-50 rounded-md border">
                             <p className="text-sm text-gray-600">
                               PDF receipt selected
                             </p>
