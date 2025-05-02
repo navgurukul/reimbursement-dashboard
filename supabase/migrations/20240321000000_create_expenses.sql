@@ -67,6 +67,7 @@ create table public.expenses (
   receipt receipt_info,
   custom_fields jsonb not null default '{}'::jsonb,
   policy_validations jsonb[] not null default array[]::jsonb[],
+  approver_id uuid references auth.users(id) on delete set null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );

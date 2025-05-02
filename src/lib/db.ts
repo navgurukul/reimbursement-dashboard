@@ -145,10 +145,30 @@ export interface Expense {
   date: string;
   status: ExpenseStatus;
   receipt: ReceiptInfo | null;
-  custom_fields: Record<string, any>;
+  custom_fields: Record<string, any> & {
+    isVoucher?: boolean;
+    yourName?: string;
+    voucherDate?: string;
+    voucherAmount?: number;
+    purpose?: string;
+    voucherCreditPerson?: string;
+  };
   policy_validations: PolicyValidation[];
   approver_id?: string;
   created_at: string;
+  updated_at: string;
+}
+
+export interface Voucher {
+  id: string;
+  expense_id: string;
+  your_name: string;
+  created_at: string;
+  amount: number;
+  purpose: string;
+  credit_person: string;
+  signature_url?: string;
+  manager_signature_url?: string;
   updated_at: string;
 }
 
@@ -489,7 +509,10 @@ export const expenses = {
       .select(
         `
         *,
-        profiles!inner (
+        creator:profiles!user_id (
+          full_name
+        ),
+        approver:profiles(
           full_name
         )
       `
@@ -502,7 +525,10 @@ export const expenses = {
     }
 
     return {
-      data: data as Expense & { profiles: { full_name: string } },
+      data: data as Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      },
       error: null,
     };
   },
@@ -516,7 +542,10 @@ export const expenses = {
       .select(
         `
         *,
-        profiles!inner (
+        creator:profiles!user_id (
+          full_name
+        ),
+        approver:profiles(
           full_name
         )
       `
@@ -530,7 +559,10 @@ export const expenses = {
     }
 
     return {
-      data: data as (Expense & { profiles: { full_name: string } })[],
+      data: data as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
       error: null,
     };
   },
@@ -544,7 +576,10 @@ export const expenses = {
       .select(
         `
         *,
-        profiles!inner (
+        creator:profiles!user_id (
+          full_name
+        ),
+        approver:profiles(
           full_name
         )
       `
@@ -557,7 +592,10 @@ export const expenses = {
     }
 
     return {
-      data: data as (Expense & { profiles: { full_name: string } })[],
+      data: data as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
       error: null,
     };
   },
@@ -571,7 +609,10 @@ export const expenses = {
       .select(
         `
         *,
-        profiles!inner (
+        creator:profiles!user_id (
+          full_name
+        ),
+        approver:profiles(
           full_name
         )
       `
@@ -586,7 +627,10 @@ export const expenses = {
     }
 
     return {
-      data: data as (Expense & { profiles: { full_name: string } })[],
+      data: data as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
       error: null,
     };
   },
@@ -678,10 +722,21 @@ export const expenses = {
         };
       }
 
-      // Create expense with receipt info
+      // Get approver_id from custom_fields if it exists
+      const approver_id = expense.custom_fields?.approver || null;
+      delete expense.custom_fields.approver; // Remove from custom_fields since we're using it directly
+
+      // Create expense with receipt info and approver_id
       const { data, error } = await supabase
         .from("expenses")
-        .insert([{ ...expense, receipt }])
+        .insert([
+          {
+            ...expense,
+            receipt,
+            approver_id,
+            status: "submitted", // Set initial status
+          },
+        ])
         .select()
         .single();
 
@@ -833,5 +888,112 @@ export const expenses = {
     }
   },
 
+  /**
+   * Delete an expense by ID
+   */
+  delete: async (id: string) => {
+    const { error } = await supabase.from("expenses").delete().eq("id", id);
+
+    return {
+      data: null,
+      error,
+    };
+  },
+
   // ... rest of the expense functions ...
+};
+
+// Vouchers functions
+export const vouchers = {
+  create: async (
+    data: Omit<
+      Voucher,
+      | "id"
+      | "created_at"
+      | "updated_at"
+      | "signature_url"
+      | "manager_signature_url"
+    >
+  ) => {
+    try {
+      const { data: response, error } = await supabase
+        .from("vouchers")
+        .insert([
+          {
+            expense_id: data.expense_id,
+            your_name: data.your_name,
+            amount: data.amount,
+            purpose: data.purpose,
+            credit_person: data.credit_person,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Voucher creation error:", error);
+        return {
+          data: null,
+          error,
+        };
+      }
+
+      return {
+        data: response,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Unexpected error:", error);
+      return {
+        data: null,
+        error,
+      };
+    }
+  },
+
+  /**
+   * Get a voucher by expense ID
+   */
+  getByExpenseId: async (expenseId: string) => {
+    const { data, error } = await supabase
+      .from("vouchers")
+      .select("*")
+      .eq("expense_id", expenseId)
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as Voucher,
+      error: null,
+    };
+  },
+
+  /**
+   * Update a voucher
+   */
+  update: async (
+    id: string,
+    updates: Partial<
+      Omit<Voucher, "id" | "expense_id" | "created_at" | "updated_at">
+    >
+  ) => {
+    const { data, error } = await supabase
+      .from("vouchers")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as Voucher,
+      error: null,
+    };
+  },
 };

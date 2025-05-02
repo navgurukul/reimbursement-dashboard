@@ -467,7 +467,7 @@ export default function SettingsPage() {
       <TabsContent value="columns">
         <Card>
           <CardHeader>
-            <CardTitle>Expense Columns</CardTitle>
+            <CardTitle>Expense Columns </CardTitle>
             <CardDescription>
               Configure columns and field types for the expense form
             </CardDescription>

@@ -3,7 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses, ReceiptInfo } from "@/lib/db";
+import {
+  orgSettings,
+  expenses,
+  ReceiptInfo,
+  vouchers,
+  Expense,
+} from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +29,9 @@ import { ArrowLeft, Save, Upload } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations } from "@/lib/db";
+import { defaultExpenseColumns } from "@/lib/defaults";
+import { Switch } from "@/components/ui/switch";
+import VoucherForm from "./VoucherForm";
 
 interface Column {
   key: string;
@@ -53,70 +62,59 @@ export default function NewExpensePage() {
   const orgId = organization?.id!;
   const slug = params.slug as string;
 
+  const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [approvers, setApprovers] = useState<
-    { id: string; full_name: string }[]
-  >([]);
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false);
 
-  // Fetch organization settings and approvers
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   useEffect(() => {
     async function fetchData() {
       if (!orgId) return;
 
       try {
-        const [
-          { data: settings, error: settingsError },
-          { data: members, error: membersError },
-        ] = await Promise.all([
-          orgSettings.getByOrgId(orgId),
-          organizations.getOrganizationMembers(orgId),
-        ]);
+        const { data: settings, error: settingsError } =
+          await orgSettings.getByOrgId(orgId);
 
         if (settingsError) {
-          toast.error("Failed to load organization settings", {
-            description: settingsError.message,
-          });
+          toast.error("Failed to load organization settings");
           return;
         }
 
-        if (membersError) {
-          toast.error("Failed to load organization members", {
-            description: membersError.message,
-          });
-          return;
-        }
-        console.log("Settings:", settings);
         if (settings) {
-          setColumns(settings.expense_columns || []);
+          const columnsToUse =
+            settings.expense_columns && settings.expense_columns.length > 0
+              ? settings.expense_columns
+              : defaultExpenseColumns;
 
-          // Initialize form data with default values
+          setColumns(columnsToUse);
+
           const initialData: Record<string, any> = {};
-          settings.expense_columns.forEach((col: any) => {
+          columnsToUse.forEach((col: any) => {
             if (col.visible) {
               initialData[col.key] = "";
             }
           });
 
-          // Set default date to today
           initialData.date = new Date().toISOString().split("T")[0];
-
           setFormData(initialData);
-        }
-
-        // Filter members to get only admins and owners
-        if (members) {
-          const approverList = members
-            .filter((m) => m.role === "admin" || m.role === "owner")
-            .map((m) => ({
-              id: m.user_id,
-              full_name: m.full_name || m.user_id,
-            }));
-          setApprovers(approverList);
+        } else {
+          setColumns(defaultExpenseColumns);
+          const initialData: Record<string, any> = {};
+          defaultExpenseColumns.forEach((col) => {
+            if (col.visible) {
+              initialData[col.key] = "";
+            }
+          });
+          initialData.date = new Date().toISOString().split("T")[0];
+          setFormData(initialData);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -129,14 +127,11 @@ export default function NewExpensePage() {
     fetchData();
   }, [orgId]);
 
-  // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setReceiptFile(file);
-
-    // Create preview URL
     const reader = new FileReader();
     reader.onloadend = () => {
       setReceiptPreview(reader.result as string);
@@ -144,7 +139,6 @@ export default function NewExpensePage() {
     reader.readAsDataURL(file);
   };
 
-  // Handle form input changes
   const handleInputChange = (
     key: string,
     value: string | number | boolean | string[]
@@ -155,57 +149,85 @@ export default function NewExpensePage() {
     }));
   };
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
 
     try {
-      if (!user?.id) {
-        throw new Error("User not authenticated");
+      if (!user?.id || !organization) {
+        throw new Error("Missing required data");
       }
 
-      // Prepare expense data
-      const expenseData: ExpenseData = {
-        org_id: orgId,
+      const baseExpenseData = {
+        org_id: organization.id,
         user_id: user.id,
-        expense_type: formData.expense_type || "Other",
-        amount: parseFloat(formData.amount) || 0,
-        date: formData.date,
-        status: "submitted",
+        status: "submitted" as const,
         receipt: null,
+        amount: voucherModalOpen
+          ? parseFloat(formData.voucherAmount || "0")
+          : parseFloat(formData.amount || "0"),
+        expense_type: (formData.expense_type as string) || "Other",
+        date: new Date(formData.date).toISOString(),
         custom_fields: {},
       };
 
-      // Add approver if selected (for admins and owners)
-      if (userRole !== "member" && formData.approver_id) {
-        expenseData.approver_id = formData.approver_id;
-      }
+      if (voucherModalOpen) {
+        const { data: expenseData, error: expenseError } =
+          await expenses.create(baseExpenseData);
 
-      // Add custom fields
-      columns.forEach((col) => {
-        if (
-          col.visible &&
-          col.key !== "expense_type" &&
-          col.key !== "amount" &&
-          col.key !== "date" &&
-          col.key !== "approver_id"
-        ) {
-          expenseData.custom_fields[col.key] = formData[col.key];
+        if (expenseError || !expenseData) {
+          toast.error("Failed to create expense");
+          return;
         }
-      });
 
-      // Create expense with receipt if provided
-      const { data, error } = await expenses.create(
-        expenseData,
-        receiptFile || undefined
-      );
+        const voucherData = {
+          expense_id: expenseData.id,
+          your_name: formData.yourName,
+          amount: parseFloat(formData.voucherAmount || "0"),
+          purpose: formData.purpose,
+          credit_person: formData.voucherCreditPerson,
+          signature_url: formData.signature_url,
+          manager_signature_url: formData.manager_signature_url,
+        };
 
-      if (error) {
-        throw error;
+        const { error: voucherError } = await vouchers.create(voucherData);
+
+        if (voucherError) {
+          toast.error("Failed to create voucher");
+          return;
+        }
+
+        toast.success("Voucher submitted successfully");
+      } else {
+        const regularExpensePayload = {
+          ...baseExpenseData,
+          custom_fields: {} as Record<string, any>,
+        };
+
+        columns.forEach((col) => {
+          if (
+            col.visible &&
+            col.key !== "expense_type" &&
+            col.key !== "amount" &&
+            col.key !== "date" &&
+            col.key !== "approver_id"
+          ) {
+            regularExpensePayload.custom_fields[col.key] = formData[col.key];
+          }
+        });
+
+        const { error } = await expenses.create(
+          regularExpensePayload,
+          receiptFile || undefined
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        toast.success("Expense created successfully");
       }
 
-      toast.success("Expense created successfully");
       router.push(`/org/${slug}/expenses`);
     } catch (error: any) {
       console.error("Error creating expense:", error);
@@ -217,7 +239,7 @@ export default function NewExpensePage() {
     }
   };
 
-  if (loading) {
+  if (loading || !isMounted) {
     return (
       <div className="flex items-center justify-center h-64">
         <Spinner size="lg" />
@@ -226,16 +248,21 @@ export default function NewExpensePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-[800px] mx-auto py-6">
+      <div className="flex items-center justify-between mb-6">
         <Button
           variant="ghost"
           onClick={() => router.push(`/org/${slug}/expenses`)}
+          className="text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Expenses
         </Button>
-        <Button onClick={handleSubmit} disabled={saving}>
+        <Button
+          onClick={handleSubmit}
+          disabled={saving}
+          className="bg-black text-white hover:bg-black/90"
+        >
           {saving ? (
             <>
               <Spinner className="mr-2 h-4 w-4" />
@@ -243,28 +270,44 @@ export default function NewExpensePage() {
             </>
           ) : (
             <>
-              <Save className="mr-2 h-4 w-4" />
+              <svg
+                className="mr-2 h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 17H19V7H5V17H7M7 21H17V13H7V21Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
               Save Expense
             </>
           )}
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>New Expense</CardTitle>
+      <Card className="shadow-sm">
+        <CardHeader className="border-b">
+          <CardTitle className="text-lg font-medium">New Expense</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {columns.map((col) => {
-              if (!col.visible) return null;
+              if (!col.visible || col.key === "receipt") return null;
 
               return (
                 <div key={col.key} className="space-y-2">
-                  <Label htmlFor={col.key}>
+                  <Label
+                    htmlFor={col.key}
+                    className="text-sm font-medium text-gray-700"
+                  >
                     {col.label}
                     {col.required && (
-                      <span className="text-red-500 ml-1">*</span>
+                      <span className="text-red-500 ml-1 text-sm">*</span>
                     )}
                   </Label>
 
@@ -276,6 +319,7 @@ export default function NewExpensePage() {
                         handleInputChange(col.key, e.target.value)
                       }
                       required={col.required}
+                      className="w-full"
                     />
                   )}
 
@@ -288,6 +332,7 @@ export default function NewExpensePage() {
                         handleInputChange(col.key, parseFloat(e.target.value))
                       }
                       required={col.required}
+                      className="w-full"
                     />
                   )}
 
@@ -300,6 +345,7 @@ export default function NewExpensePage() {
                         handleInputChange(col.key, e.target.value)
                       }
                       required={col.required}
+                      className="w-full"
                     />
                   )}
 
@@ -311,6 +357,7 @@ export default function NewExpensePage() {
                         handleInputChange(col.key, e.target.value)
                       }
                       required={col.required}
+                      className="w-full min-h-[100px]"
                     />
                   )}
 
@@ -321,7 +368,7 @@ export default function NewExpensePage() {
                         handleInputChange(col.key, value)
                       }
                     >
-                      <SelectTrigger id={col.key}>
+                      <SelectTrigger id={col.key} className="w-full">
                         <SelectValue placeholder="Select an option" />
                       </SelectTrigger>
                       <SelectContent>
@@ -347,166 +394,89 @@ export default function NewExpensePage() {
                       </SelectContent>
                     </Select>
                   )}
-
-                  {col.type === "radio" && col.options && (
-                    <RadioGroup
-                      value={formData[col.key] || ""}
-                      onValueChange={(value: string) =>
-                        handleInputChange(col.key, value)
-                      }
-                    >
-                      {col.options.map(
-                        (option: string | { value: string; label: string }) => {
-                          const value =
-                            typeof option === "string" ? option : option.value;
-                          const label =
-                            typeof option === "string" ? option : option.label;
-                          return (
-                            <div
-                              key={value}
-                              className="flex items-center space-x-2"
-                            >
-                              <RadioGroupItem
-                                value={value}
-                                id={`${col.key}-${value}`}
-                              />
-                              <Label htmlFor={`${col.key}-${value}`}>
-                                {label}
-                              </Label>
-                            </div>
-                          );
-                        }
-                      )}
-                    </RadioGroup>
-                  )}
-
-                  {col.type === "checkbox" && col.options && (
-                    <div className="space-y-2">
-                      {col.options.map(
-                        (option: string | { value: string; label: string }) => {
-                          const value =
-                            typeof option === "string" ? option : option.value;
-                          const label =
-                            typeof option === "string" ? option : option.label;
-                          return (
-                            <div
-                              key={value}
-                              className="flex items-center space-x-2"
-                            >
-                              <Checkbox
-                                id={`${col.key}-${value}`}
-                                checked={(formData[col.key] || []).includes(
-                                  value
-                                )}
-                                onCheckedChange={(checked) => {
-                                  const currentValues = formData[col.key] || [];
-                                  if (checked) {
-                                    handleInputChange(col.key, [
-                                      ...currentValues,
-                                      value,
-                                    ]);
-                                  } else {
-                                    handleInputChange(
-                                      col.key,
-                                      currentValues.filter(
-                                        (v: string) => v !== value
-                                      )
-                                    );
-                                  }
-                                }}
-                              />
-                              <Label htmlFor={`${col.key}-${value}`}>
-                                {label}
-                              </Label>
-                            </div>
-                          );
-                        }
-                      )}
-                    </div>
-                  )}
-
-                  {col.type === "file" && (
-                    <div className="space-y-2">
-                      <Input
-                        id={col.key}
-                        type="file"
-                        onChange={handleFileChange}
-                        accept="image/*,.pdf"
-                      />
-                      {receiptPreview && (
-                        <div className="mt-2">
-                          {receiptPreview.startsWith("data:image") ? (
-                            <img
-                              src={receiptPreview}
-                              alt="Receipt preview"
-                              className="max-h-40 rounded-md"
-                            />
-                          ) : (
-                            <div className="p-2 border rounded-md">
-                              <p className="text-sm">PDF receipt selected</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })}
 
-            {/* Add approver selection for admins and owners */}
-            {userRole !== "member" && (
-              <div className="space-y-2">
-                <Label htmlFor="approver">Assign to Approver</Label>
-                <Select
-                  value={formData.approver_id}
-                  onValueChange={(value) =>
-                    handleInputChange("approver_id", value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an approver" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {approvers.map((approver) => (
-                      <SelectItem key={approver.id} value={approver.id}>
-                        {approver.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Receipt upload section */}
-            <div className="space-y-2">
-              <Label htmlFor="receipt">Receipt</Label>
-              <div className="flex items-center space-x-2">
-                <Input
-                  id="receipt"
-                  type="file"
-                  onChange={handleFileChange}
-                  accept="image/*,.pdf"
-                />
-                <Button type="button" variant="outline" disabled={!receiptFile}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload
-                </Button>
-              </div>
-              {receiptPreview && (
-                <div className="mt-2">
-                  {receiptPreview.startsWith("data:image") ? (
-                    <img
-                      src={receiptPreview}
-                      alt="Receipt preview"
-                      className="max-h-40 rounded-md"
-                    />
-                  ) : (
-                    <div className="p-2 border rounded-md">
-                      <p className="text-sm">PDF receipt selected</p>
-                    </div>
-                  )}
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50/50 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <svg
+                      className="h-5 w-5 text-gray-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <Label
+                      htmlFor="voucher-switch"
+                      className="text-sm font-medium text-gray-900"
+                    >
+                      No receipt? Create a voucher instead
+                    </Label>
+                  </div>
+                  <Switch
+                    checked={voucherModalOpen}
+                    onCheckedChange={setVoucherModalOpen}
+                    id="voucher-switch"
+                  />
                 </div>
+
+                {!voucherModalOpen && (
+                  <div className="mt-4">
+                    <Label
+                      htmlFor="receipt"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Receipt <span className="text-red-500 ml-0.5">*</span>
+                    </Label>
+                    <div className="mt-2">
+                      <Input
+                        id="receipt"
+                        type="file"
+                        onChange={handleFileChange}
+                        accept="image/*,.pdf"
+                        className="w-full cursor-pointer border-gray-200"
+                      />
+                      <div className="text-sm text-gray-500 mt-1">
+                        {receiptFile ? receiptFile.name : "No file chosen"}
+                      </div>
+                    </div>
+                    {receiptPreview && (
+                      <div className="mt-2">
+                        {receiptPreview.startsWith("data:image") ? (
+                          <img
+                            src={receiptPreview}
+                            alt="Receipt preview"
+                            className="max-h-40 rounded-md border"
+                          />
+                        ) : (
+                          <div className="p-3 bg-gray-50 rounded-md border">
+                            <p className="text-sm text-gray-600">
+                              PDF receipt selected
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {voucherModalOpen && (
+                <VoucherForm
+                  formData={formData}
+                  onInputChange={handleInputChange}
+                  userRole={userRole}
+                />
               )}
             </div>
           </form>

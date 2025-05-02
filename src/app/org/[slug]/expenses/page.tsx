@@ -16,8 +16,33 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { PlusCircle, Filter, Download } from "lucide-react";
+import {
+  PlusCircle,
+  Filter,
+  Download,
+  MoreHorizontal,
+  Eye,
+  Edit,
+  Trash,
+} from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { formatDate } from "@/lib/utils";
+
+const defaultExpenseColumns = [
+  { key: "date", label: "Date", visible: true },
+  { key: "category", label: "Category", visible: true },
+  { key: "amount", label: "Amount", visible: true },
+  { key: "description", label: "Description", visible: true },
+  { key: "receipt", label: "Receipt", visible: true },
+  { key: "approver", label: "Approver", visible: true },
+];
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -70,8 +95,11 @@ export default function ExpensesPage() {
       const { data: s, error: se } = await orgSettings.getByOrgId(orgId);
       if (se) {
         toast.error("Failed to load settings", { description: se.message });
+        setColumns(defaultExpenseColumns);
       } else {
-        setColumns(s?.expense_columns ?? []);
+        // Safely handle the case where settings or expense_columns might be undefined
+        const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+        setColumns(expenseColumns);
       }
 
       // 2) load expenses per role
@@ -146,6 +174,20 @@ export default function ExpensesPage() {
 
   const handleNew = () => {
     router.push(`/org/${slug}/expenses/new`);
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await expenses.delete(id);
+      if (error) throw error;
+      toast.success("Expense deleted successfully");
+      // Refresh the expenses list
+      window.location.reload();
+    } catch (error: any) {
+      toast.error("Failed to delete expense", {
+        description: error.message,
+      });
+    }
   };
 
   return (
@@ -248,103 +290,110 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      getCurrent().map((exp) => {
-                        console.log("Expense data:", exp);
-                        console.log("Receipt data:", exp.receipt);
-                        return (
-                          <TableRow key={exp.id}>
-                            {columns
-                              .filter((c) => c.visible)
-                              .map((c) => (
-                                <TableCell key={c.key}>
-                                  {c.key === "amount" ? (
-                                    formatCurrency(exp[c.key])
-                                  ) : c.key === "date" ? (
-                                    new Date(exp[c.key]).toLocaleDateString()
-                                  ) : // Need to handle when exp[c.key] is an object (like receipt)
-                                  typeof exp[c.key] === "object" &&
-                                    exp[c.key] !== null ? (
-                                    c.key === "receipt" ? (
-                                      exp.receipt ? (
-                                        <Button
-                                          variant="link"
-                                          size="sm"
-                                          onClick={() => {
-                                            if (exp.receipt?.path) {
-                                              expenses
-                                                .getReceiptUrl(exp.receipt.path)
-                                                .then(({ url, error }) => {
-                                                  if (error) {
-                                                    console.error(
-                                                      "Error getting receipt URL:",
-                                                      error
-                                                    );
-                                                    toast.error(
-                                                      "Failed to load receipt"
-                                                    );
-                                                  } else if (url) {
-                                                    window.open(url, "_blank");
-                                                  }
-                                                });
-                                            }
-                                          }}
-                                        >
-                                          View Receipt
-                                        </Button>
-                                      ) : null
-                                    ) : (
-                                      JSON.stringify(exp[c.key])
-                                    )
+                      getCurrent().map((exp) => (
+                        <TableRow key={exp.id}>
+                          {columns
+                            .filter((c) => c.visible)
+                            .map((c) => (
+                              <TableCell key={c.key}>
+                                {c.key === "amount" ? (
+                                  formatCurrency(exp[c.key])
+                                ) : c.key === "date" ? (
+                                  formatDate(exp[c.key])
+                                ) : c.key === "receipt" ? (
+                                  exp.receipt ? (
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="p-0 h-auto font-normal"
+                                      onClick={() => {
+                                        if (exp.receipt?.path) {
+                                          expenses
+                                            .getReceiptUrl(exp.receipt.path)
+                                            .then(({ url, error }) => {
+                                              if (error) {
+                                                console.error(
+                                                  "Error getting receipt URL:",
+                                                  error
+                                                );
+                                                toast.error(
+                                                  "Failed to load receipt"
+                                                );
+                                              } else if (url) {
+                                                window.open(url, "_blank");
+                                              }
+                                            });
+                                        }
+                                      }}
+                                    >
+                                      View Receipt
+                                    </Button>
                                   ) : (
-                                    exp[c.key]
-                                  )}
-                                </TableCell>
-                              ))}
-                            <TableCell>
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs ${
-                                  exp.status === "approved"
-                                    ? "bg-green-100 text-green-800"
-                                    : exp.status === "rejected"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-amber-100 text-amber-800"
-                                }`}
+                                    "No receipt"
+                                  )
+                                ) : c.key === "approver" ? (
+                                  exp.approver?.full_name || "—"
+                                ) : typeof exp[c.key] === "object" &&
+                                  exp[c.key] !== null ? (
+                                  JSON.stringify(exp[c.key])
+                                ) : (
+                                  exp[c.key] || "—"
+                                )}
+                              </TableCell>
+                            ))}
+                          <TableCell>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs ${
+                                exp.status === "approved"
+                                  ? "bg-green-100 text-green-800"
+                                  : exp.status === "rejected"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {exp.status.charAt(0).toUpperCase() +
+                                exp.status.slice(1)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  router.push(`/org/${slug}/expenses/${exp.id}`)
+                                }
                               >
-                                {exp.status.charAt(0).toUpperCase() +
-                                  exp.status.slice(1)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex space-x-2">
+                                View
+                              </Button>
+                              {exp.status === "submitted" && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   onClick={() =>
                                     router.push(
-                                      `/org/${slug}/expenses/${exp.id}`
+                                      `/org/${slug}/expenses/${exp.id}/edit`
                                     )
                                   }
                                 >
-                                  View
+                                  Edit
                                 </Button>
-                                {exp.status === "submitted" && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() =>
-                                      router.push(
-                                        `/org/${slug}/expenses/${exp.id}/edit`
-                                      )
-                                    }
-                                  >
-                                    Edit
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
+                              )}
+                              {(userRole === "admin" ||
+                                userRole === "owner") && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-600"
+                                  onClick={() => handleDelete(exp.id)}
+                                >
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>
@@ -356,8 +405,3 @@ export default function ExpensesPage() {
     </div>
   );
 }
-// TODO:
-// - add filters
-// - add export
-// - add search
-// - add pagination
