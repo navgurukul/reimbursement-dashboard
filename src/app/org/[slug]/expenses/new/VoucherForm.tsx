@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Upload, Info } from "lucide-react";
 import { toast } from "sonner";
+import { SignaturePad } from "@/components/ui/signature-pad";
 
 type Role = "admin" | "member" | "owner";
 
@@ -11,13 +12,22 @@ interface VoucherFormProps {
   formData: Record<string, any>;
   onInputChange: (key: string, value: any) => void;
   userRole: Role | null;
+  isApprover?: boolean;
+  disabled?: boolean;
 }
 
 export default function VoucherForm({
   formData,
   onInputChange,
   userRole,
+  isApprover = false,
+  disabled = false,
 }: VoucherFormProps) {
+  const canSignAsMember =
+    userRole === "member" || userRole === "admin" || userRole === "owner";
+  const canSignAsManager =
+    userRole === "admin" || userRole === "owner" || isApprover;
+
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
@@ -39,6 +49,7 @@ export default function VoucherForm({
               value={formData.yourName || ""}
               onChange={(e) => onInputChange("yourName", e.target.value)}
               required
+              disabled={disabled}
             />
           </div>
 
@@ -52,6 +63,7 @@ export default function VoucherForm({
               value={formData.date || ""}
               onChange={(e) => onInputChange("date", e.target.value)}
               required
+              disabled={disabled}
             />
           </div>
 
@@ -71,6 +83,7 @@ export default function VoucherForm({
                   onInputChange("voucherAmount", parseFloat(e.target.value))
                 }
                 required
+                disabled={disabled}
               />
             </div>
           </div>
@@ -85,6 +98,7 @@ export default function VoucherForm({
               value={formData.purpose || ""}
               onChange={(e) => onInputChange("purpose", e.target.value)}
               required
+              disabled={disabled}
             />
           </div>
         </div>
@@ -101,6 +115,7 @@ export default function VoucherForm({
               onInputChange("voucherCreditPerson", e.target.value)
             }
             required
+            disabled={disabled}
           />
           <p className="text-sm text-gray-500">
             This should be the person to whom the payment is being made
@@ -109,19 +124,26 @@ export default function VoucherForm({
 
         <div className="mt-6 grid grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Approver's Signature</Label>
-            <div className="border border-gray-200 rounded-lg p-4 h-32 flex flex-col items-center justify-center bg-gray-50">
-              <p className="text-sm text-gray-500">Signature required</p>
-              <p className="text-xs text-gray-400">Sandhya</p>
-            </div>
+            <SignaturePad
+              label="Approver's Signature"
+              onSave={(signature) =>
+                onInputChange("manager_signature_url", signature)
+              }
+              disabled={
+                disabled ||
+                !(userRole === "admin" || userRole === "owner" || isApprover)
+              }
+              defaultValue={formData.manager_signature_url}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Your Signature</Label>
-            <div className="border border-gray-200 rounded-lg p-4 h-32 flex flex-col items-center justify-center bg-gray-50">
-              <p className="text-sm text-gray-500">Signature required</p>
-              <p className="text-xs text-gray-400">You</p>
-            </div>
+            <SignaturePad
+              label="Your Signature"
+              onSave={(signature) => onInputChange("signature_url", signature)}
+              disabled={disabled}
+              defaultValue={formData.signature_url}
+            />
           </div>
         </div>
       </div>

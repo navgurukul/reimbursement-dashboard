@@ -158,6 +158,28 @@ export default function NewExpensePage() {
         throw new Error("Missing required data");
       }
 
+      // Log user and org IDs
+      console.log("[handleSubmit] user.id:", user.id);
+      console.log("[handleSubmit] organization.id:", organization.id);
+
+      // Log formData signature fields
+      console.log(
+        "[handleSubmit] formData.signature_url:",
+        formData.signature_url
+      );
+      console.log(
+        "[handleSubmit] formData.manager_signature_url:",
+        formData.manager_signature_url
+      );
+
+      // Log approver value for debugging
+      console.log("[handleSubmit] Selected approver:", formData.approver);
+      console.log(
+        "[handleSubmit] Approver options:",
+        columns.find((col) => col.key === "approver")?.options
+      );
+      console.log("[handleSubmit] Full formData:", formData);
+
       const baseExpenseData = {
         org_id: organization.id,
         user_id: user.id,
@@ -169,19 +191,27 @@ export default function NewExpensePage() {
         expense_type: (formData.expense_type as string) || "Other",
         date: new Date(formData.date).toISOString(),
         custom_fields: {},
+        approver_id: formData.approver,
       };
 
       if (voucherModalOpen) {
+        // Directly use base64 strings for signatures
         const { data: expenseData, error: expenseError } =
           await expenses.create(baseExpenseData);
 
         if (expenseError || !expenseData) {
-          toast.error("Failed to create expense");
-          return;
+          console.error("Expense creation error:", expenseError);
+          throw new Error(
+            `Failed to create expense: ${
+              expenseError?.message || "Unknown error"
+            }`
+          );
         }
 
         const voucherData = {
           expense_id: expenseData.id,
+          org_id: organization.id,
+          created_by: user.id,
           your_name: formData.yourName,
           amount: parseFloat(formData.voucherAmount || "0"),
           purpose: formData.purpose,
@@ -190,11 +220,27 @@ export default function NewExpensePage() {
           manager_signature_url: formData.manager_signature_url,
         };
 
-        const { error: voucherError } = await vouchers.create(voucherData);
+        // Log voucher data for debugging
+        console.log("[handleSubmit] Voucher data:", {
+          ...voucherData,
+          signature_url: voucherData.signature_url
+            ? "Base64 signature present"
+            : "No signature",
+          manager_signature_url: voucherData.manager_signature_url
+            ? "Base64 signature present"
+            : "No signature",
+        });
 
-        if (voucherError) {
-          toast.error("Failed to create voucher");
-          return;
+        const { data: voucherResponse, error: voucherError } =
+          await vouchers.create(voucherData);
+
+        if (voucherError || !voucherResponse) {
+          console.error("Voucher creation error:", voucherError);
+          throw new Error(
+            `Failed to create voucher: ${
+              (voucherError as { message?: string })?.message || "Unknown error"
+            }`
+          );
         }
 
         toast.success("Voucher submitted successfully");
@@ -202,6 +248,7 @@ export default function NewExpensePage() {
         const regularExpensePayload = {
           ...baseExpenseData,
           custom_fields: {} as Record<string, any>,
+          approver_id: formData.approver,
         };
 
         columns.forEach((col) => {
@@ -210,12 +257,22 @@ export default function NewExpensePage() {
             col.key !== "expense_type" &&
             col.key !== "amount" &&
             col.key !== "date" &&
-            col.key !== "approver_id"
+            col.key !== "approver"
           ) {
             regularExpensePayload.custom_fields[col.key] = formData[col.key];
           }
         });
 
+        // Remove approver from custom_fields if present
+        delete regularExpensePayload.custom_fields.approver;
+
+        // Log the final payload for debugging
+        console.log(
+          "[handleSubmit] Regular expense payload:",
+          regularExpensePayload
+        );
+
+        console.log("Payload sent to API:", regularExpensePayload);
         const { error } = await expenses.create(
           regularExpensePayload,
           receiptFile || undefined
@@ -232,7 +289,7 @@ export default function NewExpensePage() {
     } catch (error: any) {
       console.error("Error creating expense:", error);
       toast.error("Failed to create expense", {
-        description: error.message,
+        description: error.message || "An unknown error occurred",
       });
     } finally {
       setSaving(false);

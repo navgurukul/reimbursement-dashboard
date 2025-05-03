@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses } from "@/lib/db";
+import { orgSettings, expenses, vouchers } from "@/lib/db";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -40,7 +40,7 @@ const defaultExpenseColumns = [
   { key: "category", label: "Category", visible: true },
   { key: "amount", label: "Amount", visible: true },
   { key: "description", label: "Description", visible: true },
-  { key: "receipt", label: "Receipt", visible: true },
+  { key: "receipt", label: "Receipt/Voucher", visible: true },
   { key: "approver", label: "Approver", visible: true },
 ];
 
@@ -97,7 +97,6 @@ export default function ExpensesPage() {
         toast.error("Failed to load settings", { description: se.message });
         setColumns(defaultExpenseColumns);
       } else {
-        // Safely handle the case where settings or expense_columns might be undefined
         const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
         setColumns(expenseColumns);
       }
@@ -107,20 +106,22 @@ export default function ExpensesPage() {
         pending: any[] = [],
         all: any[] = [];
 
+      // Fetch all expenses first (for all tabs)
+      let allExpenseIds: string[] = [];
       if (userRole === "member") {
-        // Members can only see their own expenses
         const { data, error } = await expenses.getByOrgAndUser(
           orgId,
           user?.id!
         );
-        if (error)
+        if (error) {
           toast.error("Failed to load expenses", {
             description: error.message,
           });
+        }
         my = data ?? [];
         all = data ?? [];
+        allExpenseIds = (data ?? []).map((exp: any) => exp.id);
       } else {
-        // Admins and owners can see all views
         const [
           { data: myData, error: myErr },
           { data: pendingData, error: pendingErr },
@@ -130,7 +131,6 @@ export default function ExpensesPage() {
           expenses.getPendingApprovals(orgId, user?.id!),
           expenses.getByOrg(orgId),
         ]);
-
         if (myErr)
           toast.error("Failed to load your expenses", {
             description: myErr.message,
@@ -143,17 +143,42 @@ export default function ExpensesPage() {
           toast.error("Failed to load all expenses", {
             description: allErr.message,
           });
-
         my = myData ?? [];
         pending = pendingData ?? [];
         all = allData ?? [];
+        allExpenseIds = (allData ?? []).map((exp: any) => exp.id);
       }
 
-      setExpensesData(my);
-      setPendingApprovals(pending);
-      setAllExpenses(all);
+      // Fetch all vouchers for these expense IDs
+      let allVouchers: any[] = [];
+      if (allExpenseIds.length > 0) {
+        try {
+          const { data: voucherData, error: voucherError } =
+            await vouchers.getByExpenseIds(allExpenseIds);
+          if (voucherError) {
+            toast.error("Failed to load vouchers", {
+              description: voucherError.message,
+            });
+          } else {
+            allVouchers = voucherData || [];
+          }
+        } catch (e) {
+          toast.error("Failed to load vouchers");
+        }
+      }
 
-      // compute stats on "all"
+      // Helper to attach voucher info
+      const attachVoucherInfo = (expensesArr: any[]) => {
+        return expensesArr.map((exp) => {
+          const voucher = allVouchers.find((v) => v.expense_id === exp.id);
+          return voucher ? { ...exp, voucherId: voucher.id } : exp;
+        });
+      };
+
+      setExpensesData(attachVoucherInfo(my));
+      setPendingApprovals(attachVoucherInfo(pending));
+      setAllExpenses(attachVoucherInfo(all));
+
       setStats({
         total: all.length,
         approved: all.filter((e) => e.status === "approved").length,
@@ -189,6 +214,8 @@ export default function ExpensesPage() {
       });
     }
   };
+
+  const expenseIds = expensesData.map((exp) => exp.id);
 
   return (
     <div className="space-y-6">
@@ -312,10 +339,6 @@ export default function ExpensesPage() {
                                             .getReceiptUrl(exp.receipt.path)
                                             .then(({ url, error }) => {
                                               if (error) {
-                                                console.error(
-                                                  "Error getting receipt URL:",
-                                                  error
-                                                );
                                                 toast.error(
                                                   "Failed to load receipt"
                                                 );
@@ -328,8 +351,21 @@ export default function ExpensesPage() {
                                     >
                                       View Receipt
                                     </Button>
+                                  ) : exp.voucherId ? (
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="p-0 h-auto font-normal"
+                                      onClick={() =>
+                                        router.push(
+                                          `/org/${slug}/vouchers/${exp.voucherId}`
+                                        )
+                                      }
+                                    >
+                                      View Voucher
+                                    </Button>
                                   ) : (
-                                    "No receipt"
+                                    "No receipt or voucher"
                                   )
                                 ) : c.key === "approver" ? (
                                   exp.approver?.full_name || "—"

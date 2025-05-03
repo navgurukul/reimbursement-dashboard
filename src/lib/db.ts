@@ -584,8 +584,7 @@ export const expenses = {
         )
       `
       )
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false });
+      .eq("org_id", orgId);
 
     if (error) {
       return { data: null, error: error as DatabaseError };
@@ -722,9 +721,10 @@ export const expenses = {
         };
       }
 
-      // Get approver_id from custom_fields if it exists
-      const approver_id = expense.custom_fields?.approver || null;
-      delete expense.custom_fields.approver; // Remove from custom_fields since we're using it directly
+      // Use top-level approver_id if present, otherwise fallback to custom_fields
+      const approver_id =
+        expense.approver_id || expense.custom_fields?.approver || null;
+      if (expense.custom_fields) delete expense.custom_fields.approver;
 
       // Create expense with receipt info and approver_id
       const { data, error } = await supabase
@@ -905,16 +905,7 @@ export const expenses = {
 
 // Vouchers functions
 export const vouchers = {
-  create: async (
-    data: Omit<
-      Voucher,
-      | "id"
-      | "created_at"
-      | "updated_at"
-      | "signature_url"
-      | "manager_signature_url"
-    >
-  ) => {
+  create: async (data: Omit<Voucher, "id" | "created_at" | "updated_at">) => {
     try {
       const { data: response, error } = await supabase
         .from("vouchers")
@@ -925,6 +916,8 @@ export const vouchers = {
             amount: data.amount,
             purpose: data.purpose,
             credit_person: data.credit_person,
+            signature_url: data.signature_url,
+            manager_signature_url: data.manager_signature_url,
           },
         ])
         .select()
@@ -996,4 +989,148 @@ export const vouchers = {
       error: null,
     };
   },
+
+  /**
+   * Upload a signature image
+   */
+  uploadSignature: async (
+    base64Data: string,
+    userId: string,
+    orgId: string,
+    type: "user" | "manager"
+  ): Promise<{ path: string; error: StorageError | null }> => {
+    try {
+      if (!base64Data) {
+        throw new Error("No signature data provided");
+      }
+
+      // Convert base64 to blob
+      const base64 = base64Data.split(",")[1];
+      if (!base64) {
+        throw new Error("Invalid base64 signature data");
+      }
+
+      const binary = atob(base64);
+      const array = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        array[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([array], { type: "image/png" });
+      const file = new File([blob], `${type}-signature.png`, {
+        type: "image/png",
+      });
+
+      // Generate unique filename
+      const fileName = `${Math.random().toString(36).slice(2)}.png`;
+      const filePath = `${userId}/${orgId}/${fileName}`;
+
+      // Debug logs
+      console.log(
+        "[uploadSignature] userId:",
+        userId,
+        "orgId:",
+        orgId,
+        "type:",
+        type
+      );
+      console.log("[uploadSignature] filePath:", filePath);
+
+      // Upload to storage
+      const { error } = await supabase.storage
+        .from("voucher-signatures")
+        .upload(filePath, file);
+
+      if (error) {
+        console.error("[uploadSignature] Storage upload error:", error);
+        return { path: "", error: error };
+      }
+
+      console.log("[uploadSignature] Upload successful:", filePath);
+      return {
+        path: filePath,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Unexpected error in uploadSignature:", error);
+      return {
+        path: "",
+        error: error as StorageError,
+      };
+    }
+  },
+
+  /**
+   * Get a download URL for a signature
+   */
+  getSignatureUrl: async (
+    path: string
+  ): Promise<{ url: string; error: StorageError | null }> => {
+    const { data, error } = await supabase.storage
+      .from("voucher-signatures")
+      .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+    if (error) {
+      return { url: "", error: error };
+    }
+
+    return {
+      url: data.signedUrl,
+      error: null,
+    };
+  },
+
+  getByOrgId: async (orgId: string) => {
+    const { data, error } = await supabase
+      .from("vouchers")
+      .select("*")
+      .eq("org_id", orgId);
+    if (error) {
+      console.log("Voucher fetch error:", error, data);
+      return { data: null, error };
+    }
+    console.log("All vouchers fetched:", data);
+    return { data, error: null };
+  },
+
+  /**
+   * Get all vouchers for a list of expense IDs
+   */
+  getByExpenseIds: async (expenseIds: string[]) => {
+    if (!expenseIds || expenseIds.length === 0) {
+      return { data: [], error: null };
+    }
+    const { data, error } = await supabase
+      .from("vouchers")
+      .select("*")
+      .in("expense_id", expenseIds);
+    if (error) {
+      return { data: null, error };
+    }
+    return { data, error: null };
+  },
+
+  /**
+   * Get a voucher by its ID
+   */
+  getById: async (id: string) => {
+    const { data, error } = await supabase
+      .from("vouchers")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error) {
+      return { data: null, error };
+    }
+    return { data, error: null };
+  },
+};
+
+const attachVoucherInfo = (expensesArr) => {
+  return expensesArr.map((exp) => {
+    const voucher = allVouchers.find((v) => v.expense_id === exp.id);
+    if (voucher) {
+      console.log("Voucher matched for expense:", exp.id, voucher);
+    }
+    return voucher ? { ...exp, voucherId: voucher.id } : exp;
+  });
 };
