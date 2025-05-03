@@ -136,6 +136,22 @@ export interface PolicyValidation {
   message: string | null;
 }
 
+export interface ExpenseEvent {
+  id: string;
+  org_id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed";
+  total_amount: number;
+  custom_fields: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+// Modify your Expense interface to include the event_id field
 export interface Expense {
   id: string;
   org_id: string;
@@ -155,9 +171,11 @@ export interface Expense {
   };
   policy_validations: PolicyValidation[];
   approver_id?: string;
+  event_id?: string; // Add this field
   created_at: string;
   updated_at: string;
 }
+
 
 export interface Voucher {
   id: string;
@@ -278,6 +296,181 @@ export const organizations = {
       .returns<OrganizationMember[]>();
   },
 };
+
+
+
+
+
+
+// Add this entire object to your db.ts file with other database functions
+export const expenseEvents = {
+  // Create a new expense event
+  async create(data: Omit<ExpenseEvent, 'id' | 'created_at' | 'updated_at' | 'total_amount'>): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
+    try {
+      const { data: eventData, error } = await supabase
+        .from('expense_events')
+        .insert(data)
+        .select('*')
+        .single();
+
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+      
+      return { data: eventData as ExpenseEvent, error: null };
+    } catch (error: any) {
+      console.error('Error creating expense event:', error);
+      return { 
+        data: null, 
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        }
+      };
+    }
+  },
+
+  // Get expense event by ID
+  async getById(id: string): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('expense_events')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+      
+      return { data: data as ExpenseEvent, error: null };
+    } catch (error: any) {
+      console.error('Error fetching expense event:', error);
+      return { 
+        data: null, 
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        }
+      };
+    }
+  },
+
+  // Get expense events by organization and user
+  async getByOrgAndUser(orgId: string, userId: string): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('expense_events')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+      
+      return { data: data as ExpenseEvent[], error: null };
+    } catch (error: any) {
+      console.error('Error fetching expense events:', error);
+      return { 
+        data: null, 
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        }
+      };
+    }
+  },
+
+  // Get expense events by organization
+  async getByOrg(orgId: string): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('expense_events')
+        .select('*')
+        .eq('org_id', orgId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+      
+      return { data: data as ExpenseEvent[], error: null };
+    } catch (error: any) {
+      console.error('Error fetching expense events:', error);
+      return { 
+        data: null, 
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        }
+      };
+    }
+  },
+
+  // Update an expense event
+  async update(id: string, updates: Partial<ExpenseEvent>): Promise<{ error: DatabaseError | null }> {
+    try {
+      const { error } = await supabase
+        .from('expense_events')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) {
+        return { error: error as DatabaseError };
+      }
+      
+      return { error: null };
+    } catch (error: any) {
+      console.error('Error updating expense event:', error);
+      return { 
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        }
+      };
+    }
+  },
+
+  // Delete an expense event
+  async delete(id: string): Promise<{ error: DatabaseError | null }> {
+    try {
+      const { error } = await supabase
+        .from('expense_events')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        return { error: error as DatabaseError };
+      }
+      
+      return { error: null };
+    } catch (error: any) {
+      console.error('Error deleting expense event:', error);
+      return { 
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        }
+      };
+    }
+  }
+};
+
+
 
 // Profile functions
 export const profiles = {
@@ -529,6 +722,39 @@ export const expenses = {
         creator: { full_name: string };
         approver?: { full_name: string };
       },
+      error: null,
+    };
+  },
+
+  /**
+   * Get expenses by event ID
+   */
+  getByEventId: async (eventId: string) => {
+    const { data, error } = await supabase
+      .from("expenses")
+      .select(
+        `
+        *,
+        creator:profiles!user_id (
+          full_name
+        ),
+        approver:profiles(
+          full_name
+        )
+      `
+      )
+      .eq("event_id", eventId)
+      .order("date", { ascending: false });
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
       error: null,
     };
   },

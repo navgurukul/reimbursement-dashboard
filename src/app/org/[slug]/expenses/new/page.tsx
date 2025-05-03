@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import {
   orgSettings,
   expenses,
   ReceiptInfo,
   vouchers,
-  Expense,
+  ExpenseEvent,
+  expenseEvents,
 } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Save, Upload } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Save, Upload } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations } from "@/lib/db";
@@ -52,11 +53,15 @@ interface ExpenseData {
   receipt: ReceiptInfo | null;
   custom_fields: Record<string, any>;
   approver_id?: string;
+  event_id?: string | null;
 }
 
 export default function NewExpensePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const eventIdFromQuery = searchParams.get("eventId");
+
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
   const orgId = organization?.id!;
@@ -66,14 +71,56 @@ export default function NewExpensePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [columns, setColumns] = useState<Column[]>([]);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<Record<string, any>>({
+    event_id: eventIdFromQuery || "",
+  });
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+  const [events, setEvents] = useState<ExpenseEvent[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Fetch available expense events
+  useEffect(() => {
+    if (!orgId || !user) return;
+
+    const fetchEvents = async () => {
+      try {
+        const { data, error } = await expenseEvents.getByOrgAndUser(
+          orgId,
+          user.id
+        );
+
+        if (error) throw error;
+
+        // Only show draft or submitted events
+        const availableEvents = (data || []).filter((event) =>
+          ["draft", "submitted"].includes(event.status)
+        );
+
+        setEvents(availableEvents);
+
+        // If we have an eventId from the URL and it exists in available events, select it
+        if (eventIdFromQuery) {
+          const event = availableEvents.find(
+            (event) => event.id === eventIdFromQuery
+          );
+          if (event) {
+            setSelectedEvent(event);
+            handleInputChange("event_id", eventIdFromQuery);
+          }
+        }
+      } catch (error: any) {
+        console.error("Failed to load events:", error);
+      }
+    };
+
+    fetchEvents();
+  }, [orgId, user, eventIdFromQuery]);
 
   useEffect(() => {
     async function fetchData() {
@@ -104,7 +151,8 @@ export default function NewExpensePage() {
           });
 
           initialData.date = new Date().toISOString().split("T")[0];
-          setFormData(initialData);
+          initialData.event_id = eventIdFromQuery || "";
+          setFormData((prev) => ({ ...initialData, ...prev }));
         } else {
           setColumns(defaultExpenseColumns);
           const initialData: Record<string, any> = {};
@@ -114,7 +162,8 @@ export default function NewExpensePage() {
             }
           });
           initialData.date = new Date().toISOString().split("T")[0];
-          setFormData(initialData);
+          initialData.event_id = eventIdFromQuery || "";
+          setFormData((prev) => ({ ...initialData, ...prev }));
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -125,7 +174,7 @@ export default function NewExpensePage() {
     }
 
     fetchData();
-  }, [orgId]);
+  }, [orgId, eventIdFromQuery]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -147,6 +196,12 @@ export default function NewExpensePage() {
       ...prev,
       [key]: value,
     }));
+
+    // If changing the event, update the selected event
+    if (key === "event_id" && value) {
+      const event = events.find((e) => e.id === value);
+      setSelectedEvent(event || null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,6 +224,7 @@ export default function NewExpensePage() {
         expense_type: (formData.expense_type as string) || "Other",
         date: new Date(formData.date).toISOString(),
         custom_fields: {},
+        event_id: formData.event_id || null,
       };
 
       if (voucherModalOpen) {
@@ -210,7 +266,8 @@ export default function NewExpensePage() {
             col.key !== "expense_type" &&
             col.key !== "amount" &&
             col.key !== "date" &&
-            col.key !== "approver_id"
+            col.key !== "approver_id" &&
+            col.key !== "event_id"
           ) {
             regularExpensePayload.custom_fields[col.key] = formData[col.key];
           }
@@ -228,7 +285,12 @@ export default function NewExpensePage() {
         toast.success("Expense created successfully");
       }
 
-      router.push(`/org/${slug}/expenses`);
+      // If expense was added from an event's page, redirect back to that event
+      if (eventIdFromQuery) {
+        router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+      } else {
+        router.push(`/org/${slug}/expenses`);
+      }
     } catch (error: any) {
       console.error("Error creating expense:", error);
       toast.error("Failed to create expense", {
@@ -252,11 +314,17 @@ export default function NewExpensePage() {
       <div className="flex items-center justify-between mb-6">
         <Button
           variant="ghost"
-          onClick={() => router.push(`/org/${slug}/expenses`)}
+          onClick={() => {
+            if (eventIdFromQuery) {
+              router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+            } else {
+              router.push(`/org/${slug}/expenses`);
+            }
+          }}
           className="text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Expenses
+          {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
         </Button>
         <Button
           onClick={handleSubmit}
@@ -296,6 +364,49 @@ export default function NewExpensePage() {
         </CardHeader>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Event Selection */}
+            <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
+              <div className="flex items-center space-x-3 mb-2">
+                <CalendarIcon className="h-5 w-5 text-blue-500" />
+                <Label
+                  htmlFor="event_id"
+                  className="text-sm font-medium text-gray-900"
+                >
+                  Expense Event
+                </Label>
+              </div>
+              <Select
+                value={formData.event_id || "none"}
+                onValueChange={(value) =>
+                  handleInputChange("event_id", value === "none" ? "" : value)
+                }
+              >
+                <SelectTrigger id="event_id" className="w-full">
+                  <SelectValue placeholder="Select an event (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No event</SelectItem>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.title} (
+                      {new Date(event.start_date).toLocaleDateString()} -{" "}
+                      {new Date(event.end_date).toLocaleDateString()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 mt-2">
+                {selectedEvent ? (
+                  <span>
+                    This expense will be added to the event:{" "}
+                    <strong>{selectedEvent.title}</strong>
+                  </span>
+                ) : (
+                  "Group your expense under an event for better organization"
+                )}
+              </p>
+            </div>
+
             {columns.map((col) => {
               if (!col.visible || col.key === "receipt") return null;
 

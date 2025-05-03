@@ -160,7 +160,19 @@ export default function SettingsPage() {
             settingsData.expense_columns &&
             settingsData.expense_columns.length > 0
           ) {
-            setColumns(settingsData.expense_columns);
+            // Process columns to ensure they have proper structure
+            const processedColumns = settingsData.expense_columns.map((col) => {
+              // Make sure options exist for appropriate column types
+              if (
+                ["dropdown", "radio", "checkbox"].includes(col.type) &&
+                !col.options
+              ) {
+                return { ...col, options: [] };
+              }
+              return col;
+            });
+
+            setColumns(processedColumns);
           }
         }
 
@@ -266,9 +278,61 @@ export default function SettingsPage() {
 
   const handleSaveColumns = async () => {
     const toastId = toast.loading("Saving columns…");
-    console.log("Colums inside handleSaveColumns", columns);
+    console.log("Columns before saving:", columns);
+
     try {
-      const { error } = await orgSettings.updateExpenseColumns(orgId, columns);
+      // Make a deep copy of columns to avoid reference issues
+      const columnsToSave = JSON.parse(JSON.stringify(columns));
+
+      // Process columns before saving
+      const processedColumns = await Promise.all(
+        columnsToSave.map(async (col) => {
+          // Ensure all columns have the required properties
+          if (
+            !col.options &&
+            ["dropdown", "radio", "checkbox"].includes(col.type)
+          ) {
+            col.options = [];
+          }
+
+          // Make sure options are properly formatted for approver
+          if (col.key === "approver" && col.type === "dropdown") {
+            const { data: membersData } =
+              await organizations.getOrganizationMembers(orgId);
+
+            if (membersData) {
+              const approvers = membersData.filter((member) =>
+                ["owner", "admin", "manager"].includes(member.role)
+              );
+
+              const { data: profilesData } = await profiles.getByIds(
+                approvers.map((approver) => approver.user_id)
+              );
+
+              const approverNames = new Map(
+                profilesData?.map((profile) => [
+                  profile.user_id,
+                  profile.full_name || profile.email,
+                ]) || []
+              );
+
+              col.options = approvers.map((approver) => ({
+                value: approver.user_id,
+                label: approverNames.get(approver.user_id) || approver.user_id,
+              }));
+            }
+          }
+
+          return col;
+        })
+      );
+
+      console.log("Processed columns to save:", processedColumns);
+
+      const { error } = await orgSettings.updateExpenseColumns(
+        orgId,
+        processedColumns
+      );
 
       if (error) throw error;
 
@@ -277,29 +341,55 @@ export default function SettingsPage() {
     } catch (e: any) {
       toast.dismiss(toastId);
       toast.error("Failed to save columns", { description: e.message });
+      console.error("Error saving columns:", e);
     }
   };
 
   const handleAddColumn = () => {
+    // Generate a unique key for the new column
+    const timestamp = new Date().getTime();
+    const newKey = `custom_field_${timestamp}`;
+
     setEditingColumn({
-      key: "",
+      key: newKey,
       label: "",
       type: "text",
       visible: true,
       options: [],
+      required: false,
     });
+
+    setNewOptions("");
     setShowColumnDialog(true);
   };
 
   const handleEditColumn = (column: DbColumnConfig) => {
-    setEditingColumn(column);
+    // Make a deep copy to avoid reference issues
+    const columnCopy = JSON.parse(JSON.stringify(column));
+    setEditingColumn(columnCopy);
 
     // Only set newOptions for non-approver dropdown/radio/checkbox types
     if (
       ["dropdown", "radio", "checkbox"].includes(column.type) &&
       column.key !== "approver"
     ) {
-      setNewOptions(column.options?.join("\n") || "");
+      // Handle both string[] and object[] options
+      if (Array.isArray(column.options)) {
+        if (
+          column.options.length > 0 &&
+          typeof column.options[0] === "object"
+        ) {
+          // Handle object options
+          setNewOptions(
+            column.options.map((opt: any) => opt.label || opt.value).join("\n")
+          );
+        } else {
+          // Handle string options
+          setNewOptions(column.options.join("\n"));
+        }
+      } else {
+        setNewOptions("");
+      }
     } else {
       setNewOptions("");
     }
@@ -315,7 +405,7 @@ export default function SettingsPage() {
     setColumns((prev) => prev.filter((c) => c.key !== key));
   };
 
-  const handleSaveColumn = async () => {
+  const handleSaveColumn = () => {
     if (!editingColumn) return;
 
     try {
@@ -327,57 +417,11 @@ export default function SettingsPage() {
         ["dropdown", "radio", "checkbox"].includes(updatedColumn.type) &&
         updatedColumn.key !== "approver"
       ) {
+        // Convert newOptions string to array
         updatedColumn.options = newOptions
           .split("\n")
           .filter(Boolean)
           .map((o) => o.trim());
-      }
-
-      // If this is the approver column, fetch and populate the options
-      if (updatedColumn.key === "approver") {
-        const { data: membersData, error: membersError } =
-          await organizations.getOrganizationMembers(orgId);
-
-        if (membersError) {
-          toast.error("Failed to load organization members", {
-            description: membersError.message,
-          });
-          return;
-        }
-
-        if (membersData) {
-          // Filter members with roles of owner, admin, or manager
-          const approvers = membersData.filter((member) =>
-            ["owner", "admin", "manager"].includes(member.role)
-          );
-
-          // Fetch profiles for all approvers
-          const { data: profilesData, error: profilesError } =
-            await profiles.getByIds(
-              approvers.map((approver) => approver.user_id)
-            );
-
-          if (profilesError) {
-            toast.error("Failed to load approver profiles", {
-              description: profilesError.message,
-            });
-            return;
-          }
-
-          // Create a map of user_id to full_name
-          const approverNames = new Map(
-            profilesData?.map((profile) => [
-              profile.user_id,
-              profile.full_name || profile.email,
-            ]) || []
-          );
-
-          // Update the approver column options
-          updatedColumn.options = approvers.map((approver) => ({
-            value: approver.user_id,
-            label: approverNames.get(approver.user_id) || approver.user_id,
-          }));
-        }
       }
 
       // Update the columns state
@@ -487,25 +531,26 @@ export default function SettingsPage() {
                   className="flex items-center justify-between p-4 border rounded-lg"
                 >
                   <div className="flex items-center space-x-4">
-                    {!defaultColumns.some((c) => c.key === col.key) && (
-                      <Checkbox
-                        checked={col.visible}
-                        onCheckedChange={(v) =>
-                          setColumns((prev) =>
-                            prev.map((c) =>
-                              c.key === col.key
-                                ? { ...c, visible: v as boolean }
-                                : c
-                            )
+                    <Checkbox
+                      checked={col.visible}
+                      onCheckedChange={(v) =>
+                        setColumns((prev) =>
+                          prev.map((c) =>
+                            c.key === col.key
+                              ? { ...c, visible: v as boolean }
+                              : c
                           )
-                        }
-                      />
-                    )}
+                        )
+                      }
+                      disabled={defaultColumns.some((c) => c.key === col.key)}
+                    />
                     <div>
                       <p className="font-medium">{col.label}</p>
                       <p className="text-sm text-muted-foreground">
                         Type: {col.type}
-                        {col.options ? ` (${col.options.length} options)` : ""}
+                        {col.options && Array.isArray(col.options)
+                          ? ` (${col.options.length} options)`
+                          : ""}
                       </p>
                     </div>
                   </div>
@@ -537,7 +582,9 @@ export default function SettingsPage() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>
-                    {editingColumn?.key ? "Edit Column" : "Add Column"}
+                    {editingColumn?.key?.startsWith("custom_field_")
+                      ? "Add Column"
+                      : "Edit Column"}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -551,12 +598,18 @@ export default function SettingsPage() {
                             ? {
                                 ...prev,
                                 label: e.target.value,
-                                key: e.target.value
-                                  .toLowerCase()
-                                  .replace(/\s+/g, "_"),
+                                key: prev.key.startsWith("custom_field_")
+                                  ? prev.key
+                                  : e.target.value
+                                      .toLowerCase()
+                                      .replace(/\s+/g, "_"),
                               }
                             : null
                         )
+                      }
+                      disabled={
+                        !editingColumn?.key?.startsWith("custom_field_") &&
+                        defaultColumns.some((c) => c.key === editingColumn?.key)
                       }
                     />
                   </div>
@@ -565,11 +618,14 @@ export default function SettingsPage() {
                     <Label>Field Type</Label>
                     <Select
                       value={editingColumn?.type}
-                      onValueChange={(value: DbColumnConfig["type"]) =>
+                      onValueChange={(value: ColumnConfig["type"]) =>
                         setEditingColumn((prev) =>
                           prev ? { ...prev, type: value } : null
                         )
                       }
+                      disabled={defaultColumns.some(
+                        (c) => c.key === editingColumn?.key
+                      )}
                     >
                       <SelectTrigger>
                         <SelectValue />

@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Receipt,
   Users,
+  Calendar ,
   Settings,
   LogOut,
   Menu,
@@ -77,6 +78,11 @@ export function AppSidebar() {
       title: "Policies",
       href: `/org/${organization?.slug}/policies`,
       icon: Users,
+    },
+    {
+      title: "Expense Events", // Add this new item
+      href: `/org/${organization?.slug}/expense-events`,
+      icon: Calendar,
     },
   ];
 
