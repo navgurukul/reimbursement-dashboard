@@ -106,6 +106,9 @@ export default function CreateOrganizationPage() {
   }, [user, organization, setOrganization, setUserRole, router]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log("Form submitted:", values);
+
+    
     if (!user) {
       toast.error("Authentication required", {
         description: "Please sign in to create an organization.",

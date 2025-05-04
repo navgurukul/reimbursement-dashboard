@@ -236,11 +236,26 @@ export const organizations = {
   },
 
   create: async (name: string, slug: string) => {
-    return await supabase
-      .from("organizations")
-      .insert([{ name, slug }])
-      .select()
-      .single();
+    console.log("Creating organization:", name, slug);
+
+    try {
+      const { data, error } = await supabase.rpc(
+        "create_organization_properly",
+        {
+          org_name: name,
+          org_slug: slug,
+        }
+      );
+
+      if (error) {
+        console.error("Error creating organization:", error);
+      }
+
+      return { data, error };
+    } catch (err) {
+      console.error("Exception creating organization:", err);
+      return { data: null, error: err };
+    }
   },
 
   getUserOrganizations: async (userId: string) => {
