@@ -711,171 +711,288 @@ export const expenses = {
   /**
    * Get an expense by ID
    */
-  getById: async (id: string) => {
-    const { data, error } = await supabase
-      .from("expenses")
-      .select(
-        `
-        *,
-        creator:profiles!user_id (
-          full_name
-        ),
-        approver:profiles(
-          full_name
-        )
+  /**
+ * Get an expense by ID
+ */
+/**
+ * Get an expense by ID
+ */
+getById: async (id: string) => {
+  // First get the expense with just the creator relationship
+  const { data: expense, error } = await supabase
+    .from("expenses")
+    .select(
       `
+      *,
+      creator:profiles!user_id (
+        full_name
       )
-      .eq("id", id)
+    `
+    )
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    return { data: null, error: error as DatabaseError };
+  }
+
+  // Now manually handle the approver relationship
+  if (expense && expense.approver_id) {
+    const { data: approverData } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", expense.approver_id)
       .single();
 
-    if (error) {
-      return { data: null, error: error as DatabaseError };
+    if (approverData) {
+      // Add the approver data to the result
+      expense.approver = { full_name: approverData.full_name };
     }
+  }
 
-    return {
-      data: data as Expense & {
-        creator: { full_name: string };
-        approver?: { full_name: string };
-      },
-      error: null,
-    };
-  },
-
-  /**
-   * Get expenses by event ID
-   */
-  getByEventId: async (eventId: string) => {
-    const { data, error } = await supabase
-      .from("expenses")
-      .select(
-        `
-        *,
-        creator:profiles!user_id (
-          full_name
-        ),
-        approver:profiles(
-          full_name
-        )
+  return {
+    data: expense as Expense & {
+      creator: { full_name: string };
+      approver?: { full_name: string };
+    },
+    error: null,
+  };
+},
+/**
+ * Get expenses by event ID
+ *//**
+ * Get expenses by event ID
+ */
+getByEventId: async (eventId: string) => {
+  // Get expenses with creator
+  const { data: expenses, error } = await supabase
+    .from("expenses")
+    .select(
       `
+      *,
+      creator:profiles!user_id (
+        full_name
       )
-      .eq("event_id", eventId)
-      .order("date", { ascending: false });
+    `
+    )
+    .eq("event_id", eventId)
+    .order("date", { ascending: false });
 
-    if (error) {
-      return { data: null, error: error as DatabaseError };
+  if (error) {
+    return { data: null, error: error as DatabaseError };
+  }
+
+  // Get all unique approver IDs
+  const approverIds = [...new Set((expenses || [])
+    .map(expense => expense.approver_id)
+    .filter(id => id))];
+
+  if (approverIds.length > 0) {
+    // Get all approvers in one query
+    const { data: approvers } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", approverIds);
+
+    if (approvers && approvers.length > 0) {
+      // Create a lookup map
+      const approverMap = {};
+      approvers.forEach(a => {
+        approverMap[a.user_id] = a;
+      });
+
+      // Add approver data to each expense
+      expenses.forEach(expense => {
+        if (expense.approver_id && approverMap[expense.approver_id]) {
+          expense.approver = { 
+            full_name: approverMap[expense.approver_id].full_name 
+          };
+        }
+      });
     }
+  }
 
-    return {
-      data: data as (Expense & {
-        creator: { full_name: string };
-        approver?: { full_name: string };
-      })[],
-      error: null,
-    };
-  },
+  return {
+    data: expenses as (Expense & {
+      creator: { full_name: string };
+      approver?: { full_name: string };
+    })[],
+    error: null,
+  };
+},
 
-  /**
-   * Get all expenses for a user in an organization
-   */
-  getByOrgAndUser: async (orgId: string, userId: string) => {
-    const { data, error } = await supabase
-      .from("expenses")
-      .select(
-        `
-        *,
-        creator:profiles!user_id (
-          full_name
-        ),
-        approver:profiles(
-          full_name
-        )
+/**
+ * Get all expenses for a user in an organization
+ */
+getByOrgAndUser: async (orgId: string, userId: string) => {
+  // Get expenses with creator
+  const { data: expenses, error } = await supabase
+    .from("expenses")
+    .select(
       `
+      *,
+      creator:profiles!user_id (
+        full_name
       )
-      .eq("org_id", orgId)
+    `
+    )
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { data: null, error: error as DatabaseError };
+  }
+
+  // Get all unique approver IDs
+  const approverIds = [...new Set((expenses || [])
+    .map(expense => expense.approver_id)
+    .filter(id => id))];
+
+  if (approverIds.length > 0) {
+    // Get all approvers in one query
+    const { data: approvers } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", approverIds);
+
+    if (approvers && approvers.length > 0) {
+      // Create a lookup map
+      const approverMap = {};
+      approvers.forEach(a => {
+        approverMap[a.user_id] = a;
+      });
+
+      // Add approver data to each expense
+      expenses.forEach(expense => {
+        if (expense.approver_id && approverMap[expense.approver_id]) {
+          expense.approver = { 
+            full_name: approverMap[expense.approver_id].full_name 
+          };
+        }
+      });
+    }
+  }
+
+  return {
+    data: expenses as (Expense & {
+      creator: { full_name: string };
+      approver?: { full_name: string };
+    })[],
+    error: null,
+  };
+},
+
+/**
+ * Get all expenses for an organization (admin only)
+ */
+getByOrg: async (orgId: string) => {
+  // Get expenses with creator
+  const { data: expenses, error } = await supabase
+    .from("expenses")
+    .select(
+      `
+      *,
+      creator:profiles!user_id (
+        full_name
+      )
+    `
+    )
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { data: null, error: error as DatabaseError };
+  }
+
+  // Get all unique approver IDs
+  const approverIds = [...new Set((expenses || [])
+    .map(expense => expense.approver_id)
+    .filter(id => id))];
+
+  if (approverIds.length > 0) {
+    // Get all approvers in one query
+    const { data: approvers } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", approverIds);
+
+    if (approvers && approvers.length > 0) {
+      // Create a lookup map
+      const approverMap = {};
+      approvers.forEach(a => {
+        approverMap[a.user_id] = a;
+      });
+
+      // Add approver data to each expense
+      expenses.forEach(expense => {
+        if (expense.approver_id && approverMap[expense.approver_id]) {
+          expense.approver = { 
+            full_name: approverMap[expense.approver_id].full_name 
+          };
+        }
+      });
+    }
+  }
+
+  return {
+    data: expenses as (Expense & {
+      creator: { full_name: string };
+      approver?: { full_name: string };
+    })[],
+    error: null,
+  };
+},
+
+/**
+ * Get pending approvals for a user
+ */
+getPendingApprovals: async (orgId: string, userId: string) => {
+  // Get expenses with creator
+  const { data: expenses, error } = await supabase
+    .from("expenses")
+    .select(
+      `
+      *,
+      creator:profiles!user_id (
+        full_name
+      )
+    `
+    )
+    .eq("org_id", orgId)
+    .eq("approver_id", userId)
+    .eq("status", "submitted")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { data: null, error: error as DatabaseError };
+  }
+
+  // For pending approvals, the approver is the current user
+  // So we can get the user's profile in one query
+  if (expenses && expenses.length > 0) {
+    const { data: approver } = await supabase
+      .from("profiles")
+      .select("full_name")
       .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .single();
 
-    if (error) {
-      return { data: null, error: error as DatabaseError };
+    if (approver) {
+      // Add the same approver info to all expenses
+      expenses.forEach(expense => {
+        expense.approver = { full_name: approver.full_name };
+      });
     }
+  }
 
-    return {
-      data: data as (Expense & {
-        creator: { full_name: string };
-        approver?: { full_name: string };
-      })[],
-      error: null,
-    };
-  },
-
-  /**
-   * Get all expenses for an organization (admin only)
-   */
-  getByOrg: async (orgId: string) => {
-    const { data, error } = await supabase
-      .from("expenses")
-      .select(
-        `
-        *,
-        creator:profiles!user_id (
-          full_name
-        ),
-        approver:profiles(
-          full_name
-        )
-      `
-      )
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      return { data: null, error: error as DatabaseError };
-    }
-
-    return {
-      data: data as (Expense & {
-        creator: { full_name: string };
-        approver?: { full_name: string };
-      })[],
-      error: null,
-    };
-  },
-
-  /**
-   * Get pending approvals for a user
-   */
-  getPendingApprovals: async (orgId: string, userId: string) => {
-    const { data, error } = await supabase
-      .from("expenses")
-      .select(
-        `
-        *,
-        creator:profiles!user_id (
-          full_name
-        ),
-        approver:profiles(
-          full_name
-        )
-      `
-      )
-      .eq("org_id", orgId)
-      .eq("approver_id", userId)
-      .eq("status", "submitted")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      return { data: null, error: error as DatabaseError };
-    }
-
-    return {
-      data: data as (Expense & {
-        creator: { full_name: string };
-        approver?: { full_name: string };
-      })[],
-      error: null,
-    };
-  },
-
+  return {
+    data: expenses as (Expense & {
+      creator: { full_name: string };
+      approver?: { full_name: string };
+    })[],
+    error: null,
+  };
+},
   /**
    * Upload a receipt file
    */
