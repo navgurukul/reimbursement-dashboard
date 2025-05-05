@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/utils";
+import supabase from "@/lib/supabase";
 
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
@@ -86,85 +87,140 @@ export default function ExpensesPage() {
           { value: "all", label: "All Expenses" },
         ];
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!orgId) return;
-      setLoading(true);
+ useEffect(() => {
+   async function fetchData() {
+     if (!orgId) return;
+     setLoading(true);
 
-      // 1) load org settings (columns)
-      const { data: s, error: se } = await orgSettings.getByOrgId(orgId);
-      if (se) {
-        toast.error("Failed to load settings", { description: se.message });
-        setColumns(defaultExpenseColumns);
-      } else {
-        // Safely handle the case where settings or expense_columns might be undefined
-        const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
-        setColumns(expenseColumns);
-      }
+     // 1) load org settings (columns)
+     const { data: s, error: se } = await orgSettings.getByOrgId(orgId);
+     if (se) {
+       toast.error("Failed to load settings", { description: se.message });
+       setColumns(defaultExpenseColumns);
+     } else {
+       // Safely handle the case where settings or expense_columns might be undefined
+       const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+       setColumns(expenseColumns);
+     }
 
-      // 2) load expenses per role
-      let my: any[] = [],
-        pending: any[] = [],
-        all: any[] = [];
+     // 2) load expenses per role
+     let my: any[] = [],
+       pending: any[] = [],
+       all: any[] = [];
 
-      if (userRole === "member") {
-        // Members can only see their own expenses
-        const { data, error } = await expenses.getByOrgAndUser(
-          orgId,
-          user?.id!
-        );
-        if (error)
-          toast.error("Failed to load expenses", {
-            description: error.message,
-          });
-        my = data ?? [];
-        all = data ?? [];
-      } else {
-        // Admins and owners can see all views
-        const [
-          { data: myData, error: myErr },
-          { data: pendingData, error: pendingErr },
-          { data: allData, error: allErr },
-        ] = await Promise.all([
-          expenses.getByOrgAndUser(orgId, user?.id!),
-          expenses.getPendingApprovals(orgId, user?.id!),
-          expenses.getByOrg(orgId),
-        ]);
+     if (userRole === "member") {
+       // Members can only see their own expenses
+       const { data, error } = await expenses.getByOrgAndUser(orgId, user?.id!);
+       if (error)
+         toast.error("Failed to load expenses", {
+           description: error.message,
+         });
+       my = data ?? [];
+       all = data ?? [];
+     } else {
+       // Admins and owners can see all views
+       const [
+         { data: myData, error: myErr },
+         { data: pendingData, error: pendingErr },
+         { data: allData, error: allErr },
+       ] = await Promise.all([
+         expenses.getByOrgAndUser(orgId, user?.id!),
+         expenses.getPendingApprovals(orgId, user?.id!),
+         expenses.getByOrg(orgId),
+       ]);
 
-        if (myErr)
-          toast.error("Failed to load your expenses", {
-            description: myErr.message,
-          });
-        if (pendingErr)
-          toast.error("Failed to load pending approvals", {
-            description: pendingErr.message,
-          });
-        if (allErr)
-          toast.error("Failed to load all expenses", {
-            description: allErr.message,
-          });
+       if (myErr)
+         toast.error("Failed to load your expenses", {
+           description: myErr.message,
+         });
+       if (pendingErr)
+         toast.error("Failed to load pending approvals", {
+           description: pendingErr.message,
+         });
+       if (allErr)
+         toast.error("Failed to load all expenses", {
+           description: allErr.message,
+         });
 
-        my = myData ?? [];
-        pending = pendingData ?? [];
-        all = allData ?? [];
-      }
+       my = myData ?? [];
+       pending = pendingData ?? [];
+       all = allData ?? [];
+     }
 
-      setExpensesData(my);
-      setPendingApprovals(pending);
-      setAllExpenses(all);
+     // 3) Check for vouchers for each expense
+ if (my.length > 0 || all.length > 0 || pending.length > 0) {
+   // We need to check for vouchers by expense ID
+   // In your useEffect, modify the voucher checking code:
+   const processExpenseData = async (expensesList: any[]) => {
+     const processedExpenses = [...expensesList];
 
-      // compute stats on "all"
-      setStats({
-        total: all.length,
-        approved: all.filter((e) => e.status === "approved").length,
-        pending: all.filter((e) => e.status === "submitted").length,
-        rejected: all.filter((e) => e.status === "rejected").length,
-      });
+     for (const exp of processedExpenses) {
+       try {
+         // Check if this expense has a voucher - use more explicit query format
+         const { data: voucherData, error } = await supabase
+           .from("vouchers")
+           .select("*")
+           .eq("expense_id", exp.id)
+           .maybeSingle(); // Use maybeSingle instead of single to avoid errors
 
-      setLoading(false);
-    }
-    fetchData();
-  }, [orgId, userRole]);
+         if (!error && voucherData) {
+           // If voucher exists, mark the expense and add needed info
+           exp.hasVoucher = true;
+           exp.voucherId = voucherData.id;
+
+           // If approver is missing, try to get it from the voucher
+           if (!exp.approver || !exp.approver.full_name) {
+             // For debugging
+             console.log("Found voucher for expense", exp.id, voucherData);
+
+             // Try to get approver info if available
+             if (voucherData.created_by) {
+               // Look up profile by created_by
+               const { data: approverData } = await supabase
+                 .from("profiles")
+                 .select("full_name")
+                 .eq("user_id", voucherData.created_by)
+                 .maybeSingle();
+
+               if (approverData && approverData.full_name) {
+                 exp.approver = { full_name: approverData.full_name };
+               }
+             }
+           }
+         }
+       } catch (error) {
+         // Log the error for debugging
+         console.error(`Error checking voucher for expense ${exp.id}:`, error);
+       }
+     }
+
+     
+     
+     return processedExpenses;
+   };
+
+   // Then use this function to process your expense lists
+   my = await processExpenseData(my);
+   if (userRole !== "member") {
+     pending = await processExpenseData(pending);
+     all = await processExpenseData(all);
+   }
+     }
+     setExpensesData(my);
+     setPendingApprovals(pending);
+     setAllExpenses(all);
+     // compute stats on "all"
+     setStats({
+       total: all.length,
+       approved: all.filter((e) => e.status === "approved").length,
+       pending: all.filter((e) => e.status === "submitted").length,
+       rejected: all.filter((e) => e.status === "rejected").length,
+     });
+
+     setLoading(false);
+   }
+   fetchData();
+ }, [orgId, userRole, user?.id]);
 
   const getCurrent = () => {
     if (activeTab === "my") return expensesData;
@@ -328,8 +384,21 @@ export default function ExpensesPage() {
                                     >
                                       View Receipt
                                     </Button>
+                                  ) : exp.hasVoucher ? (
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="p-0 h-auto font-normal text-blue-600"
+                                      onClick={() =>
+                                        router.push(
+                                          `/org/${slug}/expenses/${exp.id}/voucher`
+                                        )
+                                      }
+                                    >
+                                      View Voucher
+                                    </Button>
                                   ) : (
-                                    "No receipt"
+                                    "No receipt or voucher"
                                   )
                                 ) : c.key === "approver" ? (
                                   exp.approver?.full_name || "—"

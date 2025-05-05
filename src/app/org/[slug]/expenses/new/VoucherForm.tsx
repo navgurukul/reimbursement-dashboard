@@ -1,9 +1,9 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Upload, Info } from "lucide-react";
-import { toast } from "sonner";
+import { Info } from "lucide-react";
+import { useState, useEffect } from "react";
+import SignaturePad from "@/components/SignatureCanvas";
 
 type Role = "admin" | "member" | "owner";
 
@@ -18,6 +18,40 @@ export default function VoucherForm({
   onInputChange,
   userRole,
 }: VoucherFormProps) {
+  // Track if signatures are changed
+  const [userSignature, setUserSignature] = useState<string | undefined>(
+    formData.signature_data_url || undefined
+  );
+  const [approverSignature, setApproverSignature] = useState<
+    string | undefined
+  >(formData.manager_signature_data_url || undefined);
+
+  // Update local state when formData changes externally
+  useEffect(() => {
+    if (formData.signature_data_url && !userSignature) {
+      setUserSignature(formData.signature_data_url);
+    }
+    if (formData.manager_signature_data_url && !approverSignature) {
+      setApproverSignature(formData.manager_signature_data_url);
+    }
+  }, [formData, userSignature, approverSignature]);
+
+  const handleUserSignatureSave = (dataUrl: string) => {
+    setUserSignature(dataUrl);
+    // Store the full data URL
+    onInputChange("signature_data_url", dataUrl);
+    // Also store preview version
+    onInputChange("signature_preview", dataUrl);
+  };
+
+  const handleApproverSignatureSave = (dataUrl: string) => {
+    setApproverSignature(dataUrl);
+    // Store the full data URL
+    onInputChange("manager_signature_data_url", dataUrl);
+    // Also store preview version
+    onInputChange("manager_signature_preview", dataUrl);
+  };
+
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
@@ -109,19 +143,19 @@ export default function VoucherForm({
 
         <div className="mt-6 grid grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Approver's Signature</Label>
-            <div className="border border-gray-200 rounded-lg p-4 h-32 flex flex-col items-center justify-center bg-gray-50">
-              <p className="text-sm text-gray-500">Signature required</p>
-              <p className="text-xs text-gray-400">Sandhya</p>
-            </div>
+            <SignaturePad
+              onSave={handleApproverSignatureSave}
+              label="Approver's Signature"
+              signatureUrl={formData.manager_signature_preview}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Your Signature</Label>
-            <div className="border border-gray-200 rounded-lg p-4 h-32 flex flex-col items-center justify-center bg-gray-50">
-              <p className="text-sm text-gray-500">Signature required</p>
-              <p className="text-xs text-gray-400">You</p>
-            </div>
+            <SignaturePad
+              onSave={handleUserSignatureSave}
+              label="Your Signature"
+              signatureUrl={formData.signature_preview}
+            />
           </div>
         </div>
       </div>

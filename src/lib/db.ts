@@ -185,6 +185,7 @@ export interface Voucher {
   amount: number;
   purpose: string;
   credit_person: string;
+  created_by: string;
   signature_url?: string;
   manager_signature_url?: string;
   updated_at: string;
@@ -1263,52 +1264,61 @@ getPendingApprovals: async (orgId: string, userId: string) => {
 
 // Vouchers functions
 export const vouchers = {
-  create: async (
-    data: Omit<
-      Voucher,
-      | "id"
-      | "created_at"
-      | "updated_at"
-      | "signature_url"
-      | "manager_signature_url"
-    >
-  ) => {
+  // Fix the Voucher create function
+  create: async (data: {
+    expense_id: string;
+    your_name: string;
+    amount: number;
+    purpose: string;
+    credit_person: string;
+    signature_url: string | null;
+    created_by?: string;
+    manager_signature_url: string | null;
+  }) => {
     try {
+      console.log("Creating voucher with data:", data);
+
+      // Explicitly define the payload with correct types
+      const payload = {
+        expense_id: data.expense_id,
+        your_name: data.your_name,
+        amount: data.amount,
+        purpose: data.purpose,
+        credit_person: data.credit_person,
+        signature_url: data.signature_url,
+        manager_signature_url: data.manager_signature_url,
+        created_by: data.created_by,
+      };
+
+      console.log("Final voucher payload:", payload);
+
       const { data: response, error } = await supabase
         .from("vouchers")
-        .insert([
-          {
-            expense_id: data.expense_id,
-            your_name: data.your_name,
-            amount: data.amount,
-            purpose: data.purpose,
-            credit_person: data.credit_person,
-          },
-        ])
+        .insert([payload])
         .select()
         .single();
 
       if (error) {
-        console.error("Voucher creation error:", error);
+        console.error("Voucher creation error from Supabase:", error);
         return {
           data: null,
           error,
         };
       }
 
+      console.log("Voucher created successfully, response:", response);
       return {
         data: response,
         error: null,
       };
     } catch (error) {
-      console.error("Unexpected error:", error);
+      console.error("Unexpected error in voucher creation:", error);
       return {
         data: null,
         error,
       };
     }
   },
-
   /**
    * Get a voucher by expense ID
    */
@@ -1351,6 +1361,89 @@ export const vouchers = {
 
     return {
       data: data as Voucher,
+      error: null,
+    };
+  },
+
+  // Add this function to your vouchers object in db.ts
+  uploadSignature: async (
+    signatureDataUrl: string,
+    userId: string,
+    orgId: string,
+    type: "user" | "approver"
+  ): Promise<{ path: string; error: StorageError | null }> => {
+    try {
+      // Skip the base64 prefix to get the actual data
+      const base64Data = signatureDataUrl.split(",")[1];
+      if (!base64Data) {
+        console.error("Invalid data URL format");
+        return {
+          path: "",
+          error: {
+            message: "Invalid data URL format",
+            name: "SignatureUploadError",
+          },
+        };
+      }
+
+      // Convert base64 to binary
+      const binaryData = atob(base64Data);
+      const arrayBuffer = new ArrayBuffer(binaryData.length);
+      const uint8Array = new Uint8Array(arrayBuffer);
+      for (let i = 0; i < binaryData.length; i++) {
+        uint8Array[i] = binaryData.charCodeAt(i);
+      }
+
+      // Create blob from the binary data
+      const blob = new Blob([uint8Array], { type: "image/png" });
+
+      const fileName = `sig_${type}_${Math.random().toString(36).slice(2)}.png`;
+      const filePath = `${userId}/${orgId}/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("voucher-signatures")
+        .upload(filePath, blob);
+
+      if (error) {
+        console.error("Supabase storage error:", error);
+        return { path: "", error: error };
+      }
+
+      console.log(`Signature uploaded successfully at path: ${filePath}`);
+      return {
+        path: filePath,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Error uploading signature:", error);
+      return {
+        path: "",
+        error: {
+          message:
+            "Failed to upload signature: " +
+            (error instanceof Error ? error.message : String(error)),
+          name: "SignatureUploadError",
+        },
+      };
+    }
+  },
+
+  /**
+   * Get a download URL for a signature
+   */
+  getSignatureUrl: async (
+    path: string
+  ): Promise<{ url: string; error: StorageError | null }> => {
+    const { data, error } = await supabase.storage
+      .from("voucher-signatures")
+      .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+    if (error) {
+      return { url: "", error: error };
+    }
+
+    return {
+      url: data.signedUrl,
       error: null,
     };
   },
