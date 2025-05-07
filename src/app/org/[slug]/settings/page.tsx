@@ -286,7 +286,7 @@ export default function SettingsPage() {
 
       // Process columns before saving
       const processedColumns = await Promise.all(
-        columnsToSave.map(async (col) => {
+        columnsToSave.map(async (col: DbColumnConfig) => {
           // Ensure all columns have the required properties
           if (
             !col.options &&

@@ -1,7 +1,7 @@
 import supabase from "./supabase";
 import { createClient } from "@supabase/supabase-js";
 import { StorageError } from "@supabase/storage-js";
-
+import { StorageApiError } from "@supabase/storage-js";
 // Types
 export interface Organization {
   id: string;
@@ -797,7 +797,7 @@ getByEventId: async (eventId: string) => {
 
     if (approvers && approvers.length > 0) {
       // Create a lookup map
-      const approverMap = {};
+      const approverMap: Record<string, { user_id: string, full_name: string }> = {};
       approvers.forEach(a => {
         approverMap[a.user_id] = a;
       });
@@ -859,7 +859,7 @@ getByOrgAndUser: async (orgId: string, userId: string) => {
 
     if (approvers && approvers.length > 0) {
       // Create a lookup map
-      const approverMap = {};
+      const approverMap: Record<string, { user_id: string, full_name: string }> = {};
       approvers.forEach(a => {
         approverMap[a.user_id] = a;
       });
@@ -920,7 +920,7 @@ getByOrg: async (orgId: string) => {
 
     if (approvers && approvers.length > 0) {
       // Create a lookup map
-      const approverMap = {};
+      const approverMap: Record<string, { user_id: string, full_name: string }> = {};
       approvers.forEach(a => {
         approverMap[a.user_id] = a;
       });
@@ -1379,10 +1379,7 @@ export const vouchers = {
         console.error("Invalid data URL format");
         return {
           path: "",
-          error: {
-            message: "Invalid data URL format",
-            name: "SignatureUploadError",
-          },
+          error: new StorageApiError("Invalid data URL format", 400),
         };
       }
 
@@ -1416,14 +1413,14 @@ export const vouchers = {
       };
     } catch (error) {
       console.error("Error uploading signature:", error);
+      // Import and use StorageError or StorageApiError at the top of your file
       return {
         path: "",
-        error: {
-          message:
-            "Failed to upload signature: " +
+        error: new StorageApiError(
+          "Failed to upload signature: " +
             (error instanceof Error ? error.message : String(error)),
-          name: "SignatureUploadError",
-        },
+          500
+        ),
       };
     }
   },

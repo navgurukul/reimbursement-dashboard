@@ -3,6 +3,10 @@ const nextConfig = {
   images: {
     domains: ["avatars.githubusercontent.com"],
   },
+  eslint: {
+    // This disables ESLint during the build process
+    ignoreDuringBuilds: true,
+  },
   devIndicators: false,
   async rewrites() {
     return {

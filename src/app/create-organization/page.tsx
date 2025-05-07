@@ -135,7 +135,9 @@ export default function CreateOrganizationPage() {
       if (orgError || !orgData) {
         toast.dismiss(loadingToast);
         toast.error("Failed to create organization", {
-          description: orgError?.message || "Please try again.",
+          description: typeof orgError === 'object' && orgError !== null && 'message' in orgError 
+            ? String(orgError.message) 
+            : "Please try again.",
         });
         setIsSubmitting(false);
         return;

@@ -10,7 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Edit, PlusCircle, Save, Trash, Upload } from "lucide-react";
+import {
+  ArrowLeft,
+  Edit,
+  PlusCircle,
+  Save,
+  Trash,
+  Upload,
+  X,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
@@ -22,17 +30,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 interface ExpenseEvent {
   id: string;
@@ -58,6 +55,54 @@ interface Expense {
   event_id?: string;
 }
 
+// Custom Modal component to replace AlertDialog
+const ConfirmModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  description,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  description: string;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full">
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button
+            onClick={onClose}
+            className="rounded-full p-1 hover:bg-gray-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-gray-600 mb-6">{description}</p>
+        <div className="flex justify-end space-x-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+            className="bg-red-600 text-white hover:bg-red-700"
+          >
+            Delete
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function ExpenseEventDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -72,7 +117,7 @@ export default function ExpenseEventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editedEvent, setEditedEvent] = useState<Partial<ExpenseEvent>>({});
 
   useEffect(() => {
@@ -112,7 +157,7 @@ export default function ExpenseEventDetailPage() {
     };
 
     fetchEventDetails();
-  }, [eventId, orgId, slug]);
+  }, [eventId, orgId, slug, router]);
 
   const handleInputChange = (field: string, value: string) => {
     setEditedEvent((prev) => ({
@@ -151,7 +196,7 @@ export default function ExpenseEventDetailPage() {
     try {
       // First unlink all expenses from this event
       for (const expense of eventExpenses) {
-        await expenses.update(expense.id, { event_id: null });
+        await expenses.update(expense.id, { event_id: undefined });
       }
 
       // Then delete the event
@@ -207,7 +252,9 @@ export default function ExpenseEventDetailPage() {
 
   const handleRemoveExpense = async (expenseId: string) => {
     try {
-      const { error } = await expenses.update(expenseId, { event_id: null });
+      const { error } = await expenses.update(expenseId, {
+        event_id: undefined,
+      });
       if (error) throw error;
 
       toast.success("Expense removed from event");
@@ -253,6 +300,15 @@ export default function ExpenseEventDetailPage() {
 
   return (
     <div className="max-w-[1000px] mx-auto py-6 space-y-6">
+      {/* Custom Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteEvent}
+        title="Delete this expense event?"
+        description="This will remove the event and unlink all associated expenses. The expenses themselves will not be deleted."
+      />
+
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
@@ -266,34 +322,14 @@ export default function ExpenseEventDetailPage() {
         <div className="flex items-center space-x-2">
           {event.status === "draft" && (
             <>
-              <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="text-red-600">
-                    <Trash className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Delete this expense event?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will remove the event and unlink all associated
-                      expenses. The expenses themselves will not be deleted.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-red-600 text-white hover:bg-red-700"
-                      onClick={handleDeleteEvent}
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                variant="outline"
+                className="text-red-600"
+                onClick={() => setShowDeleteModal(true)}
+              >
+                <Trash className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
 
               {editing ? (
                 <Button disabled={saving} onClick={handleSaveEvent}>

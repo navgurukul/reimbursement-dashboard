@@ -7,7 +7,7 @@ import { expenses } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Check, X } from "lucide-react";
+import { ArrowLeft, Check, X, FileText } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function ViewExpensePage() {
@@ -74,6 +74,27 @@ export default function ViewExpensePage() {
     }
   };
 
+  const handleViewReceipt = async () => {
+    if (expense.receipt?.path) {
+      try {
+        const { url, error } = await expenses.getReceiptUrl(
+          expense.receipt.path
+        );
+        if (error) {
+          console.error("Error getting receipt URL:", error);
+          toast.error("Failed to load receipt");
+          return;
+        }
+        if (url) {
+          window.open(url, "_blank");
+        }
+      } catch (err) {
+        console.error("Error opening receipt:", err);
+        toast.error("Failed to open receipt");
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -85,6 +106,14 @@ export default function ViewExpensePage() {
   if (!expense) {
     return null;
   }
+
+  // Helper function to format field names
+  const formatFieldName = (name: string) => {
+    return name
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
 
   return (
     <div className="space-y-6">
@@ -156,25 +185,50 @@ export default function ViewExpensePage() {
             </div>
           </div>
 
-          {expense.receipt && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-2">
-                Receipt
+          {/* Receipt section with View Receipt button */}
+          <div>
+            <p className="text-sm font-medium text-muted-foreground mb-2">
+              Receipt
+            </p>
+            {expense.receipt ? (
+              <Button
+                variant="outline"
+                onClick={handleViewReceipt}
+                className="flex items-center"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                View Receipt ({expense.receipt.filename || "Document"})
+              </Button>
+            ) : expense.hasVoucher ? (
+              <Button
+                variant="outline"
+                className="flex items-center text-blue-600"
+                onClick={() =>
+                  router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
+                }
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                View Voucher
+              </Button>
+            ) : (
+              <p className="text-muted-foreground">
+                No receipt or voucher available
               </p>
-              <img
-                src={expense.receipt.url}
-                alt="Receipt"
-                className="max-h-80 rounded-md"
-              />
-            </div>
-          )}
+            )}
+          </div>
 
-          {Object.entries(expense.custom_fields).map(([key, value]) => (
-            <div key={key}>
-              <p className="text-sm font-medium text-muted-foreground">{key}</p>
-              <p>{value as string}</p>
-            </div>
-          ))}
+          {/* Custom fields section */}
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            {expense.custom_fields &&
+              Object.entries(expense.custom_fields).map(([key, value]) => (
+                <div key={key}>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {formatFieldName(key)}
+                  </p>
+                  <p>{(value as string) || "—"}</p>
+                </div>
+              ))}
+          </div>
         </CardContent>
       </Card>
     </div>
