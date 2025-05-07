@@ -1,4 +1,4 @@
-// middleware.js
+// middleware.ts
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -35,18 +35,23 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Handle subdomain routing
+  // Get request details
   const hostname = request.headers.get("host") || "";
-  const subdomain = hostname.split(".")[0];
-  const isSubdomain = hostname.includes(".") && !hostname.includes("localhost");
   const pathname = request.nextUrl.pathname;
 
-  // Check if it's a subdomain and not already redirected
-  // IMPORTANT: Add check to prevent infinite redirects
+  // Important fix: Don't automatically treat "reimbursement" as an org subdomain
+  // If "reimbursement" is your app name, add it to the excluded subdomains
+  const subdomain = hostname.split(".")[0];
+  const isSubdomain = hostname.includes(".") && !hostname.includes("localhost");
+  const excludedSubdomains = ["www", "reimbursement", "app"]; // Add your app name here
+
+  // Check if this is a proper org subdomain that should be redirected
+  // Only redirect if it's not an excluded subdomain
   if (
     isSubdomain &&
-    subdomain !== "www" &&
-    !pathname.startsWith(`/org/${subdomain}`)
+    !excludedSubdomains.includes(subdomain) &&
+    !pathname.startsWith(`/org/${subdomain}`) &&
+    !pathname.startsWith("/auth/")
   ) {
     const url = request.nextUrl.clone();
     url.pathname = `/org/${subdomain}${pathname}`;
@@ -59,13 +64,15 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  if (isProtectedRoute && !user) {
+  // Only redirect to signin if not already in auth flow
+  if (isProtectedRoute && !user && !pathname.startsWith("/auth/")) {
     const redirectUrl = new URL("/auth/signin", request.url);
-    redirectUrl.searchParams.set("redirectTo", pathname);
+    // Clean the redirect path to prevent loops
+    const cleanPathname = pathname.replace(/\/auth\/signin.*$/, "");
+    redirectUrl.searchParams.set("redirectTo", cleanPathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
   return supabaseResponse;
 }
 
