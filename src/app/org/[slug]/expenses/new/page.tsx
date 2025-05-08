@@ -205,161 +205,174 @@ export default function NewExpensePage() {
     }
   };
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setSaving(true);
+  // Modify the handleSubmit function to fix the approver_id issue
 
-  try {
-    if (!user?.id || !organization) {
-      throw new Error("Missing required data");
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
 
-    // Process signatures if this is a voucher
-    let signature_url: string | null = null;
-    let manager_signature_url: string | null = null;
+    try {
+      if (!user?.id || !organization) {
+        throw new Error("Missing required data");
+      }
 
-    if (voucherModalOpen) {
-      console.log("Processing voucher with signatures...");
+      // Process signatures if this is a voucher
+      let signature_url: string | null = null;
+      let manager_signature_url: string | null = null;
 
-      // Upload the user signature if exists
-      if (formData.signature_data_url) {
-        const { path, error } = await uploadSignature(
-          formData.signature_data_url,
-          user.id,
-          organization.id,
-          "user"
-        );
+      if (voucherModalOpen) {
+        console.log("Processing voucher with signatures...");
 
-        if (error) {
-          toast.error(`Failed to upload your signature: ${error.message}`);
-        } else {
-          signature_url = path;
+        // Upload the user signature if exists
+        if (formData.signature_data_url) {
+          const { path, error } = await uploadSignature(
+            formData.signature_data_url,
+            user.id,
+            organization.id,
+            "user"
+          );
+
+          if (error) {
+            toast.error(`Failed to upload your signature: ${error.message}`);
+          } else {
+            signature_url = path;
+          }
+        }
+
+        // Upload the approver signature if exists
+        if (formData.manager_signature_data_url) {
+          const { path, error } = await uploadSignature(
+            formData.manager_signature_data_url,
+            user.id,
+            organization.id,
+            "approver"
+          );
+
+          if (error) {
+            toast.error(
+              `Failed to upload approver signature: ${error.message}`
+            );
+          } else {
+            manager_signature_url = path;
+          }
         }
       }
 
-      // Upload the approver signature if exists
-      if (formData.manager_signature_data_url) {
-        const { path, error } = await uploadSignature(
-          formData.manager_signature_data_url,
-          user.id,
-          organization.id,
-          "approver"
-        );
+      // Extract approver_id directly from formData
+      const approver_id = formData.approver || null;
+      console.log("Approver ID being sent:", approver_id);
 
-        if (error) {
-          toast.error(`Failed to upload approver signature: ${error.message}`);
-        } else {
-          manager_signature_url = path;
-        }
-      }
-    }
-
-    const baseExpenseData = {
-      org_id: organization.id,
-      user_id: user.id,
-      status: "submitted" as const,
-      receipt: null,
-      amount: voucherModalOpen
-        ? parseFloat(formData.voucherAmount || "0")
-        : parseFloat(formData.amount || "0"),
-      expense_type: (formData.expense_type as string) || "Other",
-      date: new Date(formData.date).toISOString(),
-      custom_fields: {},
-      event_id: formData.event_id || null,
-    };
-
-    if (voucherModalOpen) {
-      console.log("Creating expense for voucher...");
-      const { data: expenseData, error: expenseError } = await expenses.create(
-        baseExpenseData
-      );
-
-      if (expenseError || !expenseData) {
-        console.error("Expense creation error:", expenseError);
-        toast.error("Failed to create expense");
-        return;
-      }
-
-      console.log("Expense created successfully, now creating voucher...");
-      console.log("Signature URLs being sent to backend:", {
-        signature_url,
-        manager_signature_url,
-      });
-
-      // Create voucher with direct Supabase insert to avoid type issues
-    const { data: voucherResponse, error: voucherError } = await supabase
-      .from("vouchers")
-      .insert([
-        {
-          expense_id: expenseData.id,
-          your_name: formData.yourName || null,
-          amount: parseFloat(formData.voucherAmount || "0"),
-          purpose: formData.purpose || null,
-          credit_person: formData.voucherCreditPerson || null,
-          signature_url: signature_url,
-          manager_signature_url: manager_signature_url,
-          created_by: user.id,
-          org_id: organization.id, // Add this explicitly
-        },
-      ])
-      .select()
-      .single();
-
-      if (voucherError) {
-        console.error("Voucher creation error:", voucherError);
-        toast.error(`Failed to create voucher: ${voucherError.message}`);
-        return;
-      }
-
-      console.log("Voucher created successfully:", voucherResponse);
-      toast.success("Voucher submitted successfully");
-    } else {
-      const regularExpensePayload = {
-        ...baseExpenseData,
-        custom_fields: {} as Record<string, any>,
+      const baseExpenseData = {
+        org_id: organization.id,
+        user_id: user.id,
+        status: "submitted" as const,
+        receipt: null,
+        amount: voucherModalOpen
+          ? parseFloat(formData.voucherAmount || "0")
+          : parseFloat(formData.amount || "0"),
+        expense_type: (formData.expense_type as string) || "Other",
+        date: new Date(formData.date).toISOString(),
+        custom_fields: {},
+        event_id: formData.event_id || null,
+        approver_id: approver_id, // Add approver_id directly to the base expense data
       };
 
-      columns.forEach((col) => {
-        if (
-          col.visible &&
-          col.key !== "expense_type" &&
-          col.key !== "amount" &&
-          col.key !== "date" &&
-          col.key !== "approver_id" &&
-          col.key !== "event_id"
-        ) {
-          regularExpensePayload.custom_fields[col.key] = formData[col.key];
+      if (voucherModalOpen) {
+        console.log("Creating expense for voucher...");
+        const { data: expenseData, error: expenseError } =
+          await expenses.create(baseExpenseData);
+
+        if (expenseError || !expenseData) {
+          console.error("Expense creation error:", expenseError);
+          toast.error("Failed to create expense");
+          return;
         }
-      });
 
-      const { error } = await expenses.create(
-        regularExpensePayload,
-        receiptFile || undefined
-      );
+        console.log("Expense created successfully, now creating voucher...");
+        console.log("Signature URLs being sent to backend:", {
+          signature_url,
+          manager_signature_url,
+        });
 
-      if (error) {
-        throw error;
+        // Create voucher with direct Supabase insert to avoid type issues
+        const { data: voucherResponse, error: voucherError } = await supabase
+          .from("vouchers")
+          .insert([
+            {
+              expense_id: expenseData.id,
+              your_name: formData.yourName || null,
+              amount: parseFloat(formData.voucherAmount || "0"),
+              purpose: formData.purpose || null,
+              credit_person: formData.voucherCreditPerson || null,
+              signature_url: signature_url,
+              manager_signature_url: manager_signature_url,
+              created_by: user.id,
+              org_id: organization.id,
+              approver_id: approver_id,
+            },
+          ])
+          .select()
+          .single();
+
+        if (voucherError) {
+          console.error("Voucher creation error:", voucherError);
+          toast.error(`Failed to create voucher: ${voucherError.message}`);
+          return;
+        }
+
+        console.log("Voucher created successfully:", voucherResponse);
+        toast.success("Voucher submitted successfully");
+      } else {
+        const regularExpensePayload = {
+          ...baseExpenseData,
+          custom_fields: {} as Record<string, any>,
+        };
+
+        columns.forEach((col) => {
+          if (
+            col.visible &&
+            col.key !== "expense_type" &&
+            col.key !== "amount" &&
+            col.key !== "date" &&
+            col.key !== "approver_id" && // Make sure approver_id is not added to custom_fields
+            col.key !== "event_id"
+          ) {
+            regularExpensePayload.custom_fields[col.key] = formData[col.key];
+          }
+        });
+
+        console.log(
+          "Creating regular expense with data:",
+          regularExpensePayload
+        );
+
+        const { error } = await expenses.create(
+          regularExpensePayload,
+          receiptFile || undefined
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        toast.success("Expense created successfully");
       }
 
-      toast.success("Expense created successfully");
+      // If expense was added from an event's page, redirect back to that event
+      if (eventIdFromQuery) {
+        router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+      } else {
+        router.push(`/org/${slug}/expenses`);
+      }
+    } catch (error: any) {
+      console.error("Error in submit handler:", error);
+      toast.error("Failed to create expense", {
+        description: error.message,
+      });
+    } finally {
+      setSaving(false);
     }
-
-    // If expense was added from an event's page, redirect back to that event
-    if (eventIdFromQuery) {
-      router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
-    } else {
-      router.push(`/org/${slug}/expenses`);
-    }
-  } catch (error: any) {
-    console.error("Error in submit handler:", error);
-    toast.error("Failed to create expense", {
-      description: error.message,
-    });
-  } finally {
-    setSaving(false);
-  }
-};
-
+  };
   if (loading || !isMounted) {
     return (
       <div className="flex items-center justify-center h-64">
