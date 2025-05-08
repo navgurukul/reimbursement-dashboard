@@ -188,6 +188,7 @@ export interface Voucher {
   created_by: string;
   signature_url?: string;
   manager_signature_url?: string;
+  approver_id?: string; // Added approver_id field
   updated_at: string;
 }
 
@@ -1274,6 +1275,8 @@ export const vouchers = {
     signature_url: string | null;
     created_by?: string;
     manager_signature_url: string | null;
+    approver_id?: string; // Added approver_id parameter
+    org_id?: string;
   }) => {
     try {
       console.log("Creating voucher with data:", data);
@@ -1288,6 +1291,8 @@ export const vouchers = {
         signature_url: data.signature_url,
         manager_signature_url: data.manager_signature_url,
         created_by: data.created_by,
+        approver_id: data.approver_id || null, // Include approver_id in payload
+        org_id: data.org_id,
       };
 
       console.log("Final voucher payload:", payload);
@@ -1322,21 +1327,52 @@ export const vouchers = {
   /**
    * Get a voucher by expense ID
    */
+  /**
+   * Get a voucher by expense ID (Fixed version)
+   */
   getByExpenseId: async (expenseId: string) => {
-    const { data, error } = await supabase
-      .from("vouchers")
-      .select("*")
-      .eq("expense_id", expenseId)
-      .single();
+    try {
+      // First, get just the voucher itself without trying to join profiles
+      const { data: voucher, error } = await supabase
+        .from("vouchers")
+        .select("*")
+        .eq("expense_id", expenseId)
+        .single();
 
-    if (error) {
-      return { data: null, error: error as DatabaseError };
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+
+      // If voucher exists and has an approver_id, fetch the approver profile separately
+      if (voucher && voucher.approver_id) {
+        const { data: approverData, error: approverError } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", voucher.approver_id)
+          .single();
+
+        if (!approverError && approverData) {
+          // Add the approver data to the result as a property
+          (voucher as any).approver = { full_name: approverData.full_name };
+        }
+      }
+
+      return {
+        data: voucher as Voucher,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Error fetching voucher:", error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        } as DatabaseError,
+      };
     }
-
-    return {
-      data: data as Voucher,
-      error: null,
-    };
   },
 
   /**

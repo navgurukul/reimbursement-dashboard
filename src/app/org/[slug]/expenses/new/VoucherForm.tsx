@@ -1,16 +1,28 @@
+"use client";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import SignaturePad from "@/components/SignatureCanvas";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useOrgStore } from "@/store/useOrgStore";
+import { organizations, profiles } from "@/lib/db";
+import { toast } from "sonner";
 
-type Role = "admin" | "member" | "owner";
+type Role = "admin" | "member" | "owner" | null;
 
 interface VoucherFormProps {
   formData: Record<string, any>;
   onInputChange: (key: string, value: any) => void;
-  userRole: Role | null;
+  userRole: Role;
 }
 
 export default function VoucherForm({
@@ -25,6 +37,65 @@ export default function VoucherForm({
   const [approverSignature, setApproverSignature] = useState<
     string | undefined
   >(formData.manager_signature_data_url || undefined);
+
+  const [approvers, setApprovers] = useState<
+    Array<{
+      id: string;
+      full_name: string;
+      role: string;
+    }>
+  >([]);
+  const [loadingApprovers, setLoadingApprovers] = useState(true);
+
+  const { organization } = useOrgStore();
+
+  // Load approvers (admin users) for selection
+  useEffect(() => {
+    async function loadApprovers() {
+      if (!organization?.id) return;
+
+      try {
+        setLoadingApprovers(true);
+        const { data: members, error } =
+          await organizations.getOrganizationMembers(organization.id);
+
+        if (error) throw error;
+
+        // Get only admin and owner roles
+        const approversData =
+          members?.filter(
+            (member) => member.role === "admin" || member.role === "owner"
+          ) || [];
+
+        // Get profiles for these users
+        if (approversData.length > 0) {
+          const userIds = approversData.map((a) => a.user_id);
+          const { data: profilesData } = await profiles.getByIds(userIds);
+
+          // Merge the data
+          const approversWithProfiles = approversData.map((a) => {
+            const profile = profilesData?.find((p) => p.user_id === a.user_id);
+            return {
+              id: a.user_id,
+              full_name: profile?.full_name || "Unknown User",
+              role: a.role,
+            };
+          });
+
+          setApprovers(approversWithProfiles);
+        } else {
+          setApprovers([]);
+        }
+      } catch (error: any) {
+        console.error("Failed to load approvers:", error);
+        toast.error("Could not load approvers");
+      } finally {
+        setLoadingApprovers(false);
+      }
+    }
+
+    loadApprovers();
+  }, [organization?.id]);
 
   // Update local state when formData changes externally
   useEffect(() => {
@@ -139,6 +210,46 @@ export default function VoucherForm({
           <p className="text-sm text-gray-500">
             This should be the person to whom the payment is being made
           </p>
+        </div>
+
+        {/* Approver selection dropdown */}
+        <div className="mt-4 space-y-2">
+          <Label htmlFor="approver_id" className="text-sm font-medium">
+            Approver <span className="text-red-500">*</span>
+          </Label>
+          <Select
+            value={formData.approver_id || ""}
+            onValueChange={(value) => {
+              console.log("Setting approver_id to:", value);
+              onInputChange("approver_id", value);
+            }}
+            disabled={loadingApprovers || approvers.length === 0}
+          >
+            <SelectTrigger id="approver_id" className="w-full">
+              <SelectValue placeholder="Select an approver" />
+            </SelectTrigger>
+            <SelectContent>
+              {approvers.map((approver) => (
+                <SelectItem key={approver.id} value={approver.id}>
+                  {approver.full_name} ({approver.role})
+                </SelectItem>
+              ))}
+              {approvers.length === 0 && !loadingApprovers && (
+                <SelectItem value="none" disabled>
+                  No approvers available
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+          {loadingApprovers && (
+            <p className="text-xs text-gray-500">Loading approvers...</p>
+          )}
+          {!loadingApprovers && approvers.length === 0 && (
+            <p className="text-xs text-amber-500">
+              No approvers available. An admin or owner must be assigned as an
+              approver.
+            </p>
+          )}
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-6">

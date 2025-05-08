@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Check, X, FileText } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import supabase from "@/lib/supabase";
 
 export default function ViewExpensePage() {
   const router = useRouter();
@@ -20,10 +21,12 @@ export default function ViewExpensePage() {
 
   const [loading, setLoading] = useState(true);
   const [expense, setExpense] = useState<any>(null);
+  const [hasVoucher, setHasVoucher] = useState(false);
 
   useEffect(() => {
     async function fetchExpense() {
       try {
+        // Fetch the expense details
         const { data, error } = await expenses.getById(expenseId);
         if (error) {
           toast.error("Failed to load expense", {
@@ -32,7 +35,23 @@ export default function ViewExpensePage() {
           router.push(`/org/${slug}/expenses`);
           return;
         }
+
         setExpense(data);
+
+        // Check if this expense has a voucher
+        const { data: voucherData, error: voucherError } = await supabase
+          .from("vouchers")
+          .select("id")
+          .eq("expense_id", expenseId)
+          .maybeSingle();
+
+        if (!voucherError && voucherData) {
+          console.log("Voucher found for expense:", voucherData);
+          setHasVoucher(true);
+        } else {
+          console.log("No voucher found for this expense");
+          setHasVoucher(false);
+        }
       } catch (error) {
         console.error("Error fetching expense:", error);
         toast.error("An unexpected error occurred");
@@ -183,6 +202,15 @@ export default function ViewExpensePage() {
                   expense.status.slice(1)}
               </p>
             </div>
+
+            {expense.approver && (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Approver
+                </p>
+                <p>{expense.approver.full_name || "—"}</p>
+              </div>
+            )}
           </div>
 
           {/* Receipt section with View Receipt button */}
@@ -199,7 +227,7 @@ export default function ViewExpensePage() {
                 <FileText className="mr-2 h-4 w-4" />
                 View Receipt ({expense.receipt.filename || "Document"})
               </Button>
-            ) : expense.hasVoucher ? (
+            ) : hasVoucher ? (
               <Button
                 variant="outline"
                 className="flex items-center text-blue-600"
