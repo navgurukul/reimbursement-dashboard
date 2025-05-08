@@ -1,3 +1,4 @@
+// src/app/org/[slug]/expense-events/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -52,10 +53,12 @@ export default function ExpenseEventsPage() {
     const fetchEvents = async () => {
       setLoading(true);
       try {
-        const { data, error } =
-          userRole === "admin" || userRole === "owner"
-            ? await expenseEvents.getByOrg(orgId)
-            : await expenseEvents.getByOrgAndUser(orgId, user.id);
+        // Use the getAvailableEvents function for all roles
+        const { data, error } = await expenseEvents.getAvailableEvents(
+          orgId,
+          user.id,
+          userRole || "member"
+        );
 
         if (error) throw error;
         setEvents(data || []);
@@ -94,13 +97,15 @@ export default function ExpenseEventsPage() {
             Group your expenses by events for better organization
           </p>
         </div>
-        <Button
-          onClick={() => router.push(`/org/${slug}/expense-events/new`)}
-          className="bg-black text-white hover:bg-black/90"
-        >
-          <PlusCircle className="mr-2 h-4 w-4" />
-          New Event
-        </Button>
+        {(userRole === "admin" || userRole === "owner") && (
+          <Button
+            onClick={() => router.push(`/org/${slug}/expense-events/new`)}
+            className="bg-black text-white hover:bg-black/90"
+          >
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New Event
+          </Button>
+        )}
       </div>
 
       <div className="flex w-full max-w-sm items-center space-x-2 mb-4">
@@ -124,12 +129,18 @@ export default function ExpenseEventsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="mb-4 text-gray-500">No expense events found</p>
-            <Button
-              onClick={() => router.push(`/org/${slug}/expense-events/new`)}
-              variant="outline"
-            >
-              Create your first event
-            </Button>
+            {userRole === "admin" || userRole === "owner" ? (
+              <Button
+                onClick={() => router.push(`/org/${slug}/expense-events/new`)}
+                variant="outline"
+              >
+                Create your first event
+              </Button>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Events will appear here when created by your manager or admin
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -13,10 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Save } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
+
 export default function CreateExpenseEventPage() {
   const router = useRouter();
   const params = useParams();
-  const { organization } = useOrgStore();
+  const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
   const orgId = organization?.id;
   const slug = params.slug as string;
@@ -31,6 +32,18 @@ export default function CreateExpenseEventPage() {
   });
 
   const [saving, setSaving] = useState(false);
+    useEffect(() => {
+      if (
+        user &&
+        organization &&
+        userRole &&
+        userRole !== "admin" &&
+        userRole !== "owner"
+      ) {
+        toast.error("You don't have permission to create expense events");
+        router.push(`/org/${slug}/expense-events`);
+      }
+    }, [user, organization, userRole, router, slug]);
 
   if (!orgId || !user) {
     return (
@@ -52,7 +65,15 @@ export default function CreateExpenseEventPage() {
     setSaving(true);
 
     try {
-      // Create the new expense event
+      // Additional permission check before submission
+      if (
+        userRole !== "admin" &&
+        userRole !== "owner" 
+      ) {
+        throw new Error("You don't have permission to create expense events");
+      }
+
+      // Create the new expense event - CHANGE STATUS TO "submitted" INSTEAD OF "draft"
       const { data, error } = await expenseEvents.create({
         org_id: orgId,
         user_id: user.id,
@@ -60,7 +81,7 @@ export default function CreateExpenseEventPage() {
         description: formData.description,
         start_date: formData.start_date,
         end_date: formData.end_date,
-        status: "draft",
+        status: "submitted", // Changed from "draft" to "submitted" to make it visible
         custom_fields: {},
       });
 
