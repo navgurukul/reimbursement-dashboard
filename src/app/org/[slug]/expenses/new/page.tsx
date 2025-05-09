@@ -34,14 +34,14 @@ import { defaultExpenseColumns } from "@/lib/defaults";
 import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
 import supabase from "@/lib/supabase";
-import { uploadSignature } from "@/lib/utils"
+import { uploadSignature } from "@/lib/utils";
 interface Column {
   key: string;
   label: string;
   type: string;
   required?: boolean;
   visible?: boolean;
-  options?: string[] | { value: string; label: string }[];
+  options?: Array<string | { value: string; label: string }>;
 }
 
 interface ExpenseData {
@@ -84,10 +84,6 @@ export default function NewExpensePage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  // Fetch available expense events
-  // src/app/org/[slug]/expenses/new/page.tsx
-  // Modify the useEffect that fetches events
 
   // Fetch available expense events
   useEffect(() => {
@@ -157,10 +153,30 @@ export default function NewExpensePage() {
               ? settings.expense_columns
               : defaultExpenseColumns;
 
-          setColumns(columnsToUse);
+          // Process the columns to filter out self-approval in the approver dropdown
+          const processedColumns = columnsToUse.map((col: Column) => {
+            // If this is the approver column and the current user exists
+            if (col.key === "approver" && user && Array.isArray(col.options)) {
+              // Filter out the current user from the options
+              const filteredOptions = col.options.filter((option) => {
+                if (typeof option === "object" && option !== null && 'value' in option) {
+                  return option.value !== user.id;
+                }
+                return option !== user.id;
+              });
+
+              return {
+                ...col,
+                options: filteredOptions,
+              };
+            }
+            return col;
+          });
+
+          setColumns(processedColumns);
 
           const initialData: Record<string, any> = {};
-          columnsToUse.forEach((col: any) => {
+          processedColumns.forEach((col: any) => {
             if (col.visible) {
               initialData[col.key] = "";
             }
@@ -170,9 +186,28 @@ export default function NewExpensePage() {
           initialData.event_id = eventIdFromQuery || "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         } else {
-          setColumns(defaultExpenseColumns);
+          // Process the default columns similarly
+          const processedDefaultColumns = defaultExpenseColumns.map((col) => {
+            if (col.key === "approver" && user && Array.isArray(col.options)) {
+              const filteredOptions = col.options.filter((option) => {
+                if (typeof option === "object") {
+                  return option.value !== user.id;
+                }
+                return option !== user.id;
+              });
+
+              return {
+                ...col,
+                options: filteredOptions,
+              };
+            }
+            return col;
+          });
+
+          setColumns(processedDefaultColumns);
+
           const initialData: Record<string, any> = {};
-          defaultExpenseColumns.forEach((col) => {
+          processedDefaultColumns.forEach((col) => {
             if (col.visible) {
               initialData[col.key] = "";
             }
@@ -190,7 +225,7 @@ export default function NewExpensePage() {
     }
 
     fetchData();
-  }, [orgId, eventIdFromQuery]);
+  }, [orgId, eventIdFromQuery, user]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -208,6 +243,12 @@ export default function NewExpensePage() {
     key: string,
     value: string | number | boolean | string[]
   ) => {
+    // Prevent selecting self as approver
+    if (key === "approver" && value === user?.id) {
+      toast.error("You cannot approve your own expenses");
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [key]: value,
@@ -220,8 +261,6 @@ export default function NewExpensePage() {
     }
   };
 
-  // Modify the handleSubmit function to fix the approver_id issue
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -229,6 +268,13 @@ export default function NewExpensePage() {
     try {
       if (!user?.id || !organization) {
         throw new Error("Missing required data");
+      }
+
+      // Validate that user is not approving their own expense
+      if (formData.approver === user.id) {
+        toast.error("You cannot approve your own expenses");
+        setSaving(false);
+        return;
       }
 
       // Process signatures if this is a voucher
@@ -432,7 +478,7 @@ export default function NewExpensePage() {
                 xmlns="http://www.w3.org/2000/svg"
               >
                 <path
-                  d="M17 17H19V7H5V17H7M7 21H17V13H7V21Z"
+                  d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
                   stroke="currentColor"
                   strokeWidth="2"
                   strokeLinecap="round"
@@ -582,6 +628,12 @@ export default function NewExpensePage() {
                               typeof option === "string"
                                 ? option
                                 : option.label;
+
+                            // Skip rendering option if this is the approver dropdown and the option is the current user
+                            if (col.key === "approver" && value === user?.id) {
+                              return null;
+                            }
+
                             return (
                               <SelectItem key={value} value={value}>
                                 {label}
@@ -683,4 +735,3 @@ export default function NewExpensePage() {
     </div>
   );
 }
-
