@@ -160,7 +160,7 @@ export default function NewExpensePage() {
               // Filter out the current user from the options
               const filteredOptions = col.options.filter((option) => {
                 if (typeof option === "object" && option !== null && 'value' in option) {
-                  return option.value !== user.id;
+                  return (option as { value: string; label: string }).value !== user.id;
                 }
                 return option !== user.id;
               });
@@ -190,8 +190,8 @@ export default function NewExpensePage() {
           const processedDefaultColumns = defaultExpenseColumns.map((col) => {
             if (col.key === "approver" && user && Array.isArray(col.options)) {
               const filteredOptions = col.options.filter((option) => {
-                if (typeof option === "object") {
-                  return option.value !== user.id;
+                if (typeof option === "object" && option !== null && 'value' in option) {
+                  return (option as { value: string; label: string }).value !== user.id;
                 }
                 return option !== user.id;
               });
