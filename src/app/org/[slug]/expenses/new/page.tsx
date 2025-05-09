@@ -86,22 +86,37 @@ export default function NewExpensePage() {
   }, []);
 
   // Fetch available expense events
+  // src/app/org/[slug]/expenses/new/page.tsx
+  // Modify the useEffect that fetches events
+
+  // Fetch available expense events
   useEffect(() => {
     if (!orgId || !user) return;
 
     const fetchEvents = async () => {
       try {
-        const { data, error } = await expenseEvents.getByOrgAndUser(
+        // Use the new function that considers user role when fetching events
+        const { data, error } = await expenseEvents.getAvailableEvents(
           orgId,
-          user.id
+          user.id,
+          userRole || "member" // Default to member if userRole is undefined
         );
 
         if (error) throw error;
 
-        // Only show draft or submitted events
-        const availableEvents = (data || []).filter((event) =>
-          ["draft", "submitted"].includes(event.status)
-        );
+        // Filter to only show "submitted" status events for regular members
+        // Admins/owners will see events with both "draft" and "submitted" status
+        const availableEvents = (data || []).filter((event) => {
+          if (userRole === "admin" || userRole === "owner") {
+            // Admins and owners can see events with any status
+            return true;
+          } else {
+            // Regular members can see:
+            // - Their own events with any status
+            // - Events created by others only if they have "submitted" status
+            return event.user_id === user.id || event.status === "submitted";
+          }
+        });
 
         setEvents(availableEvents);
 
@@ -121,7 +136,7 @@ export default function NewExpensePage() {
     };
 
     fetchEvents();
-  }, [orgId, user, eventIdFromQuery]);
+  }, [orgId, user, eventIdFromQuery, userRole]);
 
   useEffect(() => {
     async function fetchData() {

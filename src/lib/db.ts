@@ -348,7 +348,44 @@ export const expenseEvents = {
       };
     }
   },
+// Add this function to the expenseEvents object in db.ts
+async getAvailableEvents(orgId: string, userId: string, userRole: string): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
+  try {
+    let query = supabase
+      .from('expense_events')
+      .select('*')
+      .eq('org_id', orgId);
+    
+    // If user is admin or owner, show them all events
+    if (userRole === 'admin' || userRole === 'owner') {
+      // No additional filtering needed - admins/owners see all events
+    } else {
+      // For regular members, show:
+      // 1. Events they created (with any status)
+      // 2. Events created by others with "submitted" status
+      query = query.or(`user_id.eq.${userId},status.eq.submitted`);
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
 
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+    
+    return { data: data as ExpenseEvent[], error: null };
+  } catch (error: any) {
+    console.error('Error fetching available expense events:', error);
+    return { 
+      data: null, 
+      error: {
+        message: error instanceof Error ? error.message : "Unknown error",
+        details: "",
+        hint: "Check your input and try again",
+        code: "UNKNOWN_ERROR",
+      }
+    };
+  }
+},
   // Get expense event by ID
   async getById(id: string): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
     try {
