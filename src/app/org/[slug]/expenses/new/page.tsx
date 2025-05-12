@@ -35,6 +35,8 @@ import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
 import supabase from "@/lib/supabase";
 import { uploadSignature } from "@/lib/utils"
+
+import SignaturePad from "@/components/SignatureCanvas";
 interface Column {
   key: string;
   label: string;
@@ -57,7 +59,15 @@ interface ExpenseData {
   event_id?: string | null;
 }
 
-export default function NewExpensePage() {
+interface VoucherFormProps {
+  // formDatas: Record<string, any>;
+  onInputChange: (key: string, value: any) => void;
+}
+
+export default function NewExpensePage({
+  // formDatas,
+  onInputChange
+}: VoucherFormProps) {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -65,6 +75,8 @@ export default function NewExpensePage() {
 
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
+  console.log("User", user);
+  
   const orgId = organization?.id!;
   const slug = params.slug as string;
 
@@ -80,6 +92,19 @@ export default function NewExpensePage() {
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
   const [events, setEvents] = useState<ExpenseEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
+  
+  const [userSignature, setUserSignature] = useState<string | undefined>(
+    formData.signature_data_url || undefined
+  );
+  console.log("formData", formData);
+
+  const handleUserSignatureSave = (dataUrl: string) => {
+    setUserSignature(dataUrl);
+    // Store the full data URL
+    onInputChange("signature_data_url", dataUrl);
+    // Also store preview version
+    onInputChange("signature_preview", dataUrl);
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -676,6 +701,13 @@ export default function NewExpensePage() {
                   userRole={userRole}
                 />
               )}
+              <div className="space-y-2">
+                          <SignaturePad
+                            onSave={handleUserSignatureSave}
+                            label="Your Signature"
+                            signatureUrl={formData.signature_preview}
+                          />
+              </div>
             </div>
           </form>
         </CardContent>

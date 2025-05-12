@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenses } from "@/lib/db";
+import { expenses, vouchers } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,41 @@ export default function ViewExpensePage() {
   const [loading, setLoading] = useState(true);
   const [expense, setExpense] = useState<any>(null);
   const [hasVoucher, setHasVoucher] = useState(false);
+
+  const [userSignatureUrl, setUserSignatureUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+
+        // Load the voucher data - using the fixed function that avoids the join
+        const { data: voucherData, error: voucherError } =
+          await vouchers.getByExpenseId(expenseId);
+
+          if (voucherError) {
+            throw new Error(`Failed to load voucher: ${voucherError.message}`);
+          }
+
+        // Get signature URLs if available
+        if (voucherData.signature_url) {
+          const { url: signatureUrl } = await vouchers.getSignatureUrl(
+            voucherData.signature_url
+          );
+          setUserSignatureUrl(signatureUrl);
+        }
+      } catch (error: any) {
+        console.error("Error fetching voucher data:", error);
+        toast.error(error.message || "Failed to load voucher");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (expenseId) {
+      fetchData();
+    }
+  }, [expenseId]);
 
   useEffect(() => {
     async function fetchExpense() {
@@ -242,6 +277,23 @@ export default function ViewExpensePage() {
               <p className="text-muted-foreground">
                 No receipt or voucher available
               </p>
+            )}
+          </div>
+
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Your Signature</div>
+            {userSignatureUrl ? (
+              <div className="border rounded-md p-2 bg-white">
+                <img
+                  src={userSignatureUrl}
+                  alt="Your signature"
+                  className="max-h-24 mx-auto"
+                />
+              </div>
+            ) : (
+              <div className="text-amber-500 text-sm">
+                No signature provided
+              </div>
             )}
           </div>
 
