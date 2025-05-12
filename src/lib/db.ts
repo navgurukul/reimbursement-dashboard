@@ -120,7 +120,11 @@ export interface OrganizationSettings {
   updated_at: string;
 }
 
-export type ExpenseStatus = "submitted" | "approved" | "rejected";
+export type ExpenseStatus =
+  | "submitted"
+  | "approved"
+  | "approved_as_per_policy"
+  | "rejected";
 export type ValidationStatus = "valid" | "warning" | "violation";
 
 export interface ReceiptInfo {
@@ -174,6 +178,7 @@ export interface Expense {
   event_id?: string; // Add this field
   created_at: string;
   updated_at: string;
+  approved_amount?: number | null;
 }
 
 
@@ -612,7 +617,21 @@ export const policies = {
       .order("created_at", { ascending: true })
       .returns<Policy[]>();
   },
+  getByTypeAndOrg: async (expenseType: string, orgId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("policies")
+        .select("*")
+        .eq("expense_type", expenseType)
+        .eq("organization_id", orgId)
+        .maybeSingle();
 
+      return { data, error };
+    } catch (error) {
+      console.error("Error in getByTypeAndOrg:", error);
+      return { data: null, error };
+    }
+  },
   createPolicy: async (
     policyData: Omit<Policy, "id" | "created_at" | "updated_at">
   ) => {
