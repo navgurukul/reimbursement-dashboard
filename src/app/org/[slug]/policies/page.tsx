@@ -1,8 +1,10 @@
+// src/app/org/[slug]/settings/policies/page.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
-import { policies, Policy } from "@/lib/db";
+import { policies, Policy, orgSettings } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +29,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { PlusCircle, Edit, Trash2 } from "lucide-react";
-import { Role } from "@/store/useOrgStore";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { defaultExpenseColumns } from "@/lib/defaults";
 
 const defaultPolicy: Omit<
   Policy,
@@ -50,21 +59,53 @@ export default function PoliciesPage() {
     Omit<Policy, "id" | "created_at" | "updated_at" | "org_id"> | Policy
   >(defaultPolicy);
   const [isEditing, setIsEditing] = useState(false);
+  const [expenseTypeOptions, setExpenseTypeOptions] = useState<string[]>([]);
 
   const isAdminOrOwner = userRole === "admin" || userRole === "owner";
 
   useEffect(() => {
-    const fetchPolicies = async () => {
+    const fetchData = async () => {
       if (!organization?.id) return;
       setIsLoading(true);
       try {
-        const { data, error } = await policies.getPoliciesByOrgId(
+        // Fetch policies
+        const { data: policiesData, error: policiesError } = await policies.getPoliciesByOrgId(
           organization.id
         );
-        if (error) throw error;
-        setPolicyList(data || []);
+        if (policiesError) throw policiesError;
+        setPolicyList(policiesData || []);
+
+        // Fetch organization settings to get expense types
+        const { data: settings, error: settingsError } = await orgSettings.getByOrgId(
+          organization.id
+        );
+        if (settingsError) throw settingsError;
+
+        // Get expense column definitions from settings or use defaults
+        const columnsToUse = settings?.expense_columns && settings.expense_columns.length > 0
+          ? settings.expense_columns
+          : defaultExpenseColumns;
+
+        // Find the expense_type column
+        const expenseTypeColumn = columnsToUse.find((col: any) => col.key === "expense_type");
+        
+        if (expenseTypeColumn && expenseTypeColumn.options) {
+          // Extract expense type options
+          const options = expenseTypeColumn.options;
+          // Check if options is an array of objects or strings
+          if (Array.isArray(options) && options.length > 0 && typeof options[0] === 'object') {
+            // Convert array of objects to array of strings
+            setExpenseTypeOptions((options as Array<{ value: string; label: string }>).map(opt => opt.label || opt.value));
+          } else {
+            // It's already a string array
+            setExpenseTypeOptions(options as string[]);
+          }
+        } else {
+          // Fallback to default options if not found
+          setExpenseTypeOptions(["Travel", "Meals", "Office Supplies", "Equipment", "Software", "Other"]);
+        }
       } catch (error: any) {
-        toast.error("Failed to load policies", {
+        toast.error("Failed to load data", {
           description: error.message || "Please try again.",
         });
       } finally {
@@ -72,7 +113,7 @@ export default function PoliciesPage() {
       }
     };
 
-    fetchPolicies();
+    fetchData();
   }, [organization?.id]);
 
   const handleOpenDialog = (policyToEdit?: Policy) => {
@@ -93,6 +134,13 @@ export default function PoliciesPage() {
     setCurrentPolicy((prev) => ({
       ...prev,
       [name]: value === "" ? null : value,
+    }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setCurrentPolicy((prev) => ({
+      ...prev,
+      [name]: value,
     }));
   };
 
@@ -131,6 +179,7 @@ export default function PoliciesPage() {
           org_id: organization.id,
         } as Omit<Policy, "id" | "created_at" | "updated_at">;
 
+        console.log("Creating policy with payload:", policyPayload);
         const { data, error } = await policies.createPolicy(policyPayload);
         if (error) throw error;
         setPolicyList((prev) => [...prev, data as Policy]);
@@ -138,6 +187,7 @@ export default function PoliciesPage() {
       }
       setIsDialogOpen(false);
     } catch (error: any) {
+      console.error("Error during policy operation:", error);
       toast.error(
         isEditing ? "Failed to update policy" : "Failed to add policy",
         {
@@ -205,14 +255,23 @@ export default function PoliciesPage() {
                   <Label htmlFor="expense_type" className="text-right">
                     Expense Type
                   </Label>
-                  <Input
-                    id="expense_type"
-                    name="expense_type"
-                    value={currentPolicy.expense_type || ""}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    required
-                  />
+                  <div className="col-span-3">
+                    <Select
+                      value={currentPolicy.expense_type || ""}
+                      onValueChange={(value) => handleSelectChange("expense_type", value)}
+                    >
+                      <SelectTrigger id="expense_type" className="w-full">
+                        <SelectValue placeholder="Select expense type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {expenseTypeOptions.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="per_unit_cost" className="text-right">
