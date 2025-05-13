@@ -48,11 +48,13 @@ interface Expense {
   expense_type: string;
   amount: number;
   date: string;
-  status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed";
+  status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed" | "approved_as_per_policy";
   receipt: any;
   custom_fields: Record<string, any>;
   approver_id?: string;
   event_id?: string;
+  creator?: { full_name: string };
+  approver?: { full_name: string };
 }
 
 // Custom Modal component to replace AlertDialog
