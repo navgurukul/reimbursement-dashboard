@@ -197,6 +197,20 @@ export interface Voucher {
   updated_at: string;
 }
 
+
+export interface ExpenseHistoryItem {
+  id: string;
+  expense_id: string;
+  user_id: string;
+  action_type: string;
+  changed_field: string;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+  user_name?: string;
+}
+
+
 // Auth functions
 export const auth = {
   signIn: async (email: string, password: string) => {
@@ -1536,4 +1550,43 @@ export const vouchers = {
       error: null,
     };
   },
+};
+
+
+export const expenseHistory = {
+  /**
+   * Get expense history for a specific expense
+   */
+  getByExpenseId: async (expenseId: string): Promise<{ data: ExpenseHistoryItem[] | null; error: DatabaseError | null }> => {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_expense_history', { expense_id_param: expenseId });
+
+      if (error) {
+        console.error('Error fetching expense history:', error);
+        return { 
+          data: null, 
+          error: {
+            message: error.message,
+            details: error.details || '',
+            hint: error.hint || 'Try again later',
+            code: error.code
+          } 
+        };
+      }
+      
+      return { data: data as ExpenseHistoryItem[], error: null };
+    } catch (error: any) {
+      console.error('Error in getByExpenseId:', error);
+      return { 
+        data: null, 
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        }
+      };
+    }
+  }
 };

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,6 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
 import { Input } from "@/components/ui/input";
 import supabase from "@/lib/supabase";
+import ExpenseHistory from "./history/expense-history"; // Import the ExpenseHistory component
 
 // Import Policy type but use Supabase directly for policies
 interface Policy {
@@ -507,145 +509,152 @@ export default function ViewExpensePage() {
         <PolicyAlert expense={expense} policy={relevantPolicy} />
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Expense Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Expense Type
-              </p>
-              <p>{expense.expense_type}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Amount
-              </p>
-              <p className={isOverPolicy ? "text-red-600 font-medium" : ""}>
-                {new Intl.NumberFormat("en-IN", {
-                  style: "currency",
-                  currency: "INR",
-                }).format(expense.amount)}
-                {isOverPolicy && (
-                  <span className="ml-2 text-sm text-red-600">
-                    (Exceeds policy)
-                  </span>
-                )}
-              </p>
-            </div>
-
-            {/* Show approved amount if it exists */}
-            {expense.approved_amount !== null &&
-              expense.approved_amount !== undefined && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Approved Amount
-                  </p>
-                  <p className="text-green-600 font-medium">
-                    {new Intl.NumberFormat("en-IN", {
-                      style: "currency",
-                      currency: "INR",
-                    }).format(expense.approved_amount)}
-                  </p>
-                </div>
-              )}
-
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Date</p>
-              <p>{new Date(expense.date).toLocaleDateString()}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Status
-              </p>
-              <p
-                className={`${
-                  expense.status === "approved"
-                    ? "text-green-600"
-                    : expense.status === "rejected"
-                    ? "text-red-600"
-                    : "text-amber-600"
-                }`}
-              >
-                {expense.status.charAt(0).toUpperCase() +
-                  expense.status.slice(1)}
-              </p>
-            </div>
-
-            {expense.approver && (
+      {/* Two column layout for expense details and history */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left column: Expense Details Card (original code) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Expense Details komal</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Approver
+                  Expense Type
                 </p>
-                <p>{expense.approver.full_name || "—"}</p>
+                <p>{expense.expense_type}</p>
               </div>
-            )}
-
-            {relevantPolicy && (
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Policy Limit
+                  Amount
                 </p>
-                <p>
+                <p className={isOverPolicy ? "text-red-600 font-medium" : ""}>
                   {new Intl.NumberFormat("en-IN", {
                     style: "currency",
                     currency: "INR",
-                  }).format(relevantPolicy.upper_limit || 0)}
+                  }).format(expense.amount)}
+                  {isOverPolicy && (
+                    <span className="ml-2 text-sm text-red-600">
+                      (Exceeds policy)
+                    </span>
+                  )}
                 </p>
               </div>
-            )}
-          </div>
 
-          {/* Receipt section with View Receipt button */}
-          <div>
-            <p className="text-sm font-medium text-muted-foreground mb-2">
-              Receipt
-            </p>
-            {expense.receipt ? (
-              <Button
-                variant="outline"
-                onClick={handleViewReceipt}
-                className="flex items-center"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                View Receipt ({expense.receipt.filename || "Document"})
-              </Button>
-            ) : hasVoucher ? (
-              <Button
-                variant="outline"
-                className="flex items-center text-blue-600"
-                onClick={() =>
-                  router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
-                }
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                View Voucher
-              </Button>
-            ) : (
-              <p className="text-muted-foreground">
-                No receipt or voucher available
-              </p>
-            )}
-          </div>
-
-          {/* Custom fields section */}
-          {expense.custom_fields &&
-            Object.keys(expense.custom_fields).length > 0 && (
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                {Object.entries(expense.custom_fields).map(([key, value]) => (
-                  <div key={key}>
+              {/* Show approved amount if it exists */}
+              {expense.approved_amount !== null &&
+                expense.approved_amount !== undefined && (
+                  <div>
                     <p className="text-sm font-medium text-muted-foreground">
-                      {formatFieldName(key)}
+                      Approved Amount
                     </p>
-                    <p>{(value as string) || "—"}</p>
+                    <p className="text-green-600 font-medium">
+                      {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR",
+                      }).format(expense.approved_amount)}
+                    </p>
                   </div>
-                ))}
+                )}
+
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Date</p>
+                <p>{new Date(expense.date).toLocaleDateString()}</p>
               </div>
-            )}
-        </CardContent>
-      </Card>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Status
+                </p>
+                <p
+                  className={`${
+                    expense.status === "approved"
+                      ? "text-green-600"
+                      : expense.status === "rejected"
+                      ? "text-red-600"
+                      : "text-amber-600"
+                  }`}
+                >
+                  {expense.status.charAt(0).toUpperCase() +
+                    expense.status.slice(1)}
+                </p>
+              </div>
+
+              {expense.approver && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Approver
+                  </p>
+                  <p>{expense.approver.full_name || "—"}</p>
+                </div>
+              )}
+
+              {relevantPolicy && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Policy Limit
+                  </p>
+                  <p>
+                    {new Intl.NumberFormat("en-IN", {
+                      style: "currency",
+                      currency: "INR",
+                    }).format(relevantPolicy.upper_limit || 0)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Receipt section with View Receipt button */}
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-2">
+                Receipt
+              </p>
+              {expense.receipt ? (
+                <Button
+                  variant="outline"
+                  onClick={handleViewReceipt}
+                  className="flex items-center"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Receipt ({expense.receipt.filename || "Document"})
+                </Button>
+              ) : hasVoucher ? (
+                <Button
+                  variant="outline"
+                  className="flex items-center text-blue-600"
+                  onClick={() =>
+                    router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
+                  }
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Voucher
+                </Button>
+              ) : (
+                <p className="text-muted-foreground">
+                  No receipt or voucher available
+                </p>
+              )}
+            </div>
+
+            {/* Custom fields section */}
+            {expense.custom_fields &&
+              Object.keys(expense.custom_fields).length > 0 && (
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  {Object.entries(expense.custom_fields).map(([key, value]) => (
+                    <div key={key}>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {formatFieldName(key)}
+                      </p>
+                      <p>{(value as string) || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+          </CardContent>
+        </Card>
+
+        {/* Right column: Expense History */}
+        <ExpenseHistory expenseId={expenseId} />
+      </div>
     </div>
   );
 }
