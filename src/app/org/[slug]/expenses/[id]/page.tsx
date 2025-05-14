@@ -26,10 +26,44 @@ interface Policy {
   updated_at: string;
 }
 
+// Helper function to get signature URL from different buckets
+async function getSignatureUrl(path: string): Promise<string | null> {
+  if (!path) return null;
+
+  // console.log("Getting signature URL for path:", path);
+
+  // Try voucher-signatures bucket first
+  try {
+    const { data, error } = await supabase.storage
+      .from("voucher-signatures")
+      .createSignedUrl(path, 3600);
+
+    if (!error && data?.signedUrl) {
+      return data.signedUrl;
+    }
+  } catch (e) {
+    console.log("Error in voucher-signatures bucket:", e);
+  }
+
+  // Then try user-signatures bucket
+  try {
+    const { data, error } = await supabase.storage
+      .from("user-signatures")
+      .createSignedUrl(path, 3600);
+
+    if (!error && data?.signedUrl) {
+      return data.signedUrl;
+    }
+  } catch (e) {
+    console.log("Error in user-signatures bucket:", e);
+  }
+
+  return null;
+}
+
 export default function ViewExpensePage() {
   const router = useRouter();
   const params = useParams();
-  // Remove userId from destructuring since it doesn't exist in OrgState
   const { organization, userRole } = useOrgStore();
   const orgId = organization?.id!;
   const expenseId = params.id as string;
@@ -41,11 +75,10 @@ export default function ViewExpensePage() {
   const [hasVoucher, setHasVoucher] = useState(false);
   const [relevantPolicy, setRelevantPolicy] = useState<Policy | null>(null);
   const [isOverPolicy, setIsOverPolicy] = useState(false);
-  // Get the current user ID from Supabase auth
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  // Custom amount state
   const [customAmount, setCustomAmount] = useState<string>("");
   const [showCustomAmountInput, setShowCustomAmountInput] = useState(false);
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
 
   // Fetch the current user ID when the component mounts
   useEffect(() => {
@@ -76,6 +109,14 @@ export default function ViewExpensePage() {
 
         setExpense(data);
 
+        // If expense has signature_url, try to get the signature
+        if (data.signature_url) {
+          const url = await getSignatureUrl(data.signature_url);
+          if (url) {
+            setSignatureUrl(url);
+          }
+        }
+
         // Fetch all policies for the organization using Supabase directly
         const { data: policiesData, error: policiesError } = await supabase
           .from("policies")
@@ -105,12 +146,21 @@ export default function ViewExpensePage() {
         // Check if this expense has a voucher
         const { data: voucherData, error: voucherError } = await supabase
           .from("vouchers")
-          .select("id")
+          .select("id, signature_url")
           .eq("expense_id", expenseId)
           .maybeSingle();
 
         if (!voucherError && voucherData) {
           setHasVoucher(true);
+
+          // If no signature yet and voucher has signature_url, try to get it
+          if (!signatureUrl && voucherData.signature_url) {
+    
+            const url = await getSignatureUrl(voucherData.signature_url);
+            if (url) {
+              setSignatureUrl(url);
+            }
+          }
         } else {
           setHasVoucher(false);
         }
@@ -149,7 +199,6 @@ export default function ViewExpensePage() {
         approver_id: currentUserId,
         approved_amount: approvedAmount,
       };
-
 
       // Update with Supabase
       const { data, error } = await supabase
@@ -239,7 +288,6 @@ export default function ViewExpensePage() {
         throw error;
       }
 
-
       // Update local state
       setExpense({
         ...expense,
@@ -298,7 +346,6 @@ export default function ViewExpensePage() {
         console.error("Error rejecting expense:", error);
         throw error;
       }
-
 
       // Update local state
       setExpense({
@@ -629,6 +676,22 @@ export default function ViewExpensePage() {
               </p>
             )}
           </div>
+
+          {/* Signature Section - Add this section to show the signature */}
+          {signatureUrl && (
+            <div className="mt-6">
+              <p className="text-sm font-medium text-muted-foreground mb-2">
+                Signature
+              </p>
+              <div className="border rounded-md p-4 bg-white">
+                <img
+                  src={signatureUrl}
+                  alt="Signature"
+                  className="max-h-24 mx-auto"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Custom fields section */}
           {expense.custom_fields &&

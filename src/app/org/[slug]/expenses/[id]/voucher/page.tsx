@@ -23,9 +23,6 @@ export default function VoucherViewPage() {
   const [voucher, setVoucher] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userSignatureUrl, setUserSignatureUrl] = useState<string | null>(null);
-  const [managerSignatureUrl, setManagerSignatureUrl] = useState<string | null>(
-    null
-  );
   const [approverName, setApproverName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,19 +53,12 @@ export default function VoucherViewPage() {
 
         setVoucher(voucherData);
 
-        // Get signature URLs if available
+        // Get signature URL if available
         if (voucherData.signature_url) {
           const { url: signatureUrl } = await vouchers.getSignatureUrl(
             voucherData.signature_url
           );
           setUserSignatureUrl(signatureUrl);
-        }
-
-        if (voucherData.manager_signature_url) {
-          const { url: managerUrl } = await vouchers.getSignatureUrl(
-            voucherData.manager_signature_url
-          );
-          setManagerSignatureUrl(managerUrl);
         }
 
         // Get approver information - get it from the voucher first, then fallback to expense
@@ -212,44 +202,23 @@ export default function VoucherViewPage() {
           </div>
 
           <div>
-            <h3 className="text-base font-medium mb-4">Signatures</h3>
+            <h3 className="text-base font-medium mb-4">Signature</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <div className="text-sm text-gray-500 mb-2">Your Signature</div>
-                {userSignatureUrl ? (
-                  <div className="border rounded-md p-2 bg-white">
-                    <img
-                      src={userSignatureUrl}
-                      alt="Your signature"
-                      className="max-h-24 mx-auto"
-                    />
-                  </div>
-                ) : (
-                  <div className="text-amber-500 text-sm">
-                    No signature provided
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <div className="text-sm text-gray-500 mb-2">
-                  Approver Signature
+            <div>
+              <div className="text-sm text-gray-500 mb-2">Your Signature</div>
+              {userSignatureUrl ? (
+                <div className="border rounded-md p-2 bg-white">
+                  <img
+                    src={userSignatureUrl}
+                    alt="Your signature"
+                    className="max-h-24 mx-auto"
+                  />
                 </div>
-                {managerSignatureUrl ? (
-                  <div className="border rounded-md p-2 bg-white">
-                    <img
-                      src={managerSignatureUrl}
-                      alt="Approver signature"
-                      className="max-h-24 mx-auto"
-                    />
-                  </div>
-                ) : (
-                  <div className="text-amber-500 text-sm">
-                    No signature provided
-                  </div>
-                )}
-              </div>
+              ) : (
+                <div className="text-amber-500 text-sm">
+                  No signature provided
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

@@ -55,6 +55,69 @@ export async function uploadSignature(
   orgId: string,
   type: "user" | "approver"
 ): Promise<{ path: string; error: Error | null }> {
+ try {
+   if (!dataURL) {
+     console.error(`Empty signature data URL for ${type}`);
+     return { path: "", error: new Error("Empty signature data") };
+   }
+
+   if (!dataURL.startsWith("data:image/")) {
+     console.error(
+       `Invalid signature format for ${type}: ${dataURL.substring(0, 30)}`
+     );
+     return {
+       path: "",
+       error: new Error("Invalid signature format - must be a data URL"),
+     };
+   }
+
+   // Convert to blob
+   const blob = dataURLtoBlob(dataURL);
+
+   // Make sure blob is valid
+   if (blob.size === 0) {
+     console.error(`Empty signature blob for ${type}`);
+     return { path: "", error: new Error("Empty signature") };
+   }
+
+   // Create a unique filename
+   const timestamp = new Date().getTime();
+   const randomString = Math.random().toString(36).substring(2, 10);
+   const fileName = `sig_${type}_${timestamp}_${randomString}.png`;
+   const filePath = `${userId}/${orgId}/${fileName}`;
+
+   console.log(`Uploading ${type} signature to ${filePath}`);
+
+   // Upload to Supabase
+   const { error } = await supabase.storage
+     .from("voucher-signatures")
+     .upload(filePath, blob, {
+       contentType: "image/png",
+       cacheControl: "3600",
+     });
+
+   if (error) {
+     console.error(`Error uploading ${type} signature:`, error);
+     return { path: "", error: new Error(error.message) };
+   }
+
+   console.log(`${type} signature uploaded successfully to ${filePath}`);
+   return { path: filePath, error: null };
+ } catch (error) {
+   console.error(`Error processing ${type} signature:`, error);
+   return {
+     path: "",
+     error: error instanceof Error ? error : new Error(String(error)),
+   };
+ }
+}
+
+// Updated uploadProfileSignature function for utils.ts
+export async function uploadProfileSignature(
+  dataURL: string,
+  userId: string,
+  orgId: string
+): Promise<{ path: string; error: Error | null }> {
   try {
     if (!dataURL || !dataURL.startsWith("data:image/")) {
       throw new Error("Invalid signature data URL");
@@ -68,31 +131,35 @@ export async function uploadSignature(
       throw new Error("Empty signature");
     }
 
-    // Create a unique filename
+    // Create a filename with org/user path structure
     const timestamp = new Date().getTime();
     const randomString = Math.random().toString(36).substring(2, 10);
-    const fileName = `sig_${type}_${timestamp}_${randomString}.png`;
-    const filePath = `${userId}/${orgId}/${fileName}`;
+    const fileName = `signature_${timestamp}_${randomString}.png`;
+    
+    // Important: Create directories for organization and user if they don't exist
+    const filePath = `${orgId}/${userId}/${fileName}`;
 
-    console.log(`Uploading ${type} signature to ${filePath}`);
+    console.log(`Uploading profile signature to ${filePath}`);
 
-    // Upload to Supabase
-    const { error } = await supabase.storage
-      .from("voucher-signatures")
+    // Upload to Supabase - using user-signatures bucket
+    const { data, error } = await supabase.storage
+      .from("user-signatures")
       .upload(filePath, blob, {
         contentType: "image/png",
         cacheControl: "3600",
+        // Make it public - often helps with permission issues
+        upsert: true
       });
 
     if (error) {
-      console.error(`Error uploading ${type} signature:`, error);
+      console.error(`Error uploading profile signature:`, error);
       return { path: "", error: new Error(error.message) };
     }
 
-    console.log(`${type} signature uploaded successfully to ${filePath}`);
+    console.log(`Profile signature uploaded successfully to ${filePath}`);
     return { path: filePath, error: null };
   } catch (error) {
-    console.error(`Error processing ${type} signature:`, error);
+    console.error(`Error processing profile signature:`, error);
     return {
       path: "",
       error: error instanceof Error ? error : new Error(String(error)),
@@ -102,3 +169,188 @@ export async function uploadSignature(
 
 
 
+
+
+export async function updateProfileWithSignature(
+  userId: string,
+  signaturePath: string
+): Promise<{ success: boolean; error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ signature_url: signaturePath })
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Error updating profile with signature:", error);
+      return { success: false, error: new Error(error.message) };
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error in updateProfileWithSignature:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+}
+/**
+ * Gets a download URL for a user signature from user-signatures bucket
+ */
+export async function getProfileSignatureUrl(
+  path: string
+): Promise<{ url: string; error: Error | null }> {
+  try {
+    const { data, error } = await supabase.storage
+      .from("user-signatures")
+      .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+    if (error) {
+      return { url: "", error: new Error(error.message) };
+    }
+
+    return { url: data.signedUrl, error: null };
+  } catch (error) {
+    console.error("Error getting profile signature URL:", error);
+    return {
+      url: "",
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+}
+
+
+// In utils.ts or a new file called signature-utils.ts
+
+/**
+ * Complete function to upload a signature and update the user's profile
+ */
+export async function saveUserSignature(
+  dataURL: string,
+  userId: string,
+  orgId: string
+): Promise<{ success: boolean; path: string; error: Error | null }> {
+  try {
+    console.log('Starting signature save process...');
+    
+    if (!dataURL || !dataURL.startsWith("data:image/")) {
+      console.error("Invalid signature data URL");
+      return { success: false, path: "", error: new Error("Invalid signature data") };
+    }
+
+    // Step 1: Convert to blob
+    const blob = dataURLtoBlob(dataURL);
+    if (blob.size === 0) {
+      console.error("Empty signature blob");
+      return { success: false, path: "", error: new Error("Empty signature") };
+    }
+
+    // Step 2: Create a unique filename
+    const timestamp = new Date().getTime();
+    const randomString = Math.random().toString(36).substring(2, 10);
+    const fileName = `signature_${timestamp}_${randomString}.png`;
+    
+    // Store in user-signatures/orgId/userId/filename format
+    const filePath = `${orgId}/${userId}/${fileName}`;
+    console.log(`Uploading signature to path: ${filePath}`);
+
+    // Step 3: Upload the signature to storage
+    const { error: uploadError } = await supabase.storage
+      .from("user-signatures")
+      .upload(filePath, blob, {
+        contentType: "image/png",
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      return { 
+        success: false, 
+        path: "", 
+        error: new Error(`Upload failed: ${uploadError.message}`) 
+      };
+    }
+
+    console.log("Signature file uploaded successfully");
+
+    // Step 4: Update the user's profile with the signature path
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ signature_url: filePath })
+      .eq("user_id", userId);
+
+    if (updateError) {
+      console.error("Profile update error:", updateError);
+      return { 
+        success: false, 
+        path: filePath, // We did upload the file, so return the path
+        error: new Error(`Profile update failed: ${updateError.message}`) 
+      };
+    }
+
+    console.log("Profile updated successfully with signature path");
+    return { success: true, path: filePath, error: null };
+  } catch (error) {
+    console.error("Unexpected error in saveUserSignature:", error);
+    return {
+      success: false,
+      path: "",
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
+
+/**
+ * Function to get the user's saved signature URL
+ */
+export async function getUserSignatureUrl(
+  userId: string
+): Promise<{ url: string | null; error: Error | null }> {
+  try {
+    console.log("Fetching signature for user:", userId);
+
+    // Step 1: Get the signature path from the user's profile
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("signature_url")
+      .eq("user_id", userId)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      return { url: null, error: new Error(`Profile fetch failed: ${profileError.message}`) };
+    }
+
+    if (!profile || !profile.signature_url) {
+      console.log("No signature found in profile");
+      return { url: null, error: null };
+    }
+
+    console.log("Found signature path:", profile.signature_url);
+
+    // Step 2: Get a download URL for the signature
+    const { data: urlData, error: urlError } = await supabase.storage
+      .from("user-signatures")
+      .createSignedUrl(profile.signature_url, 3600);
+
+    if (urlError) {
+      console.error("Error creating signed URL:", urlError);
+      return { url: null, error: new Error(`URL creation failed: ${urlError.message}`) };
+    }
+
+    if (!urlData || !urlData.signedUrl) {
+      console.log("No signed URL returned");
+      return { url: null, error: new Error("No URL returned from storage") };
+    }
+
+    console.log("Successfully retrieved signature URL");
+    return { url: urlData.signedUrl, error: null };
+  } catch (error) {
+    console.error("Unexpected error in getUserSignatureUrl:", error);
+    return {
+      url: null,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
