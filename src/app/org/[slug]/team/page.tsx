@@ -62,7 +62,7 @@ export default function TeamPage() {
         // Get the organization users
         const { data: orgUsers, error: orgUsersError } =
           await organizations.getOrganizationMembers(org.id);
-
+        console.log("orgUsers", orgUsers);
         if (orgUsersError) throw orgUsersError;
 
         if (orgUsers && orgUsers.length > 0) {
@@ -72,13 +72,15 @@ export default function TeamPage() {
           // Fetch profiles for these users
           const { data: profileData, error: profileError } =
             await profiles.getByIds(userIds);
+          
+          console.log("profileData", profileData);
 
           if (profileError) throw profileError;
 
           // Combine the data
           const formattedMembers: Member[] = orgUsers.map((orgUser) => {
             const profile = profileData?.find(
-              (p) => p.user_id === orgUser.user_id
+              (p: { user_id: string; }) => p.user_id === orgUser.user_id
             );
             return {
               id: orgUser.id,
@@ -105,46 +107,56 @@ export default function TeamPage() {
     fetchMembers();
   }, [org?.id]);
 
-  // Handle invite form submission
-  const handleInviteSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!org?.id) return;
-    setLoading(true);
+  // Update your handleInviteSubmit function in your TeamPage component
+interface InviteFormData {
+  email: string;
+  role: "member" | "manager" | "admin";
+  orgId: string;
+  orgName: string;
+}
 
-    try {
-      const { data: inviteRow, error: inviteError } = await invites.create(
-        org.id,
-        inviteEmail,
-        inviteRole
-      );
-      if (inviteError || !inviteRow)
-        throw inviteError ?? new Error("No invite returned");
+interface InviteResponse {
+  inviteId: string;
+  [key: string]: any;
+}
 
-      // build a link
-      const base = window.location.origin;
-      const url = `${base}/auth/signup?token=${inviteRow.id}`;
+const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  if (!org?.id) return;
+  setLoading(true);
 
-      toast.success("Invite created!", {
-        description: (
-          <span>
-            Copy/paste this link to your teammate:{" "}
-            <a href={url} className="underline text-indigo-600">
-              {url}
-            </a>
-          </span>
-        ),
-      });
+  let inviteRow: { id: string } | null = null;
 
-      setInviteEmail("");
-      setInviteRole("member");
-    } catch (error: any) {
-      toast.error("Failed to send invite", {
-        description: error.message || "Please try again",
-      });
-    } finally {
-      setLoading(false);
+  try {
+    // Call your server API route
+    const response = await fetch("/api/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: inviteEmail,
+        role: inviteRole,
+        orgId: org.id,
+        orgName: org.name || "Our Organization",
+      } as InviteFormData),
+    });
+
+    const data = await response.json() as InviteResponse;
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to send invitation");
     }
-  };
+
+    inviteRow = { id: data.inviteId };
+    toast.success("Invitation sent!");
+    setInviteEmail("");
+    setInviteRole("member");
+  } catch (error: unknown) {
+    console.error("Invite error:", error);
+    // Your existing error handling code
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="space-y-8">
