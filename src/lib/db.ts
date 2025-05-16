@@ -545,13 +545,20 @@ export const profiles = {
       .returns<Profile>();
   },
 
-  getByIds: async (userIds: string[]) => {
-    return await supabase
-      .from("profiles")
-      .select("*")
-      .in("user_id", userIds)
-      .returns<Profile[]>();
-  },
+getByIds: async (userIds: string[]) => {
+  console.log("getByIds called with:", userIds);
+  
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .in("user_id", userIds);
+    
+  console.log("Supabase returned profiles:", data?.length || 0);
+  console.log("Any error:", error);
+  
+  return { data, error };
+},
+
   saveSignature: async (userId: string, signaturePath: string) => {
     return await supabase
       .from("profiles")
