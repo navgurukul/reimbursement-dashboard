@@ -198,6 +198,7 @@ export interface Voucher {
 }
 
 
+
 export interface ExpenseHistoryItem {
   id: string;
   expense_id: string;
@@ -208,7 +209,9 @@ export interface ExpenseHistoryItem {
   new_value: string | null;
   created_at: string;
   user_name?: string;
+  metadata?: any; // Make sure this field is in the interface
 }
+
 
 
 // Auth functions
@@ -1173,6 +1176,19 @@ getPendingApprovals: async (orgId: string, userId: string) => {
       if (error) {
         return { data: null, error: error as DatabaseError };
       }
+      const userName = getUserNameFromStorage();
+       
+      await expenseHistory.addChange({
+        expense_id: data.id,
+        user_id: expense.user_id,
+        action_type: "submitted",
+        changed_field: "amount",
+        old_value: null,
+        new_value: String(expense.amount),
+        user_name: userName
+      });
+      
+      return { data: data as Expense, error: null };
 
       return {
         data: data as Expense,
@@ -1552,6 +1568,41 @@ export const vouchers = {
   },
 };
 
+export const getUserNameFromStorage = (): string => {
+  try {
+    console.log("Attempting to get user name from storage");
+    const authStorage = localStorage.getItem('auth-storage');
+    console.log("Auth storage retrieved:", authStorage ? "Found" : "Not found");
+    
+    if (authStorage) {
+      const authData = JSON.parse(authStorage);
+      console.log("Auth data parsed:", authData);
+      
+      // Try multiple possible paths to find the user name
+      let userName;
+      
+      // First try the path we can see in your console logs
+      if (authData?.state?.profile?.full_name) {
+        userName = authData.state.profile.full_name;
+      } 
+      // Fallback to checking other possible paths
+      else if (authData?.state?.user?.profile?.full_name) {
+        userName = authData.state.user.profile.full_name;
+      }
+      // Direct profile access without state
+      else if (authData?.profile?.full_name) {
+        userName = authData.profile.full_name;
+      }
+      
+      console.log("Retrieved user name from storage:", userName);
+      
+      return userName || 'Unknown User';
+    }
+  } catch (e) {
+    console.error('Error getting user name from local storage:', e);
+  }
+  return 'System';
+};
 
 export const expenseHistory = {
   /**
@@ -1559,6 +1610,7 @@ export const expenseHistory = {
    */
   getByExpenseId: async (expenseId: string): Promise<{ data: ExpenseHistoryItem[] | null; error: DatabaseError | null }> => {
     try {
+      // Call the get_expense_history RPC function
       const { data, error } = await supabase
         .rpc('get_expense_history', { expense_id_param: expenseId });
 
@@ -1575,7 +1627,45 @@ export const expenseHistory = {
         };
       }
       
-      return { data: data as ExpenseHistoryItem[], error: null };
+      // Format the data to match the ExpenseHistoryItem interface
+      const formattedData = (data || []).map((item: any) => {
+        // Handle the metadata JSON format if it exists
+        if (item.metadata && Array.isArray(item.metadata)) {
+          // For display purposes, extract the primary change details
+          const primaryChange = item.metadata[0] || {};
+          
+          return {
+            id: item.id,
+            expense_id: item.expense_id,
+            user_id: item.user_id,
+            user_name: item.user_name || 'System',
+            action_type: item.action_type,
+            changed_field: item.field_change || primaryChange.field || '',
+            old_value: item.previous_value !== undefined ? String(item.previous_value) : 
+                      primaryChange.previous_value !== undefined ? String(primaryChange.previous_value) : null,
+            new_value: item.current_state !== undefined ? String(item.current_state) : 
+                      primaryChange.current_state !== undefined ? String(primaryChange.current_state) : null,
+            created_at: item.created_at,
+            metadata: item.metadata
+          };
+        }
+        
+        // If no metadata, return the item as is with string conversion for values
+        return {
+          id: item.id,
+          expense_id: item.expense_id,
+          user_id: item.user_id,
+          user_name: item.user_name || 'System',
+          action_type: item.action_type,
+          changed_field: item.field_change || '',
+          old_value: item.previous_value !== undefined ? String(item.previous_value) : null,
+          new_value: item.current_state !== undefined ? String(item.current_state) : null,
+          created_at: item.created_at,
+          metadata: item.metadata
+        };
+      });
+      
+      return { data: formattedData as ExpenseHistoryItem[], error: null };
     } catch (error: any) {
       console.error('Error in getByExpenseId:', error);
       return { 
@@ -1588,5 +1678,318 @@ export const expenseHistory = {
         }
       };
     }
+  },
+
+ 
+// Open your db.ts file and modify the addConsolidatedChange function:
+
+
+
+addConsolidatedChange: async (params: {
+  expense_id: string;
+  user_id: string;
+  action_type: string;
+  changed_field: string;
+  old_value: string | null;
+  new_value: string | null;
+  user_name?: string; // Add this parameter
+}): Promise<{ success: boolean; error: DatabaseError | null }> => {
+  try {
+    const { expense_id, user_id, action_type, changed_field, old_value, new_value, user_name } = params;
+    console.log("addChange called with params:", params);
+    console.log("Explicitly provided user_name:", user_name);
+    
+    // Get user name from local storage if not provided
+    let finalUserName = user_name;
+    if (!finalUserName) {
+      console.log("No user_name provided, attempting to get from storage");
+      try {
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+          const authData = JSON.parse(authStorage);
+          finalUserName = authData?.user?.profile?.full_name || null;
+          console.log("User name from storage:", finalUserName);
+        }
+      } catch (e) {
+        console.error('Error getting user name from local storage:', e);
+      }
+    }
+    
+    console.log(`Adding history for expense ${expense_id} with user_name:`, finalUserName);
+    // The change object to be recorded
+    const changeRecord = {
+      field: changed_field,
+      previous_value: old_value,
+      current_state: new_value,
+      action_type: action_type,
+      timestamp: new Date().toISOString(),
+      user_name: finalUserName // Include user_name in metadata
+    };
+    
+    // Check if a history record already exists for this expense_id
+    const { data: existingRecord, error: fetchError } = await supabase
+      .from("expense_history")
+      .select("*")
+      .eq("expense_id", expense_id)
+      .maybeSingle();
+    
+    if (fetchError) {
+      console.error('Error checking existing history:', fetchError);
+      return { success: false, error: fetchError as DatabaseError };
+    }
+    
+    if (existingRecord) {
+      // If record exists, update it by appending to the metadata array
+      const currentMetadata = existingRecord.metadata || [];
+      const updatedMetadata = Array.isArray(currentMetadata) 
+        ? [...currentMetadata, changeRecord] 
+        : [changeRecord];
+      
+      const { error: updateError } = await supabase
+        .from("expense_history")
+        .update({
+          metadata: updatedMetadata,
+          user_name: finalUserName, // Store the user_name
+          // We'll still update these fields for backward compatibility
+          action_type: action_type,
+          changed_field: changed_field,
+          old_value: old_value,
+          new_value: new_value
+        })
+        .eq("id", existingRecord.id);
+      
+      if (updateError) {
+        console.error('Error updating history record:', updateError);
+        return { success: false, error: updateError as DatabaseError };
+      }
+      
+      return { success: true, error: null };
+    } else {
+      // If no record exists, create a new one with the change in metadata
+      const { error: insertError } = await supabase
+        .from("expense_history")
+        .insert({
+          expense_id,
+          user_id,
+          action_type,
+          changed_field,
+          old_value,
+          new_value,
+          user_name: finalUserName, // Store the user_name
+          metadata: [changeRecord]
+        });
+      
+      if (insertError) {
+        console.error('Error creating history record:', insertError);
+        return { success: false, error: insertError as DatabaseError };
+      }
+      
+      return { success: true, error: null };
+    }
+  } catch (error: any) {
+    console.error('Unexpected error in addConsolidatedChange:', error);
+    return { 
+      success: false, 
+      error: {
+        message: error instanceof Error ? error.message : "Unknown error",
+        details: "",
+        hint: "Unexpected error occurred when recording change",
+        code: "UNKNOWN_ERROR",
+      }
+    };
   }
+},
+
+// In db.ts file, find the expenseHistory.addChange function:
+addChange: async (params: {
+  expense_id: string;
+  user_id: string;
+  action_type: string;
+  changed_field: string;
+  old_value: string | null;
+  new_value: string | null;
+  user_name?: string; 
+}): Promise<{ success: boolean; error: DatabaseError | null }> => {
+  try {
+    const { expense_id, user_id, action_type, changed_field, old_value, new_value, user_name } = params;
+    
+    // Get user name from local storage if not provided
+    let finalUserName = user_name;
+    if (!finalUserName) {
+      try {
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+          const authData = JSON.parse(authStorage);
+          // Try to find user_name in different possible paths
+          if (authData?.state?.profile?.full_name) {
+            finalUserName = authData.state.profile.full_name;
+          } else if (authData?.state?.user?.profile?.full_name) {
+            finalUserName = authData.state.user.profile.full_name;
+          } else if (authData?.profile?.full_name) {
+            finalUserName = authData.profile.full_name;
+          }
+          console.log("Retrieved user name from storage:", finalUserName);
+        }
+      } catch (e) {
+        console.error('Error getting user name from local storage:', e);
+      }
+    }
+    
+    console.log(`Adding history for expense ${expense_id}:`, params);
+    console.log("User name being saved:", finalUserName);
+    
+    // Create the change object for this update
+    const changeRecord = {
+      field: changed_field,
+      previous_value: old_value,
+      current_state: new_value,
+      action_type: action_type,
+      timestamp: new Date().toISOString(),
+      user_name: finalUserName // Include user_name in metadata
+    };
+    
+    // Check if a history record already exists for this expense_id
+    const { data: existingRecords, error: fetchError } = await supabase
+      .from("expense_history")
+      .select("*")
+      .eq("expense_id", expense_id);
+    
+    if (fetchError) {
+      console.error('Error checking existing history:', fetchError);
+      return { success: false, error: fetchError as DatabaseError };
+    }
+    
+    let recordId: string; // To store the ID for the direct update
+    
+    if (existingRecords && existingRecords.length > 0) {
+      // Use the first existing record
+      const existingRecord = existingRecords[0];
+      recordId = existingRecord.id;
+      console.log('Found existing history record:', recordId);
+      
+      // Get current metadata or initialize an empty array
+      let currentMetadata = existingRecord.metadata || [];
+      if (!Array.isArray(currentMetadata)) {
+        currentMetadata = [];
+      }
+      
+      // Add the new change to the metadata array
+      const updatedMetadata = [...currentMetadata, changeRecord];
+      console.log('Updated metadata array:', updatedMetadata);
+      
+      // Create base update payload
+      const updatePayload = {
+        metadata: updatedMetadata,
+        action_type: action_type,
+        changed_field: changed_field,
+        old_value: old_value,
+        new_value: new_value
+      };
+      
+      // Add user_name using Object.assign to ensure it gets included
+      if (finalUserName) {
+        Object.assign(updatePayload, { user_name: finalUserName });
+        console.log("Added user_name to update payload:", finalUserName);
+      }
+      
+      // Cast to any to bypass TypeScript restrictions
+      const finalUpdatePayload = updatePayload as any;
+      console.log("Final update payload:", finalUpdatePayload);
+      
+      const { error: updateError } = await supabase
+        .from("expense_history")
+        .update(finalUpdatePayload)
+        .eq("id", recordId);
+      
+      if (updateError) {
+        console.error('Error updating history record:', updateError);
+        // Don't return, still try direct update
+      }
+    } else {
+      // No existing record, create a new one
+      console.log('No existing history record, creating new one');
+      
+      // Create base insert payload
+      const insertPayload = {
+        expense_id,
+        user_id,
+        action_type,
+        changed_field,
+        old_value,
+        new_value,
+        metadata: [changeRecord]
+      };
+      
+      // Add user_name using Object.assign to ensure it gets included
+      if (finalUserName) {
+        Object.assign(insertPayload, { user_name: finalUserName });
+        console.log("Added user_name to insert payload:", finalUserName);
+      }
+      
+      // Cast to any to bypass TypeScript restrictions
+      const finalInsertPayload = insertPayload as any;
+      console.log("Final insert payload:", finalInsertPayload);
+      
+      const { data: insertedData, error: insertError } = await supabase
+        .from("expense_history")
+        .insert(finalInsertPayload)
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error('Error creating history record:', insertError);
+        return { success: false, error: insertError as DatabaseError };
+      }
+      
+      // Get the ID of the inserted record
+      recordId = insertedData.id;
+      console.log("Inserted record ID:", recordId);
+    }
+    
+    // Now use direct RPC call to update the user_name field
+    if (recordId && finalUserName) {
+      console.log("Trying direct RPC update for user_name:", finalUserName);
+      
+      // Direct SQL update via RPC
+      const { error: rpcError } = await supabase
+        .rpc('update_expense_history_username', {
+          history_id: recordId,
+          username_value: finalUserName
+        });
+      
+      if (rpcError) {
+        console.error("Error in RPC update:", rpcError);
+      } else {
+        console.log("Successfully updated user_name via RPC");
+      }
+      
+      // Verify the update was successful
+      const { data: verifyRecord, error: verifyError } = await supabase
+        .from("expense_history")
+        .select("*")
+        .eq("id", recordId)
+        .single();
+        
+      if (verifyError) {
+        console.error('Error verifying record:', verifyError);
+      } else if (verifyRecord) {
+        console.log("Verified record after RPC:", verifyRecord);
+        console.log("Final user_name value:", verifyRecord.user_name);
+      }
+    }
+    
+    return { success: true, error: null };
+  } catch (error: any) {
+    console.error('Unexpected error in addChange:', error);
+    return { 
+      success: false, 
+      error: {
+        message: error instanceof Error ? error.message : "Unknown error",
+        details: "",
+        hint: "Check input parameters",
+        code: "UNKNOWN_ERROR",
+      }
+    };
+  }
+}
 };

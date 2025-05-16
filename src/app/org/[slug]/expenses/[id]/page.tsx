@@ -1,10 +1,9 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenses } from "@/lib/db";
+import { expenses, expenseHistory } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,6 +142,29 @@ export default function ViewExpensePage() {
         throw new Error("User ID not found. Please log in again.");
       }
 
+      // Get the current user name from localStorage
+      let userName = 'System';
+      try {
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+          const authData = JSON.parse(authStorage);
+          
+          // Try multiple possible paths to find the user name
+          if (authData?.state?.profile?.full_name) {
+            userName = authData.state.profile.full_name;
+          } 
+          else if (authData?.state?.user?.profile?.full_name) {
+            userName = authData.state.user.profile.full_name;
+          }
+          else if (authData?.profile?.full_name) {
+            userName = authData.profile.full_name;
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing auth storage:', e);
+      }
+      
+
       const approvedAmount = parseFloat(customAmount);
 
       // Prepare update data
@@ -151,7 +173,6 @@ export default function ViewExpensePage() {
         approver_id: currentUserId,
         approved_amount: approvedAmount,
       };
-
 
       // Update with Supabase
       const { data, error } = await supabase
@@ -165,6 +186,28 @@ export default function ViewExpensePage() {
         console.error("Error updating expense:", error);
         throw error;
       }
+
+      // Add history record for the approval with the user name
+      await expenseHistory.addChange({
+        expense_id: expenseId,
+        user_id: currentUserId,
+        action_type: "approved",
+        changed_field: "status",
+        old_value: "submitted",
+        new_value: "approved",
+        user_name: userName // Include user name here
+      });
+      
+      // Also add a record for the custom amount with the user name
+      await expenseHistory.addChange({
+        expense_id: expenseId,
+        user_id: currentUserId,
+        action_type: "updated",
+        changed_field: "approved_amount",
+        old_value: null,
+        new_value: approvedAmount.toString(),
+        user_name: userName // Include user name here for this record too
+      });
 
       // Update local state
       setExpense({
@@ -196,81 +239,128 @@ export default function ViewExpensePage() {
   };
 
   // Main approve function with different approval types
-  const handleApprove = async (approvalType?: "full" | "policy" | "custom") => {
-    try {
-      setUpdateLoading(true);
+ // Main approve function with different approval types
+const handleApprove = async (approvalType?: "full" | "policy" | "custom") => {
+  try {
+    setUpdateLoading(true);
 
-      if (approvalType === "custom") {
-        // Just show the custom amount input
-        setShowCustomAmountInput(true);
-        setUpdateLoading(false);
-        return;
-      }
-
-      // Get current user ID
-      if (!currentUserId) {
-        throw new Error("User ID not found. Please log in again.");
-      }
-
-      // Prepare update data
-      let updateData: any = {
-        status: "approved",
-        approver_id: currentUserId,
-      };
-
-      // Set the approved_amount based on approval type
-      if (approvalType === "policy" && relevantPolicy?.upper_limit) {
-        updateData.approved_amount = relevantPolicy.upper_limit;
-      } else if (approvalType === "full") {
-        updateData.approved_amount = expense.amount;
-      } else {
-        // Default case - full approval
-        updateData.approved_amount = expense.amount;
-      }
-
-      // Update with Supabase
-      const { data, error } = await supabase
-        .from("expenses")
-        .update(updateData)
-        .eq("id", expenseId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error updating expense:", error);
-        throw error;
-      }
-
-
-      // Update local state
-      setExpense({
-        ...expense,
-        status: "approved",
-        approver_id: currentUserId,
-        approved_amount: updateData.approved_amount,
-      });
-
-      toast.success(
-        approvalType === "policy"
-          ? "Expense approved as per policy limit"
-          : approvalType === "full"
-          ? "Expense approved with full amount"
-          : "Expense approved successfully"
-      );
-
-      // Navigate back after a short delay
-      setTimeout(() => {
-        router.push(`/org/${slug}/expenses`);
-      }, 1000);
-    } catch (error: any) {
-      console.error("Approval error:", error);
-      toast.error("Failed to approve expense", {
-        description: error.message,
-      });
-    } finally {
+    if (approvalType === "custom") {
+      // Just show the custom amount input
+      setShowCustomAmountInput(true);
       setUpdateLoading(false);
+      return;
     }
-  };
+
+    // Get current user ID
+    if (!currentUserId) {
+      throw new Error("User ID not found. Please log in again.");
+    }
+
+    // Get the current user name from localStorage with additional logging
+    let userName = 'System';
+    try {
+      const authStorage = localStorage.getItem('auth-storage');
+      if (authStorage) {
+        const authData = JSON.parse(authStorage);
+        // Use the correct path to access the full_name based on your storage structure
+        userName = authData?.state?.user?.profile?.full_name || 'Unknown User';
+        console.log("Retrieved user name from storage:", userName);
+        console.log("Full auth data structure:", JSON.stringify(authData).substring(0, 500) + "..."); // For debugging, show first 500 chars
+      } else {
+        console.log("No auth-storage found in localStorage");
+      }
+    } catch (e) {
+      console.error('Error parsing auth storage:', e);
+    }
+
+    // Prepare update data
+    let updateData: any = {
+      status: "approved",
+      approver_id: currentUserId,
+    };
+
+    // Set the approved_amount based on approval type
+    if (approvalType === "policy" && relevantPolicy?.upper_limit) {
+      updateData.approved_amount = relevantPolicy.upper_limit;
+    } else if (approvalType === "full") {
+      updateData.approved_amount = expense.amount;
+    } else {
+      // Default case - full approval
+      updateData.approved_amount = expense.amount;
+    }
+
+    // Update with Supabase
+    const { data, error } = await supabase
+      .from("expenses")
+      .update(updateData)
+      .eq("id", expenseId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating expense:", error);
+      throw error;
+    }
+
+    // Now add the history entry with explicit logging
+    console.log("About to add history entry for approval with user_name:", userName);
+    
+    const historyResult = await expenseHistory.addChange({
+      expense_id: expenseId,
+      user_id: currentUserId,
+      action_type: "approved",
+      changed_field: "status",
+      old_value: "submitted",
+      new_value: "approved",
+      user_name: userName // Include user name here
+    });
+    
+    console.log("Result of adding approval history entry:", historyResult);
+    
+    // Also add a record for the approved amount with the user name
+    console.log("About to add history entry for amount with user_name:", userName);
+    
+    const amountHistoryResult = await expenseHistory.addChange({
+      expense_id: expenseId,
+      user_id: currentUserId,
+      action_type: "updated",
+      changed_field: "approved_amount",
+      old_value: null,
+      new_value: updateData.approved_amount.toString(),
+      user_name: userName // Include user name here for this record too
+    });
+    
+    console.log("Result of adding amount history entry:", amountHistoryResult);
+
+    // Update local state
+    setExpense({
+      ...expense,
+      status: "approved",
+      approver_id: currentUserId,
+      approved_amount: updateData.approved_amount,
+    });
+
+    toast.success(
+      approvalType === "policy"
+        ? "Expense approved as per policy limit"
+        : approvalType === "full"
+        ? "Expense approved with full amount"
+        : "Expense approved successfully"
+    );
+
+    // Navigate back after a short delay
+    setTimeout(() => {
+      router.push(`/org/${slug}/expenses`);
+    }, 1000);
+  } catch (error: any) {
+    console.error("Approval error:", error);
+    toast.error("Failed to approve expense", {
+      description: error.message,
+    });
+  } finally {
+    setUpdateLoading(false);
+  }
+};
 
   // Handle rejection
   const handleReject = async () => {
@@ -280,6 +370,18 @@ export default function ViewExpensePage() {
       // Get current user ID
       if (!currentUserId) {
         throw new Error("User ID not found. Please log in again.");
+      }
+
+      // Get the current user name from localStorage
+      let userName = 'System';
+      try {
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+          const authData = JSON.parse(authStorage);
+          userName = authData?.user?.profile?.full_name || 'Unknown User';
+        }
+      } catch (e) {
+        console.error('Error parsing auth storage:', e);
       }
 
       // Prepare update data
@@ -301,6 +403,16 @@ export default function ViewExpensePage() {
         throw error;
       }
 
+      // Add history record for the rejection with the user name
+      await expenseHistory.addChange({
+        expense_id: expenseId,
+        user_id: currentUserId,
+        action_type: "rejected",
+        changed_field: "status",
+        old_value: "submitted",
+        new_value: "rejected",
+        user_name: userName // Include user name here
+      });
 
       // Update local state
       setExpense({
@@ -514,7 +626,7 @@ export default function ViewExpensePage() {
         {/* Left column: Expense Details Card (original code) */}
         <Card>
           <CardHeader>
-            <CardTitle>Expense Details komal</CardTitle>
+            <CardTitle>Expense Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
