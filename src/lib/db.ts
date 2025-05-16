@@ -544,20 +544,28 @@ export const profiles = {
       .single()
       .returns<Profile>();
   },
+  getByIds: async (userIds: string[]) => {
+    console.log("getByIds called with:", userIds);
 
-getByIds: async (userIds: string[]) => {
-  console.log("getByIds called with:", userIds);
-  
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .in("user_id", userIds);
-    
-  console.log("Supabase returned profiles:", data?.length || 0);
-  console.log("Any error:", error);
-  
-  return { data, error };
-},
+    if (userIds.length === 0) {
+      return { data: [], error: null };
+    }
+
+    // Use the IN filter for optimal performance
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .in("user_id", userIds);
+
+    console.log("Supabase returned profiles:", data?.length || 0);
+
+    if (error) {
+      console.error("Error fetching profiles:", error);
+      return { data: null, error };
+    }
+
+    return { data, error: null };
+  },
 
   saveSignature: async (userId: string, signaturePath: string) => {
     return await supabase
@@ -568,45 +576,45 @@ getByIds: async (userIds: string[]) => {
       .single();
   },
 
-// Add these functions to the profiles object in db.ts
-getSignatureUrl: async (userId: string, orgId: string) => {
-  try {
-    // First get the signature path from the profile
-    const { data, error } = await supabase
+  // Add these functions to the profiles object in db.ts
+  getSignatureUrl: async (userId: string, orgId: string) => {
+    try {
+      // First get the signature path from the profile
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("signature_url")
+        .eq("user_id", userId)
+        .single();
+
+      if (error || !data || !data.signature_url) {
+        return { url: null, error: error || new Error("No signature found") };
+      }
+
+      // Then get the download URL
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from("user-signatures")
+        .createSignedUrl(data.signature_url, 3600); // URL valid for 1 hour
+
+      if (urlError) {
+        return { url: null, error: urlError };
+      }
+
+      return { url: urlData.signedUrl, error: null };
+    } catch (error) {
+      console.error("Error fetching signature URL:", error);
+      return {
+        url: null,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  },
+
+  updateSignature: async (userId: string, signaturePath: string) => {
+    return await supabase
       .from("profiles")
-      .select("signature_url")
-      .eq("user_id", userId)
-      .single();
-
-    if (error || !data || !data.signature_url) {
-      return { url: null, error: error || new Error("No signature found") };
-    }
-
-    // Then get the download URL
-    const { data: urlData, error: urlError } = await supabase.storage
-      .from("user-signatures")
-      .createSignedUrl(data.signature_url, 3600); // URL valid for 1 hour
-
-    if (urlError) {
-      return { url: null, error: urlError };
-    }
-
-    return { url: urlData.signedUrl, error: null };
-  } catch (error) {
-    console.error("Error fetching signature URL:", error);
-    return { 
-      url: null, 
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
-},
-
-updateSignature: async (userId: string, signaturePath: string) => {
-  return await supabase
-    .from("profiles")
-    .update({ signature_url: signaturePath })
-    .eq("user_id", userId);
-},
+      .update({ signature_url: signaturePath })
+      .eq("user_id", userId);
+  },
 
   /**
    * Insert or update (upsert) a profile by user_id.

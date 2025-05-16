@@ -80,7 +80,7 @@ export default function TeamPage() {
           // Combine the data
           const formattedMembers: Member[] = orgUsers.map((orgUser) => {
             const profile = profileData?.find(
-              (p) => p.user_id === orgUser.user_id
+              (p: { user_id: string; }) => p.user_id === orgUser.user_id
             );
             return {
               id: orgUser.id,
