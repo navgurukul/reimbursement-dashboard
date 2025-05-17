@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses } from "@/lib/db";
+import { orgSettings, expenses, expenseHistory } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Save, Upload, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import supabase from "@/lib/supabase";
 
 export default function EditExpensePage() {
   const router = useRouter();
@@ -91,8 +92,87 @@ export default function EditExpensePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-
+  
     try {
+      // Get current user from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        throw new Error("User not authenticated. Please log in again.");
+      }
+  
+      // Get username for history entries using improved extraction
+      try {
+        const authRaw = localStorage.getItem('auth-storage');
+        console.log('Auth raw:', authRaw);
+        const authStorage = JSON.parse(authRaw || '{}');
+        
+        // Log all possible paths to help debug
+        console.log('Full auth storage object:', authStorage);
+        console.log('State:', authStorage.state);
+        console.log('User:', authStorage.state?.user);
+        console.log('Profile direct:', authStorage.state?.user?.profile);
+        
+        // Try multiple paths and nested data
+        let userName = "Unknown User";
+        
+        if (authStorage?.state?.user?.profile?.full_name) {
+          userName = authStorage.state.user.profile.full_name;
+        } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
+          // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
+          const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+          if (match && match[1]) {
+            userName = match[1];
+          }
+        }
+        
+        console.log('Final username to be used:', userName);
+        
+        // Check what fields have changed
+        if (expense.expense_type !== formData.expense_type) {
+          // Log expense type change
+          await expenseHistory.addEntry(
+            expenseId,
+            session.user.id,
+            userName,
+            'updated',
+            expense.expense_type,
+            formData.expense_type
+          );
+        }
+  
+        if (expense.amount !== parseFloat(formData.amount)) {
+          // Log amount change
+          await expenseHistory.addEntry(
+            expenseId,
+            session.user.id,
+            userName,
+            'updated',
+            expense.amount.toString(),
+            formData.amount.toString()
+          );
+        }
+  
+        // Add custom fields
+        Object.entries(formData).forEach(([key, value]) => {
+          if (key !== "expense_type" && key !== "amount" && key !== "date") {
+            // Log changes to custom fields if they're different
+            if (expense.custom_fields[key] !== value) {
+              expenseHistory.addEntry(
+                expenseId,
+                session.user.id,
+                userName,
+                'updated',
+                expense.custom_fields[key]?.toString() || '',
+                value?.toString() || ''
+              ).catch(err => console.error("Error logging field update:", err));
+            }
+          }
+        });
+      } catch (error) {
+        console.error('Error extracting username from localStorage:', error);
+        // If username extraction fails, still update the expense without history entries
+      }
+  
       // Prepare expense data
       const updates: any = {
         expense_type: formData.expense_type,
@@ -100,25 +180,25 @@ export default function EditExpensePage() {
         date: formData.date,
         custom_fields: {},
       };
-
+  
       // Add custom fields
       Object.entries(formData).forEach(([key, value]) => {
         if (key !== "expense_type" && key !== "amount" && key !== "date") {
           updates.custom_fields[key] = value;
         }
       });
-
+  
       // Update expense with receipt if provided
       const { error } = await expenses.update(
         expenseId,
         updates,
         receiptFile || undefined
       );
-
+  
       if (error) {
         throw error;
       }
-
+  
       toast.success("Expense updated successfully");
       router.push(`/org/${slug}/expenses/${expenseId}`);
     } catch (error: any) {
@@ -129,8 +209,7 @@ export default function EditExpensePage() {
     } finally {
       setSaving(false);
     }
-  };
-
+  }
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">

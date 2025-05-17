@@ -29,7 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CalendarIcon, Save, Upload } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
-import { organizations,logExpenseCreation } from "@/lib/db";
+import { organizations,expenseHistory } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
 import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
@@ -338,7 +338,7 @@ export default function NewExpensePage() {
         date: new Date(formData.date).toISOString(),
         custom_fields: {},
         event_id: formData.event_id || null,
-        approver_id: approver_id, // Add approver_id directly to the base expense data
+        approver_id: approver_id,
       };
   
       if (voucherModalOpen) {
@@ -352,12 +352,52 @@ export default function NewExpensePage() {
           return;
         }
   
-        // Add logging for expense creation
+        // Add history entry for expense creation with improved username extraction
         try {
-          await logExpenseCreation(expenseData.id, user.id);
+          const authRaw = localStorage.getItem('auth-storage');
+          console.log('Auth raw:', authRaw);
+          const authStorage = JSON.parse(authRaw || '{}');
+          
+          // Log all possible paths to help debug
+          console.log('Full auth storage object:', authStorage);
+          console.log('State:', authStorage.state);
+          console.log('User:', authStorage.state?.user);
+          console.log('Profile direct:', authStorage.state?.user?.profile);
+          
+          // Try multiple paths and nested data
+          let userName = "Unknown User";
+          
+          if (authStorage?.state?.user?.profile?.full_name) {
+            userName = authStorage.state.user.profile.full_name;
+          } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
+            // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
+            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+            if (match && match[1]) {
+              userName = match[1];
+            }
+          }
+          
+          console.log('Final username to be used:', userName);
+          
+          await expenseHistory.addEntry(
+            expenseData.id,
+            user.id,
+            userName,
+            'created',
+            null,
+            expenseData.amount.toString()
+          );
         } catch (logError) {
           console.error("Error logging expense creation:", logError);
-          // Continue with voucher creation even if logging fails
+          // Fallback
+          await expenseHistory.addEntry(
+            expenseData.id,
+            user.id,
+            "Unknown User",
+            'created',
+            null,
+            expenseData.amount.toString()
+          );
         }
   
         console.log("Expense created successfully, now creating voucher...");
@@ -406,7 +446,7 @@ export default function NewExpensePage() {
             col.key !== "expense_type" &&
             col.key !== "amount" &&
             col.key !== "date" &&
-            col.key !== "approver_id" && // Make sure approver_id is not added to custom_fields
+            col.key !== "approver_id" &&
             col.key !== "event_id"
           ) {
             regularExpensePayload.custom_fields[col.key] = formData[col.key];
@@ -427,14 +467,56 @@ export default function NewExpensePage() {
           throw error;
         }
   
-        // Add logging for regular expense creation
+        // Add history entry for regular expense creation with improved username extraction
         try {
+          const authRaw = localStorage.getItem('auth-storage');
+          console.log('Auth raw:', authRaw);
+          const authStorage = JSON.parse(authRaw || '{}');
+          
+          // Log all possible paths to help debug
+          console.log('Full auth storage object:', authStorage);
+          console.log('State:', authStorage.state);
+          console.log('User:', authStorage.state?.user);
+          console.log('Profile direct:', authStorage.state?.user?.profile);
+          
+          // Try multiple paths and nested data
+          let userName = "Unknown User";
+          
+          if (authStorage?.state?.user?.profile?.full_name) {
+            userName = authStorage.state.user.profile.full_name;
+          } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
+            // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
+            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+            if (match && match[1]) {
+              userName = match[1];
+            }
+          }
+          
+          console.log('Final username to be used:', userName);
+          
           if (data && data.id) {
-            await logExpenseCreation(data.id, user.id);
+            await expenseHistory.addEntry(
+              data.id,
+              user.id,
+              userName,
+              'created',
+              null,
+              data.amount.toString()
+            );
           }
         } catch (logError) {
           console.error("Error logging expense creation:", logError);
-          // Continue with success flow even if logging fails
+          // Fallback
+          if (data && data.id) {
+            await expenseHistory.addEntry(
+              data.id,
+              user.id,
+              "Unknown User",
+              'created',
+              null,
+              data.amount.toString()
+            );
+          }
         }
   
         toast.success("Expense created successfully");
@@ -454,7 +536,7 @@ export default function NewExpensePage() {
     } finally {
       setSaving(false);
     }
-  };
+  }
   if (loading || !isMounted) {
     return (
       <div className="flex items-center justify-center h-64">
