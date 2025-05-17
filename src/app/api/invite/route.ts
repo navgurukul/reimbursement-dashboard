@@ -1,68 +1,180 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { invites } from "@/lib/db";
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 
-// Initialize Supabase with admin privileges (service role key)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role key here, NOT public anon key
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+// Configure AWS SES client
+const sesClient = new SESClient({
+  region: process.env.AWS_REGION || "us-east-1",
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+  },
+});
 
 export async function POST(request: Request) {
   try {
-    const { email, role, orgId, orgName } = await request.json();
+    const body = await request.json();
+    const { email, role, orgId, orgName } = body;
 
-    if (!email || !orgId) {
+    if (!email || !role || !orgId) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Step 1: Create the invite record directly in the database
-    const { data: inviteRecord, error: inviteError } = await supabaseAdmin
-      .from("invites")
-      .insert({
-        org_id: orgId,
-        email: email,
-        role: role,
-        created_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+    // Create the invite in the database
+    const { data: inviteRow, error: inviteError } = await invites.create(
+      orgId,
+      email,
+      role
+    );
 
-    if (inviteError || !inviteRecord) {
-      throw inviteError || new Error("Failed to create invite record");
+    if (inviteError || !inviteRow) {
+      console.error("Error creating invite:", inviteError);
+      throw inviteError ?? new Error("Failed to create invite");
     }
 
-    // Step 2: Send invite email using admin privileges
-    const { error: emailError } =
-      await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${new URL(request.url).origin}/auth/signup?token=${
-          inviteRecord.id
-        }`,
-        data: {
-          organization_id: orgId,
-          organization_name: orgName || "Our Organization",
-          role: role,
-          invite_id: inviteRecord.id,
+    // Build the sign-up URL with the invite token
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const signupUrl = `${baseUrl}/auth/signup?token=${inviteRow.id}`;
+
+    // Email content with responsive HTML template
+    const emailParams = {
+      Source: process.env.SES_SENDER_EMAIL,
+      Destination: {
+        ToAddresses: [email],
+      },
+      Message: {
+        Subject: {
+          Data: `You've been invited to join ${orgName} on the Reimbursement App`,
+          Charset: "UTF-8",
         },
+        Body: {
+          Html: {
+            Data: `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Invitation to join ${orgName}</title>
+                <style>
+                  body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                  }
+                  .container {
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                  }
+                  .header {
+                    background-color: #4f46e5;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 8px 8px 0 0;
+                  }
+                  .header h1 {
+                    color: white;
+                    margin: 0;
+                    font-size: 24px;
+                  }
+                  .content {
+                    background-color: #ffffff;
+                    padding: 20px;
+                    border: 1px solid #e5e7eb;
+                    border-top: none;
+                    border-radius: 0 0 8px 8px;
+                  }
+                  .button {
+                    display: inline-block;
+                    background-color: #4f46e5;
+                    color: white;
+                    text-decoration: none;
+                    padding: 12px 24px;
+                    border-radius: 4px;
+                    margin: 20px 0;
+                    font-weight: 500;
+                  }
+                  .footer {
+                    text-align: center;
+                    margin-top: 20px;
+                    font-size: 12px;
+                    color: #6b7280;
+                  }
+                  @media screen and (max-width: 600px) {
+                    .container {
+                      width: 100%;
+                    }
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="container">
+                  <div class="header">
+                    <h1>You've been invited!</h1>
+                  </div>
+                  <div class="content">
+                    <p>Hello,</p>
+                    <p>You've been invited to join <strong>${orgName}</strong> as a <strong>${role}</strong> on the Reimbursement App.</p>
+                    <p>Click the button below to accept the invitation and create your account:</p>
+                    <p style="text-align: center;">
+                      <a href="${signupUrl}" class="button">Accept Invitation</a>
+                    </p>
+                    <p>Or copy and paste this link into your browser:</p>
+                    <p style="word-break: break-all;">${signupUrl}</p>
+                    <p>This invite link will expire in 7 days.</p>
+                    <p>If you have any questions, please contact the organization administrator.</p>
+                  </div>
+                  <div class="footer">
+                    <p>This is an automated message, please do not reply directly to this email.</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `,
+            Charset: "UTF-8",
+          },
+          Text: {
+            Data: `You've been invited to join ${orgName} as a ${role} on the Reimbursement App. Click here to accept: ${signupUrl}`,
+            Charset: "UTF-8",
+          },
+        },
+      },
+    };
+
+    try {
+      // Send the email using AWS SES
+      const sendCommand = new SendEmailCommand(emailParams);
+      await sesClient.send(sendCommand);
+
+      return NextResponse.json({
+        success: true,
+        inviteId: inviteRow.id,
+        message: "Invitation email sent successfully",
       });
+    } catch (sesError: any) {
+      console.error("Error sending email with SES:", sesError);
 
-    if (emailError) {
-      throw emailError;
+      // Even if email fails, we'll still return the invite ID
+      // as the invite was created in the database
+      return NextResponse.json(
+        {
+          success: false,
+          inviteId: inviteRow.id,
+          error: `Invite created but email failed: ${sesError.message}`,
+        },
+        { status: 500 }
+      );
     }
-
-    return NextResponse.json({ success: true, inviteId: inviteRecord.id });
   } catch (error: any) {
-    console.error("Invite API error:", error);
+    console.error("Error processing invitation:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to send invite" },
+      { error: error.message || "Failed to process invitation" },
       { status: 500 }
     );
   }

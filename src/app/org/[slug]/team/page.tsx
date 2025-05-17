@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import supabase from "@/lib/supabase";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
 import { invites, organizations, profiles } from "@/lib/db";
@@ -41,6 +39,19 @@ interface Member {
   avatarUrl?: string;
 }
 
+interface InviteFormData {
+  email: string;
+  role: "member" | "manager" | "admin";
+  orgId: string;
+  orgName: string;
+}
+
+interface InviteResponse {
+  success?: boolean;
+  inviteId?: string;
+  error?: string;
+}
+
 export default function TeamPage() {
   const org = useOrgStore((s) => s.organization);
   const userRole = useOrgStore((s) => s.userRole);
@@ -62,7 +73,7 @@ export default function TeamPage() {
         // Get the organization users
         const { data: orgUsers, error: orgUsersError } =
           await organizations.getOrganizationMembers(org.id);
-        console.log("orgUsers", orgUsers);
+
         if (orgUsersError) throw orgUsersError;
 
         if (orgUsers && orgUsers.length > 0) {
@@ -72,15 +83,13 @@ export default function TeamPage() {
           // Fetch profiles for these users
           const { data: profileData, error: profileError } =
             await profiles.getByIds(userIds);
-          
-          console.log("profileData", profileData);
 
           if (profileError) throw profileError;
 
           // Combine the data
           const formattedMembers: Member[] = orgUsers.map((orgUser) => {
             const profile = profileData?.find(
-              (p: { user_id: string; }) => p.user_id === orgUser.user_id
+              (p) => p.user_id === orgUser.user_id
             );
             return {
               id: orgUser.id,
@@ -107,56 +116,51 @@ export default function TeamPage() {
     fetchMembers();
   }, [org?.id]);
 
-  // Update your handleInviteSubmit function in your TeamPage component
-interface InviteFormData {
-  email: string;
-  role: "member" | "manager" | "admin";
-  orgId: string;
-  orgName: string;
-}
-
-interface InviteResponse {
-  inviteId: string;
-  [key: string]: any;
-}
-
-const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  if (!org?.id) return;
-  setLoading(true);
-
-  let inviteRow: { id: string } | null = null;
-
-  try {
-    // Call your server API route
-    const response = await fetch("/api/invite", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: inviteEmail,
-        role: inviteRole,
-        orgId: org.id,
-        orgName: org.name || "Our Organization",
-      } as InviteFormData),
-    });
-
-    const data = await response.json() as InviteResponse;
-
-    if (!response.ok) {
-      throw new Error(data.error || "Failed to send invitation");
+  // Handle invite form submission with AWS SES email
+  const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!org?.id || !org?.name) {
+      toast.error("Organization information is missing");
+      return;
     }
 
-    inviteRow = { id: data.inviteId };
-    toast.success("Invitation sent!");
-    setInviteEmail("");
-    setInviteRole("member");
-  } catch (error: unknown) {
-    console.error("Invite error:", error);
-    // Your existing error handling code
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+
+    try {
+      // Call the server API route that handles both invite creation and email sending
+      const response = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteEmail,
+          role: inviteRole,
+          orgId: org.id,
+          orgName: org.name || "Our Organization",
+        } as InviteFormData),
+      });
+
+      const data = (await response.json()) as InviteResponse;
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send invitation");
+      }
+
+      toast.success("Invitation email sent successfully!", {
+        description: `An invite has been sent to ${inviteEmail} to join as a ${inviteRole}.`,
+      });
+
+      // Clear form after successful submission
+      setInviteEmail("");
+      setInviteRole("member");
+    } catch (error: any) {
+      console.error("Error sending invitation:", error);
+      toast.error("Failed to send invitation", {
+        description: error.message || "Please try again",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -207,8 +211,9 @@ const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         </CardContent>
       </Card>
 
-      {/* Invite Form (only owners/admins) */}
-      {(userRole === "owner" || userRole === "admin") && (
+      {/* Invite Form (only owners/admins/managers) */}
+      {(userRole === "owner" ||
+        userRole === "admin" ) && (
         <Card>
           <CardHeader>
             <CardTitle>Invite New Team Member</CardTitle>
@@ -225,11 +230,12 @@ const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     required
+                    type="email"
                   />
                 </div>
                 <Select
                   value={inviteRole}
-                  onValueChange={(v: "member" | "admin") => setInviteRole(v)}
+                  onValueChange={(v: any) => setInviteRole(v)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Role" />
@@ -238,7 +244,9 @@ const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                     <SelectGroup>
                       <SelectItem value="member">Member</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      {(userRole === "owner" || userRole === "admin") && (
+                        <SelectItem value="admin">Admin</SelectItem>
+                      )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
