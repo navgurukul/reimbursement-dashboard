@@ -29,12 +29,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CalendarIcon, Save, Upload } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
-import { organizations } from "@/lib/db";
+import { organizations,logExpenseCreation } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
 import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
 import supabase from "@/lib/supabase";
 import { uploadSignature } from "@/lib/utils";
+
 interface Column {
   key: string;
   label: string;
@@ -261,29 +262,31 @@ export default function NewExpensePage() {
     }
   };
 
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-
+  
     try {
       if (!user?.id || !organization) {
         throw new Error("Missing required data");
       }
-
+  
       // Validate that user is not approving their own expense
       if (formData.approver === user.id) {
         toast.error("You cannot approve your own expenses");
         setSaving(false);
         return;
       }
-
+  
       // Process signatures if this is a voucher
       let signature_url: string | null = null;
       let manager_signature_url: string | null = null;
-
+  
       if (voucherModalOpen) {
         console.log("Processing voucher with signatures...");
-
+  
         // Upload the user signature if exists
         if (formData.signature_data_url) {
           const { path, error } = await uploadSignature(
@@ -292,14 +295,14 @@ export default function NewExpensePage() {
             organization.id,
             "user"
           );
-
+  
           if (error) {
             toast.error(`Failed to upload your signature: ${error.message}`);
           } else {
             signature_url = path;
           }
         }
-
+  
         // Upload the approver signature if exists
         if (formData.manager_signature_data_url) {
           const { path, error } = await uploadSignature(
@@ -308,7 +311,7 @@ export default function NewExpensePage() {
             organization.id,
             "approver"
           );
-
+  
           if (error) {
             toast.error(
               `Failed to upload approver signature: ${error.message}`
@@ -318,11 +321,11 @@ export default function NewExpensePage() {
           }
         }
       }
-
+  
       // Extract approver_id directly from formData
       const approver_id = formData.approver || null;
       console.log("Approver ID being sent:", approver_id);
-
+  
       const baseExpenseData = {
         org_id: organization.id,
         user_id: user.id,
@@ -337,24 +340,32 @@ export default function NewExpensePage() {
         event_id: formData.event_id || null,
         approver_id: approver_id, // Add approver_id directly to the base expense data
       };
-
+  
       if (voucherModalOpen) {
         console.log("Creating expense for voucher...");
         const { data: expenseData, error: expenseError } =
           await expenses.create(baseExpenseData);
-
+  
         if (expenseError || !expenseData) {
           console.error("Expense creation error:", expenseError);
           toast.error("Failed to create expense");
           return;
         }
-
+  
+        // Add logging for expense creation
+        try {
+          await logExpenseCreation(expenseData.id, user.id);
+        } catch (logError) {
+          console.error("Error logging expense creation:", logError);
+          // Continue with voucher creation even if logging fails
+        }
+  
         console.log("Expense created successfully, now creating voucher...");
         console.log("Signature URLs being sent to backend:", {
           signature_url,
           manager_signature_url,
         });
-
+  
         // Create voucher with direct Supabase insert to avoid type issues
         const { data: voucherResponse, error: voucherError } = await supabase
           .from("vouchers")
@@ -374,13 +385,13 @@ export default function NewExpensePage() {
           ])
           .select()
           .single();
-
+  
         if (voucherError) {
           console.error("Voucher creation error:", voucherError);
           toast.error(`Failed to create voucher: ${voucherError.message}`);
           return;
         }
-
+  
         console.log("Voucher created successfully:", voucherResponse);
         toast.success("Voucher submitted successfully");
       } else {
@@ -388,7 +399,7 @@ export default function NewExpensePage() {
           ...baseExpenseData,
           custom_fields: {} as Record<string, any>,
         };
-
+  
         columns.forEach((col) => {
           if (
             col.visible &&
@@ -401,24 +412,34 @@ export default function NewExpensePage() {
             regularExpensePayload.custom_fields[col.key] = formData[col.key];
           }
         });
-
+  
         console.log(
           "Creating regular expense with data:",
           regularExpensePayload
         );
-
-        const { error } = await expenses.create(
+  
+        const { data, error } = await expenses.create(
           regularExpensePayload,
           receiptFile || undefined
         );
-
+  
         if (error) {
           throw error;
         }
-
+  
+        // Add logging for regular expense creation
+        try {
+          if (data && data.id) {
+            await logExpenseCreation(data.id, user.id);
+          }
+        } catch (logError) {
+          console.error("Error logging expense creation:", logError);
+          // Continue with success flow even if logging fails
+        }
+  
         toast.success("Expense created successfully");
       }
-
+  
       // If expense was added from an event's page, redirect back to that event
       if (eventIdFromQuery) {
         router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);

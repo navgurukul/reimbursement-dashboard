@@ -1537,3 +1537,168 @@ export const vouchers = {
     };
   },
 };
+
+
+
+// Updated logExpenseCreation function
+export async function logExpenseCreation(expenseId: string, userId: string) {
+  try {
+    // Get user name
+    const { data: userData, error: userError } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('user_id', userId)
+      .single();
+    
+    const userName = userData?.full_name || 'Unknown User';
+    
+    // Insert with correct field names that match the database schema
+    const { data, error } = await supabase
+      .from('expense_history')
+      .insert({
+        expense_id: expenseId,
+        user_id: userId,
+        user_name: userName,
+        action_type: 'created',
+        field_name: 'status',
+        old_value: null,
+        new_value: 'created',
+        notes: 'Expense created'
+      });
+    
+    if (error) {
+      console.error('Error logging expense creation:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('Exception in logExpenseCreation:', err);
+    return null;
+  }
+}
+
+// Log status change (fixing the parameter type issue)
+// Updated logExpenseStatusChange function
+export async function logExpenseStatusChange(
+  expenseId: string, 
+  userId: string, 
+  oldStatus: string, 
+  newStatus: string,
+  notes?: string | null | undefined
+) {
+  try {
+    // Get user name
+    const { data: userData, error: userError } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('user_id', userId)
+      .single();
+    
+    const userName = userData?.full_name || 'Unknown User';
+    
+    // Insert with correct field names
+    const { data, error } = await supabase
+      .from('expense_history')
+      .insert({
+        expense_id: expenseId,
+        user_id: userId,
+        user_name: userName,
+        action_type: 'status_update',
+        field_name: 'status',
+        old_value: oldStatus,
+        new_value: newStatus,
+        notes: notes || null
+      });
+    
+    if (error) {
+      console.error('Error logging status change:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('Exception in logExpenseStatusChange:', err);
+    return null;
+  }
+}
+
+// Updated logExpenseFieldUpdate function
+export async function logExpenseFieldUpdate(
+  expenseId: string, 
+  userId: string, 
+  fieldName: string, 
+  oldValue: any, 
+  newValue: any
+) {
+  try {
+    // Get user name
+    const { data: userData, error: userError } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('user_id', userId)
+      .single();
+    
+    const userName = userData?.full_name || 'Unknown User';
+    
+    // Insert with correct field names
+    const { data, error } = await supabase
+      .from('expense_history')
+      .insert({
+        expense_id: expenseId,
+        user_id: userId,
+        user_name: userName,
+        action_type: 'field_update',
+        field_name: fieldName,
+        old_value: String(oldValue),
+        new_value: String(newValue),
+        notes: null
+      });
+    
+    if (error) {
+      console.error('Error logging field update:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('Exception in logExpenseFieldUpdate:', err);
+    return null;
+  }
+}
+
+// Log field update
+
+
+// Get expense history
+export async function getExpenseHistory(expenseId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('expense_history')
+      .select(`
+        id,
+        expense_id,
+        user_id,
+        created_at,
+        metadata,
+        user_name,
+        action_type,
+        field_name,
+        old_value,
+        new_value,
+        notes
+      `)
+      .eq('expense_id', expenseId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error getting expense history:', error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (err) {
+    console.error('Exception in getExpenseHistory:', err);
+    return [];
+  }
+}
