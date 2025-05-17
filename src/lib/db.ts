@@ -197,6 +197,21 @@ export interface Voucher {
   updated_at: string;
 }
 
+
+export interface ExpenseHistoryEntry {
+  id: string;
+  expense_id: string;
+  user_id: string;
+  user_name: string;
+  created_at: string;
+  action_type: 'created' | 'status_update' | 'field_update' | 'approved' | 'rejected';
+  field_name: string;
+  old_value: string | null;
+  new_value: string;
+  notes: string | null;
+  metadata?: any;
+}
+
 // Auth functions
 export const auth = {
   signIn: async (email: string, password: string) => {
@@ -1540,165 +1555,407 @@ export const vouchers = {
 
 
 
-// Updated logExpenseCreation function
-export async function logExpenseCreation(expenseId: string, userId: string) {
-  try {
-    // Get user name
-    const { data: userData, error: userError } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('user_id', userId)
-      .single();
-    
-    const userName = userData?.full_name || 'Unknown User';
-    
-    // Insert with correct field names that match the database schema
-    const { data, error } = await supabase
-      .from('expense_history')
-      .insert({
-        expense_id: expenseId,
-        user_id: userId,
-        user_name: userName,
-        action_type: 'created',
-        field_name: 'status',
-        old_value: null,
-        new_value: 'created',
-        notes: 'Expense created'
-      });
-    
-    if (error) {
-      console.error('Error logging expense creation:', error);
-      throw error;
+
+// Add this to your exports, alongside expenses, vouchers, etc.
+export const expenseHistory = {
+  /**
+   * Log an expense creation event
+   */
+  logCreation: async (
+    expenseId: string, 
+    userId: string, 
+    userName: string
+  ): Promise<{ data: ExpenseHistoryEntry | null, error: DatabaseError | null }> => {
+    try {
+      // Insert with correct field names that match the database schema
+      const { data, error } = await supabase
+        .from('expense_history')
+        .insert({
+          expense_id: expenseId,
+          user_id: userId,
+          user_name: userName,
+          action_type: 'created',
+          field_name: 'status',
+          old_value: null,
+          new_value: 'created',
+          notes: 'Expense created'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error logging expense creation:', error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry,
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in logExpenseCreation:', error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while logging expense creation",
+          code: "UNKNOWN_ERROR"
+        }
+      };
     }
-    
-    return data;
-  } catch (err) {
-    console.error('Exception in logExpenseCreation:', err);
-    return null;
+  },
+
+  /**
+   * Log a change in expense status
+   */
+  logStatusChange: async (
+    expenseId: string, 
+    userId: string, 
+    userName: string,
+    oldStatus: string, 
+    newStatus: string,
+    notes?: string | null
+  ): Promise<{ data: ExpenseHistoryEntry | null, error: DatabaseError | null }> => {
+    try {
+      // Insert with correct field names
+      const { data, error } = await supabase
+        .from('expense_history')
+        .insert({
+          expense_id: expenseId,
+          user_id: userId,
+          user_name: userName,
+          action_type: 'status_update',
+          field_name: 'status',
+          old_value: oldStatus,
+          new_value: newStatus,
+          notes: notes || null
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error logging status change:', error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry,
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in logStatusChange:', error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while logging status change",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+
+  /**
+   * Log a field update event
+   */
+  logFieldUpdate: async (
+    expenseId: string, 
+    userId: string, 
+    userName: string,
+    fieldName: string, 
+    oldValue: any, 
+    newValue: any
+  ): Promise<{ data: ExpenseHistoryEntry | null, error: DatabaseError | null }> => {
+    try {
+      // Insert with correct field names
+      const { data, error } = await supabase
+        .from('expense_history')
+        .insert({
+          expense_id: expenseId,
+          user_id: userId,
+          user_name: userName,
+          action_type: 'field_update',
+          field_name: fieldName,
+          old_value: String(oldValue),
+          new_value: String(newValue),
+          notes: null
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error logging field update:', error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry,
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in logFieldUpdate:', error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while logging field update",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+
+  /**
+   * Log approval event
+   */
+  logApproval: async (
+    expenseId: string,
+    userId: string,
+    userName: string,
+    approvedAmount?: number | null,
+    notes?: string | null
+  ): Promise<{ data: ExpenseHistoryEntry | null, error: DatabaseError | null }> => {
+    try {
+      const noteText = notes || 
+        (approvedAmount ? `Approved with amount: ${approvedAmount}` : 'Expense approved');
+      
+      // Insert with correct field names
+      const { data, error } = await supabase
+        .from('expense_history')
+        .insert({
+          expense_id: expenseId,
+          user_id: userId,
+          user_name: userName,
+          action_type: 'approved',
+          field_name: 'status',
+          old_value: 'submitted',
+          new_value: 'approved',
+          notes: noteText
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error logging approval:', error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry,
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in logApproval:', error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while logging approval",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+
+  /**
+   * Log rejection event
+   */
+  logRejection: async (
+    expenseId: string,
+    userId: string,
+    userName: string,
+    reason?: string | null
+  ): Promise<{ data: ExpenseHistoryEntry | null, error: DatabaseError | null }> => {
+    try {
+      // Insert with correct field names
+      const { data, error } = await supabase
+        .from('expense_history')
+        .insert({
+          expense_id: expenseId,
+          user_id: userId,
+          user_name: userName,
+          action_type: 'rejected',
+          field_name: 'status',
+          old_value: 'submitted',
+          new_value: 'rejected',
+          notes: reason || 'Expense rejected'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error logging rejection:', error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry,
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in logRejection:', error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while logging rejection",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+
+  /**
+   * Get expense history for a specific expense
+   */
+  getByExpenseId: async (expenseId: string): Promise<{ data: ExpenseHistoryEntry[], error: DatabaseError | null }> => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_history')
+        .select(`
+          id,
+          expense_id,
+          user_id,
+          created_at,
+          metadata,
+          user_name,
+          action_type,
+          field_name,
+          old_value,
+          new_value,
+          notes
+        `)
+        .eq('expense_id', expenseId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error getting expense history:', error);
+        return {
+          data: [],
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry[],
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in getByExpenseId:', error);
+      return {
+        data: [],
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while retrieving expense history",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+  
+  /**
+   * Get all history entries for an organization
+   */
+  getByOrgId: async (orgId: string, limit: number = 50): Promise<{ data: ExpenseHistoryEntry[], error: DatabaseError | null }> => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_history')
+        .select(`
+          id,
+          expense_id,
+          user_id,
+          created_at,
+          metadata,
+          user_name,
+          action_type,
+          field_name,
+          old_value,
+          new_value,
+          notes,
+          expenses!expense_id (org_id)
+        `)
+        .eq('expenses.org_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      
+      if (error) {
+        console.error('Error getting organization expense history:', error);
+        return {
+          data: [],
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry[],
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in getByOrgId:', error);
+      return {
+        data: [],
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while retrieving organization expense history",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
   }
+};
+
+// Keep the original functions for backward compatibility
+// These functions now call the methods on the expenseHistory object
+
+export async function logExpenseCreation(expenseId: string, userId: string, userName: string = 'Unknown User') {
+  return await expenseHistory.logCreation(expenseId, userId, userName);
 }
 
-// Log status change (fixing the parameter type issue)
-// Updated logExpenseStatusChange function
 export async function logExpenseStatusChange(
   expenseId: string, 
   userId: string, 
   oldStatus: string, 
   newStatus: string,
-  notes?: string | null | undefined
+  notes?: string | null | undefined,
+  userName: string = 'Unknown User'
 ) {
-  try {
-    // Get user name
-    const { data: userData, error: userError } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('user_id', userId)
-      .single();
-    
-    const userName = userData?.full_name || 'Unknown User';
-    
-    // Insert with correct field names
-    const { data, error } = await supabase
-      .from('expense_history')
-      .insert({
-        expense_id: expenseId,
-        user_id: userId,
-        user_name: userName,
-        action_type: 'status_update',
-        field_name: 'status',
-        old_value: oldStatus,
-        new_value: newStatus,
-        notes: notes || null
-      });
-    
-    if (error) {
-      console.error('Error logging status change:', error);
-      throw error;
-    }
-    
-    return data;
-  } catch (err) {
-    console.error('Exception in logExpenseStatusChange:', err);
-    return null;
-  }
+  return await expenseHistory.logStatusChange(expenseId, userId, userName, oldStatus, newStatus, notes);
 }
 
-// Updated logExpenseFieldUpdate function
 export async function logExpenseFieldUpdate(
   expenseId: string, 
   userId: string, 
   fieldName: string, 
   oldValue: any, 
-  newValue: any
+  newValue: any,
+  userName: string = 'Unknown User'
 ) {
-  try {
-    // Get user name
-    const { data: userData, error: userError } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('user_id', userId)
-      .single();
-    
-    const userName = userData?.full_name || 'Unknown User';
-    
-    // Insert with correct field names
-    const { data, error } = await supabase
-      .from('expense_history')
-      .insert({
-        expense_id: expenseId,
-        user_id: userId,
-        user_name: userName,
-        action_type: 'field_update',
-        field_name: fieldName,
-        old_value: String(oldValue),
-        new_value: String(newValue),
-        notes: null
-      });
-    
-    if (error) {
-      console.error('Error logging field update:', error);
-      throw error;
-    }
-    
-    return data;
-  } catch (err) {
-    console.error('Exception in logExpenseFieldUpdate:', err);
-    return null;
-  }
+  return await expenseHistory.logFieldUpdate(expenseId, userId, userName, fieldName, oldValue, newValue);
 }
 
-// Log field update
-
-
-// Get expense history
 export async function getExpenseHistory(expenseId: string) {
-  try {
-    const { data, error } = await supabase
-      .from('expense_history')
-      .select(`
-        id,
-        expense_id,
-        user_id,
-        created_at,
-        metadata,
-        user_name,
-        action_type,
-        field_name,
-        old_value,
-        new_value,
-        notes
-      `)
-      .eq('expense_id', expenseId)
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error getting expense history:', error);
-      throw error;
-    }
-    
-    return data || [];
-  } catch (err) {
-    console.error('Exception in getExpenseHistory:', err);
-    return [];
-  }
+  const { data } = await expenseHistory.getByExpenseId(expenseId);
+  return data || [];
 }
