@@ -200,6 +200,18 @@ export interface Voucher {
   updated_at: string;
 }
 
+
+export interface ExpenseHistoryEntry {
+  id: string;
+  expense_id: string;
+  user_id: string;
+  user_name: string;
+  created_at: string;
+  action_type: 'created' | 'updated' | 'approved' | 'rejected';
+  old_value: string | null;
+  new_value: string;
+}
+
 // Auth functions
 export const auth = {
   signIn: async (email: string, password: string) => {
@@ -1642,4 +1654,141 @@ export const vouchers = {
       error: null,
     };
   },
+};
+
+
+
+// Update the ExpenseHistoryEntry interface to match the simpler structure
+
+
+// Replace the existing expenseHistory object with this simpler version
+export const expenseHistory = {
+  /**
+   * Add a history entry for any expense action
+   */
+  addEntry: async (
+    expenseId: string,
+    userId: string,
+    userName: string,
+    actionType: 'created' | 'updated' | 'approved' | 'rejected',
+    oldValue: string | null,
+    newValue: string
+  ): Promise<{ data: ExpenseHistoryEntry | null, error: DatabaseError | null }> => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_history')
+        .insert({
+          expense_id: expenseId,
+          user_id: userId,
+          user_name: userName,
+          action_type: actionType,
+          old_value: oldValue,
+          new_value: newValue
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error adding expense history entry:', error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry,
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in addEntry:', error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while adding history entry",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+
+  /**
+   * Get expense history for a specific expense
+   */
+  getByExpenseId: async (expenseId: string): Promise<{ data: ExpenseHistoryEntry[], error: DatabaseError | null }> => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_history')
+        .select('*')
+        .eq('expense_id', expenseId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error getting expense history:', error);
+        return {
+          data: [],
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry[],
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in getByExpenseId:', error);
+      return {
+        data: [],
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while retrieving expense history",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+  
+  /**
+   * Get all history entries for an organization
+   */
+  getByOrgId: async (orgId: string, limit: number = 50): Promise<{ data: ExpenseHistoryEntry[], error: DatabaseError | null }> => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_history')
+        .select(`
+          *,
+          expenses!expense_id (org_id)
+        `)
+        .eq('expenses.org_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      
+      if (error) {
+        console.error('Error getting organization expense history:', error);
+        return {
+          data: [],
+          error: error as DatabaseError
+        };
+      }
+      
+      return {
+        data: data as ExpenseHistoryEntry[],
+        error: null
+      };
+    } catch (error) {
+      console.error('Exception in getByOrgId:', error);
+      return {
+        data: [],
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while retrieving organization expense history",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  }
 };

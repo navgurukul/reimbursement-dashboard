@@ -29,13 +29,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CalendarIcon, Save, Upload } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
-import { organizations } from "@/lib/db";
+import { organizations, expenseHistory } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
 import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
 import SignaturePad from "@/components/SignatureCanvas";
 import supabase from "@/lib/supabase";
-import { getUserSignatureUrl, saveUserSignature, uploadSignature } from "@/lib/utils";
+import {
+  getUserSignatureUrl,
+  saveUserSignature,
+  uploadSignature,
+} from "@/lib/utils";
 
 interface Column {
   key: string;
@@ -344,7 +348,6 @@ export default function NewExpensePage() {
     // Only save to profile if this is a new signature (not the saved one)
     if (dataUrl !== savedUserSignature && user?.id && organization?.id) {
       try {
-
         // Use the comprehensive function that handles both upload and profile update
         const { success, path, error } = await saveUserSignature(
           dataUrl,
@@ -372,8 +375,6 @@ export default function NewExpensePage() {
     }
   };
 
-  // Complete handleSubmit function with fix for duplicate expenses when creating vouchers
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -381,7 +382,7 @@ export default function NewExpensePage() {
     try {
       if (!user?.id || !organization) {
         throw new Error("Missing required data");
-        return;
+        // No need for 'return' after throw as it's unreachable
       }
 
       // Validate that user is not approving their own expense
@@ -392,6 +393,7 @@ export default function NewExpensePage() {
       }
 
       // Validate signatures based on form type
+      // FIXED: Moved this validation block up to ensure proper code structure
       if (!voucherModalOpen) {
         if (!formData.expense_signature_data_url) {
           toast.error("Please add your signature before submitting");
@@ -440,7 +442,6 @@ export default function NewExpensePage() {
         ) {
           // Use the saved signature path directly
           voucher_signature_url = profileSignaturePath;
-      
         } else if (
           formData.voucher_signature_data_url.startsWith("data:image/")
         ) {
@@ -458,7 +459,6 @@ export default function NewExpensePage() {
             return;
           } else {
             voucher_signature_url = path;
-       
           }
         } else {
           // Invalid signature format
@@ -479,7 +479,6 @@ export default function NewExpensePage() {
         ) {
           // Use the saved signature path directly
           expense_signature_url = profileSignaturePath;
-      
         } else if (
           formData.expense_signature_data_url.startsWith("data:image/")
         ) {
@@ -497,7 +496,6 @@ export default function NewExpensePage() {
             return;
           } else {
             expense_signature_url = path;
-           
           }
         } else {
           // Invalid signature format
@@ -567,7 +565,7 @@ export default function NewExpensePage() {
         amount: voucherModalOpen
           ? parseFloat(formData.voucherAmount || "0")
           : parseFloat(formData.amount || "0"),
-        expense_type:(formData.expense_type as string) || "Other",
+        expense_type: (formData.expense_type as string) || "Other",
         date: new Date(formData.date).toISOString(),
         custom_fields: custom_fields,
         event_id: formData.event_id || null,
@@ -576,13 +574,9 @@ export default function NewExpensePage() {
         receipt: null, // Add the required receipt property
       };
 
-
-
       if (voucherModalOpen) {
-
         const { data: expenseData, error: expenseError } =
           await expenses.create(baseExpenseData, undefined);
-          
 
         if (expenseError || !expenseData) {
           console.error("Expense creation error:", expenseError);
@@ -591,6 +585,58 @@ export default function NewExpensePage() {
           return;
         }
 
+        // Add history entry for expense creation with improved username extraction
+        try {
+          const authRaw = localStorage.getItem("auth-storage");
+
+          const authStorage = JSON.parse(authRaw || "{}");
+
+          // Try multiple paths and nested data
+          let userName = "Unknown User";
+
+          if (authStorage?.state?.user?.profile?.full_name) {
+            userName = authStorage.state.user.profile.full_name;
+          } else if (
+            typeof authRaw === "string" &&
+            authRaw.includes("full_name")
+          ) {
+            // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
+            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+            if (match && match[1]) {
+              userName = match[1];
+            }
+          }
+
+          console.log("Final username to be used:", userName);
+
+          await expenseHistory.addEntry(
+            expenseData.id,
+            user.id,
+            userName,
+            "created",
+            null,
+            expenseData.amount.toString()
+          );
+        } catch (logError) {
+          console.error("Error logging expense creation:", logError);
+          // Fallback
+          await expenseHistory.addEntry(
+            expenseData.id,
+            user.id,
+            "Unknown User",
+            "created",
+            null,
+            expenseData.amount.toString()
+          );
+        }
+
+        console.log("Expense created successfully, now creating voucher...");
+        console.log("Signature URLs being sent to backend:", {
+          signature_url: voucher_signature_url, // FIXED: Use voucher_signature_url instead of signature_url
+          manager_signature_url,
+        });
+
+        // Create voucher with direct Supabase insert to avoid type issues
         const voucherData = {
           expense_id: expenseData.id, // Reference the expense we just created
           your_name: formData.yourName || null,
@@ -603,8 +649,6 @@ export default function NewExpensePage() {
           org_id: organization.id,
           approver_id, // Include approver_id
         };
-
-        // console.log("Voucher data being sent:", voucherData);
 
         const { data: voucherResponse, error: voucherError } = await supabase
           .from("vouchers")
@@ -630,7 +674,8 @@ export default function NewExpensePage() {
         toast.success("Voucher submitted successfully");
       } else {
         // For regular expenses, just create it directly
-        const { error } = await expenses.create(
+        // FIXED: Added data to the destructuring to capture the return value
+        const { data, error } = await expenses.create(
           baseExpenseData,
           receiptFile || undefined
         );
@@ -640,6 +685,52 @@ export default function NewExpensePage() {
           toast.error(`Failed to create expense: ${error.message}`);
           setSaving(false);
           return;
+        }
+
+        // Add history entry for regular expense creation with improved username extraction
+        try {
+          const authRaw = localStorage.getItem("auth-storage");
+          console.log("Auth raw:", authRaw);
+          const authStorage = JSON.parse(authRaw || "{}");
+
+          // Try multiple paths and nested data
+          let userName = "Unknown User";
+
+          if (authStorage?.state?.user?.profile?.full_name) {
+            userName = authStorage.state.user.profile.full_name;
+          } else if (
+            typeof authRaw === "string" &&
+            authRaw.includes("full_name")
+          ) {
+            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+            if (match && match[1]) {
+              userName = match[1];
+            }
+          }
+
+          if (data && data.id) {
+            await expenseHistory.addEntry(
+              data.id,
+              user.id,
+              userName,
+              "created",
+              null,
+              data.amount.toString()
+            );
+          }
+        } catch (logError) {
+          console.error("Error logging expense creation:", logError);
+          // Fallback
+          if (data && data.id) {
+            await expenseHistory.addEntry(
+              data.id,
+              user.id,
+              "Unknown User",
+              "created",
+              null,
+              data.amount.toString()
+            );
+          }
         }
 
         toast.success("Expense created successfully");

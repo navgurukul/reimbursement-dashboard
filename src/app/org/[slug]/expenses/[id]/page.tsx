@@ -3,15 +3,24 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenses } from "@/lib/db";
+import { expenses, expenseHistory } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Check, X, FileText, AlertCircle, Edit } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  X,
+  FileText,
+  AlertCircle,
+  Edit,
+  Clock,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
 import { Input } from "@/components/ui/input";
 import supabase from "@/lib/supabase";
+import ExpenseHistory from "./history/expense-history";
 
 // Import Policy type but use Supabase directly for policies
 interface Policy {
@@ -155,7 +164,6 @@ export default function ViewExpensePage() {
 
           // If no signature yet and voucher has signature_url, try to get it
           if (!signatureUrl && voucherData.signature_url) {
-    
             const url = await getSignatureUrl(voucherData.signature_url);
             if (url) {
               setSignatureUrl(url);
@@ -213,6 +221,51 @@ export default function ViewExpensePage() {
         throw error;
       }
 
+      // Log the custom approval to history with improved username extraction
+      try {
+        const authRaw = localStorage.getItem("auth-storage");
+        console.log("Auth raw:", authRaw);
+        const authStorage = JSON.parse(authRaw || "{}");
+
+        // Try multiple paths and nested data
+        let userName = "Unknown User";
+
+        if (authStorage?.state?.user?.profile?.full_name) {
+          userName = authStorage.state.user.profile.full_name;
+        } else if (
+          typeof authRaw === "string" &&
+          authRaw.includes("full_name")
+        ) {
+          // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
+          const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+          if (match && match[1]) {
+            userName = match[1];
+          }
+        }
+
+        console.log("Final username to be used:", userName);
+
+        await expenseHistory.addEntry(
+          expenseId,
+          currentUserId,
+          userName,
+          "approved",
+          expense.status,
+          `Approved with custom amount: ${approvedAmount}`
+        );
+      } catch (logError) {
+        console.error("Error logging custom approval:", logError);
+        // Fallback with unknown user
+        await expenseHistory.addEntry(
+          expenseId,
+          currentUserId,
+          "Unknown User",
+          "approved",
+          expense.status,
+          `Approved with custom amount: ${approvedAmount}`
+        );
+      }
+
       // Update local state
       setExpense({
         ...expense,
@@ -241,7 +294,6 @@ export default function ViewExpensePage() {
       setUpdateLoading(false);
     }
   };
-
   // Main approve function with different approval types
   const handleApprove = async (approvalType?: "full" | "policy" | "custom") => {
     try {
@@ -288,6 +340,68 @@ export default function ViewExpensePage() {
         throw error;
       }
 
+      // Log the approval to history with improved username extraction
+      try {
+        const authRaw = localStorage.getItem("auth-storage");
+        console.log("Auth raw:", authRaw);
+        const authStorage = JSON.parse(authRaw || "{}");
+
+        // Log all possible paths to help debug
+        console.log("Full auth storage object:", authStorage);
+        console.log("State:", authStorage.state);
+        console.log("User:", authStorage.state?.user);
+        console.log("Profile direct:", authStorage.state?.user?.profile);
+
+        // Try multiple paths and nested data
+        let userName = "Unknown User";
+
+        if (authStorage?.state?.user?.profile?.full_name) {
+          userName = authStorage.state.user.profile.full_name;
+        } else if (
+          typeof authRaw === "string" &&
+          authRaw.includes("full_name")
+        ) {
+          // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
+          const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+          if (match && match[1]) {
+            userName = match[1];
+          }
+        }
+
+        console.log("Final username to be used:", userName);
+
+        const noteText =
+          approvalType === "policy"
+            ? "Approved as per policy limit"
+            : approvalType === "full"
+            ? "Approved with full amount"
+            : "Expense approved";
+
+        await expenseHistory.addEntry(
+          expenseId,
+          currentUserId,
+          userName,
+          "approved",
+          expense.status,
+          noteText
+        );
+      } catch (logError) {
+        console.error("Error logging approval:", logError);
+        // Fallback with unknown user
+        await expenseHistory.addEntry(
+          expenseId,
+          currentUserId,
+          "Unknown User",
+          "approved",
+          expense.status,
+          approvalType === "policy"
+            ? "Approved as per policy limit"
+            : approvalType === "full"
+            ? "Approved with full amount"
+            : "Expense approved"
+        );
+      }
+
       // Update local state
       setExpense({
         ...expense,
@@ -317,7 +431,6 @@ export default function ViewExpensePage() {
       setUpdateLoading(false);
     }
   };
-
   // Handle rejection
   const handleReject = async () => {
     try {
@@ -347,6 +460,57 @@ export default function ViewExpensePage() {
         throw error;
       }
 
+      // Log the rejection to history with improved username extraction
+      try {
+        const authRaw = localStorage.getItem("auth-storage");
+        console.log("Auth raw:", authRaw);
+        const authStorage = JSON.parse(authRaw || "{}");
+
+        // Log all possible paths to help debug
+        console.log("Full auth storage object:", authStorage);
+        console.log("State:", authStorage.state);
+        console.log("User:", authStorage.state?.user);
+        console.log("Profile direct:", authStorage.state?.user?.profile);
+
+        // Try multiple paths and nested data
+        let userName = "Unknown User";
+
+        if (authStorage?.state?.user?.profile?.full_name) {
+          userName = authStorage.state.user.profile.full_name;
+        } else if (
+          typeof authRaw === "string" &&
+          authRaw.includes("full_name")
+        ) {
+          // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
+          const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+          if (match && match[1]) {
+            userName = match[1];
+          }
+        }
+
+        console.log("Final username to be used:", userName);
+
+        await expenseHistory.addEntry(
+          expenseId,
+          currentUserId,
+          userName,
+          "rejected",
+          expense.status,
+          "rejected"
+        );
+      } catch (logError) {
+        console.error("Error logging rejection:", logError);
+        // Fallback with unknown user
+        await expenseHistory.addEntry(
+          expenseId,
+          currentUserId,
+          "Unknown User",
+          "rejected",
+          expense.status,
+          "rejected"
+        );
+      }
+
       // Update local state
       setExpense({
         ...expense,
@@ -369,7 +533,6 @@ export default function ViewExpensePage() {
       setUpdateLoading(false);
     }
   };
-
   const handleViewReceipt = async () => {
     if (expense.receipt?.path) {
       try {
@@ -411,149 +574,166 @@ export default function ViewExpensePage() {
       .join(" ");
   };
 
+  // Get expense title for display
+  const getExpenseTitle = () => {
+    if (expense.custom_fields && expense.custom_fields.title) {
+      return expense.custom_fields.title;
+    }
+    return expense.creator?.full_name
+      ? `Expense Details ${expense.creator.full_name}`
+      : "Expense Details";
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => router.push(`/org/${slug}/expenses`)}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Expenses
-        </Button>
+<div className="container mx-auto py-6">
+  <div className="mb-4">
+    <Button
+      variant="ghost"
+      onClick={() => router.push(`/org/${slug}/expenses`)}
+    >
+      <ArrowLeft className="mr-2 h-4 w-4" />
+      Back to Expenses
+    </Button>
+  </div>
+  
+  {/* Added more margin to the policy alert banner */}
+  {isOverPolicy && relevantPolicy && (
+    <div className="mb-6">
+      <PolicyAlert expense={expense} policy={relevantPolicy} />
+    </div>
+  )}
 
-        {userRole !== "member" && expense.status === "submitted" && (
-          <div className="flex items-center space-x-2">
-            {showCustomAmountInput ? (
-              <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                    ₹
-                  </span>
-                  <Input
-                    type="number"
-                    value={customAmount}
-                    onChange={(e) => setCustomAmount(e.target.value)}
-                    className="pl-8 pr-3 py-2"
-                    placeholder="Enter amount"
-                  />
-                </div>
-                <Button
-                  onClick={handleApproveCustomAmount}
-                  className="bg-blue-600 hover:bg-blue-700"
-                  disabled={updateLoading || !customAmount}
-                >
-                  {updateLoading ? (
-                    <Spinner size="sm" className="mr-2" />
-                  ) : (
-                    <Check className="mr-2 h-4 w-4" />
-                  )}
-                  Confirm
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowCustomAmountInput(false)}
-                  disabled={updateLoading}
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  className="bg-white"
-                  onClick={handleReject}
-                  disabled={updateLoading}
-                >
-                  {updateLoading ? (
-                    <Spinner size="sm" className="mr-2" />
-                  ) : (
-                    <X className="mr-2 h-4 w-4" />
-                  )}
-                  Reject
-                </Button>
-
-                {isOverPolicy ? (
-                  <>
-                    <Button
-                      onClick={() => handleApprove("policy")}
-                      className="bg-green-600 hover:bg-green-700"
-                      disabled={updateLoading}
-                    >
-                      {updateLoading ? (
-                        <Spinner size="sm" className="mr-2" />
-                      ) : (
-                        <Check className="mr-2 h-4 w-4" />
-                      )}
-                      Approve as per policy
-                    </Button>
-
-                    <Button
-                      onClick={() => handleApprove("full")}
-                      className="bg-amber-600 hover:bg-amber-700"
-                      disabled={updateLoading}
-                    >
-                      {updateLoading ? (
-                        <Spinner size="sm" className="mr-2" />
-                      ) : (
-                        <Check className="mr-2 h-4 w-4" />
-                      )}
-                      Approve full amount
-                    </Button>
-
-                    <Button
-                      onClick={() => handleApprove("custom")}
-                      className="bg-blue-600 hover:bg-blue-700"
-                      disabled={updateLoading}
-                    >
-                      {updateLoading ? (
-                        <Spinner size="sm" className="mr-2" />
-                      ) : (
-                        <Edit className="mr-2 h-4 w-4" />
-                      )}
-                      Custom amount
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      onClick={() => handleApprove("full")}
-                      className="bg-green-600 hover:bg-green-700"
-                      disabled={updateLoading}
-                    >
-                      {updateLoading ? (
-                        <Spinner size="sm" className="mr-2" />
-                      ) : (
-                        <Check className="mr-2 h-4 w-4" />
-                      )}
-                      Approve
-                    </Button>
-
-                    <Button
-                      onClick={() => handleApprove("custom")}
-                      className="bg-blue-600 hover:bg-blue-700"
-                      disabled={updateLoading}
-                    >
-                      {updateLoading ? (
-                        <Spinner size="sm" className="mr-2" />
-                      ) : (
-                        <Edit className="mr-2 h-4 w-4" />
-                      )}
-                      Custom amount
-                    </Button>
-                  </>
-                )}
-              </>
-            )}
+  {userRole !== "member" && expense.status === "submitted" && (
+    <div className="flex items-center space-x-2 mb-6">
+      {showCustomAmountInput ? (
+        <div className="flex items-center space-x-2">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2">
+              ₹
+            </span>
+            <Input
+              type="number"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              className="pl-8 pr-3 py-2"
+              placeholder="Enter amount"
+            />
           </div>
-        )}
-      </div>
+          <Button
+            onClick={handleApproveCustomAmount}
+            className="bg-blue-600 hover:bg-blue-700"
+            disabled={updateLoading || !customAmount}
+          >
+            {updateLoading ? (
+              <Spinner size="sm" className="mr-2" />
+            ) : (
+              <Check className="mr-2 h-4 w-4" />
+            )}
+            Confirm
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowCustomAmountInput(false)}
+            disabled={updateLoading}
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Button
+            variant="outline"
+            className="bg-white"
+            onClick={handleReject}
+            disabled={updateLoading}
+          >
+            {updateLoading ? (
+              <Spinner size="sm" className="mr-2" />
+            ) : (
+              <X className="mr-2 h-4 w-4" />
+            )}
+            Reject
+          </Button>
 
-      {isOverPolicy && relevantPolicy && (
-        <PolicyAlert expense={expense} policy={relevantPolicy} />
+          {isOverPolicy ? (
+            <>
+              <Button
+                onClick={() => handleApprove("policy")}
+                className="bg-green-600 hover:bg-green-700"
+                disabled={updateLoading}
+              >
+                {updateLoading ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                Approve as per policy
+              </Button>
+
+              <Button
+                onClick={() => handleApprove("full")}
+                className="bg-amber-600 hover:bg-amber-700"
+                disabled={updateLoading}
+              >
+                {updateLoading ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                Approve full amount
+              </Button>
+
+              <Button
+                onClick={() => handleApprove("custom")}
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={updateLoading}
+              >
+                {updateLoading ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  <Edit className="mr-2 h-4 w-4" />
+                )}
+                Custom amount
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={() => handleApprove("full")}
+                className="bg-green-600 hover:bg-green-700"
+                disabled={updateLoading}
+              >
+                {updateLoading ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                Approve
+              </Button>
+
+              <Button
+                onClick={() => handleApprove("custom")}
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={updateLoading}
+              >
+                {updateLoading ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  <Edit className="mr-2 h-4 w-4" />
+                )}
+                Custom amount
+              </Button>
+            </>
+          )}
+        </>
       )}
+    </div>
+  )}
 
+  {/* Adjusted grid - added gap-6 to create more space between cards */}
+  <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+    {/* Main content - takes slightly more than 3/4 of the space */}
+    <div className="lg:col-span-3">
       <Card>
         <CardHeader>
           <CardTitle>Expense Details</CardTitle>
@@ -710,5 +890,20 @@ export default function ViewExpensePage() {
         </CardContent>
       </Card>
     </div>
+
+    {/* Activity History - Takes 2 columns of the 5-column grid to be wider */}
+    <div className="lg:col-span-2">
+      <Card>
+        <CardHeader className="flex flex-row items-center">
+          <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
+          <CardTitle>Activity History</CardTitle>
+        </CardHeader>
+        <CardContent className="max-h-[500px] overflow-auto">
+          <ExpenseHistory expenseId={expenseId} />
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+</div>
   );
 }
