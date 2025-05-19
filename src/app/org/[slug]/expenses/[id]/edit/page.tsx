@@ -106,12 +106,6 @@ export default function EditExpensePage() {
         console.log('Auth raw:', authRaw);
         const authStorage = JSON.parse(authRaw || '{}');
         
-        // Log all possible paths to help debug
-        console.log('Full auth storage object:', authStorage);
-        console.log('State:', authStorage.state);
-        console.log('User:', authStorage.state?.user);
-        console.log('Profile direct:', authStorage.state?.user?.profile);
-        
         // Try multiple paths and nested data
         let userName = "Unknown User";
         

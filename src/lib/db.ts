@@ -2,6 +2,7 @@ import supabase from "./supabase";
 import { createClient } from "@supabase/supabase-js";
 import { StorageError } from "@supabase/storage-js";
 import { StorageApiError } from "@supabase/storage-js";
+import { getProfileSignatureUrl } from "./utils";
 // Types
 export interface Organization {
   id: string;
@@ -56,6 +57,7 @@ export interface Profile {
   avatar_url?: string;
   created_at: string;
   updated_at: string;
+  signature_url?: string;
 }
 
 export interface InviteRow {
@@ -177,6 +179,7 @@ export interface Expense {
   approver_id?: string;
   event_id?: string; // Add this field
   created_at: string;
+  signature_url?: string;
   updated_at: string;
   approved_amount?: number | null;
 }
@@ -553,13 +556,76 @@ export const profiles = {
       .single()
       .returns<Profile>();
   },
-
   getByIds: async (userIds: string[]) => {
-    return await supabase
+    console.log("getByIds called with:", userIds);
+
+    if (userIds.length === 0) {
+      return { data: [], error: null };
+    }
+
+    // Use the IN filter for optimal performance
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .in("user_id", userIds)
-      .returns<Profile[]>();
+      .in("user_id", userIds);
+
+    console.log("Supabase returned profiles:", data?.length || 0);
+
+    if (error) {
+      console.error("Error fetching profiles:", error);
+      return { data: null, error };
+    }
+
+    return { data, error: null };
+  },
+
+  saveSignature: async (userId: string, signaturePath: string) => {
+    return await supabase
+      .from("profiles")
+      .update({ signature_url: signaturePath })
+      .eq("user_id", userId)
+      .select()
+      .single();
+  },
+
+  // Add these functions to the profiles object in db.ts
+  getSignatureUrl: async (userId: string, orgId: string) => {
+    try {
+      // First get the signature path from the profile
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("signature_url")
+        .eq("user_id", userId)
+        .single();
+
+      if (error || !data || !data.signature_url) {
+        return { url: null, error: error || new Error("No signature found") };
+      }
+
+      // Then get the download URL
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from("user-signatures")
+        .createSignedUrl(data.signature_url, 3600); // URL valid for 1 hour
+
+      if (urlError) {
+        return { url: null, error: urlError };
+      }
+
+      return { url: urlData.signedUrl, error: null };
+    } catch (error) {
+      console.error("Error fetching signature URL:", error);
+      return {
+        url: null,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  },
+
+  updateSignature: async (userId: string, signaturePath: string) => {
+    return await supabase
+      .from("profiles")
+      .update({ signature_url: signaturePath })
+      .eq("user_id", userId);
   },
 
   /**
@@ -1108,87 +1174,127 @@ getPendingApprovals: async (orgId: string, userId: string) => {
       error: null,
     };
   },
-
+// Add this function to the expenses object in db.ts
+async getApproverNames(expenseIds: string[]): Promise<Record<string, string>> {
+  try {
+    if (!expenseIds || expenseIds.length === 0) {
+      return {};
+    }
+    
+    const { data, error } = await supabase
+      .rpc('get_expense_approver', { expense_ids: expenseIds });
+      
+    if (error) {
+      console.error('Error getting approver names:', error);
+      return {};
+    }
+    
+    const approverMap: Record<string, string> = {};
+    if (data && data.length > 0) {
+      data.forEach((item: { expense_id: string; approver_name: string }) => {
+        approverMap[item.expense_id] = item.approver_name;
+      });
+    }
+    
+    return approverMap;
+  } catch (error) {
+    console.error('Exception in getApproverNames:', error);
+    return {};
+  }
+},
   /**
    * Create a new expense with receipt
    */
-  create: async (
-    expense: Omit<
-      Expense,
-      "id" | "status" | "policy_validations" | "created_at" | "updated_at"
-    >,
-    receiptFile?: File
-  ) => {
-    try {
-      let receipt: ReceiptInfo | null = null;
+create: async (
+  expense: Omit<
+    Expense,
+    "id" | "status" | "policy_validations" | "created_at" | "updated_at"
+  >,
+  receiptFile?: File
+) => {
+  try {
+    let receipt: ReceiptInfo | null = null;
 
-      // Upload receipt if provided
-      if (receiptFile) {
-        const { path, error: uploadError } = await expenses.uploadReceipt(
-          receiptFile,
-          expense.user_id,
-          expense.org_id
-        );
+    // Upload receipt if provided
+    if (receiptFile) {
+      const { path, error: uploadError } = await expenses.uploadReceipt(
+        receiptFile,
+        expense.user_id,
+        expense.org_id
+      );
 
-        if (uploadError) {
-          return {
-            data: null,
-            error: {
-              message: `Failed to upload receipt: ${uploadError.message}`,
-              details: uploadError.message,
-              hint: "Check file size and type",
-              code: "STORAGE_UPLOAD_ERROR",
-            },
-          };
-        }
-
-        receipt = {
-          filename: receiptFile.name,
-          path,
-          size: receiptFile.size,
-          mime_type: receiptFile.type,
+      if (uploadError) {
+        return {
+          data: null,
+          error: {
+            message: `Failed to upload receipt: ${uploadError.message}`,
+            details: uploadError.message,
+            hint: "Check file size and type",
+            code: "STORAGE_UPLOAD_ERROR",
+          },
         };
       }
 
-      // Get approver_id from custom_fields if it exists
-      const approver_id = expense.custom_fields?.approver || null;
-      delete expense.custom_fields.approver; // Remove from custom_fields since we're using it directly
-
-      // Create expense with receipt info and approver_id
-      const { data, error } = await supabase
-        .from("expenses")
-        .insert([
-          {
-            ...expense,
-            receipt,
-            approver_id,
-            status: "submitted", // Set initial status
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) {
-        return { data: null, error: error as DatabaseError };
-      }
-
-      return {
-        data: data as Expense,
-        error: null,
-      };
-    } catch (error) {
-      return {
-        data: null,
-        error: {
-          message: error instanceof Error ? error.message : "Unknown error",
-          details: "",
-          hint: "Check your input and try again",
-          code: "UNKNOWN_ERROR",
-        },
+      receipt = {
+        filename: receiptFile.name,
+        path,
+        size: receiptFile.size,
+        mime_type: receiptFile.type,
       };
     }
-  },
 
+    // Get approver_id - first check if it's directly in the expense object
+    // If not, try to get it from custom_fields
+    let approver_id = expense.approver_id || null;
+    
+    // If approver_id is not in the expense object but exists in custom_fields
+    if (!approver_id && expense.custom_fields && expense.custom_fields.approver) {
+      approver_id = expense.custom_fields.approver;
+      
+      // Remove it from custom_fields since we're using it directly
+      delete expense.custom_fields.approver;
+    }
+
+    // Log for debugging
+    console.log("Inserting expense with approver_id:", approver_id);
+    
+    // Create expense with receipt info, approver_id, and signature_url
+    const { data, error } = await supabase
+      .from("expenses")
+      .insert([
+        {
+          ...expense,
+          receipt,
+          approver_id, // Explicitly set approver_id
+          status: "submitted", // Set initial status
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error inserting expense:", error);
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as Expense,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Caught error in expenses.create:", error);
+    return {
+      data: null,
+      error: {
+        message: error instanceof Error ? error.message : "Unknown error",
+        details: "",
+        hint: "Check your input and try again",
+        code: "UNKNOWN_ERROR",
+      },
+    };
+  }
+}
+,
   /**
    * Update an expense
    */

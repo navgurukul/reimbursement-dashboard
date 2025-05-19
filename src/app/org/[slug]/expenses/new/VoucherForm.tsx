@@ -6,16 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import SignaturePad from "@/components/SignatureCanvas";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useOrgStore } from "@/store/useOrgStore";
 import { organizations, profiles } from "@/lib/db";
+import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
+import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
+import supabase from "@/lib/supabase";
 
 type Role = "admin" | "member" | "owner" | null;
 
@@ -23,106 +19,80 @@ interface VoucherFormProps {
   formData: Record<string, any>;
   onInputChange: (key: string, value: any) => void;
   userRole: Role;
+  savedUserSignature: string | null;
 }
 
 export default function VoucherForm({
   formData,
   onInputChange,
   userRole,
+  savedUserSignature,
 }: VoucherFormProps) {
-  // Track if signatures are changed
-  const [userSignature, setUserSignature] = useState<string | undefined>(
-    formData.signature_data_url || undefined
+  // Track voucher signature separately from expense signature
+  const [voucherSignature, setVoucherSignature] = useState<string | undefined>(
+    formData.voucher_signature_data_url || undefined
   );
-  const [approverSignature, setApproverSignature] = useState<
-    string | undefined
-  >(formData.manager_signature_data_url || undefined);
 
-  const [approvers, setApprovers] = useState<
-    Array<{
-      id: string;
-      full_name: string;
-      role: string;
-    }>
-  >([]);
-  const [loadingApprovers, setLoadingApprovers] = useState(true);
+  const [loadingSignature, setLoadingSignature] = useState(false);
 
   const { organization } = useOrgStore();
+  const { user } = useAuthStore();
 
-  // Load approvers (admin users) for selection
+  // Use the saved signature if no voucher signature is set
   useEffect(() => {
-    async function loadApprovers() {
-      if (!organization?.id) return;
+    if (savedUserSignature && !formData.voucher_signature_data_url) {
+      setVoucherSignature(savedUserSignature);
+      onInputChange("voucher_signature_data_url", savedUserSignature);
+      onInputChange("voucher_signature_preview", savedUserSignature);
+    }
+  }, [savedUserSignature, formData.voucher_signature_data_url, onInputChange]);
 
+  // Handle voucher signature save independently from expense signature
+  // Handle voucher signature save independently from expense signature
+  const handleVoucherSignatureSave = async (dataUrl: string) => {
+    if (!dataUrl) {
+      console.error("Empty signature data URL in voucher form");
+      return;
+    }
+
+    // Verify it's a proper data URL
+    if (!dataUrl.startsWith("data:image/")) {
+      console.error("Invalid signature format in voucher form");
+      toast.error("Invalid signature format. Please try again.");
+      return;
+    }
+
+    // Update local state and form data with the new signature
+    setVoucherSignature(dataUrl);
+    onInputChange("voucher_signature_data_url", dataUrl);
+    onInputChange("voucher_signature_preview", dataUrl);
+
+    // Only save to profile if this is a new signature (not the saved one)
+    if (dataUrl !== savedUserSignature && user?.id && organization?.id) {
       try {
-        setLoadingApprovers(true);
-        const { data: members, error } =
-          await organizations.getOrganizationMembers(organization.id);
+        console.log("Saving new signature to user profile");
 
-        if (error) throw error;
+        // Use the comprehensive function that handles both upload and profile update
+        const { success, path, error } = await saveUserSignature(
+          dataUrl,
+          user.id,
+          organization.id
+        );
 
-        // Get only admin and owner roles
-        const approversData =
-          members?.filter(
-            (member) => member.role === "admin" || member.role === "owner"
-          ) || [];
-
-        // Get profiles for these users
-        if (approversData.length > 0) {
-          const userIds = approversData.map((a) => a.user_id);
-          const { data: profilesData } = await profiles.getByIds(userIds);
-
-          // Merge the data
-          const approversWithProfiles = approversData.map((a) => {
-            const profile = profilesData?.find((p) => p.user_id === a.user_id);
-            return {
-              id: a.user_id,
-              full_name: profile?.full_name || "Unknown User",
-              role: a.role,
-            };
-          });
-
-          setApprovers(approversWithProfiles);
-        } else {
-          setApprovers([]);
+        if (error || !success) {
+          console.error("Error saving signature:", error);
+          toast.error("Could not save your signature for future use");
+          return;
         }
-      } catch (error: any) {
-        console.error("Failed to load approvers:", error);
-        toast.error("Could not load approvers");
-      } finally {
-        setLoadingApprovers(false);
+
+        console.log("Signature saved successfully to:", path);
+        toast.success("Your signature has been saved for future use");
+      } catch (error) {
+        console.error("Unexpected error saving signature:", error);
+        toast.error("An error occurred while saving your signature");
       }
     }
-
-    loadApprovers();
-  }, [organization?.id]);
-
-  // Update local state when formData changes externally
-  useEffect(() => {
-    if (formData.signature_data_url && !userSignature) {
-      setUserSignature(formData.signature_data_url);
-    }
-    if (formData.manager_signature_data_url && !approverSignature) {
-      setApproverSignature(formData.manager_signature_data_url);
-    }
-  }, [formData, userSignature, approverSignature]);
-
-  const handleUserSignatureSave = (dataUrl: string) => {
-    setUserSignature(dataUrl);
-    // Store the full data URL
-    onInputChange("signature_data_url", dataUrl);
-    // Also store preview version
-    onInputChange("signature_preview", dataUrl);
   };
-
-  const handleApproverSignatureSave = (dataUrl: string) => {
-    setApproverSignature(dataUrl);
-    // Store the full data URL
-    onInputChange("manager_signature_data_url", dataUrl);
-    // Also store preview version
-    onInputChange("manager_signature_preview", dataUrl);
-  };
-
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
@@ -212,62 +182,27 @@ export default function VoucherForm({
           </p>
         </div>
 
-        {/* Approver selection dropdown */}
-        <div className="mt-4 space-y-2">
-          <Label htmlFor="approver_id" className="text-sm font-medium">
-            Approver <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={formData.approver_id || ""}
-            onValueChange={(value) => {
-              console.log("Setting approver_id to:", value);
-              onInputChange("approver_id", value);
-            }}
-            disabled={loadingApprovers || approvers.length === 0}
-          >
-            <SelectTrigger id="approver_id" className="w-full">
-              <SelectValue placeholder="Select an approver" />
-            </SelectTrigger>
-            <SelectContent>
-              {approvers.map((approver) => (
-                <SelectItem key={approver.id} value={approver.id}>
-                  {approver.full_name} ({approver.role})
-                </SelectItem>
-              ))}
-              {approvers.length === 0 && !loadingApprovers && (
-                <SelectItem value="none" disabled>
-                  No approvers available
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-          {loadingApprovers && (
-            <p className="text-xs text-gray-500">Loading approvers...</p>
-          )}
-          {!loadingApprovers && approvers.length === 0 && (
-            <p className="text-xs text-amber-500">
-              No approvers available. An admin or owner must be assigned as an
-              approver.
-            </p>
-          )}
-        </div>
-
-        <div className="mt-6 grid grid-cols-2 gap-6">
-          <div className="space-y-2">
+        {/* Voucher signature section */}
+        <div className="mt-6">
+          {loadingSignature ? (
+            <div className="flex items-center justify-center h-32 bg-gray-50 border rounded-lg">
+              <p className="text-sm text-gray-500">Loading your signature...</p>
+            </div>
+          ) : (
             <SignaturePad
-              onSave={handleApproverSignatureSave}
-              label="Approver's Signature"
-              signatureUrl={formData.manager_signature_preview}
+              onSave={handleVoucherSignatureSave}
+              label="Your Signature for Voucher"
+              signatureUrl={formData.voucher_signature_preview}
+              userSignatureUrl={savedUserSignature || undefined}
             />
-          </div>
-
-          <div className="space-y-2">
-            <SignaturePad
-              onSave={handleUserSignatureSave}
-              label="Your Signature"
-              signatureUrl={formData.signature_preview}
-            />
-          </div>
+          )}
+          {savedUserSignature &&
+            formData.voucher_signature_preview !== savedUserSignature && (
+              <p className="text-xs text-blue-600 mt-1">
+                * You're using a new signature. This will replace your saved
+                signature when you submit.
+              </p>
+            )}
         </div>
       </div>
     </div>

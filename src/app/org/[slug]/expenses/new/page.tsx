@@ -29,12 +29,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CalendarIcon, Save, Upload } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
-import { organizations,expenseHistory } from "@/lib/db";
+import { organizations, expenseHistory } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
 import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
+import SignaturePad from "@/components/SignatureCanvas";
 import supabase from "@/lib/supabase";
-import { uploadSignature } from "@/lib/utils";
+import {
+  getUserSignatureUrl,
+  saveUserSignature,
+  uploadSignature,
+} from "@/lib/utils";
 
 interface Column {
   key: string;
@@ -56,6 +61,7 @@ interface ExpenseData {
   custom_fields: Record<string, any>;
   approver_id?: string;
   event_id?: string | null;
+  signature_url?: string;
 }
 
 export default function NewExpensePage() {
@@ -82,9 +88,62 @@ export default function NewExpensePage() {
   const [events, setEvents] = useState<ExpenseEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
 
+  // Separate signature states for expense and voucher
+  const [expenseSignature, setExpenseSignature] = useState<string | undefined>(
+    undefined
+  );
+  const [voucherSignature, setVoucherSignature] = useState<string | undefined>(
+    undefined
+  );
+
+  const [savedUserSignature, setSavedUserSignature] = useState<string | null>(
+    null
+  );
+  const [loadingSignature, setLoadingSignature] = useState(true);
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Load the user's saved signature if it exists
+  useEffect(() => {
+    // Fetch user's saved signature if it exists
+    async function fetchUserSignature() {
+      if (!user?.id) return;
+
+      try {
+        setLoadingSignature(true);
+
+        const { url, error } = await getUserSignatureUrl(user.id);
+
+        if (error) {
+          console.error("Error fetching signature:", error);
+          return;
+        }
+
+        if (url) {
+          setSavedUserSignature(url);
+
+          // If no current expense signature is set, use the saved one
+          if (!formData.expense_signature_data_url) {
+            setExpenseSignature(url);
+            setFormData((prev) => ({
+              ...prev,
+              expense_signature_data_url: url,
+              expense_signature_preview: url,
+            }));
+          }
+        } else {
+        }
+      } catch (error) {
+        console.error("Error in fetchUserSignature:", error);
+      } finally {
+        setLoadingSignature(false);
+      }
+    }
+
+    fetchUserSignature();
+  }, [user?.id]);
 
   // Fetch available expense events
   useEffect(() => {
@@ -160,8 +219,15 @@ export default function NewExpensePage() {
             if (col.key === "approver" && user && Array.isArray(col.options)) {
               // Filter out the current user from the options
               const filteredOptions = col.options.filter((option) => {
-                if (typeof option === "object" && option !== null && 'value' in option) {
-                  return (option as { value: string; label: string }).value !== user.id;
+                if (
+                  typeof option === "object" &&
+                  option !== null &&
+                  "value" in option
+                ) {
+                  return (
+                    (option as { value: string; label: string }).value !==
+                    user.id
+                  );
                 }
                 return option !== user.id;
               });
@@ -191,8 +257,15 @@ export default function NewExpensePage() {
           const processedDefaultColumns = defaultExpenseColumns.map((col) => {
             if (col.key === "approver" && user && Array.isArray(col.options)) {
               const filteredOptions = col.options.filter((option) => {
-                if (typeof option === "object" && option !== null && 'value' in option) {
-                  return (option as { value: string; label: string }).value !== user.id;
+                if (
+                  typeof option === "object" &&
+                  option !== null &&
+                  "value" in option
+                ) {
+                  return (
+                    (option as { value: string; label: string }).value !==
+                    user.id
+                  );
                 }
                 return option !== user.id;
               });
@@ -262,56 +335,188 @@ export default function NewExpensePage() {
     }
   };
 
+  // Handle expense signature save - separate from voucher signature
+  const handleExpenseSignatureSave = async (dataUrl: string) => {
+    // Update local state
+    setExpenseSignature(dataUrl);
+    setFormData((prev) => ({
+      ...prev,
+      expense_signature_data_url: dataUrl,
+      expense_signature_preview: dataUrl,
+    }));
 
+    // Only save to profile if this is a new signature (not the saved one)
+    if (dataUrl !== savedUserSignature && user?.id && organization?.id) {
+      try {
+        // Use the comprehensive function that handles both upload and profile update
+        const { success, path, error } = await saveUserSignature(
+          dataUrl,
+          user.id,
+          organization.id
+        );
+
+        if (error || !success) {
+          console.error("Error saving signature:", error);
+          toast.error("Could not save your signature for future use");
+          return;
+        }
+
+        toast.success("Your signature has been saved for future use");
+
+        // Refresh the saved signature URL
+        const { url } = await getUserSignatureUrl(user.id);
+        if (url) {
+          setSavedUserSignature(url);
+        }
+      } catch (error) {
+        console.error("Unexpected error saving signature:", error);
+        toast.error("An error occurred while saving your signature");
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-  
+
     try {
       if (!user?.id || !organization) {
         throw new Error("Missing required data");
+        // No need for 'return' after throw as it's unreachable
       }
-  
+
       // Validate that user is not approving their own expense
       if (formData.approver === user.id) {
         toast.error("You cannot approve your own expenses");
         setSaving(false);
         return;
       }
-  
-      // Process signatures if this is a voucher
-      let signature_url: string | null = null;
+
+      // Validate signatures based on form type
+      // FIXED: Moved this validation block up to ensure proper code structure
+      if (!voucherModalOpen) {
+        if (!formData.expense_signature_data_url) {
+          toast.error("Please add your signature before submitting");
+          setSaving(false);
+          return;
+        }
+      } else {
+        if (!formData.voucher_signature_data_url) {
+          toast.error(
+            "Please add your signature before submitting the voucher"
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
+      // Get the user's saved signature path from their profile if needed
+      let profileSignaturePath: string | null = null;
+      if (
+        (savedUserSignature === formData.expense_signature_data_url &&
+          !voucherModalOpen) ||
+        (savedUserSignature === formData.voucher_signature_data_url &&
+          voucherModalOpen)
+      ) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("signature_url")
+          .eq("user_id", user.id)
+          .single();
+
+        if (profile?.signature_url) {
+          profileSignaturePath = profile.signature_url;
+        }
+      }
+
+      // Process signatures - use separate variables for expense and voucher
+      let expense_signature_url: string | null = null;
+      let voucher_signature_url: string | null = null;
       let manager_signature_url: string | null = null;
-  
-      if (voucherModalOpen) {
-        console.log("Processing voucher with signatures...");
-  
-        // Upload the user signature if exists
-        if (formData.signature_data_url) {
+
+      // First handle voucher signature (even if we're in expense mode, we'll need it for reference)
+      if (voucherModalOpen && formData.voucher_signature_data_url) {
+        if (
+          formData.voucher_signature_data_url === savedUserSignature &&
+          profileSignaturePath
+        ) {
+          // Use the saved signature path directly
+          voucher_signature_url = profileSignaturePath;
+        } else if (
+          formData.voucher_signature_data_url.startsWith("data:image/")
+        ) {
+          // Upload a new signature
           const { path, error } = await uploadSignature(
-            formData.signature_data_url,
+            formData.voucher_signature_data_url,
             user.id,
             organization.id,
             "user"
           );
-  
+
           if (error) {
             toast.error(`Failed to upload your signature: ${error.message}`);
+            setSaving(false);
+            return;
           } else {
-            signature_url = path;
+            voucher_signature_url = path;
           }
+        } else {
+          // Invalid signature format
+          toast.error(
+            "Invalid signature format. Please redraw your signature."
+          );
+          setSaving(false);
+          return;
         }
-  
-        // Upload the approver signature if exists
-        if (formData.manager_signature_data_url) {
+      }
+
+      // Handle expense signature
+      if (!voucherModalOpen && formData.expense_signature_data_url) {
+        // For expense form
+        if (
+          formData.expense_signature_data_url === savedUserSignature &&
+          profileSignaturePath
+        ) {
+          // Use the saved signature path directly
+          expense_signature_url = profileSignaturePath;
+        } else if (
+          formData.expense_signature_data_url.startsWith("data:image/")
+        ) {
+          // Upload a new signature
+          const { path, error } = await uploadSignature(
+            formData.expense_signature_data_url,
+            user.id,
+            organization.id,
+            "user"
+          );
+
+          if (error) {
+            toast.error(`Failed to upload your signature: ${error.message}`);
+            setSaving(false);
+            return;
+          } else {
+            expense_signature_url = path;
+          }
+        } else {
+          // Invalid signature format
+          toast.error(
+            "Invalid signature format. Please redraw your signature."
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
+      // Proceed with approver signature if this is a voucher and it exists
+      if (voucherModalOpen && formData.manager_signature_data_url) {
+        if (formData.manager_signature_data_url.startsWith("data:image/")) {
           const { path, error } = await uploadSignature(
             formData.manager_signature_data_url,
             user.id,
             organization.id,
             "approver"
           );
-  
+
           if (error) {
             toast.error(
               `Failed to upload approver signature: ${error.message}`
@@ -319,71 +524,96 @@ export default function NewExpensePage() {
           } else {
             manager_signature_url = path;
           }
+        } else {
+          toast.error("Invalid manager signature format.");
         }
       }
-  
+
       // Extract approver_id directly from formData
       const approver_id = formData.approver || null;
-      console.log("Approver ID being sent:", approver_id);
-  
+
+      // IMPORTANT CHANGE: For voucher mode, use the voucher signature URL for the expense
+      const signature_url_to_use = voucherModalOpen
+        ? voucher_signature_url // Use voucher signature in voucher mode
+        : expense_signature_url; // Use expense signature in regular mode
+
+      const custom_fields: Record<string, any> = {};
+
+      // Process custom fields regardless of expense type
+      columns.forEach((col) => {
+        if (
+          col.visible &&
+          col.key !== "expense_type" &&
+          col.key !== "amount" &&
+          col.key !== "date" &&
+          col.key !== "approver" && // Skip adding approver to custom fields
+          col.key !== "event_id"
+        ) {
+          custom_fields[col.key] = formData[col.key];
+        }
+      });
+
+      // For voucher mode, make sure description is captured in custom fields
+      if (voucherModalOpen) {
+        custom_fields["description"] = formData.purpose || "Cash Voucher";
+      }
+
+      // Create the base expense data structure - make it consistent for both paths
       const baseExpenseData = {
         org_id: organization.id,
         user_id: user.id,
-        status: "submitted" as const,
-        receipt: null,
         amount: voucherModalOpen
           ? parseFloat(formData.voucherAmount || "0")
           : parseFloat(formData.amount || "0"),
         expense_type: (formData.expense_type as string) || "Other",
         date: new Date(formData.date).toISOString(),
-        custom_fields: {},
+        custom_fields: custom_fields,
         event_id: formData.event_id || null,
-        approver_id: approver_id,
+        approver_id, // Include approver_id directly
+        signature_url: signature_url_to_use || undefined,
+        receipt: null, // Add the required receipt property
       };
-  
+
       if (voucherModalOpen) {
-        console.log("Creating expense for voucher...");
         const { data: expenseData, error: expenseError } =
-          await expenses.create(baseExpenseData);
-  
+          await expenses.create(baseExpenseData, undefined);
+
         if (expenseError || !expenseData) {
           console.error("Expense creation error:", expenseError);
           toast.error("Failed to create expense");
+          setSaving(false);
           return;
         }
-  
+
         // Add history entry for expense creation with improved username extraction
         try {
-          const authRaw = localStorage.getItem('auth-storage');
-          console.log('Auth raw:', authRaw);
-          const authStorage = JSON.parse(authRaw || '{}');
-          
-          // Log all possible paths to help debug
-          console.log('Full auth storage object:', authStorage);
-          console.log('State:', authStorage.state);
-          console.log('User:', authStorage.state?.user);
-          console.log('Profile direct:', authStorage.state?.user?.profile);
-          
+          const authRaw = localStorage.getItem("auth-storage");
+
+          const authStorage = JSON.parse(authRaw || "{}");
+
           // Try multiple paths and nested data
           let userName = "Unknown User";
-          
+
           if (authStorage?.state?.user?.profile?.full_name) {
             userName = authStorage.state.user.profile.full_name;
-          } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
+          } else if (
+            typeof authRaw === "string" &&
+            authRaw.includes("full_name")
+          ) {
             // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
             const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
             if (match && match[1]) {
               userName = match[1];
             }
           }
-          
-          console.log('Final username to be used:', userName);
-          
+
+          console.log("Final username to be used:", userName);
+
           await expenseHistory.addEntry(
             expenseData.id,
             user.id,
             userName,
-            'created',
+            "created",
             null,
             expenseData.amount.toString()
           );
@@ -394,112 +624,96 @@ export default function NewExpensePage() {
             expenseData.id,
             user.id,
             "Unknown User",
-            'created',
+            "created",
             null,
             expenseData.amount.toString()
           );
         }
-  
+
         console.log("Expense created successfully, now creating voucher...");
         console.log("Signature URLs being sent to backend:", {
-          signature_url,
+          signature_url: voucher_signature_url, // FIXED: Use voucher_signature_url instead of signature_url
           manager_signature_url,
         });
-  
+
         // Create voucher with direct Supabase insert to avoid type issues
+        const voucherData = {
+          expense_id: expenseData.id, // Reference the expense we just created
+          your_name: formData.yourName || null,
+          amount: parseFloat(formData.voucherAmount || "0"),
+          purpose: formData.purpose || null, // Description for the voucher
+          credit_person: formData.voucherCreditPerson || null,
+          signature_url: voucher_signature_url, // Use voucher signature
+          manager_signature_url: manager_signature_url,
+          created_by: user.id,
+          org_id: organization.id,
+          approver_id, // Include approver_id
+        };
+
         const { data: voucherResponse, error: voucherError } = await supabase
           .from("vouchers")
-          .insert([
-            {
-              expense_id: expenseData.id,
-              your_name: formData.yourName || null,
-              amount: parseFloat(formData.voucherAmount || "0"),
-              purpose: formData.purpose || null,
-              credit_person: formData.voucherCreditPerson || null,
-              signature_url: signature_url,
-              manager_signature_url: manager_signature_url,
-              created_by: user.id,
-              org_id: organization.id,
-              approver_id: approver_id,
-            },
-          ])
+          .insert([voucherData])
           .select()
           .single();
-  
+
         if (voucherError) {
           console.error("Voucher creation error:", voucherError);
           toast.error(`Failed to create voucher: ${voucherError.message}`);
+
+          // Attempt to delete the expense if voucher creation fails
+          try {
+            await supabase.from("expenses").delete().eq("id", expenseData.id);
+          } catch (cleanupError) {
+            console.error("Failed to clean up expense:", cleanupError);
+          }
+
+          setSaving(false);
           return;
         }
-  
-        console.log("Voucher created successfully:", voucherResponse);
+
         toast.success("Voucher submitted successfully");
       } else {
-        const regularExpensePayload = {
-          ...baseExpenseData,
-          custom_fields: {} as Record<string, any>,
-        };
-  
-        columns.forEach((col) => {
-          if (
-            col.visible &&
-            col.key !== "expense_type" &&
-            col.key !== "amount" &&
-            col.key !== "date" &&
-            col.key !== "approver_id" &&
-            col.key !== "event_id"
-          ) {
-            regularExpensePayload.custom_fields[col.key] = formData[col.key];
-          }
-        });
-  
-        console.log(
-          "Creating regular expense with data:",
-          regularExpensePayload
-        );
-  
+        // For regular expenses, just create it directly
+        // FIXED: Added data to the destructuring to capture the return value
         const { data, error } = await expenses.create(
-          regularExpensePayload,
+          baseExpenseData,
           receiptFile || undefined
         );
-  
+
         if (error) {
-          throw error;
+          console.error("Error creating regular expense:", error);
+          toast.error(`Failed to create expense: ${error.message}`);
+          setSaving(false);
+          return;
         }
-  
+
         // Add history entry for regular expense creation with improved username extraction
         try {
-          const authRaw = localStorage.getItem('auth-storage');
-          console.log('Auth raw:', authRaw);
-          const authStorage = JSON.parse(authRaw || '{}');
-          
-          // Log all possible paths to help debug
-          console.log('Full auth storage object:', authStorage);
-          console.log('State:', authStorage.state);
-          console.log('User:', authStorage.state?.user);
-          console.log('Profile direct:', authStorage.state?.user?.profile);
-          
+          const authRaw = localStorage.getItem("auth-storage");
+          console.log("Auth raw:", authRaw);
+          const authStorage = JSON.parse(authRaw || "{}");
+
           // Try multiple paths and nested data
           let userName = "Unknown User";
-          
+
           if (authStorage?.state?.user?.profile?.full_name) {
             userName = authStorage.state.user.profile.full_name;
-          } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
-            // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
+          } else if (
+            typeof authRaw === "string" &&
+            authRaw.includes("full_name")
+          ) {
             const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
             if (match && match[1]) {
               userName = match[1];
             }
           }
-          
-          console.log('Final username to be used:', userName);
-          
+
           if (data && data.id) {
             await expenseHistory.addEntry(
               data.id,
               user.id,
               userName,
-              'created',
+              "created",
               null,
               data.amount.toString()
             );
@@ -512,16 +726,16 @@ export default function NewExpensePage() {
               data.id,
               user.id,
               "Unknown User",
-              'created',
+              "created",
               null,
               data.amount.toString()
             );
           }
         }
-  
+
         toast.success("Expense created successfully");
       }
-  
+
       // If expense was added from an event's page, redirect back to that event
       if (eventIdFromQuery) {
         router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
@@ -536,7 +750,8 @@ export default function NewExpensePage() {
     } finally {
       setSaving(false);
     }
-  }
+  };
+
   if (loading || !isMounted) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -751,6 +966,68 @@ export default function NewExpensePage() {
               );
             })}
 
+            {/* Expense Signature Section - Only shown when voucher is not open */}
+            {!voucherModalOpen && (
+              <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
+                <div className="flex items-center space-x-3">
+                  <svg
+                    className="h-5 w-5 text-gray-500"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M12.5 18H5C3.89543 18 3 17.1046 3 16V8C3 6.89543 3.89543 6 5 6H19C20.1046 6 21 6.89543 21 8V13"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M16 20L19 17M19 17L22 20M19 17V15"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <Label className="text-sm font-medium text-gray-900">
+                    Your Signature <span className="text-red-500">*</span>
+                  </Label>
+                </div>
+
+                {loadingSignature ? (
+                  <div className="flex items-center justify-center h-32 bg-gray-50 border rounded-lg">
+                    <p className="text-sm text-gray-500">
+                      Loading your signature...
+                    </p>
+                  </div>
+                ) : (
+                  <SignaturePad
+                    onSave={handleExpenseSignatureSave}
+                    label="Your Signature"
+                    signatureUrl={formData.expense_signature_preview}
+                    userSignatureUrl={savedUserSignature || undefined}
+                  />
+                )}
+
+                {savedUserSignature &&
+                  formData.expense_signature_preview !== savedUserSignature && (
+                    <p className="text-xs text-blue-600">
+                      * You're using a new signature. This will replace your
+                      saved signature when you submit.
+                    </p>
+                  )}
+              </div>
+            )}
+
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
                 <div className="flex items-center justify-between">
@@ -829,6 +1106,7 @@ export default function NewExpensePage() {
                   formData={formData}
                   onInputChange={handleInputChange}
                   userRole={userRole}
+                  savedUserSignature={savedUserSignature}
                 />
               )}
             </div>
