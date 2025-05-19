@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import supabase from "@/lib/supabase";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
 import { invites, organizations, profiles } from "@/lib/db";
@@ -39,6 +37,19 @@ interface Member {
   role: string;
   fullName?: string;
   avatarUrl?: string;
+}
+
+interface InviteFormData {
+  email: string;
+  role: "member" | "manager" | "admin";
+  orgId: string;
+  orgName: string;
+}
+
+interface InviteResponse {
+  success?: boolean;
+  inviteId?: string;
+  error?: string;
 }
 
 export default function TeamPage() {
@@ -105,40 +116,45 @@ export default function TeamPage() {
     fetchMembers();
   }, [org?.id]);
 
-  // Handle invite form submission
-  const handleInviteSubmit = async (e: React.FormEvent) => {
+  // Handle invite form submission with AWS SES email
+  const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!org?.id) return;
+    if (!org?.id || !org?.name) {
+      toast.error("Organization information is missing");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { data: inviteRow, error: inviteError } = await invites.create(
-        org.id,
-        inviteEmail,
-        inviteRole
-      );
-      if (inviteError || !inviteRow)
-        throw inviteError ?? new Error("No invite returned");
-
-      // build a link
-      const base = window.location.origin;
-      const url = `${base}/auth/signup?token=${inviteRow.id}`;
-
-      toast.success("Invite created!", {
-        description: (
-          <span>
-            Copy/paste this link to your teammate:{" "}
-            <a href={url} className="underline text-indigo-600">
-              {url}
-            </a>
-          </span>
-        ),
+      // Call the server API route that handles both invite creation and email sending
+      const response = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteEmail,
+          role: inviteRole,
+          orgId: org.id,
+          orgName: org.name || "Our Organization",
+        } as InviteFormData),
       });
 
+      const data = (await response.json()) as InviteResponse;
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send invitation");
+      }
+
+      toast.success("Invitation email sent successfully!", {
+        description: `An invite has been sent to ${inviteEmail} to join as a ${inviteRole}.`,
+      });
+
+      // Clear form after successful submission
       setInviteEmail("");
       setInviteRole("member");
     } catch (error: any) {
-      toast.error("Failed to send invite", {
+      console.error("Error sending invitation:", error);
+      toast.error("Failed to send invitation", {
         description: error.message || "Please try again",
       });
     } finally {
@@ -195,8 +211,9 @@ export default function TeamPage() {
         </CardContent>
       </Card>
 
-      {/* Invite Form (only owners/admins) */}
-      {(userRole === "owner" || userRole === "admin") && (
+      {/* Invite Form (only owners/admins/managers) */}
+      {(userRole === "owner" ||
+        userRole === "admin" ) && (
         <Card>
           <CardHeader>
             <CardTitle>Invite New Team Member</CardTitle>
@@ -213,11 +230,12 @@ export default function TeamPage() {
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     required
+                    type="email"
                   />
                 </div>
                 <Select
                   value={inviteRole}
-                  onValueChange={(v: "member" | "admin") => setInviteRole(v)}
+                  onValueChange={(v: any) => setInviteRole(v)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Role" />
@@ -226,7 +244,9 @@ export default function TeamPage() {
                     <SelectGroup>
                       <SelectItem value="member">Member</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      {(userRole === "owner" || userRole === "admin") && (
+                        <SelectItem value="admin">Admin</SelectItem>
+                      )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>

@@ -152,117 +152,69 @@ export default function ExpensesPage() {
 
       // 3) Check for vouchers for each expense
       if (my.length > 0 || all.length > 0 || pending.length > 0) {
-        // We need to check for vouchers by expense ID
-        // In your useEffect, modify the voucher checking code:
-        // Fixed processExpenseData function to avoid join queries that cause 400 errors
-        const processExpenseData = async (expensesList: any[]) => {
-          const processedExpenses = [...expensesList];
+const processExpenseData = async (expensesList: any[]) => {
+  if (!expensesList || expensesList.length === 0) {
+    return [];
+  }
 
-          // First, collect all expense ids for a single query to vouchers
-          const expenseIds = processedExpenses.map((exp) => exp.id);
+  const processedExpenses = [...expensesList];
 
-          // Get all vouchers in one query for better performance - without trying to join profiles
-          const { data: allVouchers, error: vouchersError } = await supabase
-            .from("vouchers")
-            .select("*")
-            .in("expense_id", expenseIds);
+  try {
+    // Get expense IDs
+    const expenseIds = processedExpenses.map((exp) => exp.id);
 
-          if (vouchersError) {
-            console.error("Error fetching vouchers:", vouchersError);
-            return processedExpenses;
-          }
+    // Fetch vouchers
+    const { data: allVouchers, error: voucherError } = await supabase
+      .from("vouchers")
+      .select("*")
+      .in("expense_id", expenseIds);
 
-          // Create a map of vouchers by expense_id for quick lookup
-          const vouchersByExpenseId: Record<string, any> = {};
-          if (allVouchers && allVouchers.length > 0) {
-            allVouchers.forEach((voucher) => {
-              vouchersByExpenseId[voucher.expense_id] = voucher;
-            });
-          }
+    if (voucherError) {
+      console.error("Error fetching vouchers:", voucherError);
+    }
 
-          // Collect all approver_ids from both expenses and vouchers for a single query
-          const approverIds = new Set<string>();
+    // Create voucher lookup map
+    const voucherMap: Record<string, any> = {};
+    if (allVouchers && allVouchers.length > 0) {
+      allVouchers.forEach((voucher) => {
+        voucherMap[voucher.expense_id] = voucher;
+      });
+    }
 
-          // Add expense approver_ids
-          processedExpenses.forEach((exp) => {
-            if (exp.approver_id) {
-              approverIds.add(exp.approver_id);
-            }
-          });
+    // Get all approver names at once using our new function
+    const approverNamesMap = await expenses.getApproverNames(expenseIds);
 
-          // Add voucher approver_ids
-          allVouchers?.forEach((voucher) => {
-            if (voucher.approver_id) {
-              approverIds.add(voucher.approver_id);
-            }
-          });
+    // Process each expense
+    for (const expense of processedExpenses) {
+      try {
+        // Check for voucher
+        const voucher = voucherMap[expense.id];
+        if (voucher) {
+          expense.hasVoucher = true;
+          expense.voucherId = voucher.id;
+        }
 
-          // Only query profiles if we have approver_ids
-          let approverProfiles: Record<string, any> = {};
-          if (approverIds.size > 0) {
-            const { data: profiles } = await supabase
-              .from("profiles")
-              .select("user_id, full_name")
-              .in("user_id", Array.from(approverIds));
+        // Get approver name from our map
+        const approverName = approverNamesMap[expense.id] || "Unknown Approver";
 
-            if (profiles && profiles.length > 0) {
-              // Create a lookup map by user_id
-              profiles.forEach((profile) => {
-                approverProfiles[profile.user_id] = profile;
-              });
-            }
-          }
-
-          // Process each expense
-          for (const exp of processedExpenses) {
-            try {
-              // Check if this expense has a voucher
-              const voucher = vouchersByExpenseId[exp.id];
-
-              if (voucher) {
-                // If voucher exists, mark the expense
-                exp.hasVoucher = true;
-                exp.voucherId = voucher.id;
-
-                // Check if voucher has an approver_id
-                if (
-                  voucher.approver_id &&
-                  approverProfiles[voucher.approver_id]
-                ) {
-                  // If both expense and voucher have different approver_ids, prioritize the voucher's
-                  exp.approver = {
-                    full_name: approverProfiles[voucher.approver_id].full_name,
-                    user_id: voucher.approver_id,
-                  };
-                  console.log(
-                    `Voucher approver set for expense ${exp.id}:`,
-                    exp.approver
-                  );
-                }
-              }
-
-              // If no voucher approver but expense has an approver_id, use that
-              if (
-                (!exp.approver || !exp.approver.full_name) &&
-                exp.approver_id &&
-                approverProfiles[exp.approver_id]
-              ) {
-                exp.approver = {
-                  full_name: approverProfiles[exp.approver_id].full_name,
-                  user_id: exp.approver_id,
-                };
-                console.log(
-                  `Expense approver set for expense ${exp.id}:`,
-                  exp.approver
-                );
-              }
-            } catch (error) {
-              console.error(`Error processing expense ${exp.id}:`, error);
-            }
-          }
-
-          return processedExpenses;
+        // Set approver info on the expense
+        expense.approver = {
+          full_name: approverName,
+          user_id: expense.approver_id || voucher?.approver_id,
         };
+
+      
+      } catch (error) {
+        console.error(`Error processing expense ${expense.id}:`, error);
+      }
+    }
+
+    return processedExpenses;
+  } catch (error) {
+    console.error("Error in processExpenseData:", error);
+    return processedExpenses;
+  }
+};
 
         // Then use this function to process your expense lists
         my = await processExpenseData(my);
@@ -273,6 +225,7 @@ export default function ExpensesPage() {
       }
       setExpensesData(my);
       setPendingApprovals(pending);
+     
       setAllExpenses(all);
       // compute stats on "all"
       setStats({

@@ -1,3 +1,4 @@
+// Path: src/components/auth/signup-form.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
-import { organizations, invites, profiles, InviteRow } from "@/lib/db";
+import { organizations, invites, InviteRow } from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -29,7 +30,7 @@ export function SignupForm({
   const [error, setError] = useState<string | null>(null);
   const [invite, setInvite] = useState<InviteRow | null>(null);
   const { syncExternalAuth } = useAuthStore.getState();
-  
+
   // Load invite if present
   useEffect(() => {
     if (!token) return;
@@ -53,35 +54,44 @@ export function SignupForm({
     );
 
     try {
-      // 1) Sign up the user
+      // 1) Sign up the user with metadata for the trigger
       let userId: string;
+      let signUpData;
+
       if (invite && token) {
-        const { data: signUpData, error: signUpError } =
-          await supabase.auth.signUp({
-            email: invite.email,
-            password,
-          });
-        if (signUpError || !signUpData.user) throw signUpError;
-        userId = signUpData.user.id;
+        const result = await supabase.auth.signUp({
+          email: invite.email,
+          password,
+          options: {
+            data: {
+              full_name: name, // Add metadata for the trigger
+            },
+          },
+        });
+
+        if (result.error || !result.data.user) throw result.error;
+        userId = result.data.user.id;
+        signUpData = result.data;
       } else {
-        const { data: signUpData, error: signUpError } =
-          await supabase.auth.signUp({
-            email,
-            password,
-          });
-        if (signUpError || !signUpData.user) throw signUpError;
-        userId = signUpData.user.id;
+        const result = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name, // Add metadata for the trigger
+            },
+          },
+        });
+
+        if (result.error || !result.data.user) throw result.error;
+        userId = result.data.user.id;
+        signUpData = result.data;
       }
 
-      // 2) Upsert their profile row
-      const { error: profileError } = await profiles.upsert({
-        user_id: userId,
-        email: invite ? invite.email : email,
-        full_name: name || undefined,
-      });
-      if (profileError) throw profileError;
+      // Give the trigger time to run
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // 3) If this was an invite, link to org & mark used
+      // 2) If this was an invite, link to org & mark used
       if (invite && token) {
         const { error: linkError } = await organizations.addUser(
           invite.org_id,
@@ -107,6 +117,7 @@ export function SignupForm({
       await syncExternalAuth(userId);
     } catch (err: any) {
       toast.dismiss(toastId);
+      console.error("Signup error details:", err);
       setError(err.message || "Something went wrong.");
       toast.error("Signup failed", { description: err.message });
     }
