@@ -1,23 +1,17 @@
-// Path: src/app/api/invite/route.ts
-
 import { NextResponse } from "next/server";
 import { invites } from "@/lib/db";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 
 // Configure AWS SES client
 const sesClient = new SESClient({
-  region: process.env.NEXT_REGION || "ap-south-1",
+  region: process.env.REGION || "us-east-1",
   credentials: {
-    accessKeyId: process.env.NEXT_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.NEXT_SECRET_ACCESS_KEY || "",
+    accessKeyId: process.env.ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.SECRET_ACCESS_KEY || "",
   },
 });
 
 export async function POST(request: Request) {
-  console.log(
-    "Received request to create invite and send email using AWS SES"
-    ,process.env.NEXT_PUBLIC_BASE_URL, process.env.NEXT_REGION, process.env.NEXT_ACCESS_KEY_ID, process.env.NEXT_SECRET_ACCESS_KEY
-  )
   try {
     const body = await request.json();
     const { email, role, orgId, orgName } = body;
@@ -28,16 +22,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    // Log the request details for debugging (excluding sensitive data)
-    console.log("Invitation request:", {
-      email,
-      role,
-      orgId,
-      hasOrgName: !!orgName,
-      region: process.env.REGION || "ap-south-1",
-      isProduction: process.env.NODE_ENV === "production",
-    });
 
     // Create the invite in the database
     const { data: inviteRow, error: inviteError } = await invites.create(
@@ -164,27 +148,9 @@ export async function POST(request: Request) {
     };
 
     try {
-      console.log("Attempting to send email using SES...");
-      // Check if we're in development mode and should skip email sending for testing
-      if (
-        process.env.NODE_ENV === "development" &&
-        process.env.SKIP_EMAIL_SENDING === "true"
-      ) {
-        console.log("Development mode: Skipping actual email sending", {
-          to: email,
-          subject: emailParams.Message.Subject.Data,
-        });
-        return NextResponse.json({
-          success: true,
-          inviteId: inviteRow.id,
-          message: "Development mode: Email would be sent in production",
-        });
-      }
-
       // Send the email using AWS SES
       const sendCommand = new SendEmailCommand(emailParams);
-      const result = await sesClient.send(sendCommand);
-      console.log("Email sent successfully:", result.MessageId);
+      await sesClient.send(sendCommand);
 
       return NextResponse.json({
         success: true,
@@ -193,12 +159,6 @@ export async function POST(request: Request) {
       });
     } catch (sesError: any) {
       console.error("Error sending email with SES:", sesError);
-      console.error("Error details:", {
-        code: sesError.code,
-        message: sesError.message,
-        name: sesError.name,
-        $metadata: sesError.$metadata,
-      });
 
       // Even if email fails, we'll still return the invite ID
       // as the invite was created in the database

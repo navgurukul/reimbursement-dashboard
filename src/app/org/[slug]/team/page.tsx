@@ -118,14 +118,22 @@ export default function TeamPage() {
 
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+   
     e.preventDefault();
     if (!org?.id || !org?.name) {
       toast.error("Organization information is missing");
       return;
     }
 
+    console.log("Sending invite to:", inviteEmail, "with role:", inviteRole);
     setLoading(true);
-
+    console.log(
+      "Received request to create invite and send email using AWS SES from team page",
+      process.env.NEXT_PUBLIC_BASE_URL,
+      process.env.REGION,
+      process.env.ACCESS_KEY_ID,
+      process.env.SECRET_ACCESS_KEY
+    );
     try {
       // Call the server API route that handles both invite creation and email sending
       const response = await fetch("/api/invite", {
