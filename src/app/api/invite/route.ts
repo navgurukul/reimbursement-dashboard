@@ -4,14 +4,18 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 
 // Configure AWS SES client
 const sesClient = new SESClient({
-  region: process.env.REGION || "us-east-1",
+  region: process.env.NEXT_REGION || "ap-south-1",
   credentials: {
-    accessKeyId: process.env.ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.SECRET_ACCESS_KEY || "",
+    accessKeyId: process.env.NEXT_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.NEXT_SECRET_ACCESS_KEY || "",
   },
 });
 
 export async function POST(request: Request) {
+  console.log(
+    "Received request to create invite and send email using AWS SES"
+    ,process.env.NEXT_PUBLIC_BASE_URL, process.env.NEXT_REGION, process.env.NEXT_ACCESS_KEY_ID, process.env.NEXT_SECRET_ACCESS_KEY
+  )
   try {
     const body = await request.json();
     const { email, role, orgId, orgName } = body;
