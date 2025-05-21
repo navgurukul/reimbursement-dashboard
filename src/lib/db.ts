@@ -184,7 +184,6 @@ export interface Expense {
   approved_amount?: number | null;
 }
 
-
 export interface Voucher {
   id: string;
   expense_id: string;
@@ -200,17 +199,36 @@ export interface Voucher {
   updated_at: string;
 }
 
-
 export interface ExpenseHistoryEntry {
   id: string;
   expense_id: string;
   user_id: string;
   user_name: string;
   created_at: string;
-  action_type: 'created' | 'updated' | 'approved' | 'rejected';
+  action_type: "created" | "updated" | "approved" | "rejected";
   old_value: string | null;
   new_value: string;
 }
+
+export interface ExpenseComment {
+  id: string;
+  expense_id: string;
+  user_id: string;
+  content: string;
+  parent_id: string | null;
+  created_at: string;
+  updated_at: string;
+  is_deleted: boolean;
+}
+
+export interface ExpenseCommentWithUser extends ExpenseComment {
+  user: {
+    id: string;
+    full_name: string;
+    avatar_url?: string;
+  };
+}
+
 
 // Auth functions
 export const auth = {
@@ -334,185 +352,201 @@ export const organizations = {
   },
 };
 
-
-
-
-
-
 // Add this entire object to your db.ts file with other database functions
 export const expenseEvents = {
   // Create a new expense event
-  async create(data: Omit<ExpenseEvent, 'id' | 'created_at' | 'updated_at' | 'total_amount'>): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
+  async create(
+    data: Omit<
+      ExpenseEvent,
+      "id" | "created_at" | "updated_at" | "total_amount"
+    >
+  ): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
     try {
       const { data: eventData, error } = await supabase
-        .from('expense_events')
+        .from("expense_events")
         .insert(data)
-        .select('*')
+        .select("*")
         .single();
 
       if (error) {
         return { data: null, error: error as DatabaseError };
       }
-      
+
       return { data: eventData as ExpenseEvent, error: null };
     } catch (error: any) {
-      console.error('Error creating expense event:', error);
-      return { 
-        data: null, 
+      console.error("Error creating expense event:", error);
+      return {
+        data: null,
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "Check your input and try again",
           code: "UNKNOWN_ERROR",
-        }
+        },
       };
     }
   },
-// Add this function to the expenseEvents object in db.ts
-async getAvailableEvents(orgId: string, userId: string, userRole: string): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
-  try {
-    let query = supabase
-      .from('expense_events')
-      .select('*')
-      .eq('org_id', orgId);
-    
-    // If user is admin or owner, show them all events
-    if (userRole === 'admin' || userRole === 'owner') {
-      // No additional filtering needed - admins/owners see all events
-    } else {
-      // For regular members, show:
-      // 1. Events they created (with any status)
-      // 2. Events created by others with "submitted" status
-      query = query.or(`user_id.eq.${userId},status.eq.submitted`);
-    }
-    
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      return { data: null, error: error as DatabaseError };
-    }
-    
-    return { data: data as ExpenseEvent[], error: null };
-  } catch (error: any) {
-    console.error('Error fetching available expense events:', error);
-    return { 
-      data: null, 
-      error: {
-        message: error instanceof Error ? error.message : "Unknown error",
-        details: "",
-        hint: "Check your input and try again",
-        code: "UNKNOWN_ERROR",
-      }
-    };
-  }
-},
-  // Get expense event by ID
-  async getById(id: string): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
+  // Add this function to the expenseEvents object in db.ts
+  async getAvailableEvents(
+    orgId: string,
+    userId: string,
+    userRole: string
+  ): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
     try {
-      const { data, error } = await supabase
-        .from('expense_events')
-        .select('*')
-        .eq('id', id)
-        .single();
+      let query = supabase
+        .from("expense_events")
+        .select("*")
+        .eq("org_id", orgId);
+
+      // If user is admin or owner, show them all events
+      if (userRole === "admin" || userRole === "owner") {
+        // No additional filtering needed - admins/owners see all events
+      } else {
+        // For regular members, show:
+        // 1. Events they created (with any status)
+        // 2. Events created by others with "submitted" status
+        query = query.or(`user_id.eq.${userId},status.eq.submitted`);
+      }
+
+      const { data, error } = await query.order("created_at", {
+        ascending: false,
+      });
 
       if (error) {
         return { data: null, error: error as DatabaseError };
       }
-      
-      return { data: data as ExpenseEvent, error: null };
+
+      return { data: data as ExpenseEvent[], error: null };
     } catch (error: any) {
-      console.error('Error fetching expense event:', error);
-      return { 
-        data: null, 
+      console.error("Error fetching available expense events:", error);
+      return {
+        data: null,
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "Check your input and try again",
           code: "UNKNOWN_ERROR",
-        }
+        },
+      };
+    }
+  },
+  // Get expense event by ID
+  async getById(
+    id: string
+  ): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
+    try {
+      const { data, error } = await supabase
+        .from("expense_events")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+
+      return { data: data as ExpenseEvent, error: null };
+    } catch (error: any) {
+      console.error("Error fetching expense event:", error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        },
       };
     }
   },
 
   // Get expense events by organization and user
-  async getByOrgAndUser(orgId: string, userId: string): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
+  async getByOrgAndUser(
+    orgId: string,
+    userId: string
+  ): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
     try {
       const { data, error } = await supabase
-        .from('expense_events')
-        .select('*')
-        .eq('org_id', orgId)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .from("expense_events")
+        .select("*")
+        .eq("org_id", orgId)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
 
       if (error) {
         return { data: null, error: error as DatabaseError };
       }
-      
+
       return { data: data as ExpenseEvent[], error: null };
     } catch (error: any) {
-      console.error('Error fetching expense events:', error);
-      return { 
-        data: null, 
+      console.error("Error fetching expense events:", error);
+      return {
+        data: null,
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "Check your input and try again",
           code: "UNKNOWN_ERROR",
-        }
+        },
       };
     }
   },
 
   // Get expense events by organization
-  async getByOrg(orgId: string): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
+  async getByOrg(
+    orgId: string
+  ): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
     try {
       const { data, error } = await supabase
-        .from('expense_events')
-        .select('*')
-        .eq('org_id', orgId)
-        .order('created_at', { ascending: false });
+        .from("expense_events")
+        .select("*")
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false });
 
       if (error) {
         return { data: null, error: error as DatabaseError };
       }
-      
+
       return { data: data as ExpenseEvent[], error: null };
     } catch (error: any) {
-      console.error('Error fetching expense events:', error);
-      return { 
-        data: null, 
+      console.error("Error fetching expense events:", error);
+      return {
+        data: null,
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "Check your input and try again",
           code: "UNKNOWN_ERROR",
-        }
+        },
       };
     }
   },
 
   // Update an expense event
-  async update(id: string, updates: Partial<ExpenseEvent>): Promise<{ error: DatabaseError | null }> {
+  async update(
+    id: string,
+    updates: Partial<ExpenseEvent>
+  ): Promise<{ error: DatabaseError | null }> {
     try {
       const { error } = await supabase
-        .from('expense_events')
+        .from("expense_events")
         .update(updates)
-        .eq('id', id);
+        .eq("id", id);
 
       if (error) {
         return { error: error as DatabaseError };
       }
-      
+
       return { error: null };
     } catch (error: any) {
-      console.error('Error updating expense event:', error);
-      return { 
+      console.error("Error updating expense event:", error);
+      return {
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "Check your input and try again",
           code: "UNKNOWN_ERROR",
-        }
+        },
       };
     }
   },
@@ -521,30 +555,28 @@ async getAvailableEvents(orgId: string, userId: string, userRole: string): Promi
   async delete(id: string): Promise<{ error: DatabaseError | null }> {
     try {
       const { error } = await supabase
-        .from('expense_events')
+        .from("expense_events")
         .delete()
-        .eq('id', id);
+        .eq("id", id);
 
       if (error) {
         return { error: error as DatabaseError };
       }
-      
+
       return { error: null };
     } catch (error: any) {
-      console.error('Error deleting expense event:', error);
-      return { 
+      console.error("Error deleting expense event:", error);
+      return {
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "Check your input and try again",
           code: "UNKNOWN_ERROR",
-        }
+        },
       };
     }
-  }
+  },
 };
-
-
 
 // Profile functions
 export const profiles = {
@@ -848,287 +880,308 @@ export const expenses = {
    * Get an expense by ID
    */
   /**
- * Get an expense by ID
- */
-/**
- * Get an expense by ID
- */
-getById: async (id: string) => {
-  // First get the expense with just the creator relationship
-  const { data: expense, error } = await supabase
-    .from("expenses")
-    .select(
-      `
+   * Get an expense by ID
+   */
+  /**
+   * Get an expense by ID
+   */
+  getById: async (id: string) => {
+    // First get the expense with just the creator relationship
+    const { data: expense, error } = await supabase
+      .from("expenses")
+      .select(
+        `
       *,
       creator:profiles!user_id (
         full_name
       )
     `
-    )
-    .eq("id", id)
-    .single();
-
-  if (error) {
-    return { data: null, error: error as DatabaseError };
-  }
-
-  // Now manually handle the approver relationship
-  if (expense && expense.approver_id) {
-    const { data: approverData } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("user_id", expense.approver_id)
+      )
+      .eq("id", id)
       .single();
 
-    if (approverData) {
-      // Add the approver data to the result
-      expense.approver = { full_name: approverData.full_name };
+    if (error) {
+      return { data: null, error: error as DatabaseError };
     }
-  }
 
-  return {
-    data: expense as Expense & {
-      creator: { full_name: string };
-      approver?: { full_name: string };
-    },
-    error: null,
-  };
-},
-/**
- * Get expenses by event ID
- *//**
- * Get expenses by event ID
- */
-getByEventId: async (eventId: string) => {
-  // Get expenses with creator
-  const { data: expenses, error } = await supabase
-    .from("expenses")
-    .select(
-      `
+    // Now manually handle the approver relationship
+    if (expense && expense.approver_id) {
+      const { data: approverData } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", expense.approver_id)
+        .single();
+
+      if (approverData) {
+        // Add the approver data to the result
+        expense.approver = { full_name: approverData.full_name };
+      }
+    }
+
+    return {
+      data: expense as Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      },
+      error: null,
+    };
+  },
+  /**
+   * Get expenses by event ID
+   */ /**
+   * Get expenses by event ID
+   */
+  getByEventId: async (eventId: string) => {
+    // Get expenses with creator
+    const { data: expenses, error } = await supabase
+      .from("expenses")
+      .select(
+        `
       *,
       creator:profiles!user_id (
         full_name
       )
     `
-    )
-    .eq("event_id", eventId)
-    .order("date", { ascending: false });
+      )
+      .eq("event_id", eventId)
+      .order("date", { ascending: false });
 
-  if (error) {
-    return { data: null, error: error as DatabaseError };
-  }
-
-  // Get all unique approver IDs
-  const approverIds = [...new Set((expenses || [])
-    .map(expense => expense.approver_id)
-    .filter(id => id))];
-
-  if (approverIds.length > 0) {
-    // Get all approvers in one query
-    const { data: approvers } = await supabase
-      .from("profiles")
-      .select("user_id, full_name")
-      .in("user_id", approverIds);
-
-    if (approvers && approvers.length > 0) {
-      // Create a lookup map
-      const approverMap: Record<string, { user_id: string, full_name: string }> = {};
-      approvers.forEach(a => {
-        approverMap[a.user_id] = a;
-      });
-
-      // Add approver data to each expense
-      expenses.forEach(expense => {
-        if (expense.approver_id && approverMap[expense.approver_id]) {
-          expense.approver = { 
-            full_name: approverMap[expense.approver_id].full_name 
-          };
-        }
-      });
+    if (error) {
+      return { data: null, error: error as DatabaseError };
     }
-  }
 
-  return {
-    data: expenses as (Expense & {
-      creator: { full_name: string };
-      approver?: { full_name: string };
-    })[],
-    error: null,
-  };
-},
+    // Get all unique approver IDs
+    const approverIds = [
+      ...new Set(
+        (expenses || [])
+          .map((expense) => expense.approver_id)
+          .filter((id) => id)
+      ),
+    ];
 
-/**
- * Get all expenses for a user in an organization
- */
-getByOrgAndUser: async (orgId: string, userId: string) => {
-  // Get expenses with creator
-  const { data: expenses, error } = await supabase
-    .from("expenses")
-    .select(
-      `
+    if (approverIds.length > 0) {
+      // Get all approvers in one query
+      const { data: approvers } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", approverIds);
+
+      if (approvers && approvers.length > 0) {
+        // Create a lookup map
+        const approverMap: Record<
+          string,
+          { user_id: string; full_name: string }
+        > = {};
+        approvers.forEach((a) => {
+          approverMap[a.user_id] = a;
+        });
+
+        // Add approver data to each expense
+        expenses.forEach((expense) => {
+          if (expense.approver_id && approverMap[expense.approver_id]) {
+            expense.approver = {
+              full_name: approverMap[expense.approver_id].full_name,
+            };
+          }
+        });
+      }
+    }
+
+    return {
+      data: expenses as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
+      error: null,
+    };
+  },
+
+  /**
+   * Get all expenses for a user in an organization
+   */
+  getByOrgAndUser: async (orgId: string, userId: string) => {
+    // Get expenses with creator
+    const { data: expenses, error } = await supabase
+      .from("expenses")
+      .select(
+        `
       *,
       creator:profiles!user_id (
         full_name
       )
     `
-    )
-    .eq("org_id", orgId)
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return { data: null, error: error as DatabaseError };
-  }
-
-  // Get all unique approver IDs
-  const approverIds = [...new Set((expenses || [])
-    .map(expense => expense.approver_id)
-    .filter(id => id))];
-
-  if (approverIds.length > 0) {
-    // Get all approvers in one query
-    const { data: approvers } = await supabase
-      .from("profiles")
-      .select("user_id, full_name")
-      .in("user_id", approverIds);
-
-    if (approvers && approvers.length > 0) {
-      // Create a lookup map
-      const approverMap: Record<string, { user_id: string, full_name: string }> = {};
-      approvers.forEach(a => {
-        approverMap[a.user_id] = a;
-      });
-
-      // Add approver data to each expense
-      expenses.forEach(expense => {
-        if (expense.approver_id && approverMap[expense.approver_id]) {
-          expense.approver = { 
-            full_name: approverMap[expense.approver_id].full_name 
-          };
-        }
-      });
-    }
-  }
-
-  return {
-    data: expenses as (Expense & {
-      creator: { full_name: string };
-      approver?: { full_name: string };
-    })[],
-    error: null,
-  };
-},
-
-/**
- * Get all expenses for an organization (admin only)
- */
-getByOrg: async (orgId: string) => {
-  // Get expenses with creator
-  const { data: expenses, error } = await supabase
-    .from("expenses")
-    .select(
-      `
-      *,
-      creator:profiles!user_id (
-        full_name
       )
-    `
-    )
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return { data: null, error: error as DatabaseError };
-  }
-
-  // Get all unique approver IDs
-  const approverIds = [...new Set((expenses || [])
-    .map(expense => expense.approver_id)
-    .filter(id => id))];
-
-  if (approverIds.length > 0) {
-    // Get all approvers in one query
-    const { data: approvers } = await supabase
-      .from("profiles")
-      .select("user_id, full_name")
-      .in("user_id", approverIds);
-
-    if (approvers && approvers.length > 0) {
-      // Create a lookup map
-      const approverMap: Record<string, { user_id: string, full_name: string }> = {};
-      approvers.forEach(a => {
-        approverMap[a.user_id] = a;
-      });
-
-      // Add approver data to each expense
-      expenses.forEach(expense => {
-        if (expense.approver_id && approverMap[expense.approver_id]) {
-          expense.approver = { 
-            full_name: approverMap[expense.approver_id].full_name 
-          };
-        }
-      });
-    }
-  }
-
-  return {
-    data: expenses as (Expense & {
-      creator: { full_name: string };
-      approver?: { full_name: string };
-    })[],
-    error: null,
-  };
-},
-
-/**
- * Get pending approvals for a user
- */
-getPendingApprovals: async (orgId: string, userId: string) => {
-  // Get expenses with creator
-  const { data: expenses, error } = await supabase
-    .from("expenses")
-    .select(
-      `
-      *,
-      creator:profiles!user_id (
-        full_name
-      )
-    `
-    )
-    .eq("org_id", orgId)
-    .eq("approver_id", userId)
-    .eq("status", "submitted")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return { data: null, error: error as DatabaseError };
-  }
-
-  // For pending approvals, the approver is the current user
-  // So we can get the user's profile in one query
-  if (expenses && expenses.length > 0) {
-    const { data: approver } = await supabase
-      .from("profiles")
-      .select("full_name")
+      .eq("org_id", orgId)
       .eq("user_id", userId)
-      .single();
+      .order("created_at", { ascending: false });
 
-    if (approver) {
-      // Add the same approver info to all expenses
-      expenses.forEach(expense => {
-        expense.approver = { full_name: approver.full_name };
-      });
+    if (error) {
+      return { data: null, error: error as DatabaseError };
     }
-  }
 
-  return {
-    data: expenses as (Expense & {
-      creator: { full_name: string };
-      approver?: { full_name: string };
-    })[],
-    error: null,
-  };
-},
+    // Get all unique approver IDs
+    const approverIds = [
+      ...new Set(
+        (expenses || [])
+          .map((expense) => expense.approver_id)
+          .filter((id) => id)
+      ),
+    ];
+
+    if (approverIds.length > 0) {
+      // Get all approvers in one query
+      const { data: approvers } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", approverIds);
+
+      if (approvers && approvers.length > 0) {
+        // Create a lookup map
+        const approverMap: Record<
+          string,
+          { user_id: string; full_name: string }
+        > = {};
+        approvers.forEach((a) => {
+          approverMap[a.user_id] = a;
+        });
+
+        // Add approver data to each expense
+        expenses.forEach((expense) => {
+          if (expense.approver_id && approverMap[expense.approver_id]) {
+            expense.approver = {
+              full_name: approverMap[expense.approver_id].full_name,
+            };
+          }
+        });
+      }
+    }
+
+    return {
+      data: expenses as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
+      error: null,
+    };
+  },
+
+  /**
+   * Get all expenses for an organization (admin only)
+   */
+  getByOrg: async (orgId: string) => {
+    // Get expenses with creator
+    const { data: expenses, error } = await supabase
+      .from("expenses")
+      .select(
+        `
+      *,
+      creator:profiles!user_id (
+        full_name
+      )
+    `
+      )
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    // Get all unique approver IDs
+    const approverIds = [
+      ...new Set(
+        (expenses || [])
+          .map((expense) => expense.approver_id)
+          .filter((id) => id)
+      ),
+    ];
+
+    if (approverIds.length > 0) {
+      // Get all approvers in one query
+      const { data: approvers } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", approverIds);
+
+      if (approvers && approvers.length > 0) {
+        // Create a lookup map
+        const approverMap: Record<
+          string,
+          { user_id: string; full_name: string }
+        > = {};
+        approvers.forEach((a) => {
+          approverMap[a.user_id] = a;
+        });
+
+        // Add approver data to each expense
+        expenses.forEach((expense) => {
+          if (expense.approver_id && approverMap[expense.approver_id]) {
+            expense.approver = {
+              full_name: approverMap[expense.approver_id].full_name,
+            };
+          }
+        });
+      }
+    }
+
+    return {
+      data: expenses as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
+      error: null,
+    };
+  },
+
+  /**
+   * Get pending approvals for a user
+   */
+  getPendingApprovals: async (orgId: string, userId: string) => {
+    // Get expenses with creator
+    const { data: expenses, error } = await supabase
+      .from("expenses")
+      .select(
+        `
+      *,
+      creator:profiles!user_id (
+        full_name
+      )
+    `
+      )
+      .eq("org_id", orgId)
+      .eq("approver_id", userId)
+      .eq("status", "submitted")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    // For pending approvals, the approver is the current user
+    // So we can get the user's profile in one query
+    if (expenses && expenses.length > 0) {
+      const { data: approver } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", userId)
+        .single();
+
+      if (approver) {
+        // Add the same approver info to all expenses
+        expenses.forEach((expense) => {
+          expense.approver = { full_name: approver.full_name };
+        });
+      }
+    }
+
+    return {
+      data: expenses as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
+      error: null,
+    };
+  },
   /**
    * Upload a receipt file
    */
@@ -1174,127 +1227,133 @@ getPendingApprovals: async (orgId: string, userId: string) => {
       error: null,
     };
   },
-// Add this function to the expenses object in db.ts
-async getApproverNames(expenseIds: string[]): Promise<Record<string, string>> {
-  try {
-    if (!expenseIds || expenseIds.length === 0) {
-      return {};
-    }
-    
-    const { data, error } = await supabase
-      .rpc('get_expense_approver', { expense_ids: expenseIds });
-      
-    if (error) {
-      console.error('Error getting approver names:', error);
-      return {};
-    }
-    
-    const approverMap: Record<string, string> = {};
-    if (data && data.length > 0) {
-      data.forEach((item: { expense_id: string; approver_name: string }) => {
-        approverMap[item.expense_id] = item.approver_name;
+  // Add this function to the expenses object in db.ts
+  async getApproverNames(
+    expenseIds: string[]
+  ): Promise<Record<string, string>> {
+    try {
+      if (!expenseIds || expenseIds.length === 0) {
+        return {};
+      }
+
+      const { data, error } = await supabase.rpc("get_expense_approver", {
+        expense_ids: expenseIds,
       });
+
+      if (error) {
+        console.error("Error getting approver names:", error);
+        return {};
+      }
+
+      const approverMap: Record<string, string> = {};
+      if (data && data.length > 0) {
+        data.forEach((item: { expense_id: string; approver_name: string }) => {
+          approverMap[item.expense_id] = item.approver_name;
+        });
+      }
+
+      return approverMap;
+    } catch (error) {
+      console.error("Exception in getApproverNames:", error);
+      return {};
     }
-    
-    return approverMap;
-  } catch (error) {
-    console.error('Exception in getApproverNames:', error);
-    return {};
-  }
-},
+  },
   /**
    * Create a new expense with receipt
    */
-create: async (
-  expense: Omit<
-    Expense,
-    "id" | "status" | "policy_validations" | "created_at" | "updated_at"
-  >,
-  receiptFile?: File
-) => {
-  try {
-    let receipt: ReceiptInfo | null = null;
+  create: async (
+    expense: Omit<
+      Expense,
+      "id" | "status" | "policy_validations" | "created_at" | "updated_at"
+    >,
+    receiptFile?: File
+  ) => {
+    try {
+      let receipt: ReceiptInfo | null = null;
 
-    // Upload receipt if provided
-    if (receiptFile) {
-      const { path, error: uploadError } = await expenses.uploadReceipt(
-        receiptFile,
-        expense.user_id,
-        expense.org_id
-      );
+      // Upload receipt if provided
+      if (receiptFile) {
+        const { path, error: uploadError } = await expenses.uploadReceipt(
+          receiptFile,
+          expense.user_id,
+          expense.org_id
+        );
 
-      if (uploadError) {
-        return {
-          data: null,
-          error: {
-            message: `Failed to upload receipt: ${uploadError.message}`,
-            details: uploadError.message,
-            hint: "Check file size and type",
-            code: "STORAGE_UPLOAD_ERROR",
-          },
+        if (uploadError) {
+          return {
+            data: null,
+            error: {
+              message: `Failed to upload receipt: ${uploadError.message}`,
+              details: uploadError.message,
+              hint: "Check file size and type",
+              code: "STORAGE_UPLOAD_ERROR",
+            },
+          };
+        }
+
+        receipt = {
+          filename: receiptFile.name,
+          path,
+          size: receiptFile.size,
+          mime_type: receiptFile.type,
         };
       }
 
-      receipt = {
-        filename: receiptFile.name,
-        path,
-        size: receiptFile.size,
-        mime_type: receiptFile.type,
+      // Get approver_id - first check if it's directly in the expense object
+      // If not, try to get it from custom_fields
+      let approver_id = expense.approver_id || null;
+
+      // If approver_id is not in the expense object but exists in custom_fields
+      if (
+        !approver_id &&
+        expense.custom_fields &&
+        expense.custom_fields.approver
+      ) {
+        approver_id = expense.custom_fields.approver;
+
+        // Remove it from custom_fields since we're using it directly
+        delete expense.custom_fields.approver;
+      }
+
+      // Log for debugging
+      console.log("Inserting expense with approver_id:", approver_id);
+
+      // Create expense with receipt info, approver_id, and signature_url
+      const { data, error } = await supabase
+        .from("expenses")
+        .insert([
+          {
+            ...expense,
+            receipt,
+            approver_id, // Explicitly set approver_id
+            status: "submitted", // Set initial status
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error inserting expense:", error);
+        return { data: null, error: error as DatabaseError };
+      }
+
+      return {
+        data: data as Expense,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Caught error in expenses.create:", error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        },
       };
     }
-
-    // Get approver_id - first check if it's directly in the expense object
-    // If not, try to get it from custom_fields
-    let approver_id = expense.approver_id || null;
-    
-    // If approver_id is not in the expense object but exists in custom_fields
-    if (!approver_id && expense.custom_fields && expense.custom_fields.approver) {
-      approver_id = expense.custom_fields.approver;
-      
-      // Remove it from custom_fields since we're using it directly
-      delete expense.custom_fields.approver;
-    }
-
-    // Log for debugging
-    console.log("Inserting expense with approver_id:", approver_id);
-    
-    // Create expense with receipt info, approver_id, and signature_url
-    const { data, error } = await supabase
-      .from("expenses")
-      .insert([
-        {
-          ...expense,
-          receipt,
-          approver_id, // Explicitly set approver_id
-          status: "submitted", // Set initial status
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error inserting expense:", error);
-      return { data: null, error: error as DatabaseError };
-    }
-
-    return {
-      data: data as Expense,
-      error: null,
-    };
-  } catch (error) {
-    console.error("Caught error in expenses.create:", error);
-    return {
-      data: null,
-      error: {
-        message: error instanceof Error ? error.message : "Unknown error",
-        details: "",
-        hint: "Check your input and try again",
-        code: "UNKNOWN_ERROR",
-      },
-    };
-  }
-}
-,
+  },
   /**
    * Update an expense
    */
@@ -1656,10 +1715,7 @@ export const vouchers = {
   },
 };
 
-
-
 // Update the ExpenseHistoryEntry interface to match the simpler structure
-
 
 // Replace the existing expenseHistory object with this simpler version
 export const expenseHistory = {
@@ -1670,46 +1726,49 @@ export const expenseHistory = {
     expenseId: string,
     userId: string,
     userName: string,
-    actionType: 'created' | 'updated' | 'approved' | 'rejected',
+    actionType: "created" | "updated" | "approved" | "rejected",
     oldValue: string | null,
     newValue: string
-  ): Promise<{ data: ExpenseHistoryEntry | null, error: DatabaseError | null }> => {
+  ): Promise<{
+    data: ExpenseHistoryEntry | null;
+    error: DatabaseError | null;
+  }> => {
     try {
       const { data, error } = await supabase
-        .from('expense_history')
+        .from("expense_history")
         .insert({
           expense_id: expenseId,
           user_id: userId,
           user_name: userName,
           action_type: actionType,
           old_value: oldValue,
-          new_value: newValue
+          new_value: newValue,
         })
         .select()
         .single();
-      
+
       if (error) {
-        console.error('Error adding expense history entry:', error);
+        console.error("Error adding expense history entry:", error);
         return {
           data: null,
-          error: error as DatabaseError
+          error: error as DatabaseError,
         };
       }
-      
+
       return {
         data: data as ExpenseHistoryEntry,
-        error: null
+        error: null,
       };
     } catch (error) {
-      console.error('Exception in addEntry:', error);
+      console.error("Exception in addEntry:", error);
       return {
         data: null,
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "An error occurred while adding history entry",
-          code: "UNKNOWN_ERROR"
-        }
+          code: "UNKNOWN_ERROR",
+        },
       };
     }
   },
@@ -1717,78 +1776,262 @@ export const expenseHistory = {
   /**
    * Get expense history for a specific expense
    */
-  getByExpenseId: async (expenseId: string): Promise<{ data: ExpenseHistoryEntry[], error: DatabaseError | null }> => {
+  getByExpenseId: async (
+    expenseId: string
+  ): Promise<{ data: ExpenseHistoryEntry[]; error: DatabaseError | null }> => {
     try {
       const { data, error } = await supabase
-        .from('expense_history')
-        .select('*')
-        .eq('expense_id', expenseId)
-        .order('created_at', { ascending: false });
-      
+        .from("expense_history")
+        .select("*")
+        .eq("expense_id", expenseId)
+        .order("created_at", { ascending: false });
+
       if (error) {
-        console.error('Error getting expense history:', error);
+        console.error("Error getting expense history:", error);
         return {
           data: [],
-          error: error as DatabaseError
+          error: error as DatabaseError,
         };
       }
-      
+
       return {
         data: data as ExpenseHistoryEntry[],
-        error: null
+        error: null,
       };
     } catch (error) {
-      console.error('Exception in getByExpenseId:', error);
+      console.error("Exception in getByExpenseId:", error);
       return {
         data: [],
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "An error occurred while retrieving expense history",
-          code: "UNKNOWN_ERROR"
-        }
+          code: "UNKNOWN_ERROR",
+        },
       };
     }
   },
-  
+
   /**
    * Get all history entries for an organization
    */
-  getByOrgId: async (orgId: string, limit: number = 50): Promise<{ data: ExpenseHistoryEntry[], error: DatabaseError | null }> => {
+  getByOrgId: async (
+    orgId: string,
+    limit: number = 50
+  ): Promise<{ data: ExpenseHistoryEntry[]; error: DatabaseError | null }> => {
     try {
       const { data, error } = await supabase
-        .from('expense_history')
-        .select(`
+        .from("expense_history")
+        .select(
+          `
           *,
           expenses!expense_id (org_id)
-        `)
-        .eq('expenses.org_id', orgId)
-        .order('created_at', { ascending: false })
+        `
+        )
+        .eq("expenses.org_id", orgId)
+        .order("created_at", { ascending: false })
         .limit(limit);
-      
+
       if (error) {
-        console.error('Error getting organization expense history:', error);
+        console.error("Error getting organization expense history:", error);
         return {
           data: [],
-          error: error as DatabaseError
+          error: error as DatabaseError,
         };
       }
-      
+
       return {
         data: data as ExpenseHistoryEntry[],
-        error: null
+        error: null,
       };
     } catch (error) {
-      console.error('Exception in getByOrgId:', error);
+      console.error("Exception in getByOrgId:", error);
       return {
         data: [],
         error: {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "An error occurred while retrieving organization expense history",
+          code: "UNKNOWN_ERROR",
+        },
+      };
+    }
+  },
+};
+
+
+export const expenseComments = {
+  /**
+   * Get comments for a specific expense
+   */
+  getByExpenseId: async (expenseId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_comments')
+        .select(`
+          *,
+          user:profiles!user_id (
+            id,
+            user_id,
+            full_name,
+            email,
+            avatar_url
+          )
+        `)
+        .eq('expense_id', expenseId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error("Error fetching comments:", error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+
+      return {
+        data: data as ExpenseCommentWithUser[],
+        error: null
+      };
+    } catch (error) {
+      console.error("Exception in getByExpenseId:", error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while retrieving comments",
           code: "UNKNOWN_ERROR"
         }
       };
     }
-  }
+  },
+
+  /**
+   * Add a comment to an expense
+   */
+  add: async (comment: {
+    expense_id: string;
+    user_id: string;
+    content: string;
+    parent_id?: string | null;
+  }) => {
+    try {
+      // Get current user profile ID first
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', comment.user_id)
+        .single();
+
+      if (profileError || !profileData) {
+        console.error("Error finding user profile:", profileError);
+        return {
+          data: null,
+          error: {
+            message: "User profile not found",
+            details: profileError?.message || "Profile ID could not be determined",
+            hint: "Make sure the user exists in the profiles table",
+            code: "PROFILE_NOT_FOUND"
+          } as DatabaseError
+        };
+      }
+
+      // Now use the profile ID for the comment
+      const { data, error } = await supabase
+        .from('expense_comments')
+        .insert({
+          expense_id: comment.expense_id,
+          user_id: profileData.id,  // Use the profile ID, not the auth user ID
+          content: comment.content,
+          parent_id: comment.parent_id || null,
+          is_deleted: false
+        })
+        .select(`
+          *,
+          user:profiles!user_id (
+            id,
+            user_id,
+            full_name,
+            email,
+            avatar_url
+          )
+        `)
+        .single();
+
+      if (error) {
+        console.error("Error adding comment:", error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+
+      return {
+        data: data as ExpenseCommentWithUser,
+        error: null
+      };
+    } catch (error) {
+      console.error("Exception in add:", error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while adding a comment",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+
+  /**
+   * Get replies for a comment
+   */
+  getReplies: async (commentId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_comments')
+        .select(`
+          *,
+          user:profiles!user_id (
+            id,
+            user_id,
+            full_name,
+            email,
+            avatar_url
+          )
+        `)
+        .eq('parent_id', commentId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error("Error fetching replies:", error);
+        return {
+          data: null,
+          error: error as DatabaseError
+        };
+      }
+
+      return {
+        data: data as ExpenseCommentWithUser[],
+        error: null
+      };
+    } catch (error) {
+      console.error("Exception in getReplies:", error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "An error occurred while retrieving replies",
+          code: "UNKNOWN_ERROR"
+        }
+      };
+    }
+  },
+
+
 };
