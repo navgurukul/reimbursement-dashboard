@@ -118,24 +118,15 @@ export default function TeamPage() {
 
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-   
     e.preventDefault();
     if (!org?.id || !org?.name) {
       toast.error("Organization information is missing");
       return;
     }
 
-    console.log("Sending invite to:", inviteEmail, "with role:", inviteRole);
     setLoading(true);
-    console.log(
-      "Received request to create invite and send email using AWS SES from team page",
-      process.env.NEXT_PUBLIC_BASE_URL,
-      process.env.REGION,
-      process.env.ACCESS_KEY_ID,
-      process.env.SECRET_ACCESS_KEY
-    );
+
     try {
-      // Call the server API route that handles both invite creation and email sending
       const response = await fetch("/api/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -144,18 +135,27 @@ export default function TeamPage() {
           role: inviteRole,
           orgId: org.id,
           orgName: org.name || "Our Organization",
-        } as InviteFormData),
+        }),
       });
 
-      const data = (await response.json()) as InviteResponse;
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to send invitation");
       }
-
-      toast.success("Invitation email sent successfully!", {
-        description: `An invite has been sent to ${inviteEmail} to join as a ${inviteRole}.`,
-      });
+      console.log("Invite response:", data);
+      // If we have an invite URL, copy it and show it to the user
+      if (data.inviteUrl) {
+        await navigator.clipboard.writeText(data.inviteUrl);
+        toast.success("Invitation link copied to clipboard", {
+          description: "Share this link with the invited user.",
+          duration: 5000,
+        });
+      } else {
+        toast.success("Invitation created successfully!", {
+          description: `An invite has been created for ${inviteEmail} to join as a ${inviteRole}.`,
+        });
+      }
 
       // Clear form after successful submission
       setInviteEmail("");
