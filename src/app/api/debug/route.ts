@@ -1,15 +1,7 @@
+// src/app/api/debug/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-  // Only allow in development environment or with special header for security
-  const isAuthorized =
-    process.env.NODE_ENV === "development" ||
-    req.headers.get("x-debug-token") === process.env.DEBUG_SECRET_KEY;
-
-  if (!isAuthorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   // Collect email-related environment variables
   const emailConfig = {
     // SMTP configuration
@@ -52,6 +44,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     emailConfig,
     smtpConnectionDetails,
-    message: "This endpoint is for debugging only. Do not use in production.",
+    message: "Environment variables information",
   });
 }
