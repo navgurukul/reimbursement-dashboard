@@ -1,49 +1,100 @@
-// src/app/api/debug/route.ts
+// src/app/api/invite/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { invites } from "@/lib/db";
+import nodemailer from "nodemailer";
 
-export async function GET(req: NextRequest) {
-  // Collect email-related environment variables
-  const emailConfig = {
-    // SMTP configuration
-    SMTP_HOST: process.env.SMTP_HOST || "not set",
-    SMTP_PORT: process.env.SMTP_PORT || "not set",
-    SMTP_SECURE: process.env.SMTP_SECURE || "not set",
-    SMTP_USER: process.env.SMTP_USER ? "is set" : "not set",
-    SMTP_PASSWORD: process.env.SMTP_PASSWORD ? "is set (masked)" : "not set",
-    SMTP_FROM: process.env.SMTP_FROM || "not set",
+export async function POST(req: NextRequest) {
+  try {
+    const { email, role, orgId, orgName } = await req.json();
 
-    // AWS configuration (if using SES)
-    AWS_REGION: process.env.AWS_REGION || "not set",
+    // Validate request
+    if (!email || !role || !orgId || !orgName) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
 
-    // Supabase configuration
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL
-      ? "is set"
-      : "not set",
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY
-      ? "is set (masked)"
-      : "not set",
+    // Create the invite in the database
+    const { data: inviteRow, error: inviteError } = await invites.create(
+      orgId,
+      email,
+      role
+    );
 
-    // Application URLs
-    NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL || "not set",
+    if (inviteError || !inviteRow) {
+      console.error("Error creating invite:", inviteError);
+      throw inviteError ?? new Error("Failed to create invite");
+    }
 
-    // General environment
-    NODE_ENV: process.env.NODE_ENV || "not set",
-  };
+    // Build the sign-up URL with the invite token
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL ||
+      "https://reimbursement.navgurukul.org";
+    const signupUrl = `${baseUrl}/auth/signup?token=${inviteRow.id}`;
 
-  // Additional checks for SMTP connection
-  const smtpConnectionDetails = {
-    description: "Details about how the SMTP connection would be configured",
-    host: process.env.SMTP_HOST || "(default: localhost)",
-    port: process.env.SMTP_PORT
-      ? parseInt(process.env.SMTP_PORT)
-      : "(default: 587)",
-    secure: process.env.SMTP_SECURE === "true",
-    authProvided: !!(process.env.SMTP_USER && process.env.SMTP_PASSWORD),
-  };
+    // Configure Nodemailer transporter using NEXT_PUBLIC_ variables
+    const transporter = nodemailer.createTransport({
+      host: process.env.NEXT_PUBLIC_SMTP_HOST,
+      port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "465"),
+      secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true",
+      auth: {
+        user: process.env.NEXT_PUBLIC_SMTP_USER,
+        pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD,
+      },
+    });
 
-  return NextResponse.json({
-    emailConfig,
-    smtpConnectionDetails,
-    message: "Environment variables information",
-  });
+    // Log the configuration for debugging
+    console.log("SMTP Configuration:", {
+      host: process.env.NEXT_PUBLIC_SMTP_HOST,
+      port: process.env.NEXT_PUBLIC_SMTP_PORT,
+      secure: process.env.NEXT_PUBLIC_SMTP_SECURE,
+      user: process.env.NEXT_PUBLIC_SMTP_USER ? "(set)" : "(not set)",
+      pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD ? "(set)" : "(not set)",
+    });
+
+    // Email content
+    const mailOptions = {
+      from:
+        process.env.NEXT_PUBLIC_SMTP_FROM ||
+        `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      to: email,
+      subject: `You've been invited to join ${orgName} on the Reimbursement App`,
+      text: `You've been invited to join ${orgName} as a ${role} on the Reimbursement App. Click here to accept: ${signupUrl}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <!-- Your HTML email template -->
+        </html>
+      `,
+    };
+
+    try {
+      // Send the email using Nodemailer
+      const info = await transporter.sendMail(mailOptions);
+      console.log("Email sent:", info.messageId);
+
+      return NextResponse.json({
+        success: true,
+        inviteId: inviteRow.id,
+        message: "Invitation email sent successfully",
+      });
+    } catch (emailError: any) {
+      console.error("Error sending email with Nodemailer:", emailError);
+      return NextResponse.json(
+        {
+          success: false,
+          inviteId: inviteRow.id,
+          error: `Invite created but email failed: ${emailError.message}`,
+        },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    console.error("Error processing invitation:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to process invitation" },
+      { status: 500 }
+    );
+  }
 }

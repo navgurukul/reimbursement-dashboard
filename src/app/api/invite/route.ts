@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { invites } from "@/lib/db";
 import nodemailer from "nodemailer";
 
-// Configure Nodemailer transporter
+// Configure Nodemailer transporter with NEXT_PUBLIC_ prefixed variables
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST, // e.g., "smtp.gmail.com"
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
+  host: process.env.NEXT_PUBLIC_SMTP_HOST, // e.g., "smtp.gmail.com"
+  port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
+  secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true", // true for 465, false for other ports
   auth: {
-    user: process.env.SMTP_USER, // your email address
-    pass: process.env.SMTP_PASSWORD, // your email password or app password
+    user: process.env.NEXT_PUBLIC_SMTP_USER, // your email address
+    pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD, // your email password or app password
   },
 });
 
@@ -25,6 +25,16 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Log SMTP configuration for debugging
+    console.log("SMTP Configuration:", {
+      host: process.env.NEXT_PUBLIC_SMTP_HOST || "(not set)",
+      port: process.env.NEXT_PUBLIC_SMTP_PORT || "(not set)",
+      secure: process.env.NEXT_PUBLIC_SMTP_SECURE || "(not set)",
+      user: process.env.NEXT_PUBLIC_SMTP_USER ? "(set)" : "(not set)",
+      pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD ? "(set)" : "(not set)",
+      from: process.env.NEXT_PUBLIC_SMTP_FROM || "(not set)",
+    });
 
     // Create the invite in the database
     const { data: inviteRow, error: inviteError } = await invites.create(
@@ -45,8 +55,8 @@ export async function POST(req: NextRequest) {
     // Email content with responsive HTML template
     const mailOptions = {
       from:
-        process.env.SMTP_FROM ||
-        `"Reimbursement App" <${process.env.SMTP_USER}>`,
+        process.env.NEXT_PUBLIC_SMTP_FROM ||
+        `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
       to: email,
       subject: `You've been invited to join ${orgName} on the Reimbursement App`,
       text: `You've been invited to join ${orgName} as a ${role} on the Reimbursement App. Click here to accept: ${signupUrl}`,
