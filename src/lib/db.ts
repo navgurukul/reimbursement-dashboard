@@ -692,7 +692,6 @@ export const profiles = {
 // Removed users functions
 export const RemovedUsers = {
 
-  // Insert removed user into removed_users table.
   create: async (data: { user_id: string; email: string }) => {
     const { data: result, error } = await supabase
       .from("removed_users")

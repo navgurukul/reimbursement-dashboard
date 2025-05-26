@@ -171,7 +171,6 @@ export default function TeamPage() {
     }
   };
 
-  // Handle member deletion
   const handleDeleteMember = async (memberId: string) => {
     if (!org?.id) return;
 
@@ -181,26 +180,21 @@ export default function TeamPage() {
 
       const userId = orgUser.user_id;
 
-      // Fetch user profile for backup
       const { data: profile, error: profileError } = await profiles.getById(userId);
       if (profileError || !profile) throw profileError || new Error("Profile not found");
 
-      // Save user to removed_users (check error directly)
       const insertResult = await RemovedUsers.create({
         user_id: userId,
         email: profile.email,
       });
       if (insertResult.error) throw insertResult.error;
 
-      // Delete from organization_users
       const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
       if (orgUserDeleteError) throw orgUserDeleteError;
 
-      // Delete from profiles
       const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
       if (profileDeleteError) throw profileDeleteError;
 
-      // Update UI
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
       toast.success("Member deleted successfully");
     } catch (error: any) {
@@ -255,14 +249,6 @@ export default function TeamPage() {
                       <TableCell className="capitalize">{m.role}</TableCell>
                       <TableCell>
                         {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
-                          // <Button
-                          //   variant="destructive"
-                          //   size="sm"
-                          //   onClick={() => handleDeleteMember(m.id)}
-                          // >
-                          //   Delete
-                          // </Button>
-
                           <Trash
                             className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
                             onClick={() => handleDeleteMember(m.id)}
