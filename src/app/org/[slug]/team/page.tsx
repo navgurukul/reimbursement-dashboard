@@ -186,6 +186,10 @@ export default function TeamPage() {
       const insertResult = await RemovedUsers.create({
         user_id: userId,
         email: profile.email,
+        full_name: profile.full_name, 
+        created_at:profile.created_at,
+        removable_at: new Date(),
+
       });
       if (insertResult.error) throw insertResult.error;
 
