@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { invites, organizations, profiles } from "@/lib/db";
+import { invites, organizations, profiles, RemovedUsers } from "@/lib/db";
 import {
   Card,
   CardContent,
@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Trash } from "lucide-react";
 
 interface Member {
   id: string;
@@ -170,6 +171,45 @@ export default function TeamPage() {
     }
   };
 
+  const handleDeleteMember = async (memberId: string) => {
+    if (!org?.id) return;
+
+    try {
+      const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
+      if (fetchError || !orgUser) throw fetchError || new Error("User not found");
+
+      const userId = orgUser.user_id;
+
+      const { data: profile, error: profileError } = await profiles.getById(userId);
+      if (profileError || !profile) throw profileError || new Error("Profile not found");
+
+      const insertResult = await RemovedUsers.create({
+        user_id: userId,
+        email: profile.email,
+        full_name: profile.full_name, 
+        created_at:profile.created_at,
+        removable_at: new Date(),
+
+      });
+      if (insertResult.error) throw insertResult.error;
+
+      const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
+      if (orgUserDeleteError) throw orgUserDeleteError;
+
+      const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
+      if (profileDeleteError) throw profileDeleteError;
+
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      toast.success("Member deleted successfully");
+    } catch (error: any) {
+      console.error("Error deleting member:", error);
+      toast.error("Failed to delete member", {
+        description: error.message || "Please try again",
+      });
+    }
+  };
+
+
   return (
     <div className="space-y-8">
       <Card>
@@ -192,6 +232,7 @@ export default function TeamPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -210,6 +251,14 @@ export default function TeamPage() {
                       <TableCell>{m.fullName || "—"}</TableCell>
                       <TableCell>{m.email}</TableCell>
                       <TableCell className="capitalize">{m.role}</TableCell>
+                      <TableCell>
+                        {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
+                          <Trash
+                            className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
+                            onClick={() => handleDeleteMember(m.id)}
+                          />
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -221,55 +270,55 @@ export default function TeamPage() {
 
       {/* Invite Form (only owners/admins/managers) */}
       {(userRole === "owner" ||
-        userRole === "admin" ) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Invite New Team Member</CardTitle>
-            <CardDescription>
-              Send an email invite for someone to join this organization.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="space-y-4" onSubmit={handleInviteSubmit}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="sm:col-span-2">
-                  <Input
-                    placeholder="their‑email@example.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    required
-                    type="email"
-                  />
+        userRole === "admin") && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Invite New Team Member</CardTitle>
+              <CardDescription>
+                Send an email invite for someone to join this organization.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={handleInviteSubmit}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <Input
+                      placeholder="their‑email@example.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      required
+                      type="email"
+                    />
+                  </div>
+                  <Select
+                    value={inviteRole}
+                    onValueChange={(v: any) => setInviteRole(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        {(userRole === "owner" || userRole === "admin") && (
+                          <SelectItem value="admin">Admin</SelectItem>
+                        )}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="cursor-pointer"
+                  >
+                    {loading ? "Sending…" : "Send Invite"}
+                  </Button>
                 </div>
-                <Select
-                  value={inviteRole}
-                  onValueChange={(v: any) => setInviteRole(v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      {(userRole === "owner" || userRole === "admin") && (
-                        <SelectItem value="admin">Admin</SelectItem>
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="cursor-pointer"
-                >
-                  {loading ? "Sending…" : "Send Invite"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+              </form>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }
