@@ -135,7 +135,7 @@ export default function VoucherForm({
               Amount <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
-              <span className="absolute left-3 top-2.5">$</span>
+              <span className="absolute left-3 top-2.5">₹</span>
               <Input
                 id="voucherAmount"
                 type="number"

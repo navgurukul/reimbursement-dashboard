@@ -10,6 +10,7 @@ import {
   vouchers,
   ExpenseEvent,
   expenseEvents,
+  profiles,
 } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -207,34 +208,49 @@ export default function NewExpensePage() {
           return;
         }
 
+        // Fetch organization members
+        const { data: membersData } = await organizations.getOrganizationMembers(orgId);
+
+        let approverOptions: Array<{ value: string; label: string }> = [];
+
+        if (membersData) {
+          // Filter to get only approvers (owners, admins, managers)
+          const approvers = membersData.filter((member) =>
+            ["owner", "admin", "manager"].includes(member.role)
+          );
+
+          // Fetch profiles for approvers
+          const { data: profilesData } = await profiles.getByIds(
+            approvers.map((approver) => approver.user_id)
+          );
+
+          // Create a map of user_id to full_name or email
+          const approverNames = new Map(
+            profilesData?.map((profile) => [
+              profile.user_id,
+              profile.full_name || profile.email,
+            ]) || []
+          );
+
+          // Create approver options
+          approverOptions = approvers.map((approver) => ({
+            value: approver.user_id,
+            label: approverNames.get(approver.user_id) || approver.user_id,
+          }));
+        }
+
         if (settings) {
           const columnsToUse =
             settings.expense_columns && settings.expense_columns.length > 0
               ? settings.expense_columns
               : defaultExpenseColumns;
 
-          // Process the columns to filter out self-approval in the approver dropdown
+          // Process the columns to filter out self-approval and add approver options
           const processedColumns = columnsToUse.map((col: Column) => {
-            // If this is the approver column and the current user exists
-            if (col.key === "approver" && user && Array.isArray(col.options)) {
-              // Filter out the current user from the options
-              const filteredOptions = col.options.filter((option) => {
-                if (
-                  typeof option === "object" &&
-                  option !== null &&
-                  "value" in option
-                ) {
-                  return (
-                    (option as { value: string; label: string }).value !==
-                    user.id
-                  );
-                }
-                return option !== user.id;
-              });
-
+            if (col.key === "approver") {
               return {
                 ...col,
-                options: filteredOptions,
+                options: approverOptions.filter(option => option.value !== user?.id),
               };
             }
             return col;
@@ -253,26 +269,12 @@ export default function NewExpensePage() {
           initialData.event_id = eventIdFromQuery || "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         } else {
-          // Process the default columns similarly
+          // Process default columns with approver options
           const processedDefaultColumns = defaultExpenseColumns.map((col) => {
-            if (col.key === "approver" && user && Array.isArray(col.options)) {
-              const filteredOptions = col.options.filter((option) => {
-                if (
-                  typeof option === "object" &&
-                  option !== null &&
-                  "value" in option
-                ) {
-                  return (
-                    (option as { value: string; label: string }).value !==
-                    user.id
-                  );
-                }
-                return option !== user.id;
-              });
-
+            if (col.key === "approver") {
               return {
                 ...col,
-                options: filteredOptions,
+                options: approverOptions.filter(option => option.value !== user?.id),
               };
             }
             return col;

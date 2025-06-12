@@ -48,7 +48,7 @@ const defaultExpenseColumns = [
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: "INR",
   }).format(amount);
 
 export default function ExpensesPage() {
