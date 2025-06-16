@@ -981,27 +981,6 @@ export default function ViewExpensePage() {
                 </div>
               )}
 
-              {/* Approver Signature Section */}
-              {/* {approverSignatureUrl ? (
-                <div className="mt-6">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">
-                    Approver Signature
-                  </p>
-                  <div className="border rounded-md p-4 bg-white">
-                    <SignaturePad
-                      onSave={handleSaveSignature}
-                      label="Your Signature for Voucher"
-                      signatureUrl={approverSignatureUrl}
-                      userSignatureUrl={approverSignatureUrl || undefined}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-6 text-sm text-muted-foreground">
-                  Approver signature not available
-                </div>
-              )} */}
-
               {currentUserId === expense.approver_id && approverSignatureUrl && (
                 <div className="mt-6">
                   <p className="text-sm font-medium text-muted-foreground mb-2">
