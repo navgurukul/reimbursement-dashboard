@@ -155,6 +155,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         inviteId: inviteRow.id,
+        inviteUrl: signupUrl,
         message: "Invitation email sent successfully",
       });
     } catch (emailError: any) {

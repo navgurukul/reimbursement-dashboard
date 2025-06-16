@@ -148,7 +148,7 @@ export default function TeamPage() {
       // If we have an invite URL, copy it and show it to the user
       if (data.inviteUrl) {
         await navigator.clipboard.writeText(data.inviteUrl);
-        toast.success("Invitation link copied to clipboard", {
+        toast.success("Invitation created successfully!", {
           description: "Share this link with the invited user.",
           duration: 5000,
         });
@@ -186,8 +186,8 @@ export default function TeamPage() {
       const insertResult = await RemovedUsers.create({
         user_id: userId,
         email: profile.email,
-        full_name: profile.full_name, 
-        created_at:profile.created_at,
+        full_name: profile.full_name,
+        created_at: profile.created_at,
         removable_at: new Date(),
 
       });
