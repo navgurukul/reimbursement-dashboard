@@ -102,7 +102,7 @@ export default function ViewExpensePage() {
       const userID = JSON.parse(
         localStorage.getItem("auth-storage") || "{}"
       ).state?.user?.id;
-      
+
       const { data: userData, error } = await profiles.getById(userID);
       if (error) {
         console.error("Error fetching user:", error);
@@ -982,7 +982,7 @@ export default function ViewExpensePage() {
               )}
 
               {/* Approver Signature Section */}
-              {approverSignatureUrl ? (
+              {/* {approverSignatureUrl ? (
                 <div className="mt-6">
                   <p className="text-sm font-medium text-muted-foreground mb-2">
                     Approver Signature
@@ -1000,7 +1000,24 @@ export default function ViewExpensePage() {
                 <div className="mt-6 text-sm text-muted-foreground">
                   Approver signature not available
                 </div>
+              )} */}
+
+              {currentUserId === expense.approver_id && approverSignatureUrl && (
+                <div className="mt-6">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">
+                    Approver Signature
+                  </p>
+                  <div className="border rounded-md p-4 bg-white">
+                    <SignaturePad
+                      onSave={handleSaveSignature}
+                      label="Your Signature for Voucher"
+                      signatureUrl={approverSignatureUrl}
+                      userSignatureUrl={approverSignatureUrl || undefined}
+                    />
+                  </div>
+                </div>
               )}
+
 
 
               {/* Custom fields section */}
