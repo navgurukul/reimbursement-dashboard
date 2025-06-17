@@ -43,14 +43,14 @@ interface ColumnConfig {
   key: string;
   label: string;
   type:
-    | "text"
-    | "number"
-    | "date"
-    | "dropdown"
-    | "radio"
-    | "checkbox"
-    | "textarea"
-    | "file";
+  | "text"
+  | "number"
+  | "date"
+  | "dropdown"
+  | "radio"
+  | "checkbox"
+  | "textarea"
+  | "file";
   visible: boolean;
   options?: string[] | { value: string; label: string }[]; // For dropdown, radio, checkbox
   required?: boolean;
@@ -596,14 +596,14 @@ export default function SettingsPage() {
                         setEditingColumn((prev) =>
                           prev
                             ? {
-                                ...prev,
-                                label: e.target.value,
-                                key: prev.key.startsWith("custom_field_")
-                                  ? prev.key
-                                  : e.target.value
-                                      .toLowerCase()
-                                      .replace(/\s+/g, "_"),
-                              }
+                              ...prev,
+                              label: e.target.value,
+                              key: prev.key.startsWith("custom_field_")
+                                ? prev.key
+                                : e.target.value
+                                  .toLowerCase()
+                                  .replace(/\s+/g, "_"),
+                            }
                             : null
                         )
                       }

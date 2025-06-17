@@ -1,27 +1,40 @@
-import { NextResponse } from "next/server";
+// src/app/api/invite/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import { invites } from "@/lib/db";
-import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import nodemailer from "nodemailer";
 
-// Configure AWS SES client
-const sesClient = new SESClient({
-  region: process.env.REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.SECRET_ACCESS_KEY || "",
+// Configure Nodemailer transporter with NEXT_PUBLIC_ prefixed variables
+const transporter = nodemailer.createTransport({
+  host: process.env.NEXT_PUBLIC_SMTP_HOST, // e.g., "smtp.gmail.com"
+  port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
+  secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true", // true for 465, false for other ports
+  auth: {
+    user: process.env.NEXT_PUBLIC_SMTP_USER, // your email address
+    pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD, // your email password or app password
   },
 });
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
-    const { email, role, orgId, orgName } = body;
+    const { email, role, orgId, orgName } = await req.json();
 
-    if (!email || !role || !orgId) {
+    // Validate request
+    if (!email || !role || !orgId || !orgName) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
+
+    // Log SMTP configuration for debugging
+    console.log("SMTP Configuration:", {
+      host: process.env.NEXT_PUBLIC_SMTP_HOST || "(not set)",
+      port: process.env.NEXT_PUBLIC_SMTP_PORT || "(not set)",
+      secure: process.env.NEXT_PUBLIC_SMTP_SECURE || "(not set)",
+      user: process.env.NEXT_PUBLIC_SMTP_USER ? "(set)" : "(not set)",
+      pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD ? "(set)" : "(not set)",
+      from: process.env.NEXT_PUBLIC_SMTP_FROM || "(not set)",
+    });
 
     // Create the invite in the database
     const { data: inviteRow, error: inviteError } = await invites.create(
@@ -40,125 +53,113 @@ export async function POST(request: Request) {
     const signupUrl = `${baseUrl}/auth/signup?token=${inviteRow.id}`;
 
     // Email content with responsive HTML template
-    const emailParams = {
-      Source: process.env.SES_SENDER_EMAIL,
-      Destination: {
-        ToAddresses: [email],
-      },
-      Message: {
-        Subject: {
-          Data: `You've been invited to join ${orgName} on the Reimbursement App`,
-          Charset: "UTF-8",
-        },
-        Body: {
-          Html: {
-            Data: `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Invitation to join ${orgName}</title>
-                <style>
-                  body {
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    margin: 0;
-                    padding: 0;
-                  }
-                  .container {
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                  }
-                  .header {
-                    background-color: #4f46e5;
-                    padding: 20px;
-                    text-align: center;
-                    border-radius: 8px 8px 0 0;
-                  }
-                  .header h1 {
-                    color: white;
-                    margin: 0;
-                    font-size: 24px;
-                  }
-                  .content {
-                    background-color: #ffffff;
-                    padding: 20px;
-                    border: 1px solid #e5e7eb;
-                    border-top: none;
-                    border-radius: 0 0 8px 8px;
-                  }
-                  .button {
-                    display: inline-block;
-                    background-color: #4f46e5;
-                    color: white;
-                    text-decoration: none;
-                    padding: 12px 24px;
-                    border-radius: 4px;
-                    margin: 20px 0;
-                    font-weight: 500;
-                  }
-                  .footer {
-                    text-align: center;
-                    margin-top: 20px;
-                    font-size: 12px;
-                    color: #6b7280;
-                  }
-                  @media screen and (max-width: 600px) {
-                    .container {
-                      width: 100%;
-                    }
-                  }
-                </style>
-              </head>
-              <body>
-                <div class="container">
-                  <div class="header">
-                    <h1>You've been invited!</h1>
-                  </div>
-                  <div class="content">
-                    <p>Hello,</p>
-                    <p>You've been invited to join <strong>${orgName}</strong> as a <strong>${role}</strong> on the Reimbursement App.</p>
-                    <p>Click the button below to accept the invitation and create your account:</p>
-                    <p style="text-align: center;">
-                      <a href="${signupUrl}" class="button">Accept Invitation</a>
-                    </p>
-                    <p>Or copy and paste this link into your browser:</p>
-                    <p style="word-break: break-all;">${signupUrl}</p>
-                    <p>This invite link will expire in 7 days.</p>
-                    <p>If you have any questions, please contact the organization administrator.</p>
-                  </div>
-                  <div class="footer">
-                    <p>This is an automated message, please do not reply directly to this email.</p>
-                  </div>
-                </div>
-              </body>
-              </html>
-            `,
-            Charset: "UTF-8",
-          },
-          Text: {
-            Data: `You've been invited to join ${orgName} as a ${role} on the Reimbursement App. Click here to accept: ${signupUrl}`,
-            Charset: "UTF-8",
-          },
-        },
-      },
+    const mailOptions = {
+      from:
+        process.env.NEXT_PUBLIC_SMTP_FROM ||
+        `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      to: email,
+      subject: `You've been invited to join ${orgName} on the Reimbursement App`,
+      text: `You've been invited to join ${orgName} as a ${role} on the Reimbursement App. Click here to accept: ${signupUrl}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Invitation to join ${orgName}</title>
+          <style>
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              margin: 0;
+              padding: 0;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background-color: #4f46e5;
+              padding: 20px;
+              text-align: center;
+              border-radius: 8px 8px 0 0;
+            }
+            .header h1 {
+              color: white;
+              margin: 0;
+              font-size: 24px;
+            }
+            .content {
+              background-color: #ffffff;
+              padding: 20px;
+              border: 1px solid #e5e7eb;
+              border-top: none;
+              border-radius: 0 0 8px 8px;
+            }
+            .button {
+              display: inline-block;
+              background-color: #4f46e5;
+              color: white;
+              text-decoration: none;
+              padding: 12px 24px;
+              border-radius: 4px;
+              margin: 20px 0;
+              font-weight: 500;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              font-size: 12px;
+              color: #6b7280;
+            }
+            @media screen and (max-width: 600px) {
+              .container {
+                width: 100%;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>You've been invited!</h1>
+            </div>
+            <div class="content">
+              <p>Hello,</p>
+              <p>You've been invited to join <strong>${orgName}</strong> as a <strong>${role}</strong> on the Reimbursement App.</p>
+              <p>Click the button below to accept the invitation and create your account:</p>
+              <p style="text-align: center;">
+                <a href="${signupUrl}" class="button">Accept Invitation</a>
+              </p>
+              <p>Or copy and paste this link into your browser:</p>
+              <p style="word-break: break-all;">${signupUrl}</p>
+              <p>This invite link will expire in 7 days.</p>
+              <p>If you have any questions, please contact the organization administrator.</p>
+            </div>
+            <div class="footer">
+              <p>This is an automated message, please do not reply directly to this email.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
     };
 
     try {
-      // Send the email using AWS SES
-      const sendCommand = new SendEmailCommand(emailParams);
-      await sesClient.send(sendCommand);
+      // Send the email using Nodemailer
+      const info = await transporter.sendMail(mailOptions);
+      console.log("Email sent:", info.messageId);
 
       return NextResponse.json({
         success: true,
         inviteId: inviteRow.id,
+        inviteUrl: signupUrl,
         message: "Invitation email sent successfully",
       });
-    } catch (sesError: any) {
-      console.error("Error sending email with SES:", sesError);
+    } catch (emailError: any) {
+      console.error("Error sending email with Nodemailer:", emailError);
 
       // Even if email fails, we'll still return the invite ID
       // as the invite was created in the database
@@ -166,7 +167,7 @@ export async function POST(request: Request) {
         {
           success: false,
           inviteId: inviteRow.id,
-          error: `Invite created but email failed: ${sesError.message}`,
+          error: `Invite created but email failed: ${emailError.message}`,
         },
         { status: 500 }
       );

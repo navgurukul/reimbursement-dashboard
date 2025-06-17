@@ -350,6 +350,24 @@ export const organizations = {
       .eq("org_id", orgId)
       .returns<OrganizationMember[]>();
   },
+
+  getMemberById: async (memberId: string) => {
+    return supabase
+      .from("organization_users")
+      .select("user_id")
+      .eq("id", memberId)
+      .single();
+  },
+
+  deleteOrganizationMember: async (org_id: string, user_id: string) => {
+    const { error } = await supabase
+      .from("organization_users")
+      .delete()
+      .match({ id: user_id, org_id: org_id });
+
+    return { error };
+  }
+
 };
 
 // Add this entire object to your db.ts file with other database functions
@@ -374,7 +392,7 @@ export const expenseEvents = {
 
       return { data: eventData as ExpenseEvent, error: null };
     } catch (error: any) {
-      console.error("Error creating expense event:", error);
+      console.error('Error creating expense event:', error);
       return {
         data: null,
         error: {
@@ -387,78 +405,70 @@ export const expenseEvents = {
     }
   },
   // Add this function to the expenseEvents object in db.ts
-  async getAvailableEvents(
-    orgId: string,
-    userId: string,
-    userRole: string
-  ): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
-    try {
-      let query = supabase
-        .from("expense_events")
-        .select("*")
-        .eq("org_id", orgId);
+  async getAvailableEvents(orgId: string, userId: string, userRole: string): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
+  try {
+    let query = supabase
+      .from('expense_events')
+      .select('*')
+      .eq('org_id', orgId);
 
-      // If user is admin or owner, show them all events
-      if (userRole === "admin" || userRole === "owner") {
-        // No additional filtering needed - admins/owners see all events
-      } else {
-        // For regular members, show:
-        // 1. Events they created (with any status)
-        // 2. Events created by others with "submitted" status
-        query = query.or(`user_id.eq.${userId},status.eq.submitted`);
-      }
-
-      const { data, error } = await query.order("created_at", {
-        ascending: false,
-      });
-
-      if (error) {
-        return { data: null, error: error as DatabaseError };
-      }
-
-      return { data: data as ExpenseEvent[], error: null };
-    } catch (error: any) {
-      console.error("Error fetching available expense events:", error);
-      return {
-        data: null,
-        error: {
-          message: error instanceof Error ? error.message : "Unknown error",
-          details: "",
-          hint: "Check your input and try again",
-          code: "UNKNOWN_ERROR",
-        },
-      };
+    // If user is admin or owner, show them all events
+    if (userRole === 'admin' || userRole === 'owner') {
+      // No additional filtering needed - admins/owners see all events
+    } else {
+      // For regular members, show:
+      // 1. Events they created (with any status)
+      // 2. Events created by others with "submitted" status
+      query = query.or(`user_id.eq.${userId},status.eq.submitted`);
     }
-  },
-  // Get expense event by ID
-  async getById(
-    id: string
-  ): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
-    try {
-      const { data, error } = await supabase
-        .from("expense_events")
-        .select("*")
-        .eq("id", id)
-        .single();
 
-      if (error) {
-        return { data: null, error: error as DatabaseError };
-      }
+    const { data, error } = await query.order('created_at', { ascending: false });
 
-      return { data: data as ExpenseEvent, error: null };
-    } catch (error: any) {
-      console.error("Error fetching expense event:", error);
-      return {
-        data: null,
-        error: {
-          message: error instanceof Error ? error.message : "Unknown error",
-          details: "",
-          hint: "Check your input and try again",
-          code: "UNKNOWN_ERROR",
-        },
-      };
+    if (error) {
+      return { data: null, error: error as DatabaseError };
     }
-  },
+
+    return { data: data as ExpenseEvent[], error: null };
+  } catch (error: any) {
+    console.error('Error fetching available expense events:', error);
+    return {
+      data: null,
+      error: {
+        message: error instanceof Error ? error.message : "Unknown error",
+        details: "",
+        hint: "Check your input and try again",
+        code: "UNKNOWN_ERROR",
+      }
+    };
+  }
+},
+
+async getById(id: string): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('expense_events')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return { data: data as ExpenseEvent, error: null };
+  } catch (error: any) {
+    console.error('Error fetching expense event:', error);
+    return {
+      data: null,
+      error: {
+        message: error instanceof Error ? error.message : "Unknown error",
+        details: "",
+        hint: "Check your input and try again",
+        code: "UNKNOWN_ERROR",
+      }
+    };
+  }
+},
 
   // Get expense events by organization and user
   async getByOrgAndUser(
@@ -611,6 +621,16 @@ export const profiles = {
     return { data, error: null };
   },
 
+  async getById(userId: string) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .single(); // since user_id is unique
+
+    return { data, error };
+  },
+
   saveSignature: async (userId: string, signaturePath: string) => {
     return await supabase
       .from("profiles")
@@ -684,6 +704,28 @@ export const profiles = {
       .single()
       .returns<Profile>();
   },
+
+  deleteByUserId: async (userId: string) => {
+    return supabase
+      .from("profiles")
+      .delete()
+      .eq("user_id", userId);
+  },
+};
+
+// Removed users functions
+export const RemovedUsers = {
+
+  create: async (data: { user_id: string; email: string; full_name: string; created_at: string; removable_at: Date }) => {
+    const { data: result, error } = await supabase
+      .from("removed_users")
+      .insert([data])
+      .select()
+      .single();
+
+    return { data: result, error };
+  },
+
 };
 
 // Invites functions
@@ -927,7 +969,7 @@ export const expenses = {
     };
   },
   /**
-   * Get expenses by event ID
+   
    */ /**
    * Get expenses by event ID
    */
@@ -951,13 +993,9 @@ export const expenses = {
     }
 
     // Get all unique approver IDs
-    const approverIds = [
-      ...new Set(
-        (expenses || [])
-          .map((expense) => expense.approver_id)
-          .filter((id) => id)
-      ),
-    ];
+    const approverIds = [...new Set((expenses || [])
+      .map(expense => expense.approver_id)
+      .filter(id => id))];
 
     if (approverIds.length > 0) {
       // Get all approvers in one query
@@ -968,19 +1006,16 @@ export const expenses = {
 
       if (approvers && approvers.length > 0) {
         // Create a lookup map
-        const approverMap: Record<
-          string,
-          { user_id: string; full_name: string }
-        > = {};
-        approvers.forEach((a) => {
+        const approverMap: Record<string, { user_id: string, full_name: string }> = {};
+        approvers.forEach(a => {
           approverMap[a.user_id] = a;
         });
 
         // Add approver data to each expense
-        expenses.forEach((expense) => {
+        expenses.forEach(expense => {
           if (expense.approver_id && approverMap[expense.approver_id]) {
             expense.approver = {
-              full_name: approverMap[expense.approver_id].full_name,
+              full_name: approverMap[expense.approver_id].full_name
             };
           }
         });
@@ -1020,13 +1055,9 @@ export const expenses = {
     }
 
     // Get all unique approver IDs
-    const approverIds = [
-      ...new Set(
-        (expenses || [])
-          .map((expense) => expense.approver_id)
-          .filter((id) => id)
-      ),
-    ];
+    const approverIds = [...new Set((expenses || [])
+      .map(expense => expense.approver_id)
+      .filter(id => id))];
 
     if (approverIds.length > 0) {
       // Get all approvers in one query
@@ -1037,19 +1068,16 @@ export const expenses = {
 
       if (approvers && approvers.length > 0) {
         // Create a lookup map
-        const approverMap: Record<
-          string,
-          { user_id: string; full_name: string }
-        > = {};
-        approvers.forEach((a) => {
+        const approverMap: Record<string, { user_id: string, full_name: string }> = {};
+        approvers.forEach(a => {
           approverMap[a.user_id] = a;
         });
 
         // Add approver data to each expense
-        expenses.forEach((expense) => {
+        expenses.forEach(expense => {
           if (expense.approver_id && approverMap[expense.approver_id]) {
             expense.approver = {
-              full_name: approverMap[expense.approver_id].full_name,
+              full_name: approverMap[expense.approver_id].full_name
             };
           }
         });
@@ -1088,13 +1116,9 @@ export const expenses = {
     }
 
     // Get all unique approver IDs
-    const approverIds = [
-      ...new Set(
-        (expenses || [])
-          .map((expense) => expense.approver_id)
-          .filter((id) => id)
-      ),
-    ];
+    const approverIds = [...new Set((expenses || [])
+      .map(expense => expense.approver_id)
+      .filter(id => id))];
 
     if (approverIds.length > 0) {
       // Get all approvers in one query
@@ -1105,19 +1129,16 @@ export const expenses = {
 
       if (approvers && approvers.length > 0) {
         // Create a lookup map
-        const approverMap: Record<
-          string,
-          { user_id: string; full_name: string }
-        > = {};
-        approvers.forEach((a) => {
+        const approverMap: Record<string, { user_id: string, full_name: string }> = {};
+        approvers.forEach(a => {
           approverMap[a.user_id] = a;
         });
 
         // Add approver data to each expense
-        expenses.forEach((expense) => {
+        expenses.forEach(expense => {
           if (expense.approver_id && approverMap[expense.approver_id]) {
             expense.approver = {
-              full_name: approverMap[expense.approver_id].full_name,
+              full_name: approverMap[expense.approver_id].full_name
             };
           }
         });
@@ -1168,7 +1189,7 @@ export const expenses = {
 
       if (approver) {
         // Add the same approver info to all expenses
-        expenses.forEach((expense) => {
+        expenses.forEach(expense => {
           expense.approver = { full_name: approver.full_name };
         });
       }
@@ -1228,20 +1249,17 @@ export const expenses = {
     };
   },
   // Add this function to the expenses object in db.ts
-  async getApproverNames(
-    expenseIds: string[]
-  ): Promise<Record<string, string>> {
+  async getApproverNames(expenseIds: string[]): Promise<Record<string, string>> {
     try {
       if (!expenseIds || expenseIds.length === 0) {
         return {};
       }
 
-      const { data, error } = await supabase.rpc("get_expense_approver", {
-        expense_ids: expenseIds,
-      });
+      const { data, error } = await supabase
+        .rpc('get_expense_approver', { expense_ids: expenseIds });
 
       if (error) {
-        console.error("Error getting approver names:", error);
+        console.error('Error getting approver names:', error);
         return {};
       }
 
@@ -1687,7 +1705,7 @@ export const vouchers = {
         path: "",
         error: new StorageApiError(
           "Failed to upload signature: " +
-            (error instanceof Error ? error.message : String(error)),
+          (error instanceof Error ? error.message : String(error)),
           500
         ),
       };

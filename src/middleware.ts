@@ -45,6 +45,7 @@ export async function updateSession(request: NextRequest) {
   const isSubdomain = hostname.includes(".") && !hostname.includes("localhost");
   const excludedSubdomains = ["www", "reimbursement", "app"]; // Add your app name here
 
+  
   // Check if this is a proper org subdomain that should be redirected
   // Only redirect if it's not an excluded subdomain
   if (

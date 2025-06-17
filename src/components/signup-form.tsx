@@ -107,7 +107,7 @@ export function SignupForm({
         if (orgError || !orgData) throw orgError;
 
         toast.dismiss(toastId);
-        toast.success("Joined successfully! Redirecting…");
+        toast.success("Please check your email to confirm your signup.");
         router.push(`/org/${orgData.slug}`);
       } else {
         toast.dismiss(toastId);
