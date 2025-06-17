@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -21,6 +22,7 @@ import { PolicyAlert } from "@/components/policy-alert";
 import { Input } from "@/components/ui/input";
 import supabase from "@/lib/supabase";
 import ExpenseHistory from "./history/expense-history";
+import { ExpenseComments } from "./history/expense-comments";
 import SignaturePad from "@/components/SignatureCanvas";
 import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -997,8 +999,6 @@ export default function ViewExpensePage() {
                 </div>
               )}
 
-
-
               {/* Custom fields section */}
               {expense.custom_fields &&
                 Object.keys(expense.custom_fields).length > 0 && (
@@ -1015,6 +1015,15 @@ export default function ViewExpensePage() {
                 )}
             </CardContent>
           </Card>
+
+          {/* Add Comments section directly below Expense Details */}
+          <div className="mt-6">
+            <Card>
+              <CardContent className="p-6">
+                <ExpenseComments expenseId={expense.id} />
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Activity History - Takes 2 columns of the 5-column grid to be wider */}
