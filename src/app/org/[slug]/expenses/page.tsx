@@ -36,10 +36,12 @@ import {
 import { formatDate } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 
+
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
   { key: "category", label: "Category", visible: true },
   { key: "amount", label: "Amount", visible: true },
+  { key: "creator_name", label: "Name", visible: true, type: "text" },
   { key: "description", label: "Description", visible: true },
   { key: "receipt", label: "Receipt", visible: true },
   { key: "approver", label: "Approver", visible: true },
@@ -77,16 +79,15 @@ export default function ExpensesPage() {
     userRole === "member"
       ? [{ value: "my", label: "My Expenses" }]
       : userRole === "admin"
-      ? [
+        ? [
           { value: "my", label: "My Expenses" },
           { value: "pending", label: "Pending Approval" },
         ]
-      : [
+        : [
           { value: "my", label: "My Expenses" },
           { value: "pending", label: "Pending Approval" },
           { value: "all", label: "All Expenses" },
         ];
-
   useEffect(() => {
     async function fetchData() {
       if (!orgId) return;
@@ -98,30 +99,24 @@ export default function ExpensesPage() {
         toast.error("Failed to load settings", { description: se.message });
         setColumns(defaultExpenseColumns);
       } else {
-        // Safely handle the case where settings or expense_columns might be undefined
         const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+        console.log("Expense Columns:", expenseColumns);
+        // Ensure creator_name column exists
+        if (!expenseColumns.some(c => c.key === 'creator_name')) {
+          expenseColumns.splice(2, 0, { key: 'creator_name', label: 'Name', visible: true, type: "text" });
+        }
         setColumns(expenseColumns);
       }
 
       // 2) load expenses per role
-      let my: any[] = [],
-        pending: any[] = [],
-        all: any[] = [];
+      let my: any[] = [], pending: any[] = [], all: any[] = [];
 
       if (userRole === "member") {
-        // Members can only see their own expenses
-        const { data, error } = await expenses.getByOrgAndUser(
-          orgId,
-          user?.id!
-        );
-        if (error)
-          toast.error("Failed to load expenses", {
-            description: error.message,
-          });
+        const { data, error } = await expenses.getByOrgAndUser(orgId, user?.id!);
+        if (error) toast.error("Failed to load expenses", { description: error.message });
         my = data ?? [];
         all = data ?? [];
       } else {
-        // Admins and owners can see all views
         const [
           { data: myData, error: myErr },
           { data: pendingData, error: pendingErr },
@@ -132,102 +127,99 @@ export default function ExpensesPage() {
           expenses.getByOrg(orgId),
         ]);
 
-        if (myErr)
-          toast.error("Failed to load your expenses", {
-            description: myErr.message,
-          });
-        if (pendingErr)
-          toast.error("Failed to load pending approvals", {
-            description: pendingErr.message,
-          });
-        if (allErr)
-          toast.error("Failed to load all expenses", {
-            description: allErr.message,
-          });
+        if (myErr) toast.error("Failed to load your expenses", { description: myErr.message });
+        if (pendingErr) toast.error("Failed to load pending approvals", { description: pendingErr.message });
+        if (allErr) toast.error("Failed to load all expenses", { description: allErr.message });
 
         my = myData ?? [];
         pending = pendingData ?? [];
         all = allData ?? [];
       }
 
-      // 3) Check for vouchers for each expense
-      if (my.length > 0 || all.length > 0 || pending.length > 0) {
-const processExpenseData = async (expensesList: any[]) => {
-  if (!expensesList || expensesList.length === 0) {
-    return [];
-  }
+      // 3) Process expense data including creator information
+      const processExpenseData = async (expensesList: any[]) => {
+        if (!expensesList || expensesList.length === 0) return [];
 
-  const processedExpenses = [...expensesList];
+        const processedExpenses = [...expensesList];
+        const expenseIds = processedExpenses.map((exp) => exp.id);
 
-  try {
-    // Get expense IDs
-    const expenseIds = processedExpenses.map((exp) => exp.id);
+        try {
+          // Fetch additional data in parallel
+          const [
+            { data: allVouchers, error: voucherError },
+            approverNamesMap,
+            { data: creatorData, error: creatorError }
+          ] = await Promise.all([
+            supabase.from("vouchers").select("*").in("expense_id", expenseIds),
+            expenses.getApproverNames(expenseIds),
+            supabase.from("expenses")
+              .select("id, user:profiles(full_name)")
+              .in("id", expenseIds)
+          ]);
 
-    // Fetch vouchers
-    const { data: allVouchers, error: voucherError } = await supabase
-      .from("vouchers")
-      .select("*")
-      .in("expense_id", expenseIds);
+          if (voucherError) console.error("Error fetching vouchers:", voucherError);
+          if (creatorError) console.error("Error fetching creators:", creatorError);
 
-    if (voucherError) {
-      console.error("Error fetching vouchers:", voucherError);
-    }
+          // Create lookup maps
+          const voucherMap: Record<string, any> = {};
+          const creatorMap: Record<string, string> = {};
 
-    // Create voucher lookup map
-    const voucherMap: Record<string, any> = {};
-    if (allVouchers && allVouchers.length > 0) {
-      allVouchers.forEach((voucher) => {
-        voucherMap[voucher.expense_id] = voucher;
-      });
-    }
+          if (allVouchers) {
+            allVouchers.forEach(voucher => voucherMap[voucher.expense_id] = voucher);
+          }
 
-    // Get all approver names at once using our new function
-    const approverNamesMap = await expenses.getApproverNames(expenseIds);
+          if (creatorData) {
+            creatorData.forEach(expense => {
+              creatorMap[expense.id] = expense.user?.full_name || user?.full_name || "Unknown";
+            });
+          }
 
-    // Process each expense
-    for (const expense of processedExpenses) {
-      try {
-        // Check for voucher
-        const voucher = voucherMap[expense.id];
-        if (voucher) {
-          expense.hasVoucher = true;
-          expense.voucherId = voucher.id;
+          // Process each expense
+          for (const expense of processedExpenses) {
+            // Add voucher info if exists
+            const voucher = voucherMap[expense.id];
+            if (voucher) {
+              expense.hasVoucher = true;
+              expense.voucherId = voucher.id;
+            }
+
+            // Add creator info
+            expense.creator_name = creatorMap[expense.id] || user?.full_name || "Unknown";
+
+
+            // Add approver info
+            expense.approver = {
+              full_name: approverNamesMap[expense.id] || "Unknown Approver",
+              user_id: expense.approver_id || voucher?.approver_id,
+            };
+          }
+
+
+          return processedExpenses;
+        } catch (error) {
+          console.error("Error processing expenses:", error);
+          return processedExpenses.map(expense => ({
+            ...expense,
+            creator_name: user?.full_name || "Unknown",
+            approver: {
+              full_name: "Unknown Approver",
+              user_id: null
+            }
+          }));
         }
+      };
 
-        // Get approver name from our map
-        const approverName = approverNamesMap[expense.id] || "Unknown Approver";
-
-        // Set approver info on the expense
-        expense.approver = {
-          full_name: approverName,
-          user_id: expense.approver_id || voucher?.approver_id,
-        };
-
-      
-      } catch (error) {
-        console.error(`Error processing expense ${expense.id}:`, error);
+      // Process all expense lists
+      my = await processExpenseData(my);
+      if (userRole !== "member") {
+        pending = await processExpenseData(pending);
+        all = await processExpenseData(all);
       }
-    }
 
-    return processedExpenses;
-  } catch (error) {
-    console.error("Error in processExpenseData:", error);
-    return processedExpenses;
-  }
-};
-
-        // Then use this function to process your expense lists
-        my = await processExpenseData(my);
-        if (userRole !== "member") {
-          pending = await processExpenseData(pending);
-          all = await processExpenseData(all);
-        }
-      }
       setExpensesData(my);
       setPendingApprovals(pending);
-     
       setAllExpenses(all);
-      // compute stats on "all"
+
       setStats({
         total: all.length,
         approved: all.filter((e) => e.status === "approved").length,
@@ -239,6 +231,8 @@ const processExpenseData = async (expensesList: any[]) => {
     }
     fetchData();
   }, [orgId, userRole, user?.id]);
+
+  // ... rest of your component code remains the same
 
   const getCurrent = () => {
     if (activeTab === "my") return expensesData;
@@ -272,6 +266,7 @@ const processExpenseData = async (expensesList: any[]) => {
     visible: boolean;
   }
 
+
   interface Expense {
     id: string;
     date: string;
@@ -284,6 +279,7 @@ const processExpenseData = async (expensesList: any[]) => {
     approver?: {
       full_name?: string;
     };
+    creator_name?: string; // Added for creator name
     status: string;
     custom_fields?: Record<string, any>;
     hasVoucher?: boolean;
@@ -415,6 +411,13 @@ const processExpenseData = async (expensesList: any[]) => {
                               <TableCell key={c.key}>
                                 {c.key === "amount" ? (
                                   formatCurrency(exp[c.key])
+                                ) : c.key === "creator_name" ? (
+                                  // Display creator name with multiple fallback options
+                                  exp.created_by?.full_name ||
+                                  exp.user?.full_name ||
+                                  exp.creator_name ||
+                                  exp.submitted_by ||
+                                  "—"
                                 ) : c.key === "date" ? (
                                   formatDate(exp[c.key])
                                 ) : c.key === "receipt" ? (
@@ -477,13 +480,12 @@ const processExpenseData = async (expensesList: any[]) => {
                             ))}
                           <TableCell>
                             <span
-                              className={`px-2 py-1 rounded-full text-xs ${
-                                exp.status === "approved"
-                                  ? "bg-green-100 text-green-800"
-                                  : exp.status === "rejected"
+                              className={`px-2 py-1 rounded-full text-xs ${exp.status === "approved"
+                                ? "bg-green-100 text-green-800"
+                                : exp.status === "rejected"
                                   ? "bg-red-100 text-red-800"
                                   : "bg-amber-100 text-amber-800"
-                              }`}
+                                }`}
                             >
                               {exp.status.charAt(0).toUpperCase() +
                                 exp.status.slice(1)}
@@ -515,15 +517,15 @@ const processExpenseData = async (expensesList: any[]) => {
                               )}
                               {(userRole === "admin" ||
                                 userRole === "owner") && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-red-600"
-                                  onClick={() => handleDelete(exp.id)}
-                                >
-                                  Delete
-                                </Button>
-                              )}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-red-600"
+                                    onClick={() => handleDelete(exp.id)}
+                                  >
+                                    Delete
+                                  </Button>
+                                )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -539,3 +541,5 @@ const processExpenseData = async (expensesList: any[]) => {
     </div>
   );
 }
+
+
