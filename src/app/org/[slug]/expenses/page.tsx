@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -40,6 +42,7 @@ const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
   { key: "category", label: "Category", visible: true },
   { key: "amount", label: "Amount", visible: true },
+  { key: "creator_name", label: "Created By", visible: true },
   { key: "description", label: "Description", visible: true },
   { key: "receipt", label: "Receipt", visible: true },
   { key: "approver", label: "Approver", visible: true },
@@ -100,6 +103,17 @@ export default function ExpensesPage() {
       } else {
         // Safely handle the case where settings or expense_columns might be undefined
         const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+
+        // Ensure creator_name column exists
+        if (!expenseColumns.some((c) => c.key === "creator_name")) {
+          expenseColumns.splice(3, 0, {
+            key: "creator_name",
+            label: "Created By",
+            visible: true,
+            type: "text",
+          });
+        }
+
         setColumns(expenseColumns);
       }
 
@@ -152,69 +166,70 @@ export default function ExpensesPage() {
 
       // 3) Check for vouchers for each expense
       if (my.length > 0 || all.length > 0 || pending.length > 0) {
-const processExpenseData = async (expensesList: any[]) => {
-  if (!expensesList || expensesList.length === 0) {
-    return [];
-  }
+        const processExpenseData = async (expensesList: any[]) => {
+          if (!expensesList || expensesList.length === 0) {
+            return [];
+          }
 
-  const processedExpenses = [...expensesList];
+          const processedExpenses = [...expensesList];
 
-  try {
-    // Get expense IDs
-    const expenseIds = processedExpenses.map((exp) => exp.id);
+          try {
+            // Get expense IDs
+            const expenseIds = processedExpenses.map((exp) => exp.id);
 
-    // Fetch vouchers
-    const { data: allVouchers, error: voucherError } = await supabase
-      .from("vouchers")
-      .select("*")
-      .in("expense_id", expenseIds);
+            // Fetch vouchers
+            const { data: allVouchers, error: voucherError } = await supabase
+              .from("vouchers")
+              .select("*")
+              .in("expense_id", expenseIds);
 
-    if (voucherError) {
-      console.error("Error fetching vouchers:", voucherError);
-    }
+            if (voucherError) {
+              console.error("Error fetching vouchers:", voucherError);
+            }
 
-    // Create voucher lookup map
-    const voucherMap: Record<string, any> = {};
-    if (allVouchers && allVouchers.length > 0) {
-      allVouchers.forEach((voucher) => {
-        voucherMap[voucher.expense_id] = voucher;
-      });
-    }
+            // Create voucher lookup map
+            const voucherMap: Record<string, any> = {};
+            if (allVouchers && allVouchers.length > 0) {
+              allVouchers.forEach((voucher) => {
+                voucherMap[voucher.expense_id] = voucher;
+              });
+            }
 
-    // Get all approver names at once using our new function
-    const approverNamesMap = await expenses.getApproverNames(expenseIds);
+            // Get all approver names at once using our new function
+            const approverNamesMap = await expenses.getApproverNames(
+              expenseIds
+            );
 
-    // Process each expense
-    for (const expense of processedExpenses) {
-      try {
-        // Check for voucher
-        const voucher = voucherMap[expense.id];
-        if (voucher) {
-          expense.hasVoucher = true;
-          expense.voucherId = voucher.id;
-        }
+            // Process each expense
+            for (const expense of processedExpenses) {
+              try {
+                // Check for voucher
+                const voucher = voucherMap[expense.id];
+                if (voucher) {
+                  expense.hasVoucher = true;
+                  expense.voucherId = voucher.id;
+                }
 
-        // Get approver name from our map
-        const approverName = approverNamesMap[expense.id] || "Unknown Approver";
+                // Get approver name from our map
+                const approverName =
+                  approverNamesMap[expense.id] || "Unknown Approver";
 
-        // Set approver info on the expense
-        expense.approver = {
-          full_name: approverName,
-          user_id: expense.approver_id || voucher?.approver_id,
+                // Set approver info on the expense
+                expense.approver = {
+                  full_name: approverName,
+                  user_id: expense.approver_id || voucher?.approver_id,
+                };
+              } catch (error) {
+                console.error(`Error processing expense ${expense.id}:`, error);
+              }
+            }
+
+            return processedExpenses;
+          } catch (error) {
+            console.error("Error in processExpenseData:", error);
+            return processedExpenses;
+          }
         };
-
-      
-      } catch (error) {
-        console.error(`Error processing expense ${expense.id}:`, error);
-      }
-    }
-
-    return processedExpenses;
-  } catch (error) {
-    console.error("Error in processExpenseData:", error);
-    return processedExpenses;
-  }
-};
 
         // Then use this function to process your expense lists
         my = await processExpenseData(my);
@@ -225,7 +240,7 @@ const processExpenseData = async (expensesList: any[]) => {
       }
       setExpensesData(my);
       setPendingApprovals(pending);
-     
+
       setAllExpenses(all);
       // compute stats on "all"
       setStats({
@@ -417,6 +432,8 @@ const processExpenseData = async (expensesList: any[]) => {
                                   formatCurrency(exp[c.key])
                                 ) : c.key === "date" ? (
                                   formatDate(exp[c.key])
+                                ) : c.key === "creator_name" ? (
+                                  exp.creator?.full_name || "—"
                                 ) : c.key === "receipt" ? (
                                   exp.receipt ? (
                                     <Button
