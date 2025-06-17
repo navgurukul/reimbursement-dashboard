@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Trash } from "lucide-react";
+import supabase from "@/lib/supabase"; // Add this import
 
 interface Member {
   id: string;
@@ -63,6 +64,9 @@ export default function TeamPage() {
   );
   const [loading, setLoading] = useState(false);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
+
 
   // Fetch organization members
   useEffect(() => {
@@ -208,6 +212,18 @@ export default function TeamPage() {
       });
     }
   };
+  const confirmDeleteMember = (id: string) => {
+    setMemberToDelete(id);
+    setShowDeleteConfirm(true);
+  };
+
+  const executeDeleteMember = async () => {
+    if (!memberToDelete) return;
+    await handleDeleteMember(memberToDelete);
+    setShowDeleteConfirm(false);
+    setMemberToDelete(null);
+  };
+
 
 
   return (
@@ -255,7 +271,7 @@ export default function TeamPage() {
                         {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
                           <Trash
                             className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
-                            onClick={() => handleDeleteMember(m.id)}
+                            onClick={() => confirmDeleteMember(m.id)}
                           />
                         )}
                       </TableCell>
@@ -319,6 +335,32 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-ms">
+          <div className="bg-white p-6 rounded shadow-md w-full max-w-sm">
+            <h2 className="text-lg font-semibold mb-4">Are you sure you want to delete this user?</h2>
+            <div className="flex justify-center space-x-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setMemberToDelete(null);
+                }}
+              >
+                No
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={executeDeleteMember}
+              >
+                Yes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
