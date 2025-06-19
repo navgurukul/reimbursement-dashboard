@@ -70,6 +70,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Wait for profile to be created and verify it exists
+    let profileExists = false;
+    let retries = 0;
+    const maxRetries = 10; // Wait up to 5 seconds
+
+    while (!profileExists && retries < maxRetries) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", userId)
+        .single();
+
+      if (profile) {
+        profileExists = true;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        retries++;
+      }
+    }
+
+    if (!profileExists) {
+      return NextResponse.json(
+        { error: "Profile creation failed. Please try again." },
+        { status: 500 }
+      );
+    }
+
     // Start transaction-like operations
     try {
       // 1. Record the usage
@@ -82,7 +109,10 @@ export async function POST(request: NextRequest) {
           status: "completed",
         });
 
-      if (usageError) throw usageError;
+      if (usageError) {
+        console.error("Usage insert error:", usageError);
+        throw usageError;
+      }
 
       // 2. Add user to organization
       const { error: membershipError } = await supabase
@@ -93,7 +123,10 @@ export async function POST(request: NextRequest) {
           role: inviteLink.role,
         });
 
-      if (membershipError) throw membershipError;
+      if (membershipError) {
+        console.error("Membership insert error:", membershipError);
+        throw membershipError;
+      }
 
       // 3. Increment usage count
       const { error: updateError } = await supabase
@@ -103,7 +136,10 @@ export async function POST(request: NextRequest) {
         })
         .eq("id", linkId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Usage count update error:", updateError);
+        throw updateError;
+      }
 
       return NextResponse.json({
         success: true,
