@@ -1,5 +1,3 @@
-
-
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -266,6 +264,9 @@ export default function ExpensesPage() {
 
 const handleDelete = async (id: string) => {
   try {
+    // Find the expense to get its status before deletion
+    const expenseToDelete = getCurrent().find(exp => exp.id === id);
+    
     const { error } = await expenses.delete(id);
     if (error) throw error;
     
@@ -276,13 +277,15 @@ const handleDelete = async (id: string) => {
     setPendingApprovals(prev => prev.filter(exp => exp.id !== id));
     setAllExpenses(prev => prev.filter(exp => exp.id !== id));
     
-    // Update stats
-    setStats(prev => ({
-      total: prev.total - 1,
-      approved: prev.approved,
-      pending: prev.pending - 1, // Assuming deleted expense was pending
-      rejected: prev.rejected,
-    }));
+    // Update stats based on the expense's actual status
+    if (expenseToDelete) {
+      setStats(prev => ({
+        total: prev.total - 1,
+        approved: expenseToDelete.status === "approved" ? prev.approved - 1 : prev.approved,
+        pending: expenseToDelete.status === "submitted" ? prev.pending - 1 : prev.pending,
+        rejected: expenseToDelete.status === "rejected" ? prev.rejected - 1 : prev.rejected,
+      }));
+    }
     
   } catch (error: any) {
     toast.error("Failed to delete expense", {
