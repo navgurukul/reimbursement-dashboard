@@ -79,6 +79,10 @@ export default function NewExpensePage() {
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
@@ -307,6 +311,13 @@ export default function NewExpensePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Clear receipt error if file is selected
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      delete updatedErrors["receipt"];
+      return updatedErrors;
+    });
+
     setReceiptFile(file);
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -319,12 +330,14 @@ export default function NewExpensePage() {
     key: string,
     value: string | number | boolean | string[]
   ) => {
-    // Prevent selecting self as approver
-    if (key === "approver" && value === user?.id) {
-      toast.error("You cannot approve your own expenses");
-      return;
+    // Clear error if value is now filled
+    if (errors[key] && value !== "") {
+      setErrors((prevErrors) => {
+        const updatedErrors = { ...prevErrors };
+        delete updatedErrors[key];
+        return updatedErrors;
+      });
     }
-
     setFormData((prev) => ({
       ...prev,
       [key]: value,
@@ -377,10 +390,41 @@ export default function NewExpensePage() {
     }
   };
 
+  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
 
+    const newErrors: Record<string, string> = {};
+
+   if (voucherModalOpen) {
+      if (!formData.yourName) newErrors["yourName"] = "Your Name is required";
+      if (!formData.voucherAmount) newErrors["voucherAmount"] = "Amount is required";
+      if (!formData.purpose) newErrors["purpose"] = "Purpose is required";
+      if (!formData.voucherCreditPerson) newErrors["voucherCreditPerson"] = "Credit Person is required";
+      if (!formData.voucher_signature_data_url) newErrors["voucher_signature_data_url"] = "Signature is required";
+    }
+    // Loop through all required and visible fields
+    for (const col of columns) {
+      if (col.required && col.visible && !formData[col.key]) {
+        newErrors[col.key] = `${col.label} is required`;
+      }
+    }
+
+    // Receipt required if not in voucher mode
+    if (!voucherModalOpen && !receiptFile) {
+      newErrors["receipt"] = "Receipt is required";
+    }
+
+    // If any error found, show them and stop
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setSaving(false);
+      return;
+    }
+    // Clear previous errors if no issues
+    setErrors({});
     try {
       if (!user?.id || !organization) {
         throw new Error("Missing required data");
@@ -816,7 +860,7 @@ export default function NewExpensePage() {
           <CardTitle className="text-lg font-medium">New Expense</CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
               <div className="flex items-center space-x-3 mb-2">
@@ -876,93 +920,97 @@ export default function NewExpensePage() {
                   </Label>
 
                   {col.type === "text" && (
-                    <Input
-                      id={col.key}
-                      value={formData[col.key] || ""}
-                      onChange={(e) =>
-                        handleInputChange(col.key, e.target.value)
-                      }
-                      required={col.required}
-                      className="w-full"
-                    />
+                    <>
+                      <Input
+                        id={col.key}
+                        value={formData[col.key] || ""}
+                        onChange={(e) => handleInputChange(col.key, e.target.value)}
+                        className={`w-full ${errors[col.key] ? "border border-red-500" : ""}`}
+                      />
+                      {errors[col.key] && (
+                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                      )}
+                    </>
+
                   )}
 
                   {col.type === "number" && (
-                    <Input
-                      id={col.key}
-                      type="number"
-                      value={formData[col.key] || ""}
-                      onChange={(e) =>
-                        handleInputChange(col.key, parseFloat(e.target.value))
-                      }
-                      required={col.required}
-                      className="w-full"
-                    />
+                    <>
+                      <Input
+                        id={col.key}
+                        type="number"
+                        value={formData[col.key] || ""}
+                        onChange={(e) =>
+                          handleInputChange(col.key, parseFloat(e.target.value))
+                        }
+                        className={`w-full ${errors[col.key] ? "border border-red-500" : ""}`}
+                      />
+                      {errors[col.key] && (
+                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                      )}
+                    </>
                   )}
 
                   {col.type === "date" && (
-                    <Input
-                      id={col.key}
-                      type="date"
-                      value={formData[col.key] || ""}
-                      onChange={(e) =>
-                        handleInputChange(col.key, e.target.value)
-                      }
-                      required={col.required}
-                      className="w-full"
-                    />
+                    <>
+                      <Input
+                        id={col.key}
+                        type="date"
+                        value={formData[col.key] || ""}
+                        onChange={(e) => handleInputChange(col.key, e.target.value)}
+                        className={`w-full ${errors[col.key] ? "border border-red-500" : ""}`}
+                      />
+                      {errors[col.key] && (
+                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                      )}
+                    </>
                   )}
 
                   {col.type === "textarea" && (
-                    <Textarea
-                      id={col.key}
-                      value={formData[col.key] || ""}
-                      onChange={(e) =>
-                        handleInputChange(col.key, e.target.value)
-                      }
-                      required={col.required}
-                      className="w-full min-h-[100px]"
-                    />
+                    <>
+                      <Textarea
+                        id={col.key}
+                        value={formData[col.key] || ""}
+                        onChange={(e) => handleInputChange(col.key, e.target.value)}
+                        className={`w-full min-h-[100px] ${errors[col.key] ? "border border-red-500" : ""}`}
+                      />
+                      {errors[col.key] && (
+                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                      )}
+                    </>
                   )}
-
+                  
                   {col.type === "dropdown" && col.options && (
-                    <Select
-                      value={formData[col.key] || ""}
-                      onValueChange={(value: string) =>
-                        handleInputChange(col.key, value)
-                      }
-                    >
-                      <SelectTrigger id={col.key} className="w-full">
-                        <SelectValue placeholder="Select an option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {col.options.map(
-                          (
-                            option: string | { value: string; label: string }
-                          ) => {
-                            const value =
-                              typeof option === "string"
-                                ? option
-                                : option.value;
-                            const label =
-                              typeof option === "string"
-                                ? option
-                                : option.label;
-
-                            // Skip rendering option if this is the approver dropdown and the option is the current user
-                            if (col.key === "approver" && value === user?.id) {
-                              return null;
-                            }
+                    <>
+                      <Select
+                        value={formData[col.key] || ""}
+                        onValueChange={(value: string) =>
+                          handleInputChange(col.key, value)
+                        }
+                      >
+                        <SelectTrigger
+                          id={col.key}
+                          className={`w-full ${errors[col.key] ? "border border-red-500" : ""}`}
+                        >
+                          <SelectValue placeholder="Select an option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {col.options.map((option: any) => {
+                            const value = typeof option === "string" ? option : option.value;
+                            const label = typeof option === "string" ? option : option.label;
 
                             return (
                               <SelectItem key={value} value={value}>
                                 {label}
                               </SelectItem>
                             );
-                          }
-                        )}
-                      </SelectContent>
-                    </Select>
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {errors[col.key] && (
+                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -1075,9 +1123,12 @@ export default function NewExpensePage() {
                         id="receipt"
                         type="file"
                         onChange={handleFileChange}
-                        accept="image/*,.pdf"
-                        className="w-full cursor-pointer border-gray-200"
+                        required={!voucherModalOpen}
                       />
+                      {errors["receipt"] && (
+                        <p className="text-red-500 text-sm mt-1">{errors["receipt"]}</p>
+                      )}
+
                       <div className="text-sm text-gray-500 mt-1">
                         {receiptFile ? receiptFile.name : "No file chosen"}
                       </div>
@@ -1109,6 +1160,7 @@ export default function NewExpensePage() {
                   onInputChange={handleInputChange}
                   userRole={userRole}
                   savedUserSignature={savedUserSignature}
+                  errors={errors}
                 />
               )}
             </div>

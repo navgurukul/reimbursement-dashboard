@@ -20,14 +20,18 @@ interface VoucherFormProps {
   onInputChange: (key: string, value: any) => void;
   userRole: Role;
   savedUserSignature: string | null;
+  errors?: Record<string, string>;
 }
 
 export default function VoucherForm({
   formData,
   onInputChange,
   userRole,
+  errors,
   savedUserSignature,
 }: VoucherFormProps) {
+  const getError = (field: string) => errors?.[field] || "";
+
   // Track voucher signature separately from expense signature
   const [voucherSignature, setVoucherSignature] = useState<string | undefined>(
     formData.voucher_signature_data_url || undefined
@@ -93,6 +97,7 @@ export default function VoucherForm({
       }
     }
   };
+
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
@@ -110,11 +115,14 @@ export default function VoucherForm({
             </Label>
             <Input
               id="yourName"
-              placeholder="Enter your name"
               value={formData.yourName || ""}
               onChange={(e) => onInputChange("yourName", e.target.value)}
-              required
+              className={`w-full ${getError("yourName") ? "border-red-500" : ""}`}
             />
+            {getError("yourName") && (
+              <p className="text-red-500 text-sm mt-1">{getError("yourName")}</p>
+            )}
+
           </div>
 
           <div className="space-y-2">
@@ -139,14 +147,14 @@ export default function VoucherForm({
               <Input
                 id="voucherAmount"
                 type="number"
-                placeholder="0.00"
-                className="pl-7"
                 value={formData.voucherAmount || ""}
-                onChange={(e) =>
-                  onInputChange("voucherAmount", parseFloat(e.target.value))
-                }
-                required
+                onChange={(e) => onInputChange("voucherAmount", parseFloat(e.target.value))}
+                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500" : ""}`}
               />
+              {getError("voucherAmount") && (
+                <p className="text-red-500 text-sm mt-1">{getError("voucherAmount")}</p>
+              )}
+
             </div>
           </div>
 
@@ -156,11 +164,14 @@ export default function VoucherForm({
             </Label>
             <Input
               id="purpose"
-              placeholder="Purpose of the expense"
               value={formData.purpose || ""}
               onChange={(e) => onInputChange("purpose", e.target.value)}
-              required
+              className={`w-full ${getError("purpose") ? "border-red-500" : ""}`}
             />
+            {getError("purpose") && (
+              <p className="text-red-500 text-sm mt-1">{getError("purpose")}</p>
+            )}
+
           </div>
         </div>
 
@@ -170,13 +181,14 @@ export default function VoucherForm({
           </Label>
           <Input
             id="voucherCreditPerson"
-            placeholder="Name of person receiving payment"
             value={formData.voucherCreditPerson || ""}
-            onChange={(e) =>
-              onInputChange("voucherCreditPerson", e.target.value)
-            }
-            required
+            onChange={(e) => onInputChange("voucherCreditPerson", e.target.value)}
+            className={`w-full ${getError("voucherCreditPerson") ? "border-red-500" : ""}`}
           />
+          {getError("voucherCreditPerson") && (
+            <p className="text-red-500 text-sm mt-1">{getError("voucherCreditPerson")}</p>
+          )}
+
           <p className="text-sm text-gray-500">
             This should be the person to whom the payment is being made
           </p>
@@ -189,20 +201,27 @@ export default function VoucherForm({
               <p className="text-sm text-gray-500">Loading your signature...</p>
             </div>
           ) : (
-            <SignaturePad
-              onSave={handleVoucherSignatureSave}
-              label="Your Signature for Voucher"
-              signatureUrl={formData.voucher_signature_preview}
-              userSignatureUrl={savedUserSignature || undefined}
-            />
+            <>
+              <SignaturePad
+                onSave={handleVoucherSignatureSave}
+                label="Your Signature for Voucher"
+                signatureUrl={formData.voucher_signature_preview}
+                userSignatureUrl={savedUserSignature || undefined}
+              />
+              {getError("voucher_signature_data_url") && (
+                <p className="text-red-500 text-sm mt-1">
+                  {getError("voucher_signature_data_url")}
+                </p>
+              )}
+              {savedUserSignature &&
+                formData.voucher_signature_preview !== savedUserSignature && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    * You're using a new signature. This will replace your saved
+                    signature when you submit.
+                  </p>
+                )}
+            </>
           )}
-          {savedUserSignature &&
-            formData.voucher_signature_preview !== savedUserSignature && (
-              <p className="text-xs text-blue-600 mt-1">
-                * You're using a new signature. This will replace your saved
-                signature when you submit.
-              </p>
-            )}
         </div>
       </div>
     </div>
