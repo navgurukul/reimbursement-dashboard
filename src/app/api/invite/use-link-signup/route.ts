@@ -1,42 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import supabase from "@/lib/supabase";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 
 export async function POST(request: NextRequest) {
   try {
-    const { linkId, email } = await request.json();
+    const { linkId, email, userId } = await request.json();
 
-    if (!linkId || !email) {
+    if (!linkId || !email || !userId) {
       return NextResponse.json(
-        { error: "Link ID and email are required" },
+        { error: "Link ID, email, and user ID are required" },
         { status: 400 }
-      );
-    }
-
-    // Get the current user
-    const cookieStore = cookies();
-    const supabaseServer = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          async get(name: string) {
-            return (await cookieStore).get(name)?.value;
-          },
-        },
-      }
-    );
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseServer.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Unauthorized - User not found" },
-        { status: 401 }
       );
     }
 
@@ -73,12 +45,12 @@ export async function POST(request: NextRequest) {
       .from("organization_users")
       .select("id")
       .eq("org_id", inviteLink.org_id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (existingMembership) {
       return NextResponse.json(
-        { error: "You are already a member of this organization" },
+        { error: "User is already a member of this organization" },
         { status: 400 }
       );
     }
@@ -98,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Start a transaction-like operation
+    // Start transaction-like operations
     try {
       // 1. Record the usage
       const { error: usageError } = await supabase
@@ -106,7 +78,7 @@ export async function POST(request: NextRequest) {
         .insert({
           invite_link_id: linkId,
           email: email,
-          user_id: user.id,
+          user_id: userId,
           status: "completed",
         });
 
@@ -117,7 +89,7 @@ export async function POST(request: NextRequest) {
         .from("organization_users")
         .insert({
           org_id: inviteLink.org_id,
-          user_id: user.id,
+          user_id: userId,
           role: inviteLink.role,
         });
 
@@ -145,7 +117,7 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error: any) {
-    console.error("Error in use-link API:", error);
+    console.error("Error in use-link-signup API:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
