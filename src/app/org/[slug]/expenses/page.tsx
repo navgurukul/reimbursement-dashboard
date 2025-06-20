@@ -1,7 +1,4 @@
-
-
 "use client";
-
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
@@ -265,19 +262,37 @@ export default function ExpensesPage() {
     router.push(`/org/${slug}/expenses/new`);
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      const { error } = await expenses.delete(id);
-      if (error) throw error;
-      toast.success("Expense deleted successfully");
-      // Refresh the expenses list
-      window.location.reload();
-    } catch (error: any) {
-      toast.error("Failed to delete expense", {
-        description: error.message,
-      });
+const handleDelete = async (id: string) => {
+  try {
+    // Find the expense to get its status before deletion
+    const expenseToDelete = getCurrent().find(exp => exp.id === id);
+    
+    const { error } = await expenses.delete(id);
+    if (error) throw error;
+    
+    toast.success("Expense deleted successfully");
+    
+    // Update all state arrays by removing the deleted expense
+    setExpensesData(prev => prev.filter(exp => exp.id !== id));
+    setPendingApprovals(prev => prev.filter(exp => exp.id !== id));
+    setAllExpenses(prev => prev.filter(exp => exp.id !== id));
+    
+    // Update stats based on the expense's actual status
+    if (expenseToDelete) {
+      setStats(prev => ({
+        total: prev.total - 1,
+        approved: expenseToDelete.status === "approved" ? prev.approved - 1 : prev.approved,
+        pending: expenseToDelete.status === "submitted" ? prev.pending - 1 : prev.pending,
+        rejected: expenseToDelete.status === "rejected" ? prev.rejected - 1 : prev.rejected,
+      }));
     }
-  };
+    
+  } catch (error: any) {
+    toast.error("Failed to delete expense", {
+      description: error.message,
+    });
+  }
+};
 
   // Helper function to get value from custom_fields or directly from expense
   // Define interfaces for expense data
