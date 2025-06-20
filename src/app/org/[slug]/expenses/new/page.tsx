@@ -79,6 +79,9 @@ export default function NewExpensePage() {
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
@@ -101,6 +104,40 @@ export default function NewExpensePage() {
     null
   );
   const [loadingSignature, setLoadingSignature] = useState(true);
+
+  // Add these utility functions for error handling and UX improvements
+  const scrollToFirstError = (errors: Record<string, string>) => {
+    const firstErrorField = Object.keys(errors)[0];
+    if (firstErrorField) {
+      // Try to find the element by ID first, then by name attribute
+      const element =
+        document.getElementById(firstErrorField) ||
+        document.querySelector(`[name="${firstErrorField}"]`) ||
+        document.querySelector(`input[id="${firstErrorField}"]`) ||
+        document.querySelector(`select[id="${firstErrorField}"]`) ||
+        document.querySelector(`textarea[id="${firstErrorField}"]`);
+
+      if (element) {
+        // Scroll to the element with some offset for better visibility
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
+
+        // Focus the element after a small delay to ensure scroll is complete
+        setTimeout(() => {
+          (element as HTMLElement).focus();
+        }, 300);
+      }
+    }
+  };
+
+  const showErrorSummary = (errors: Record<string, string>) => {
+    toast.error("Please fill in the required fields", {
+      duration: 4000,
+    });
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -209,7 +246,8 @@ export default function NewExpensePage() {
         }
 
         // Fetch organization members
-        const { data: membersData } = await organizations.getOrganizationMembers(orgId);
+        const { data: membersData } =
+          await organizations.getOrganizationMembers(orgId);
 
         let approverOptions: Array<{ value: string; label: string }> = [];
 
@@ -250,7 +288,9 @@ export default function NewExpensePage() {
             if (col.key === "approver") {
               return {
                 ...col,
-                options: approverOptions.filter(option => option.value !== user?.id),
+                options: approverOptions.filter(
+                  (option) => option.value !== user?.id
+                ),
               };
             }
             return col;
@@ -274,7 +314,9 @@ export default function NewExpensePage() {
             if (col.key === "approver") {
               return {
                 ...col,
-                options: approverOptions.filter(option => option.value !== user?.id),
+                options: approverOptions.filter(
+                  (option) => option.value !== user?.id
+                ),
               };
             }
             return col;
@@ -307,6 +349,13 @@ export default function NewExpensePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Clear receipt error if file is selected
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      delete updatedErrors["receipt"];
+      return updatedErrors;
+    });
+
     setReceiptFile(file);
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -319,12 +368,14 @@ export default function NewExpensePage() {
     key: string,
     value: string | number | boolean | string[]
   ) => {
-    // Prevent selecting self as approver
-    if (key === "approver" && value === user?.id) {
-      toast.error("You cannot approve your own expenses");
-      return;
+    // Clear error if value is now filled
+    if (errors[key] && value !== "") {
+      setErrors((prevErrors) => {
+        const updatedErrors = { ...prevErrors };
+        delete updatedErrors[key];
+        return updatedErrors;
+      });
     }
-
     setFormData((prev) => ({
       ...prev,
       [key]: value,
@@ -381,6 +432,47 @@ export default function NewExpensePage() {
     e.preventDefault();
     setSaving(true);
 
+    const newErrors: Record<string, string> = {};
+
+    if (voucherModalOpen) {
+      if (!formData.yourName) newErrors["yourName"] = "Your Name is required";
+      if (!formData.voucherAmount)
+        newErrors["voucherAmount"] = "Amount is required";
+      if (!formData.purpose) newErrors["purpose"] = "Purpose is required";
+      if (!formData.voucherCreditPerson)
+        newErrors["voucherCreditPerson"] = "Credit Person is required";
+      if (!formData.voucher_signature_data_url)
+        newErrors["voucher_signature_data_url"] = "Signature is required";
+    }
+    // Loop through all required and visible fields
+    for (const col of columns) {
+      if (col.required && col.visible && !formData[col.key]) {
+        newErrors[col.key] = `${col.label} is required`;
+      }
+    }
+
+    // Receipt required if not in voucher mode
+    if (!voucherModalOpen && !receiptFile) {
+      newErrors["receipt"] = "Receipt is required";
+    }
+
+    // If any error found, show them and stop
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+
+      // Show error summary
+      showErrorSummary(newErrors);
+
+      // Scroll to first error after a small delay to ensure state is updated
+      setTimeout(() => {
+        scrollToFirstError(newErrors);
+      }, 100);
+
+      setSaving(false);
+      return;
+    }
+    // Clear previous errors if no issues
+    setErrors({});
     try {
       if (!user?.id || !organization) {
         throw new Error("Missing required data");
@@ -816,7 +908,7 @@ export default function NewExpensePage() {
           <CardTitle className="text-lg font-medium">New Expense</CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
               <div className="flex items-center space-x-3 mb-2">
@@ -876,70 +968,155 @@ export default function NewExpensePage() {
                   </Label>
 
                   {col.type === "text" && (
-                    <Input
-                      id={col.key}
-                      value={formData[col.key] || ""}
-                      onChange={(e) =>
-                        handleInputChange(col.key, e.target.value)
-                      }
-                      required={col.required}
-                      className="w-full"
-                    />
+                    <>
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        value={formData[col.key] || ""}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        aria-invalid={errors[col.key] ? "true" : "false"}
+                        aria-describedby={
+                          errors[col.key] ? `${col.key}-error` : undefined
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
+                      />
+                      {errors[col.key] && (
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
+                      )}
+                    </>
                   )}
 
                   {col.type === "number" && (
-                    <Input
-                      id={col.key}
-                      type="number"
-                      value={formData[col.key] || ""}
-                      onChange={(e) =>
-                        handleInputChange(col.key, parseFloat(e.target.value))
-                      }
-                      required={col.required}
-                      className="w-full"
-                    />
+                    <>
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        type="number"
+                        value={formData[col.key] || ""}
+                        onChange={(e) =>
+                          handleInputChange(col.key, parseFloat(e.target.value))
+                        }
+                        aria-invalid={errors[col.key] ? "true" : "false"}
+                        aria-describedby={
+                          errors[col.key] ? `${col.key}-error` : undefined
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
+                      />
+                      {errors[col.key] && (
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
+                      )}
+                    </>
                   )}
 
                   {col.type === "date" && (
-                    <Input
-                      id={col.key}
-                      type="date"
-                      value={formData[col.key] || ""}
-                      onChange={(e) =>
-                        handleInputChange(col.key, e.target.value)
-                      }
-                      required={col.required}
-                      className="w-full"
-                    />
+                    <>
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        type="date"
+                        value={formData[col.key] || ""}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        aria-invalid={errors[col.key] ? "true" : "false"}
+                        aria-describedby={
+                          errors[col.key] ? `${col.key}-error` : undefined
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
+                      />
+                      {errors[col.key] && (
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
+                      )}
+                    </>
                   )}
 
                   {col.type === "textarea" && (
-                    <Textarea
-                      id={col.key}
-                      value={formData[col.key] || ""}
-                      onChange={(e) =>
-                        handleInputChange(col.key, e.target.value)
-                      }
-                      required={col.required}
-                      className="w-full min-h-[100px]"
-                    />
+                    <>
+                      <Textarea
+                        id={col.key}
+                        name={col.key}
+                        value={formData[col.key] || ""}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        aria-invalid={errors[col.key] ? "true" : "false"}
+                        aria-describedby={
+                          errors[col.key] ? `${col.key}-error` : undefined
+                        }
+                        className={`w-full min-h-[100px] ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
+                      />
+                      {errors[col.key] && (
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
+                      )}
+                    </>
                   )}
 
                   {col.type === "dropdown" && col.options && (
-                    <Select
-                      value={formData[col.key] || ""}
-                      onValueChange={(value: string) =>
-                        handleInputChange(col.key, value)
-                      }
-                    >
-                      <SelectTrigger id={col.key} className="w-full">
-                        <SelectValue placeholder="Select an option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {col.options.map(
-                          (
-                            option: string | { value: string; label: string }
-                          ) => {
+                    <>
+                      <Select
+                        value={formData[col.key] || ""}
+                        onValueChange={(value: string) =>
+                          handleInputChange(col.key, value)
+                        }
+                      >
+                        <SelectTrigger
+                          id={col.key}
+                          aria-invalid={errors[col.key] ? "true" : "false"}
+                          aria-describedby={
+                            errors[col.key] ? `${col.key}-error` : undefined
+                          }
+                          className={`w-full ${
+                            errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                          }`}
+                        >
+                          <SelectValue placeholder="Select an option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {col.options.map((option: any) => {
                             const value =
                               typeof option === "string"
                                 ? option
@@ -949,20 +1126,24 @@ export default function NewExpensePage() {
                                 ? option
                                 : option.label;
 
-                            // Skip rendering option if this is the approver dropdown and the option is the current user
-                            if (col.key === "approver" && value === user?.id) {
-                              return null;
-                            }
-
                             return (
                               <SelectItem key={value} value={value}>
                                 {label}
                               </SelectItem>
                             );
-                          }
-                        )}
-                      </SelectContent>
-                    </Select>
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {errors[col.key] && (
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -1073,11 +1254,30 @@ export default function NewExpensePage() {
                     <div className="mt-2">
                       <Input
                         id="receipt"
+                        name="receipt"
                         type="file"
                         onChange={handleFileChange}
-                        accept="image/*,.pdf"
-                        className="w-full cursor-pointer border-gray-200"
+                        required={!voucherModalOpen}
+                        aria-invalid={errors["receipt"] ? "true" : "false"}
+                        aria-describedby={
+                          errors["receipt"] ? "receipt-error" : undefined
+                        }
+                        className={
+                          errors["receipt"]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }
                       />
+                      {errors["receipt"] && (
+                        <p
+                          id="receipt-error"
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors["receipt"]}
+                        </p>
+                      )}
+
                       <div className="text-sm text-gray-500 mt-1">
                         {receiptFile ? receiptFile.name : "No file chosen"}
                       </div>
@@ -1109,6 +1309,7 @@ export default function NewExpensePage() {
                   onInputChange={handleInputChange}
                   userRole={userRole}
                   savedUserSignature={savedUserSignature}
+                  errors={errors}
                 />
               )}
             </div>

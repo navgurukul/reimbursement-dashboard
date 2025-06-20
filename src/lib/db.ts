@@ -229,7 +229,6 @@ export interface ExpenseCommentWithUser extends ExpenseComment {
   };
 }
 
-
 // Auth functions
 export const auth = {
   signIn: async (email: string, password: string) => {
@@ -366,8 +365,7 @@ export const organizations = {
       .match({ id: user_id, org_id: org_id });
 
     return { error };
-  }
-
+  },
 };
 
 // Add this entire object to your db.ts file with other database functions
@@ -392,7 +390,7 @@ export const expenseEvents = {
 
       return { data: eventData as ExpenseEvent, error: null };
     } catch (error: any) {
-      console.error('Error creating expense event:', error);
+      console.error("Error creating expense event:", error);
       return {
         data: null,
         error: {
@@ -405,70 +403,78 @@ export const expenseEvents = {
     }
   },
   // Add this function to the expenseEvents object in db.ts
-  async getAvailableEvents(orgId: string, userId: string, userRole: string): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
-  try {
-    let query = supabase
-      .from('expense_events')
-      .select('*')
-      .eq('org_id', orgId);
+  async getAvailableEvents(
+    orgId: string,
+    userId: string,
+    userRole: string
+  ): Promise<{ data: ExpenseEvent[] | null; error: DatabaseError | null }> {
+    try {
+      let query = supabase
+        .from("expense_events")
+        .select("*")
+        .eq("org_id", orgId);
 
-    // If user is admin or owner, show them all events
-    if (userRole === 'admin' || userRole === 'owner') {
-      // No additional filtering needed - admins/owners see all events
-    } else {
-      // For regular members, show:
-      // 1. Events they created (with any status)
-      // 2. Events created by others with "submitted" status
-      query = query.or(`user_id.eq.${userId},status.eq.submitted`);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      return { data: null, error: error as DatabaseError };
-    }
-
-    return { data: data as ExpenseEvent[], error: null };
-  } catch (error: any) {
-    console.error('Error fetching available expense events:', error);
-    return {
-      data: null,
-      error: {
-        message: error instanceof Error ? error.message : "Unknown error",
-        details: "",
-        hint: "Check your input and try again",
-        code: "UNKNOWN_ERROR",
+      // If user is admin or owner, show them all events
+      if (userRole === "admin" || userRole === "owner") {
+        // No additional filtering needed - admins/owners see all events
+      } else {
+        // For regular members, show:
+        // 1. Events they created (with any status)
+        // 2. Events created by others with "submitted" status
+        query = query.or(`user_id.eq.${userId},status.eq.submitted`);
       }
-    };
-  }
-},
 
-async getById(id: string): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
-  try {
-    const { data, error } = await supabase
-      .from('expense_events')
-      .select('*')
-      .eq('id', id)
-      .single();
+      const { data, error } = await query.order("created_at", {
+        ascending: false,
+      });
 
-    if (error) {
-      return { data: null, error: error as DatabaseError };
-    }
-
-    return { data: data as ExpenseEvent, error: null };
-  } catch (error: any) {
-    console.error('Error fetching expense event:', error);
-    return {
-      data: null,
-      error: {
-        message: error instanceof Error ? error.message : "Unknown error",
-        details: "",
-        hint: "Check your input and try again",
-        code: "UNKNOWN_ERROR",
+      if (error) {
+        return { data: null, error: error as DatabaseError };
       }
-    };
-  }
-},
+
+      return { data: data as ExpenseEvent[], error: null };
+    } catch (error: any) {
+      console.error("Error fetching available expense events:", error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        },
+      };
+    }
+  },
+
+  async getById(
+    id: string
+  ): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
+    try {
+      const { data, error } = await supabase
+        .from("expense_events")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        return { data: null, error: error as DatabaseError };
+      }
+
+      return { data: data as ExpenseEvent, error: null };
+    } catch (error: any) {
+      console.error("Error fetching expense event:", error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error",
+          details: "",
+          hint: "Check your input and try again",
+          code: "UNKNOWN_ERROR",
+        },
+      };
+    }
+  },
 
   // Get expense events by organization and user
   async getByOrgAndUser(
@@ -706,17 +712,19 @@ export const profiles = {
   },
 
   deleteByUserId: async (userId: string) => {
-    return supabase
-      .from("profiles")
-      .delete()
-      .eq("user_id", userId);
+    return supabase.from("profiles").delete().eq("user_id", userId);
   },
 };
 
 // Removed users functions
 export const RemovedUsers = {
-
-  create: async (data: { user_id: string; email: string; full_name: string; created_at: string; removable_at: Date }) => {
+  create: async (data: {
+    user_id: string;
+    email: string;
+    full_name: string;
+    created_at: string;
+    removable_at: Date;
+  }) => {
     const { data: result, error } = await supabase
       .from("removed_users")
       .insert([data])
@@ -725,7 +733,6 @@ export const RemovedUsers = {
 
     return { data: result, error };
   },
-
 };
 
 // Invites functions
@@ -993,9 +1000,13 @@ export const expenses = {
     }
 
     // Get all unique approver IDs
-    const approverIds = [...new Set((expenses || [])
-      .map(expense => expense.approver_id)
-      .filter(id => id))];
+    const approverIds = [
+      ...new Set(
+        (expenses || [])
+          .map((expense) => expense.approver_id)
+          .filter((id) => id)
+      ),
+    ];
 
     if (approverIds.length > 0) {
       // Get all approvers in one query
@@ -1006,16 +1017,19 @@ export const expenses = {
 
       if (approvers && approvers.length > 0) {
         // Create a lookup map
-        const approverMap: Record<string, { user_id: string, full_name: string }> = {};
-        approvers.forEach(a => {
+        const approverMap: Record<
+          string,
+          { user_id: string; full_name: string }
+        > = {};
+        approvers.forEach((a) => {
           approverMap[a.user_id] = a;
         });
 
         // Add approver data to each expense
-        expenses.forEach(expense => {
+        expenses.forEach((expense) => {
           if (expense.approver_id && approverMap[expense.approver_id]) {
             expense.approver = {
-              full_name: approverMap[expense.approver_id].full_name
+              full_name: approverMap[expense.approver_id].full_name,
             };
           }
         });
@@ -1055,9 +1069,13 @@ export const expenses = {
     }
 
     // Get all unique approver IDs
-    const approverIds = [...new Set((expenses || [])
-      .map(expense => expense.approver_id)
-      .filter(id => id))];
+    const approverIds = [
+      ...new Set(
+        (expenses || [])
+          .map((expense) => expense.approver_id)
+          .filter((id) => id)
+      ),
+    ];
 
     if (approverIds.length > 0) {
       // Get all approvers in one query
@@ -1068,16 +1086,19 @@ export const expenses = {
 
       if (approvers && approvers.length > 0) {
         // Create a lookup map
-        const approverMap: Record<string, { user_id: string, full_name: string }> = {};
-        approvers.forEach(a => {
+        const approverMap: Record<
+          string,
+          { user_id: string; full_name: string }
+        > = {};
+        approvers.forEach((a) => {
           approverMap[a.user_id] = a;
         });
 
         // Add approver data to each expense
-        expenses.forEach(expense => {
+        expenses.forEach((expense) => {
           if (expense.approver_id && approverMap[expense.approver_id]) {
             expense.approver = {
-              full_name: approverMap[expense.approver_id].full_name
+              full_name: approverMap[expense.approver_id].full_name,
             };
           }
         });
@@ -1116,9 +1137,13 @@ export const expenses = {
     }
 
     // Get all unique approver IDs
-    const approverIds = [...new Set((expenses || [])
-      .map(expense => expense.approver_id)
-      .filter(id => id))];
+    const approverIds = [
+      ...new Set(
+        (expenses || [])
+          .map((expense) => expense.approver_id)
+          .filter((id) => id)
+      ),
+    ];
 
     if (approverIds.length > 0) {
       // Get all approvers in one query
@@ -1129,16 +1154,19 @@ export const expenses = {
 
       if (approvers && approvers.length > 0) {
         // Create a lookup map
-        const approverMap: Record<string, { user_id: string, full_name: string }> = {};
-        approvers.forEach(a => {
+        const approverMap: Record<
+          string,
+          { user_id: string; full_name: string }
+        > = {};
+        approvers.forEach((a) => {
           approverMap[a.user_id] = a;
         });
 
         // Add approver data to each expense
-        expenses.forEach(expense => {
+        expenses.forEach((expense) => {
           if (expense.approver_id && approverMap[expense.approver_id]) {
             expense.approver = {
-              full_name: approverMap[expense.approver_id].full_name
+              full_name: approverMap[expense.approver_id].full_name,
             };
           }
         });
@@ -1189,7 +1217,7 @@ export const expenses = {
 
       if (approver) {
         // Add the same approver info to all expenses
-        expenses.forEach(expense => {
+        expenses.forEach((expense) => {
           expense.approver = { full_name: approver.full_name };
         });
       }
@@ -1249,17 +1277,20 @@ export const expenses = {
     };
   },
   // Add this function to the expenses object in db.ts
-  async getApproverNames(expenseIds: string[]): Promise<Record<string, string>> {
+  async getApproverNames(
+    expenseIds: string[]
+  ): Promise<Record<string, string>> {
     try {
       if (!expenseIds || expenseIds.length === 0) {
         return {};
       }
 
-      const { data, error } = await supabase
-        .rpc('get_expense_approver', { expense_ids: expenseIds });
+      const { data, error } = await supabase.rpc("get_expense_approver", {
+        expense_ids: expenseIds,
+      });
 
       if (error) {
-        console.error('Error getting approver names:', error);
+        console.error("Error getting approver names:", error);
         return {};
       }
 
@@ -1502,16 +1533,18 @@ export const expenses = {
   /**
    * Delete an expense by ID
    */
-  delete: async (id: string) => {
-    const { error } = await supabase.from("expenses").delete().eq("id", id);
+delete: async (id: string) => {
+  // Delete related records first
+  await supabase.from("vouchers").delete().eq("expense_id", id);
+  await supabase.from("expense_history").delete().eq("expense_id", id);
+  await supabase.from("expense_comments").delete().eq("expense_id", id);
+  
+  // Delete the expense
+  const { error } = await supabase.from("expenses").delete().eq("id", id);
+  return { data: null, error };
+},
 
-    return {
-      data: null,
-      error,
-    };
-  },
 
-  // ... rest of the expense functions ...
 };
 
 // Vouchers functions
@@ -1705,7 +1738,7 @@ export const vouchers = {
         path: "",
         error: new StorageApiError(
           "Failed to upload signature: " +
-          (error instanceof Error ? error.message : String(error)),
+            (error instanceof Error ? error.message : String(error)),
           500
         ),
       };
@@ -1877,7 +1910,6 @@ export const expenseHistory = {
   },
 };
 
-
 export const expenseComments = {
   /**
    * Get comments for a specific expense
@@ -1885,8 +1917,9 @@ export const expenseComments = {
   getByExpenseId: async (expenseId: string) => {
     try {
       const { data, error } = await supabase
-        .from('expense_comments')
-        .select(`
+        .from("expense_comments")
+        .select(
+          `
           *,
           user:profiles!user_id (
             id,
@@ -1895,22 +1928,23 @@ export const expenseComments = {
             email,
             avatar_url
           )
-        `)
-        .eq('expense_id', expenseId)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: true });
+        `
+        )
+        .eq("expense_id", expenseId)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: true });
 
       if (error) {
         console.error("Error fetching comments:", error);
         return {
           data: null,
-          error: error as DatabaseError
+          error: error as DatabaseError,
         };
       }
 
       return {
         data: data as ExpenseCommentWithUser[],
-        error: null
+        error: null,
       };
     } catch (error) {
       console.error("Exception in getByExpenseId:", error);
@@ -1920,8 +1954,8 @@ export const expenseComments = {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "An error occurred while retrieving comments",
-          code: "UNKNOWN_ERROR"
-        }
+          code: "UNKNOWN_ERROR",
+        },
       };
     }
   },
@@ -1938,9 +1972,9 @@ export const expenseComments = {
     try {
       // Get current user profile ID first
       const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', comment.user_id)
+        .from("profiles")
+        .select("id")
+        .eq("user_id", comment.user_id)
         .single();
 
       if (profileError || !profileData) {
@@ -1949,24 +1983,26 @@ export const expenseComments = {
           data: null,
           error: {
             message: "User profile not found",
-            details: profileError?.message || "Profile ID could not be determined",
+            details:
+              profileError?.message || "Profile ID could not be determined",
             hint: "Make sure the user exists in the profiles table",
-            code: "PROFILE_NOT_FOUND"
-          } as DatabaseError
+            code: "PROFILE_NOT_FOUND",
+          } as DatabaseError,
         };
       }
 
       // Now use the profile ID for the comment
       const { data, error } = await supabase
-        .from('expense_comments')
+        .from("expense_comments")
         .insert({
           expense_id: comment.expense_id,
-          user_id: profileData.id,  // Use the profile ID, not the auth user ID
+          user_id: profileData.id, // Use the profile ID, not the auth user ID
           content: comment.content,
           parent_id: comment.parent_id || null,
-          is_deleted: false
+          is_deleted: false,
         })
-        .select(`
+        .select(
+          `
           *,
           user:profiles!user_id (
             id,
@@ -1975,20 +2011,21 @@ export const expenseComments = {
             email,
             avatar_url
           )
-        `)
+        `
+        )
         .single();
 
       if (error) {
         console.error("Error adding comment:", error);
         return {
           data: null,
-          error: error as DatabaseError
+          error: error as DatabaseError,
         };
       }
 
       return {
         data: data as ExpenseCommentWithUser,
-        error: null
+        error: null,
       };
     } catch (error) {
       console.error("Exception in add:", error);
@@ -1998,8 +2035,8 @@ export const expenseComments = {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "An error occurred while adding a comment",
-          code: "UNKNOWN_ERROR"
-        }
+          code: "UNKNOWN_ERROR",
+        },
       };
     }
   },
@@ -2010,8 +2047,9 @@ export const expenseComments = {
   getReplies: async (commentId: string) => {
     try {
       const { data, error } = await supabase
-        .from('expense_comments')
-        .select(`
+        .from("expense_comments")
+        .select(
+          `
           *,
           user:profiles!user_id (
             id,
@@ -2020,22 +2058,23 @@ export const expenseComments = {
             email,
             avatar_url
           )
-        `)
-        .eq('parent_id', commentId)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: true });
+        `
+        )
+        .eq("parent_id", commentId)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: true });
 
       if (error) {
         console.error("Error fetching replies:", error);
         return {
           data: null,
-          error: error as DatabaseError
+          error: error as DatabaseError,
         };
       }
 
       return {
         data: data as ExpenseCommentWithUser[],
-        error: null
+        error: null,
       };
     } catch (error) {
       console.error("Exception in getReplies:", error);
@@ -2045,11 +2084,9 @@ export const expenseComments = {
           message: error instanceof Error ? error.message : "Unknown error",
           details: "",
           hint: "An error occurred while retrieving replies",
-          code: "UNKNOWN_ERROR"
-        }
+          code: "UNKNOWN_ERROR",
+        },
       };
     }
   },
-
-
 };
