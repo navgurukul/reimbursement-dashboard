@@ -86,7 +86,9 @@ export default function InvitePage() {
       if (linkData.max_uses && linkData.current_uses >= linkData.max_uses) {
         setError("This invite link has reached its usage limit");
         return;
-      }
+        }
+        
+        localStorage.setItem("isInvited", "true"); 
 
       setInviteLink(linkData);
 
