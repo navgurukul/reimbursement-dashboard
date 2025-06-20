@@ -82,7 +82,6 @@ export default function NewExpensePage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
@@ -105,6 +104,40 @@ export default function NewExpensePage() {
     null
   );
   const [loadingSignature, setLoadingSignature] = useState(true);
+
+  // Add these utility functions for error handling and UX improvements
+  const scrollToFirstError = (errors: Record<string, string>) => {
+    const firstErrorField = Object.keys(errors)[0];
+    if (firstErrorField) {
+      // Try to find the element by ID first, then by name attribute
+      const element =
+        document.getElementById(firstErrorField) ||
+        document.querySelector(`[name="${firstErrorField}"]`) ||
+        document.querySelector(`input[id="${firstErrorField}"]`) ||
+        document.querySelector(`select[id="${firstErrorField}"]`) ||
+        document.querySelector(`textarea[id="${firstErrorField}"]`);
+
+      if (element) {
+        // Scroll to the element with some offset for better visibility
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
+
+        // Focus the element after a small delay to ensure scroll is complete
+        setTimeout(() => {
+          (element as HTMLElement).focus();
+        }, 300);
+      }
+    }
+  };
+
+  const showErrorSummary = (errors: Record<string, string>) => {
+    toast.error("Please fill in the required fields", {
+      duration: 4000,
+    });
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -213,7 +246,8 @@ export default function NewExpensePage() {
         }
 
         // Fetch organization members
-        const { data: membersData } = await organizations.getOrganizationMembers(orgId);
+        const { data: membersData } =
+          await organizations.getOrganizationMembers(orgId);
 
         let approverOptions: Array<{ value: string; label: string }> = [];
 
@@ -254,7 +288,9 @@ export default function NewExpensePage() {
             if (col.key === "approver") {
               return {
                 ...col,
-                options: approverOptions.filter(option => option.value !== user?.id),
+                options: approverOptions.filter(
+                  (option) => option.value !== user?.id
+                ),
               };
             }
             return col;
@@ -278,7 +314,9 @@ export default function NewExpensePage() {
             if (col.key === "approver") {
               return {
                 ...col,
-                options: approverOptions.filter(option => option.value !== user?.id),
+                options: approverOptions.filter(
+                  (option) => option.value !== user?.id
+                ),
               };
             }
             return col;
@@ -390,20 +428,21 @@ export default function NewExpensePage() {
     }
   };
 
-  
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
 
     const newErrors: Record<string, string> = {};
 
-   if (voucherModalOpen) {
+    if (voucherModalOpen) {
       if (!formData.yourName) newErrors["yourName"] = "Your Name is required";
-      if (!formData.voucherAmount) newErrors["voucherAmount"] = "Amount is required";
+      if (!formData.voucherAmount)
+        newErrors["voucherAmount"] = "Amount is required";
       if (!formData.purpose) newErrors["purpose"] = "Purpose is required";
-      if (!formData.voucherCreditPerson) newErrors["voucherCreditPerson"] = "Credit Person is required";
-      if (!formData.voucher_signature_data_url) newErrors["voucher_signature_data_url"] = "Signature is required";
+      if (!formData.voucherCreditPerson)
+        newErrors["voucherCreditPerson"] = "Credit Person is required";
+      if (!formData.voucher_signature_data_url)
+        newErrors["voucher_signature_data_url"] = "Signature is required";
     }
     // Loop through all required and visible fields
     for (const col of columns) {
@@ -420,6 +459,15 @@ export default function NewExpensePage() {
     // If any error found, show them and stop
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+
+      // Show error summary
+      showErrorSummary(newErrors);
+
+      // Scroll to first error after a small delay to ensure state is updated
+      setTimeout(() => {
+        scrollToFirstError(newErrors);
+      }, 100);
+
       setSaving(false);
       return;
     }
@@ -923,30 +971,61 @@ export default function NewExpensePage() {
                     <>
                       <Input
                         id={col.key}
+                        name={col.key}
                         value={formData[col.key] || ""}
-                        onChange={(e) => handleInputChange(col.key, e.target.value)}
-                        className={`w-full ${errors[col.key] ? "border border-red-500" : ""}`}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        aria-invalid={errors[col.key] ? "true" : "false"}
+                        aria-describedby={
+                          errors[col.key] ? `${col.key}-error` : undefined
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
                       />
                       {errors[col.key] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
                       )}
                     </>
-
                   )}
 
                   {col.type === "number" && (
                     <>
                       <Input
                         id={col.key}
+                        name={col.key}
                         type="number"
                         value={formData[col.key] || ""}
                         onChange={(e) =>
                           handleInputChange(col.key, parseFloat(e.target.value))
                         }
-                        className={`w-full ${errors[col.key] ? "border border-red-500" : ""}`}
+                        aria-invalid={errors[col.key] ? "true" : "false"}
+                        aria-describedby={
+                          errors[col.key] ? `${col.key}-error` : undefined
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
                       />
                       {errors[col.key] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
                       )}
                     </>
                   )}
@@ -955,13 +1034,30 @@ export default function NewExpensePage() {
                     <>
                       <Input
                         id={col.key}
+                        name={col.key}
                         type="date"
                         value={formData[col.key] || ""}
-                        onChange={(e) => handleInputChange(col.key, e.target.value)}
-                        className={`w-full ${errors[col.key] ? "border border-red-500" : ""}`}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        aria-invalid={errors[col.key] ? "true" : "false"}
+                        aria-describedby={
+                          errors[col.key] ? `${col.key}-error` : undefined
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
                       />
                       {errors[col.key] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
                       )}
                     </>
                   )}
@@ -970,16 +1066,33 @@ export default function NewExpensePage() {
                     <>
                       <Textarea
                         id={col.key}
+                        name={col.key}
                         value={formData[col.key] || ""}
-                        onChange={(e) => handleInputChange(col.key, e.target.value)}
-                        className={`w-full min-h-[100px] ${errors[col.key] ? "border border-red-500" : ""}`}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        aria-invalid={errors[col.key] ? "true" : "false"}
+                        aria-describedby={
+                          errors[col.key] ? `${col.key}-error` : undefined
+                        }
+                        className={`w-full min-h-[100px] ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
                       />
                       {errors[col.key] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
                       )}
                     </>
                   )}
-                  
+
                   {col.type === "dropdown" && col.options && (
                     <>
                       <Select
@@ -990,14 +1103,28 @@ export default function NewExpensePage() {
                       >
                         <SelectTrigger
                           id={col.key}
-                          className={`w-full ${errors[col.key] ? "border border-red-500" : ""}`}
+                          aria-invalid={errors[col.key] ? "true" : "false"}
+                          aria-describedby={
+                            errors[col.key] ? `${col.key}-error` : undefined
+                          }
+                          className={`w-full ${
+                            errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                          }`}
                         >
                           <SelectValue placeholder="Select an option" />
                         </SelectTrigger>
                         <SelectContent>
                           {col.options.map((option: any) => {
-                            const value = typeof option === "string" ? option : option.value;
-                            const label = typeof option === "string" ? option : option.label;
+                            const value =
+                              typeof option === "string"
+                                ? option
+                                : option.value;
+                            const label =
+                              typeof option === "string"
+                                ? option
+                                : option.label;
 
                             return (
                               <SelectItem key={value} value={value}>
@@ -1008,7 +1135,13 @@ export default function NewExpensePage() {
                         </SelectContent>
                       </Select>
                       {errors[col.key] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[col.key]}</p>
+                        <p
+                          id={`${col.key}-error`}
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors[col.key]}
+                        </p>
                       )}
                     </>
                   )}
@@ -1121,12 +1254,28 @@ export default function NewExpensePage() {
                     <div className="mt-2">
                       <Input
                         id="receipt"
+                        name="receipt"
                         type="file"
                         onChange={handleFileChange}
                         required={!voucherModalOpen}
+                        aria-invalid={errors["receipt"] ? "true" : "false"}
+                        aria-describedby={
+                          errors["receipt"] ? "receipt-error" : undefined
+                        }
+                        className={
+                          errors["receipt"]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }
                       />
                       {errors["receipt"] && (
-                        <p className="text-red-500 text-sm mt-1">{errors["receipt"]}</p>
+                        <p
+                          id="receipt-error"
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors["receipt"]}
+                        </p>
                       )}
 
                       <div className="text-sm text-gray-500 mt-1">

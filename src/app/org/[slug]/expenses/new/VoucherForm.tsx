@@ -115,14 +115,18 @@ export default function VoucherForm({
             </Label>
             <Input
               id="yourName"
+              name="yourName"
               value={formData.yourName || ""}
               onChange={(e) => onInputChange("yourName", e.target.value)}
-              className={`w-full ${getError("yourName") ? "border-red-500" : ""}`}
+              aria-invalid={getError("yourName") ? "true" : "false"}
+              aria-describedby={getError("yourName") ? "yourName-error" : undefined}
+              className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
             />
             {getError("yourName") && (
-              <p className="text-red-500 text-sm mt-1">{getError("yourName")}</p>
+              <p id="yourName-error" className="text-red-500 text-sm mt-1" role="alert">
+                {getError("yourName")}
+              </p>
             )}
-
           </div>
 
           <div className="space-y-2">
@@ -131,11 +135,20 @@ export default function VoucherForm({
             </Label>
             <Input
               id="date"
+              name="date"
               type="date"
               value={formData.date || ""}
               onChange={(e) => onInputChange("date", e.target.value)}
+              aria-invalid={getError("date") ? "true" : "false"}
+              aria-describedby={getError("date") ? "date-error" : undefined}
+              className={getError("date") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
               required
             />
+            {getError("date") && (
+              <p id="date-error" className="text-red-500 text-sm mt-1" role="alert">
+                {getError("date")}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -146,15 +159,19 @@ export default function VoucherForm({
               <span className="absolute left-3 top-2.5">₹</span>
               <Input
                 id="voucherAmount"
+                name="voucherAmount"
                 type="number"
                 value={formData.voucherAmount || ""}
                 onChange={(e) => onInputChange("voucherAmount", parseFloat(e.target.value))}
-                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500" : ""}`}
+                aria-invalid={getError("voucherAmount") ? "true" : "false"}
+                aria-describedby={getError("voucherAmount") ? "voucherAmount-error" : undefined}
+                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
               />
               {getError("voucherAmount") && (
-                <p className="text-red-500 text-sm mt-1">{getError("voucherAmount")}</p>
+                <p id="voucherAmount-error" className="text-red-500 text-sm mt-1" role="alert">
+                  {getError("voucherAmount")}
+                </p>
               )}
-
             </div>
           </div>
 
@@ -164,14 +181,18 @@ export default function VoucherForm({
             </Label>
             <Input
               id="purpose"
+              name="purpose"
               value={formData.purpose || ""}
               onChange={(e) => onInputChange("purpose", e.target.value)}
-              className={`w-full ${getError("purpose") ? "border-red-500" : ""}`}
+              aria-invalid={getError("purpose") ? "true" : "false"}
+              aria-describedby={getError("purpose") ? "purpose-error" : undefined}
+              className={`w-full ${getError("purpose") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
             />
             {getError("purpose") && (
-              <p className="text-red-500 text-sm mt-1">{getError("purpose")}</p>
+              <p id="purpose-error" className="text-red-500 text-sm mt-1" role="alert">
+                {getError("purpose")}
+              </p>
             )}
-
           </div>
         </div>
 
@@ -181,14 +202,18 @@ export default function VoucherForm({
           </Label>
           <Input
             id="voucherCreditPerson"
+            name="voucherCreditPerson"
             value={formData.voucherCreditPerson || ""}
             onChange={(e) => onInputChange("voucherCreditPerson", e.target.value)}
-            className={`w-full ${getError("voucherCreditPerson") ? "border-red-500" : ""}`}
+            aria-invalid={getError("voucherCreditPerson") ? "true" : "false"}
+            aria-describedby={getError("voucherCreditPerson") ? "voucherCreditPerson-error" : undefined}
+            className={`w-full ${getError("voucherCreditPerson") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
           />
           {getError("voucherCreditPerson") && (
-            <p className="text-red-500 text-sm mt-1">{getError("voucherCreditPerson")}</p>
+            <p id="voucherCreditPerson-error" className="text-red-500 text-sm mt-1" role="alert">
+              {getError("voucherCreditPerson")}
+            </p>
           )}
-
           <p className="text-sm text-gray-500">
             This should be the person to whom the payment is being made
           </p>
@@ -209,7 +234,7 @@ export default function VoucherForm({
                 userSignatureUrl={savedUserSignature || undefined}
               />
               {getError("voucher_signature_data_url") && (
-                <p className="text-red-500 text-sm mt-1">
+                <p className="text-red-500 text-sm mt-1" role="alert">
                   {getError("voucher_signature_data_url")}
                 </p>
               )}
