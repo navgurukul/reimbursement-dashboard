@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
+import { FileText } from "lucide-react";
+
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   LayoutDashboard,
@@ -77,7 +79,7 @@ export function AppSidebar() {
     {
       title: "Policies",
       href: `/org/${organization?.slug}/policies`,
-      icon: Users,
+      icon: FileText,
     },
     {
       title: "Expense Events", // Add this new item
