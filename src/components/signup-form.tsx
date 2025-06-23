@@ -1,4 +1,3 @@
-// Path: src/components/auth/signup-form.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,6 +13,22 @@ import supabase from "@/lib/supabase";
 import { toast } from "sonner";
 import Link from "next/link";
 
+interface InviteLink {
+  id: string;
+  org_id: string;
+  role: string;
+  expires_at: string | null;
+  max_uses: number | null;
+  current_uses: number;
+  is_active: boolean;
+  organization: {
+    name: string;
+    slug: string;
+  };
+}
+
+type InviteType = "old" | "new" | null;
+
 export function SignupForm({
   className,
   ...props
@@ -21,78 +36,139 @@ export function SignupForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const emailParam = searchParams.get("email"); // For new invite links
 
   const { signup, error: authError, isLoading } = useAuthStore();
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailParam || "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // State for old invite system
   const [invite, setInvite] = useState<InviteRow | null>(null);
+
+  // State for new invite link system
+  const [inviteLink, setInviteLink] = useState<InviteLink | null>(null);
+
+  // Track which type of invite this is
+  const [inviteType, setInviteType] = useState<InviteType>(null);
+
   const { syncExternalAuth } = useAuthStore.getState();
 
-  // Load invite if present
+  // Load invite if present (support both old and new systems)
   useEffect(() => {
     if (!token) return;
-    invites.getById(token).then(({ data, error }) => {
-      if (error || !data) {
-        setError("Invalid or expired invite.");
-      } else if (data.used) {
-        setError("This invite has already been used.");
-      } else {
-        setInvite(data);
-        setEmail(data.email);
+
+    const loadInviteData = async () => {
+      try {
+        // First, try to load as new invite link
+        const { data: linkData, error: linkError } = await supabase
+          .from("invite_links")
+          .select(
+            `
+            *,
+            organization:organizations!org_id (
+              name,
+              slug
+            )
+          `
+          )
+          .eq("id", token)
+          .eq("is_active", true)
+          .single();
+
+        if (linkData && !linkError) {
+          // This is a new invite link
+
+          // Check if link is expired
+          if (
+            linkData.expires_at &&
+            new Date() > new Date(linkData.expires_at)
+          ) {
+            setError("This invite link has expired.");
+            return;
+          }
+
+          // Check usage limits
+          if (linkData.max_uses && linkData.current_uses >= linkData.max_uses) {
+            setError("This invite link has reached its usage limit.");
+            return;
+          }
+
+          setInviteLink(linkData);
+          setInviteType("new");
+
+          // For new links, email comes from URL parameter
+          if (emailParam) {
+            setEmail(emailParam);
+          }
+          return;
+        }
+
+        // If new invite link failed, try old invite system
+        const { data: oldInviteData, error: oldInviteError } =
+          await invites.getById(token);
+
+        if (oldInviteError || !oldInviteData) {
+          setError("Invalid or expired invite.");
+          return;
+        }
+
+        if (oldInviteData.used) {
+          setError("This invite has already been used.");
+          return;
+        }
+
+        // This is an old invite
+        setInvite(oldInviteData);
+        setInviteType("old");
+        setEmail(oldInviteData.email);
+      } catch (err) {
+        console.error("Error loading invite data:", err);
+        setError("Failed to load invite information.");
       }
-    });
-  }, [token]);
+    };
+
+    loadInviteData();
+  }, [token, emailParam]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const isInviteSignup = inviteType === "old" || inviteType === "new";
     const toastId = toast.loading(
-      invite ? "Joining organization…" : "Creating account…"
+      isInviteSignup ? "Joining organization…" : "Creating account…"
     );
 
     try {
-      // 1) Sign up the user with metadata for the trigger
       let userId: string;
       let signUpData;
 
-      if (invite && token) {
-        const result = await supabase.auth.signUp({
-          email: invite.email,
-          password,
-          options: {
-            data: {
-              full_name: name, // Add metadata for the trigger
-            },
-          },
-        });
+      // Sign up the user with metadata for the trigger
+      const signUpEmail = inviteType === "old" ? invite!.email : email;
 
-        if (result.error || !result.data.user) throw result.error;
-        userId = result.data.user.id;
-        signUpData = result.data;
-      } else {
-        const result = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: name, // Add metadata for the trigger
-            },
+      const result = await supabase.auth.signUp({
+        email: signUpEmail,
+        password,
+        options: {
+          data: {
+            full_name: name, // Add metadata for the trigger
           },
-        });
+        },
+      });
 
-        if (result.error || !result.data.user) throw result.error;
-        userId = result.data.user.id;
-        signUpData = result.data;
-      }
+      if (result.error || !result.data.user) throw result.error;
+      userId = result.data.user.id;
+      signUpData = result.data;
 
       // Give the trigger time to run
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // 2) If this was an invite, link to org & mark used
-      if (invite && token) {
+      // Handle invite logic based on type
+      if (inviteType === "old" && invite && token) {
+        // Old invite system logic
         const { error: linkError } = await organizations.addUser(
           invite.org_id,
           userId,
@@ -109,11 +185,35 @@ export function SignupForm({
         toast.dismiss(toastId);
         toast.success("Please check your email to confirm your signup.");
         router.push(`/org/${orgData.slug}`);
+      } else if (inviteType === "new" && inviteLink && token) {
+        // New invite link system logic
+
+        // Call the use-link API to handle the organization joining
+        const response = await fetch("/api/invite/use-link-signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            linkId: token,
+            email: email,
+            userId: userId,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to join organization");
+        }
+
+        toast.dismiss(toastId);
+        toast.success("Please check your email to confirm your signup.");
+        router.push(`/org/${inviteLink.organization.slug}`);
       } else {
+        // Regular signup (no invite)
         toast.dismiss(toastId);
         toast.success("Account created! Check your email.");
         router.push("/auth/signin");
       }
+
       await syncExternalAuth(userId);
     } catch (err: any) {
       toast.dismiss(toastId);
@@ -123,13 +223,36 @@ export function SignupForm({
     }
   };
 
+  const getFormTitle = () => {
+    if (inviteType === "old") return "Complete Your Invite";
+    if (inviteType === "new") return `Join ${inviteLink?.organization?.name}`;
+    return "Create Account";
+  };
+
+  const getButtonText = () => {
+    if (inviteType === "old") return "Join Organization";
+    if (inviteType === "new") return `Join as ${inviteLink?.role}`;
+    return "Sign Up";
+  };
+
+  const isEmailReadOnly =
+    inviteType === "old" || (inviteType === "new" && !!emailParam);
+
   return (
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
       <Card className="shadow-md border">
         <CardContent className="p-6 space-y-6">
-          <h1 className="text-2xl font-bold text-center">
-            {invite ? "Complete Your Invite" : "Create Account"}
-          </h1>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">{getFormTitle()}</h1>
+            {inviteType === "new" && inviteLink && (
+              <p className="text-sm text-muted-foreground mt-1">
+                You're joining as a{" "}
+                <span className="capitalize font-medium">
+                  {inviteLink.role}
+                </span>
+              </p>
+            )}
+          </div>
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
@@ -149,10 +272,15 @@ export function SignupForm({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                readOnly={!!invite}
-                className={invite ? "cursor-not-allowed" : ""}
+                readOnly={isEmailReadOnly}
+                className={isEmailReadOnly ? "cursor-not-allowed bg-muted" : ""}
                 required
               />
+              {isEmailReadOnly && (
+                <p className="text-xs text-muted-foreground">
+                  Email is pre-filled from your invitation
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -174,9 +302,10 @@ export function SignupForm({
               disabled={isLoading}
               className="w-full cursor-pointer"
             >
-              {invite ? "Join Organization" : "Sign Up"}
+              {getButtonText()}
             </Button>
           </form>
+
           <p className="text-center text-sm">
             Already have an account?{" "}
             <Link
