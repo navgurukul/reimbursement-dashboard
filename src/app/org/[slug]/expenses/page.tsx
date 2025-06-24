@@ -41,7 +41,6 @@ const defaultExpenseColumns = [
   { key: "category", label: "Category", visible: true },
   { key: "amount", label: "Amount", visible: true },
   { key: "creator_name", label: "Created By", visible: true },
-  { key: "description", label: "Description", visible: true },
   { key: "receipt", label: "Receipt", visible: true },
   { key: "approver", label: "Approver", visible: true },
 ];
@@ -100,7 +99,10 @@ export default function ExpensesPage() {
         setColumns(defaultExpenseColumns);
       } else {
         // Safely handle the case where settings or expense_columns might be undefined
-        const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+        let expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+
+        // ✅ Remove any existing 'description' columns
+        expenseColumns = expenseColumns.filter((c) => c.key !== "description");
 
         // Ensure creator_name column exists
         if (!expenseColumns.some((c) => c.key === "creator_name")) {
@@ -114,6 +116,7 @@ export default function ExpensesPage() {
 
         setColumns(expenseColumns);
       }
+
 
       // 2) load expenses per role
       let my: any[] = [],
@@ -480,23 +483,21 @@ export default function ExpensesPage() {
                                   exp.approver?.full_name || "—"
                                 ) : c.key === "category" ? (
                                   getExpenseValue(exp, "category")
-                                ) : c.key === "description" ? (
-                                  getExpenseValue(exp, "description")
-                                ) : typeof exp[c.key] === "object" &&
-                                  exp[c.key] !== null ? (
+                                ) : typeof exp[c.key] === "object" && exp[c.key] !== null ? (
                                   JSON.stringify(exp[c.key])
                                 ) : (
                                   exp[c.key] || "—"
                                 )}
+
                               </TableCell>
                             ))}
                           <TableCell>
                             <span
                               className={`px-2 py-1 rounded-full text-xs ${exp.status === "approved"
-                                  ? "bg-green-100 text-green-800"
-                                  : exp.status === "rejected"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-amber-100 text-amber-800"
+                                ? "bg-green-100 text-green-800"
+                                : exp.status === "rejected"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-amber-100 text-amber-800"
                                 }`}
                             >
                               {exp.status.charAt(0).toUpperCase() +
