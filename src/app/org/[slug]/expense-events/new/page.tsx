@@ -22,6 +22,9 @@ export default function CreateExpenseEventPage() {
   const orgId = organization?.id;
   const slug = params.slug as string;
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -32,18 +35,18 @@ export default function CreateExpenseEventPage() {
   });
 
   const [saving, setSaving] = useState(false);
-    useEffect(() => {
-      if (
-        user &&
-        organization &&
-        userRole &&
-        userRole !== "admin" &&
-        userRole !== "owner"
-      ) {
-        toast.error("You don't have permission to create expense events");
-        router.push(`/org/${slug}/expense-events`);
-      }
-    }, [user, organization, userRole, router, slug]);
+  useEffect(() => {
+    if (
+      user &&
+      organization &&
+      userRole &&
+      userRole !== "admin" &&
+      userRole !== "owner"
+    ) {
+      toast.error("You don't have permission to create expense events");
+      router.push(`/org/${slug}/expense-events`);
+    }
+  }, [user, organization, userRole, router, slug]);
 
   if (!orgId || !user) {
     return (
@@ -58,22 +61,35 @@ export default function CreateExpenseEventPage() {
       ...prev,
       [field]: value,
     }));
+
+    if (errors[field] && value.trim() !== "") {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[field];
+        return updated;
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
 
-    try {
-      // Additional permission check before submission
-      if (
-        userRole !== "admin" &&
-        userRole !== "owner" 
-      ) {
-        throw new Error("You don't have permission to create expense events");
-      }
+    const newErrors: Record<string, string> = {};
+    if (!formData.title) newErrors["title"] = "Event title is required.";
+    if (!formData.start_date) newErrors["start_date"] = "Start date is required.";
+    if (!formData.end_date) newErrors["end_date"] = "End date is required.";
+    if (!formData.description) newErrors["description"] = "Description is required.";
 
-      // Create the new expense event - CHANGE STATUS TO "submitted" INSTEAD OF "draft"
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setSaving(false);
+      return;
+    }
+
+    setErrors({}); // ✅ Clear errors if no validation issues
+
+    try {
       const { data, error } = await expenseEvents.create({
         org_id: orgId,
         user_id: user.id,
@@ -81,11 +97,12 @@ export default function CreateExpenseEventPage() {
         description: formData.description,
         start_date: formData.start_date,
         end_date: formData.end_date,
-        status: "submitted", // Changed from "draft" to "submitted" to make it visible
+        status: "submitted",
         custom_fields: {},
       });
-
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (data) {
         toast.success("Expense event created successfully");
@@ -93,9 +110,7 @@ export default function CreateExpenseEventPage() {
       }
     } catch (error: any) {
       console.error("Error creating expense event:", error);
-      toast.error("Failed to create expense event", {
-        description: error.message || "Please try again later",
-      });
+      toast.error(error?.message || "Please try again later");
     } finally {
       setSaving(false);
     }
@@ -128,9 +143,12 @@ export default function CreateExpenseEventPage() {
                 id="title"
                 value={formData.title}
                 onChange={(e) => handleInputChange("title", e.target.value)}
-                placeholder="e.g., Visit to Pune"
-                required
+                className={errors["title"] ? "border-red-500" : ""}
               />
+              {errors["title"] && (
+                <p className="text-red-500 text-sm mt-1">{errors["title"]}</p>
+              )}
+
             </div>
 
             <div className="space-y-2">
@@ -145,49 +163,54 @@ export default function CreateExpenseEventPage() {
                 }
                 placeholder="Details about this expense event"
                 rows={4}
+                className={`w-full ${errors["description"] ? "border-red-500" : ""}`}
               />
+              {errors["description"] && (
+                <p className="text-red-500 text-sm mt-1">{errors["description"]}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label htmlFor="start_date" className="text-sm font-medium">
-                  Start Date*
+                  Start Date <span className="text-red-500">*</span>
                 </label>
                 <Input
                   id="start_date"
                   type="date"
                   value={formData.start_date}
-                  onChange={(e) =>
-                    handleInputChange("start_date", e.target.value)
-                  }
-                  required
+                  onChange={(e) => handleInputChange("start_date", e.target.value)}
+                  className={errors["start_date"] ? "border-red-500" : ""}
                 />
+                {errors["start_date"] && (
+                  <p className="text-red-500 text-sm mt-1">{errors["start_date"]}</p>
+                )}
+
               </div>
               <div className="space-y-2">
                 <label htmlFor="end_date" className="text-sm font-medium">
-                  End Date*
+                  End Date <span className="text-red-500">*</span>
                 </label>
                 <Input
                   id="end_date"
                   type="date"
                   value={formData.end_date}
-                  onChange={(e) =>
-                    handleInputChange("end_date", e.target.value)
-                  }
-                  required
+                  onChange={(e) => handleInputChange("end_date", e.target.value)}
+                  className={errors["end_date"] ? "border-red-500" : ""}
                 />
+                {errors["end_date"] && (
+                  <p className="text-red-500 text-sm mt-1">{errors["end_date"]}</p>
+                )}
+
+
               </div>
+
             </div>
 
             <div className="pt-4 flex justify-end">
               <Button
                 type="submit"
-                disabled={
-                  saving ||
-                  !formData.title ||
-                  !formData.start_date ||
-                  !formData.end_date
-                }
+                disabled={saving}
                 className="bg-black text-white hover:bg-black/90"
               >
                 {saving ? (
@@ -202,6 +225,7 @@ export default function CreateExpenseEventPage() {
                   </>
                 )}
               </Button>
+
             </div>
           </form>
         </CardContent>
