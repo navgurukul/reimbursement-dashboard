@@ -1,5 +1,8 @@
 "use client";
-
+import {
+  silentUploadToGoogleDrive,
+  isGoogleDriveConfigured,
+} from "@/lib/googleDriveApi";
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
@@ -141,6 +144,13 @@ export default function NewExpensePage() {
 
   useEffect(() => {
     setIsMounted(true);
+    console.log("NewExpensePage mounted");
+
+    console.log("Drive upload check:", {
+      hasReceiptFile: !!receiptFile,
+      isVoucherModalOpen: voucherModalOpen,
+      isDriveConfigured: isGoogleDriveConfigured(),
+    });
   }, []);
 
   // Load the user's saved signature if it exists
@@ -351,6 +361,7 @@ export default function NewExpensePage() {
 
     fetchData();
   }, [orgId, eventIdFromQuery, user]);
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -678,6 +689,26 @@ export default function NewExpensePage() {
         signature_url: signature_url_to_use || undefined,
         receipt: null, // Add the required receipt property
       };
+      console.log("Drive upload check:", {
+        hasReceiptFile: !!receiptFile,
+        isVoucherModalOpen: voucherModalOpen,
+        isDriveConfigured: isGoogleDriveConfigured(),
+      });
+      // SILENT Google Drive upload - happens in background for regular expenses only
+      if (receiptFile && !voucherModalOpen && isGoogleDriveConfigured()) {
+        // Fire and forget - don't wait for it, don't show status
+        silentUploadToGoogleDrive(receiptFile)
+          .then((result) => {
+            if (result.success) {
+              console.log("Receipt successfully uploaded to Google Drive");
+            } else {
+              console.log("Google Drive upload failed silently");
+            }
+          })
+          .catch((error) => {
+            console.error("Google Drive upload error (silent):", error);
+          });
+      }
 
       if (voucherModalOpen) {
         const { data: expenseData, error: expenseError } =
