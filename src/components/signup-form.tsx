@@ -210,9 +210,16 @@ export function SignupForm({
       } else {
         // Regular signup (no invite)
         toast.dismiss(toastId);
-        toast.success("Account created! Check your email.");
+        toast.success("Account created! Check your email.", {
+          style: {
+            background: "white",
+            color: "green",
+            fontWeight: "bold",
+          },
+        });
         router.push("/auth/signin");
       }
+
 
       await syncExternalAuth(userId);
     } catch (err: any) {

@@ -505,10 +505,10 @@ export default function ExpensesPage() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            <div className="flex space-x-3">
+                            <div className="flex space-x-3 gap-3">
                               {/* 👁️ View Icon */}
                               <Eye
-                                className="w-4 h-4 text-gray-500 cursor-pointer hover:text-gray-700"
+                                className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                 onClick={() =>
                                   router.push(`/org/${slug}/expenses/${exp.id}`)
                                 }
@@ -516,7 +516,7 @@ export default function ExpensesPage() {
                               {/* ✏️ Edit Icon — status "submitted" ke liye */}
                               {exp.status === "submitted" && (
                                 <Pencil
-                                  className="w-4 h-4 text-blue-500 cursor-pointer hover:text-blue-700"
+                                  className="w-4 h-4 text-gray-600 cursor-pointer hover:text-blue-700"
                                   onClick={() =>
                                     router.push(`/org/${slug}/expenses/${exp.id}/edit`)
                                   }
