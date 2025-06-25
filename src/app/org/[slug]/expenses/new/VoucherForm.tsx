@@ -45,6 +45,7 @@ export default function VoucherForm({
   // Use the saved signature if no voucher signature is set
   useEffect(() => {
     if (savedUserSignature && !formData.voucher_signature_data_url) {
+      console.log("Using saved user signature for voucher");
       setVoucherSignature(savedUserSignature);
       onInputChange("voucher_signature_data_url", savedUserSignature);
       onInputChange("voucher_signature_preview", savedUserSignature);
@@ -52,7 +53,7 @@ export default function VoucherForm({
   }, [savedUserSignature, formData.voucher_signature_data_url, onInputChange]);
 
   // Handle voucher signature save independently from expense signature
-  // Handle voucher signature save independently from expense signature
+  // Simplified to use single bucket approach
   const handleVoucherSignatureSave = async (dataUrl: string) => {
     if (!dataUrl) {
       console.error("Empty signature data URL in voucher form");
@@ -74,9 +75,12 @@ export default function VoucherForm({
     // Only save to profile if this is a new signature (not the saved one)
     if (dataUrl !== savedUserSignature && user?.id && organization?.id) {
       try {
-        console.log("Saving new signature to user profile");
+        console.log(
+          "Saving new signature to user profile using simplified approach"
+        );
 
         // Use the comprehensive function that handles both upload and profile update
+        // This will save as userId.png format
         const { success, path, error } = await saveUserSignature(
           dataUrl,
           user.id,
@@ -119,11 +123,21 @@ export default function VoucherForm({
               value={formData.yourName || ""}
               onChange={(e) => onInputChange("yourName", e.target.value)}
               aria-invalid={getError("yourName") ? "true" : "false"}
-              aria-describedby={getError("yourName") ? "yourName-error" : undefined}
-              className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+              aria-describedby={
+                getError("yourName") ? "yourName-error" : undefined
+              }
+              className={`w-full ${
+                getError("yourName")
+                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                  : ""
+              }`}
             />
             {getError("yourName") && (
-              <p id="yourName-error" className="text-red-500 text-sm mt-1" role="alert">
+              <p
+                id="yourName-error"
+                className="text-red-500 text-sm mt-1"
+                role="alert"
+              >
                 {getError("yourName")}
               </p>
             )}
@@ -141,11 +155,19 @@ export default function VoucherForm({
               onChange={(e) => onInputChange("date", e.target.value)}
               aria-invalid={getError("date") ? "true" : "false"}
               aria-describedby={getError("date") ? "date-error" : undefined}
-              className={getError("date") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
+              className={
+                getError("date")
+                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                  : ""
+              }
               required
             />
             {getError("date") && (
-              <p id="date-error" className="text-red-500 text-sm mt-1" role="alert">
+              <p
+                id="date-error"
+                className="text-red-500 text-sm mt-1"
+                role="alert"
+              >
                 {getError("date")}
               </p>
             )}
@@ -162,13 +184,25 @@ export default function VoucherForm({
                 name="voucherAmount"
                 type="number"
                 value={formData.voucherAmount || ""}
-                onChange={(e) => onInputChange("voucherAmount", parseFloat(e.target.value))}
+                onChange={(e) =>
+                  onInputChange("voucherAmount", parseFloat(e.target.value))
+                }
                 aria-invalid={getError("voucherAmount") ? "true" : "false"}
-                aria-describedby={getError("voucherAmount") ? "voucherAmount-error" : undefined}
-                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                aria-describedby={
+                  getError("voucherAmount") ? "voucherAmount-error" : undefined
+                }
+                className={`w-full pl-7 ${
+                  getError("voucherAmount")
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                    : ""
+                }`}
               />
               {getError("voucherAmount") && (
-                <p id="voucherAmount-error" className="text-red-500 text-sm mt-1" role="alert">
+                <p
+                  id="voucherAmount-error"
+                  className="text-red-500 text-sm mt-1"
+                  role="alert"
+                >
                   {getError("voucherAmount")}
                 </p>
               )}
@@ -185,11 +219,21 @@ export default function VoucherForm({
               value={formData.purpose || ""}
               onChange={(e) => onInputChange("purpose", e.target.value)}
               aria-invalid={getError("purpose") ? "true" : "false"}
-              aria-describedby={getError("purpose") ? "purpose-error" : undefined}
-              className={`w-full ${getError("purpose") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+              aria-describedby={
+                getError("purpose") ? "purpose-error" : undefined
+              }
+              className={`w-full ${
+                getError("purpose")
+                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                  : ""
+              }`}
             />
             {getError("purpose") && (
-              <p id="purpose-error" className="text-red-500 text-sm mt-1" role="alert">
+              <p
+                id="purpose-error"
+                className="text-red-500 text-sm mt-1"
+                role="alert"
+              >
                 {getError("purpose")}
               </p>
             )}
@@ -204,13 +248,27 @@ export default function VoucherForm({
             id="voucherCreditPerson"
             name="voucherCreditPerson"
             value={formData.voucherCreditPerson || ""}
-            onChange={(e) => onInputChange("voucherCreditPerson", e.target.value)}
+            onChange={(e) =>
+              onInputChange("voucherCreditPerson", e.target.value)
+            }
             aria-invalid={getError("voucherCreditPerson") ? "true" : "false"}
-            aria-describedby={getError("voucherCreditPerson") ? "voucherCreditPerson-error" : undefined}
-            className={`w-full ${getError("voucherCreditPerson") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+            aria-describedby={
+              getError("voucherCreditPerson")
+                ? "voucherCreditPerson-error"
+                : undefined
+            }
+            className={`w-full ${
+              getError("voucherCreditPerson")
+                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                : ""
+            }`}
           />
           {getError("voucherCreditPerson") && (
-            <p id="voucherCreditPerson-error" className="text-red-500 text-sm mt-1" role="alert">
+            <p
+              id="voucherCreditPerson-error"
+              className="text-red-500 text-sm mt-1"
+              role="alert"
+            >
               {getError("voucherCreditPerson")}
             </p>
           )}
@@ -219,7 +277,7 @@ export default function VoucherForm({
           </p>
         </div>
 
-        {/* Voucher signature section */}
+        {/* Voucher signature section - now using single bucket approach */}
         <div className="mt-6">
           {loadingSignature ? (
             <div className="flex items-center justify-center h-32 bg-gray-50 border rounded-lg">

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -27,7 +26,6 @@ import SignaturePad from "@/components/SignatureCanvas";
 import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 
-
 // Import Policy type but use Supabase directly for policies
 interface Policy {
   id: string;
@@ -41,39 +39,36 @@ interface Policy {
   updated_at: string;
 }
 
-// Helper function to get signature URL from different buckets
-async function getSignatureUrl(path: string): Promise<string | null> {
-  if (!path) return null;
+// FIXED: Updated helper function to use only user-signatures bucket with userId.png format
+async function getSignatureUrl(signaturePath: string): Promise<string | null> {
+  if (!signaturePath) return null;
 
-  // console.log("Getting signature URL for path:", path);
 
-  // Try voucher-signatures bucket first
   try {
-    const { data, error } = await supabase.storage
-      .from("voucher-signatures")
-      .createSignedUrl(path, 3600);
-
-    if (!error && data?.signedUrl) {
-      return data.signedUrl;
+    // Extract userId from the path if it's in userId.png format
+    let userId = signaturePath;
+    if (userId.endsWith(".png")) {
+      userId = userId.replace(".png", "");
     }
-  } catch (e) {
-    console.log("Error in voucher-signatures bucket:", e);
-  }
 
-  // Then try user-signatures bucket
-  try {
-    const { data, error } = await supabase.storage
-      .from("user-signatures")
-      .createSignedUrl(path, 3600);
 
-    if (!error && data?.signedUrl) {
-      return data.signedUrl;
+    // Use our unified getUserSignatureUrl function
+    const { url, error } = await getUserSignatureUrl(userId);
+
+    if (error) {
+      console.error("Error getting signature URL:", error);
+      return null;
     }
-  } catch (e) {
-    console.log("Error in user-signatures bucket:", e);
-  }
 
-  return null;
+    if (url) {
+      return url;
+    }
+
+    return null;
+  } catch (e) {
+    console.error("Exception in getSignatureUrl:", e);
+    return null;
+  }
 }
 
 export default function ViewExpensePage() {
@@ -95,24 +90,23 @@ export default function ViewExpensePage() {
   const [customAmount, setCustomAmount] = useState<string>("");
   const [showCustomAmountInput, setShowCustomAmountInput] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
-  const [approverSignatureUrl, setApproverSignatureUrl] = useState<string | null>(null);
-
+  const [approverSignatureUrl, setApproverSignatureUrl] = useState<
+    string | null
+  >(null);
 
   // Fetch the current user ID when the component mounts
   useEffect(() => {
     async function getCurrentUser() {
-      const userID = JSON.parse(
-        localStorage.getItem("auth-storage") || "{}"
-      ).state?.user?.id;
+      const userID = JSON.parse(localStorage.getItem("auth-storage") || "{}")
+        .state?.user?.id;
 
-      const { data: userData, error } = await profiles.getById(userID);
-      if (error) {
-        console.error("Error fetching user:", error);
-        return;
+      if (userID) {
+        const { data: userData, error } = await profiles.getById(userID);
+        if (!error && userData?.signature_url) {
+          const url = await getSignatureUrl(userData.signature_url);
+          setApproverSignatureUrl(url);
+        }
       }
-
-      const url = await getSignatureUrl(userData.signature_url);
-      setApproverSignatureUrl(url);
 
       const {
         data: { session },
@@ -126,14 +120,13 @@ export default function ViewExpensePage() {
   }, []);
 
   useEffect(() => {
-    console.log('get signatureUrl : ', signatureUrl);
-  }, [signatureUrl])
-
+    console.log("Current signatureUrl state:", signatureUrl);
+  }, [signatureUrl]);
 
   useEffect(() => {
     async function fetchExpense() {
       try {
-        // Fetch the 
+        // Fetch the expense
         const { data, error } = await expenses.getById(expenseId);
         if (error) {
           toast.error("Failed to load expense", {
@@ -147,7 +140,8 @@ export default function ViewExpensePage() {
 
         // Fetch approver signature URL if approver_id exists
         if (data.approver_id) {
-          const { data: approverProfile, error: approverError } = await profiles.getById(data.approver_id);
+          const { data: approverProfile, error: approverError } =
+            await profiles.getById(data.approver_id);
           if (!approverError && approverProfile?.signature_url) {
             const url = await getSignatureUrl(approverProfile.signature_url);
             if (url) {
@@ -156,12 +150,13 @@ export default function ViewExpensePage() {
           }
         }
 
-
-        // If expense has signature_url, try to get the signature
+        // FIXED: If expense has signature_url, get the signature using new system
         if (data.signature_url) {
           const url = await getSignatureUrl(data.signature_url);
           if (url) {
             setSignatureUrl(url);
+          } else {
+            console.log("Failed to load expense signature");
           }
         }
 
@@ -201,11 +196,15 @@ export default function ViewExpensePage() {
         if (!voucherError && voucherData) {
           setHasVoucher(true);
 
-          // If no signature yet and voucher has signature_url, try to get it
+          // FIXED: If no signature yet and voucher has signature_url, get it using new system
           if (!signatureUrl && voucherData.signature_url) {
+  
             const url = await getSignatureUrl(voucherData.signature_url);
             if (url) {
+              console.log("Successfully loaded voucher signature");
               setSignatureUrl(url);
+            } else {
+              console.log("Failed to load voucher signature");
             }
           }
         } else {
@@ -263,7 +262,6 @@ export default function ViewExpensePage() {
       // Log the custom approval to history with improved username extraction
       try {
         const authRaw = localStorage.getItem("auth-storage");
-        console.log("Auth raw:", authRaw);
         const authStorage = JSON.parse(authRaw || "{}");
 
         // Try multiple paths and nested data
@@ -282,7 +280,6 @@ export default function ViewExpensePage() {
           }
         }
 
-        console.log("Final username to be used:", userName);
 
         await expenseHistory.addEntry(
           expenseId,
@@ -333,6 +330,7 @@ export default function ViewExpensePage() {
       setUpdateLoading(false);
     }
   };
+
   // Main approve function with different approval types
   const handleApprove = async (approvalType?: "full" | "policy" | "custom") => {
     try {
@@ -397,7 +395,8 @@ export default function ViewExpensePage() {
       const approverId = authStorage?.state?.user?.id;
 
       if (approverId) {
-        const { data: profileData, error: profileError } = await profiles.getById(approverId);
+        const { data: profileData, error: profileError } =
+          await profiles.getById(approverId);
 
         if (!profileError && profileData?.signature_url) {
           await supabase
@@ -407,18 +406,12 @@ export default function ViewExpensePage() {
         }
       }
 
-
       // Log the approval to history with improved username extraction
       try {
         const authRaw = localStorage.getItem("auth-storage");
-        console.log("Auth raw:", authRaw);
+
         const authStorage = JSON.parse(authRaw || "{}");
 
-        // Log all possible paths to help debug
-        console.log("Full auth storage object:", authStorage);
-        console.log("State:", authStorage.state);
-        console.log("User:", authStorage.state?.user);
-        console.log("Profile direct:", authStorage.state?.user?.profile);
 
         // Try multiple paths and nested data
         let userName = "Unknown User";
@@ -436,14 +429,13 @@ export default function ViewExpensePage() {
           }
         }
 
-        console.log("Final username to be used:", userName);
 
         const noteText =
           approvalType === "policy"
             ? "Approved as per policy limit"
             : approvalType === "full"
-              ? "Approved with full amount"
-              : "Expense approved";
+            ? "Approved with full amount"
+            : "Expense approved";
 
         await expenseHistory.addEntry(
           expenseId,
@@ -465,8 +457,8 @@ export default function ViewExpensePage() {
           approvalType === "policy"
             ? "Approved as per policy limit"
             : approvalType === "full"
-              ? "Approved with full amount"
-              : "Expense approved"
+            ? "Approved with full amount"
+            : "Expense approved"
         );
       }
 
@@ -482,8 +474,8 @@ export default function ViewExpensePage() {
         approvalType === "policy"
           ? "Expense approved as per policy limit"
           : approvalType === "full"
-            ? "Expense approved with full amount"
-            : "Expense approved successfully"
+          ? "Expense approved with full amount"
+          : "Expense approved successfully"
       );
 
       // Navigate back after a short delay
@@ -499,6 +491,7 @@ export default function ViewExpensePage() {
       setUpdateLoading(false);
     }
   };
+
   // Handle rejection
   const handleReject = async () => {
     try {
@@ -537,14 +530,10 @@ export default function ViewExpensePage() {
       // Log the rejection to history with improved username extraction
       try {
         const authRaw = localStorage.getItem("auth-storage");
-        console.log("Auth raw:", authRaw);
+     
         const authStorage = JSON.parse(authRaw || "{}");
 
-        // Log all possible paths to help debug
-        console.log("Full auth storage object:", authStorage);
-        console.log("State:", authStorage.state);
-        console.log("User:", authStorage.state?.user);
-        console.log("Profile direct:", authStorage.state?.user?.profile);
+
 
         // Try multiple paths and nested data
         let userName = "Unknown User";
@@ -562,7 +551,6 @@ export default function ViewExpensePage() {
           }
         }
 
-        console.log("Final username to be used:", userName);
 
         await expenseHistory.addEntry(
           expenseId,
@@ -607,6 +595,7 @@ export default function ViewExpensePage() {
       setUpdateLoading(false);
     }
   };
+
   const handleViewReceipt = async () => {
     if (expense.receipt?.path) {
       try {
@@ -628,9 +617,7 @@ export default function ViewExpensePage() {
     }
   };
 
-
   const handleSaveSignature = async (dataUrl: string) => {
-
     // Only save to profile if this is a new signature (not the saved one)
     try {
       if (!user?.id || !organization?.id) {
@@ -663,7 +650,6 @@ export default function ViewExpensePage() {
       toast.error("An error occurred while saving your signature");
     }
   };
-
 
   if (loading) {
     return (
@@ -891,20 +877,23 @@ export default function ViewExpensePage() {
                   )}
 
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Date</p>
-                  <p>{new Date(expense.date).toLocaleDateString('en-GB')}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Date
+                  </p>
+                  <p>{new Date(expense.date).toLocaleDateString("en-GB")}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
                     Status
                   </p>
                   <p
-                    className={`${expense.status === "approved"
-                      ? "text-green-600"
-                      : expense.status === "rejected"
+                    className={`${
+                      expense.status === "approved"
+                        ? "text-green-600"
+                        : expense.status === "rejected"
                         ? "text-red-600"
                         : "text-amber-600"
-                      }`}
+                    }`}
                   >
                     {expense.status.charAt(0).toUpperCase() +
                       expense.status.slice(1)}
@@ -967,7 +956,7 @@ export default function ViewExpensePage() {
                 )}
               </div>
 
-              {/* Signature Section - Add this section to show the signature */}
+              {/* FIXED: Signature Section - Updated to use new system */}
               {signatureUrl && (
                 <div className="mt-6">
                   <p className="text-sm font-medium text-muted-foreground mb-2">
@@ -978,39 +967,54 @@ export default function ViewExpensePage() {
                       src={signatureUrl}
                       alt="Signature"
                       className="max-h-24 mx-auto"
+                      onError={(e) => {
+                        console.error("Error loading signature image");
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = "none";
+                        // Show fallback text
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML =
+                            '<div class="text-red-500 text-sm">Failed to load signature</div>';
+                        }
+                      }}
                     />
                   </div>
                 </div>
               )}
 
-              {currentUserId === expense.approver_id && approverSignatureUrl && (
-                <div className="mt-6">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">
-                    Approver Signature
-                  </p>
-                  <div className="border rounded-md p-4 bg-white">
-                    <SignaturePad
-                      onSave={handleSaveSignature}
-                      label="Your Signature for Voucher"
-                      signatureUrl={approverSignatureUrl}
-                      userSignatureUrl={approverSignatureUrl || undefined}
-                    />
+              {/* FIXED: Approver Signature Section - Updated to use new system */}
+              {currentUserId === expense.approver_id &&
+                approverSignatureUrl && (
+                  <div className="mt-6">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">
+                      Approver Signature
+                    </p>
+                    <div className="border rounded-md p-4 bg-white">
+                      <SignaturePad
+                        onSave={handleSaveSignature}
+                        label="Your Signature as Approver"
+                        signatureUrl={approverSignatureUrl}
+                        userSignatureUrl={approverSignatureUrl || undefined}
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Custom fields section */}
               {expense.custom_fields &&
                 Object.keys(expense.custom_fields).length > 0 && (
                   <div className="grid grid-cols-2 gap-4 mt-4">
-                    {Object.entries(expense.custom_fields).map(([key, value]) => (
-                      <div key={key}>
-                        <p className="text-sm font-medium text-muted-foreground">
-                          {formatFieldName(key)}
-                        </p>
-                        <p>{(value as string) || "—"}</p>
-                      </div>
-                    ))}
+                    {Object.entries(expense.custom_fields).map(
+                      ([key, value]) => (
+                        <div key={key}>
+                          <p className="text-sm font-medium text-muted-foreground">
+                            {formatFieldName(key)}
+                          </p>
+                          <p>{(value as string) || "—"}</p>
+                        </div>
+                      )
+                    )}
                   </div>
                 )}
             </CardContent>
