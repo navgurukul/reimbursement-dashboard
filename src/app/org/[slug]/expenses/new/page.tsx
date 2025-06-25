@@ -154,12 +154,14 @@ export default function NewExpensePage() {
 
         const { url, error } = await getUserSignatureUrl(user.id);
 
+        // Don't log error for new users - this is expected
         if (error) {
           console.error("Error fetching signature:", error);
-          return;
+          // Don't return here - continue with no signature
         }
 
         if (url) {
+          console.log("Found existing signature for user");
           setSavedUserSignature(url);
 
           // If no current expense signature is set, use the saved one
@@ -172,9 +174,14 @@ export default function NewExpensePage() {
             }));
           }
         } else {
+          console.log(
+            "No existing signature found for user - this is normal for new users"
+          );
+          // This is normal for new users, don't show an error
         }
       } catch (error) {
         console.error("Error in fetchUserSignature:", error);
+        // Don't show error to user - this is expected for new users
       } finally {
         setLoadingSignature(false);
       }
@@ -523,7 +530,7 @@ export default function NewExpensePage() {
         }
       }
 
-      // Process signatures - use separate variables for expense and voucher
+      // Process signatures - use simplified single bucket approach
       let expense_signature_url: string | null = null;
       let voucher_signature_url: string | null = null;
       let manager_signature_url: string | null = null;
@@ -539,7 +546,7 @@ export default function NewExpensePage() {
         } else if (
           formData.voucher_signature_data_url.startsWith("data:image/")
         ) {
-          // Upload a new signature
+          // Upload a new signature using simplified userId.png format
           const { path, error } = await uploadSignature(
             formData.voucher_signature_data_url,
             user.id,
@@ -552,7 +559,7 @@ export default function NewExpensePage() {
             setSaving(false);
             return;
           } else {
-            voucher_signature_url = path;
+            voucher_signature_url = path; // This will be userId.png
           }
         } else {
           // Invalid signature format
@@ -576,7 +583,7 @@ export default function NewExpensePage() {
         } else if (
           formData.expense_signature_data_url.startsWith("data:image/")
         ) {
-          // Upload a new signature
+          // Upload a new signature using simplified userId.png format
           const { path, error } = await uploadSignature(
             formData.expense_signature_data_url,
             user.id,
@@ -589,7 +596,7 @@ export default function NewExpensePage() {
             setSaving(false);
             return;
           } else {
-            expense_signature_url = path;
+            expense_signature_url = path; // This will be userId.png
           }
         } else {
           // Invalid signature format
@@ -604,9 +611,13 @@ export default function NewExpensePage() {
       // Proceed with approver signature if this is a voucher and it exists
       if (voucherModalOpen && formData.manager_signature_data_url) {
         if (formData.manager_signature_data_url.startsWith("data:image/")) {
+          // For manager signature, we still use their userId format
+          // Get the approver's userId from formData.approver
+          const approverId = formData.approver || user.id; // fallback to user.id if no approver selected
+
           const { path, error } = await uploadSignature(
             formData.manager_signature_data_url,
-            user.id,
+            approverId, // Use approver's userId for their signature
             organization.id,
             "approver"
           );
@@ -616,7 +627,7 @@ export default function NewExpensePage() {
               `Failed to upload approver signature: ${error.message}`
             );
           } else {
-            manager_signature_url = path;
+            manager_signature_url = path; // This will be approverId.png
           }
         } else {
           toast.error("Invalid manager signature format.");

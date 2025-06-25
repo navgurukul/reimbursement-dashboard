@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ArrowLeft, Download } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getUserSignatureUrl } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 
 export default function VoucherViewPage() {
@@ -53,12 +53,33 @@ export default function VoucherViewPage() {
 
         setVoucher(voucherData);
 
-        // Get signature URL if available
+        // Get signature URL if available - FIXED: Now using the new single bucket approach
         if (voucherData.signature_url) {
-          const { url: signatureUrl } = await vouchers.getSignatureUrl(
+          console.log(
+            "Found signature_url in voucher:",
             voucherData.signature_url
           );
-          setUserSignatureUrl(signatureUrl);
+
+          // The signature_url should be in userId.png format
+          // But we need to extract the userId from it and use our getUserSignatureUrl function
+          const userId = voucherData.signature_url.replace(".png", ""); // Remove .png to get userId
+
+          console.log("Extracted userId for signature:", userId);
+
+          // Use our unified getUserSignatureUrl function
+          const { url: signatureUrl, error: signatureError } =
+            await getUserSignatureUrl(userId);
+
+          if (signatureError) {
+            console.error("Error getting signature URL:", signatureError);
+          } else if (signatureUrl) {
+            console.log("Successfully retrieved signature URL");
+            setUserSignatureUrl(signatureUrl);
+          } else {
+            console.log("No signature URL returned");
+          }
+        } else {
+          console.log("No signature_url found in voucher data");
         }
 
         // Get approver information - get it from the voucher first, then fallback to expense
@@ -212,11 +233,27 @@ export default function VoucherViewPage() {
                     src={userSignatureUrl}
                     alt="Your signature"
                     className="max-h-24 mx-auto"
+                    onError={(e) => {
+                      console.error("Error loading signature image");
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = "none";
+                      // Show fallback text
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.innerHTML =
+                          '<div class="text-red-500 text-sm">Failed to load signature</div>';
+                      }
+                    }}
                   />
                 </div>
               ) : (
                 <div className="text-amber-500 text-sm">
                   No signature provided
+                  {voucher.signature_url && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      Debug: signature_url = {voucher.signature_url}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
