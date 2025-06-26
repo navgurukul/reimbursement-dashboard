@@ -64,42 +64,20 @@ export function LoginForm({
       }
 
       // 5️⃣ Redirect logic
-      // 5️⃣ Redirect Logic
       const redirectTo = searchParams.get("redirectTo");
       if (redirectTo) {
-        toast.success("Login successful! Redirecting…", {
-          style: {
-            background: "white",
-            color: "green",
-            fontWeight: "bold",
-          },
-        });
+        toast.success("Login successful! Redirecting…");
         router.push(redirectTo);
         return;
       }
 
       if (membership?.organizations?.slug) {
-        toast.success("Welcome back!", {
-          style: {
-            background: "white",
-            color: "green",
-            fontWeight: "bold",
-          },
-        });
+        toast.success("Welcome back!");
         router.push(`/org/${membership.organizations.slug}`);
       } else {
-        toast.success("Login successful!", {
-          style: {
-            background: "white",
-            color: "green",
-            fontWeight: "bold",
-          },
-        });
+        toast.success("Login successful!");
         router.push("/create-organization");
       }
-
-
-
     } catch (err: any) {
       toast.dismiss();
       setError(err.message || "Login failed");
