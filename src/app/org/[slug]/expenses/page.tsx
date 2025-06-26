@@ -22,7 +22,7 @@ import {
   Download,
   MoreHorizontal,
   Eye,
-  Pencil,
+  Edit,
   Trash2,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -266,13 +266,21 @@ export default function ExpensesPage() {
     router.push(`/org/${slug}/expenses/new`);
   };
 
+  
   const handleDelete = async (id: string) => {
     try {
       const { error } = await expenses.delete(id);
       if (error) throw error;
       toast.success("Expense deleted successfully");
       // Refresh the expenses list
-      window.location.reload();
+       // Update the local state to reflect the deletion
+      if (activeTab === "my") {
+        setExpensesData((prev) => prev.filter((expense) => expense.id !== id));
+      } else if (activeTab === "pending") {
+        setPendingApprovals((prev) => prev.filter((expense) => expense.id !== id));
+      } else {
+        setAllExpenses((prev) => prev.filter((expense) => expense.id !== id));
+      }
     } catch (error: any) {
       toast.error("Failed to delete expense", {
         description: error.message,
@@ -515,7 +523,7 @@ export default function ExpensesPage() {
                               />
                               {/* ✏️ Edit Icon — status "submitted" ke liye */}
                               {exp.status === "submitted" && (
-                                <Pencil
+                                <Edit
                                   className="w-4 h-4 text-gray-600 cursor-pointer hover:text-blue-700"
                                   onClick={() =>
                                     router.push(`/org/${slug}/expenses/${exp.id}/edit`)

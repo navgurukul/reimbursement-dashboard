@@ -148,7 +148,6 @@ export default function TeamPage() {
       if (!response.ok) {
         throw new Error(data.error || "Failed to send invitation");
       }
-      console.log("Invite response:", data);
       // If we have an invite URL, copy it and show it to the user
       if (data.inviteUrl) {
         await navigator.clipboard.writeText(data.inviteUrl);
@@ -337,7 +336,7 @@ export default function TeamPage() {
         )}
 
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-ms">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white p-6 rounded shadow-md w-full max-w-sm">
             <h2 className="text-lg font-semibold mb-4">Are you sure you want to delete this user?</h2>
             <div className="flex justify-center space-x-4">

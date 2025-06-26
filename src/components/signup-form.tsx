@@ -209,18 +209,6 @@ export function SignupForm({
         toast.dismiss(toastId);
         toast.success("Please check your email to confirm your signup.");
         router.push(`/org/${inviteLink.organization.slug}`);
-        // } else {
-        //   // Regular signup (no invite)
-        //   toast.dismiss(toastId);
-        //   toast.success("Account created! Check your email.", {
-        //     style: {
-        //       background: "white",
-        //       color: "green",
-        //       fontWeight: "bold",
-        //     },
-        //   });
-        //   router.push("/auth/signin");
-        // }
 
       } else {
         // Regular signup (no invite)
@@ -232,7 +220,7 @@ export function SignupForm({
               <Check className="h-4 w-4 text-white" />
             </div>
             {/* Text */}
-            <span className="text-sm font-semibold text-green-800">
+            <span className="text-sm font-normal text-black-800">
               Account created! Check your email.
             </span>
           </div>
