@@ -34,10 +34,11 @@ export default function OrgDashboard() {
             <CardTitle className="text-sm font-medium">
               Total Reimbursements
             </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <span className="h-4 w-4 text-muted-foreground">₹</span>
+            {/* <DollarSign className="h-4 w-4 text-muted-foreground" /> */}
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$0.00</div>
+            <div className="text-2xl font-bold">₹0.00</div>
             <p className="text-xs text-muted-foreground">
               No reimbursements yet
             </p>
@@ -63,7 +64,7 @@ export default function OrgDashboard() {
             <BarChart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$0.00</div>
+            <div className="text-2xl font-bold">₹0.00</div>
             <p className="text-xs text-muted-foreground">
               No activity this month
             </p>

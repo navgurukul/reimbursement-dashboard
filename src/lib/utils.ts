@@ -20,7 +20,7 @@ export function formatDate(date: string | Date): string {
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'INR',
   }).format(amount)
 }
 
@@ -55,61 +55,63 @@ export async function uploadSignature(
   orgId: string,
   type: "user" | "approver"
 ): Promise<{ path: string; error: Error | null }> {
- try {
-   if (!dataURL) {
-     console.error(`Empty signature data URL for ${type}`);
-     return { path: "", error: new Error("Empty signature data") };
-   }
+  try {
+    if (!dataURL) {
+      console.error(`Empty signature data URL for ${type}`);
+      return { path: "", error: new Error("Empty signature data") };
+    }
 
-   if (!dataURL.startsWith("data:image/")) {
-     console.error(
-       `Invalid signature format for ${type}: ${dataURL.substring(0, 30)}`
-     );
-     return {
-       path: "",
-       error: new Error("Invalid signature format - must be a data URL"),
-     };
-   }
+    if (!dataURL.startsWith("data:image/")) {
+      console.error(
+        `Invalid signature format for ${type}: ${dataURL.substring(0, 30)}`
+      );
+      return {
+        path: "",
+        error: new Error("Invalid signature format - must be a data URL"),
+      };
+    }
 
-   // Convert to blob
-   const blob = dataURLtoBlob(dataURL);
+    // Convert to blob
+    const blob = dataURLtoBlob(dataURL);
 
-   // Make sure blob is valid
-   if (blob.size === 0) {
-     console.error(`Empty signature blob for ${type}`);
-     return { path: "", error: new Error("Empty signature") };
-   }
+    // Make sure blob is valid
+    if (blob.size === 0) {
+      console.error(`Empty signature blob for ${type}`);
+      return { path: "", error: new Error("Empty signature") };
+    }
 
-   // Create a unique filename
-   const timestamp = new Date().getTime();
-   const randomString = Math.random().toString(36).substring(2, 10);
-   const fileName = `sig_${type}_${timestamp}_${randomString}.png`;
-   const filePath = `${userId}/${orgId}/${fileName}`;
+    // Create a unique filename
+    const timestamp = new Date().getTime();
+    const randomString = Math.random().toString(36).substring(2, 10);
+    // const fileName = `sig_${type}_${timestamp}_${randomString}.png`;
+    const fileName = `signature_${timestamp}_${randomString}.png`;
+    const filePath = `${userId}/${fileName}`;
 
-   console.log(`Uploading ${type} signature to ${filePath}`);
+    console.log(`Uploading ${type} signature to ${filePath}`);
 
-   // Upload to Supabase
-   const { error } = await supabase.storage
-     .from("voucher-signatures")
-     .upload(filePath, blob, {
-       contentType: "image/png",
-       cacheControl: "3600",
-     });
+    // Upload to Supabase
+    const { error } = await supabase.storage
+      .from("voucher-signatures")
+      .upload(filePath, blob, {
+        contentType: "image/png",
+        cacheControl: "3600",
+        upsert: true, // Overwrite if exists
+      });
 
-   if (error) {
-     console.error(`Error uploading ${type} signature:`, error);
-     return { path: "", error: new Error(error.message) };
-   }
+    if (error) {
+      console.error(`Error uploading ${type} signature:`, error);
+      return { path: "", error: new Error(error.message) };
+    }
 
-   console.log(`${type} signature uploaded successfully to ${filePath}`);
-   return { path: filePath, error: null };
- } catch (error) {
-   console.error(`Error processing ${type} signature:`, error);
-   return {
-     path: "",
-     error: error instanceof Error ? error : new Error(String(error)),
-   };
- }
+    console.log(`${type} signature uploaded successfully to ${filePath}`);
+    return { path: filePath, error: null };
+  } catch (error) {
+    console.error(`Error processing ${type} signature:`, error);
+    return {
+      path: "",
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
 }
 
 // Updated uploadProfileSignature function for utils.ts
@@ -135,9 +137,9 @@ export async function uploadProfileSignature(
     const timestamp = new Date().getTime();
     const randomString = Math.random().toString(36).substring(2, 10);
     const fileName = `signature_${timestamp}_${randomString}.png`;
-    
+
     // Important: Create directories for organization and user if they don't exist
-    const filePath = `${orgId}/${userId}/${fileName}`;
+    const filePath = `${userId}/${fileName}`;
 
     console.log(`Uploading profile signature to ${filePath}`);
 
@@ -233,7 +235,7 @@ export async function saveUserSignature(
 ): Promise<{ success: boolean; path: string; error: Error | null }> {
   try {
     console.log('Starting signature save process...');
-    
+
     if (!dataURL || !dataURL.startsWith("data:image/")) {
       console.error("Invalid signature data URL");
       return { success: false, path: "", error: new Error("Invalid signature data") };
@@ -250,9 +252,9 @@ export async function saveUserSignature(
     const timestamp = new Date().getTime();
     const randomString = Math.random().toString(36).substring(2, 10);
     const fileName = `signature_${timestamp}_${randomString}.png`;
-    
+
     // Store in user-signatures/orgId/userId/filename format
-    const filePath = `${orgId}/${userId}/${fileName}`;
+    const filePath = `${userId}/${fileName}`;
     console.log(`Uploading signature to path: ${filePath}`);
 
     // Step 3: Upload the signature to storage
@@ -265,10 +267,10 @@ export async function saveUserSignature(
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
-      return { 
-        success: false, 
-        path: "", 
-        error: new Error(`Upload failed: ${uploadError.message}`) 
+      return {
+        success: false,
+        path: "",
+        error: new Error(`Upload failed: ${uploadError.message}`)
       };
     }
 
@@ -282,10 +284,10 @@ export async function saveUserSignature(
 
     if (updateError) {
       console.error("Profile update error:", updateError);
-      return { 
-        success: false, 
+      return {
+        success: false,
         path: filePath, // We did upload the file, so return the path
-        error: new Error(`Profile update failed: ${updateError.message}`) 
+        error: new Error(`Profile update failed: ${updateError.message}`)
       };
     }
 
