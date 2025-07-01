@@ -220,9 +220,6 @@ export default function TeamPage() {
       const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
       if (profileDeleteError) throw profileDeleteError;
 
-      // const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
-      // if (authDeleteError) throw authDeleteError;
-
       // Delete the actual user account via API
       const response = await fetch('/api/delete-auth-user', {
         method: 'POST',
