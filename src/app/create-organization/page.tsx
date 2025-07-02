@@ -165,7 +165,7 @@ export default function CreateOrganizationPage() {
 
       // 4) Success message
       toast.dismiss(loadingToast);
-      toast.success("Organization created successfully!", {
+     toast.success ("Organization created successfully!", {
         description: "Redirecting to your dashboard…",
       });
 
