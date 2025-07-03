@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { invites, organizations, profiles, RemovedUsers, auth } from "@/lib/db";
+import { organizations, profiles, RemovedUsers } from "@/lib/db";
 import {
   Card,
   CardContent,
@@ -139,6 +139,7 @@ export default function TeamPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!org?.id || !org?.name) {
@@ -165,7 +166,7 @@ export default function TeamPage() {
       if (!response.ok) {
         throw new Error(data.error || "Failed to send invitation");
       }
-      console.log("Invite response:", data);
+
       // If we have an invite URL, copy it and show it to the user
       if (data.inviteUrl) {
         await navigator.clipboard.writeText(data.inviteUrl);
@@ -254,6 +255,8 @@ export default function TeamPage() {
     setShowDeleteConfirm(false);
     setMemberToDelete(null);
   };
+
+
 
   return (
     <div className="space-y-8">
@@ -366,7 +369,7 @@ export default function TeamPage() {
         )}
 
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-ms">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white p-6 rounded shadow-md w-full max-w-sm">
             <h2 className="text-lg font-semibold mb-4">Are you sure you want to delete this user?</h2>
             <div className="flex justify-center space-x-4">
@@ -391,7 +394,6 @@ export default function TeamPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
@@ -22,7 +23,7 @@ import {
   MoreHorizontal,
   Eye,
   Edit,
-  Trash,
+  Trash2,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,6 @@ const defaultExpenseColumns = [
   { key: "category", label: "Category", visible: true },
   { key: "amount", label: "Amount", visible: true },
   { key: "creator_name", label: "Created By", visible: true },
-  { key: "description", label: "Description", visible: true },
   { key: "receipt", label: "Receipt", visible: true },
   { key: "approver", label: "Approver", visible: true },
 ];
@@ -77,11 +77,11 @@ export default function ExpensesPage() {
     userRole === "member"
       ? [{ value: "my", label: "My Expenses" }]
       : userRole === "admin"
-      ? [
+        ? [
           { value: "my", label: "My Expenses" },
           { value: "pending", label: "Pending Approval" },
         ]
-      : [
+        : [
           { value: "my", label: "My Expenses" },
           { value: "pending", label: "Pending Approval" },
           { value: "all", label: "All Expenses" },
@@ -99,7 +99,10 @@ export default function ExpensesPage() {
         setColumns(defaultExpenseColumns);
       } else {
         // Safely handle the case where settings or expense_columns might be undefined
-        const expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+        let expenseColumns = s?.expense_columns ?? defaultExpenseColumns;
+
+        // ✅ Remove any existing 'description' columns
+        expenseColumns = expenseColumns.filter((c) => c.key !== "description");
 
         // Ensure creator_name column exists
         if (!expenseColumns.some((c) => c.key === "creator_name")) {
@@ -113,6 +116,7 @@ export default function ExpensesPage() {
 
         setColumns(expenseColumns);
       }
+
 
       // 2) load expenses per role
       let my: any[] = [],
@@ -262,37 +266,27 @@ export default function ExpensesPage() {
     router.push(`/org/${slug}/expenses/new`);
   };
 
-const handleDelete = async (id: string) => {
-  try {
-    // Find the expense to get its status before deletion
-    const expenseToDelete = getCurrent().find(exp => exp.id === id);
-    
-    const { error } = await expenses.delete(id);
-    if (error) throw error;
-    
-    toast.success("Expense deleted successfully");
-    
-    // Update all state arrays by removing the deleted expense
-    setExpensesData(prev => prev.filter(exp => exp.id !== id));
-    setPendingApprovals(prev => prev.filter(exp => exp.id !== id));
-    setAllExpenses(prev => prev.filter(exp => exp.id !== id));
-    
-    // Update stats based on the expense's actual status
-    if (expenseToDelete) {
-      setStats(prev => ({
-        total: prev.total - 1,
-        approved: expenseToDelete.status === "approved" ? prev.approved - 1 : prev.approved,
-        pending: expenseToDelete.status === "submitted" ? prev.pending - 1 : prev.pending,
-        rejected: expenseToDelete.status === "rejected" ? prev.rejected - 1 : prev.rejected,
-      }));
+  
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await expenses.delete(id);
+      if (error) throw error;
+      toast.success("Expense deleted successfully");
+      // Refresh the expenses list
+       // Update the local state to reflect the deletion
+      if (activeTab === "my") {
+        setExpensesData((prev) => prev.filter((expense) => expense.id !== id));
+      } else if (activeTab === "pending") {
+        setPendingApprovals((prev) => prev.filter((expense) => expense.id !== id));
+      } else {
+        setAllExpenses((prev) => prev.filter((expense) => expense.id !== id));
+      }
+    } catch (error: any) {
+      toast.error("Failed to delete expense", {
+        description: error.message,
+      });
     }
-    
-  } catch (error: any) {
-    toast.error("Failed to delete expense", {
-      description: error.message,
-    });
-  }
-};
+  };
 
   // Helper function to get value from custom_fields or directly from expense
   // Define interfaces for expense data
@@ -497,64 +491,51 @@ const handleDelete = async (id: string) => {
                                   exp.approver?.full_name || "—"
                                 ) : c.key === "category" ? (
                                   getExpenseValue(exp, "category")
-                                ) : c.key === "description" ? (
-                                  getExpenseValue(exp, "description")
-                                ) : typeof exp[c.key] === "object" &&
-                                  exp[c.key] !== null ? (
+                                ) : typeof exp[c.key] === "object" && exp[c.key] !== null ? (
                                   JSON.stringify(exp[c.key])
                                 ) : (
                                   exp[c.key] || "—"
                                 )}
+
                               </TableCell>
                             ))}
                           <TableCell>
                             <span
-                              className={`px-2 py-1 rounded-full text-xs ${
-                                exp.status === "approved"
-                                  ? "bg-green-100 text-green-800"
-                                  : exp.status === "rejected"
+                              className={`px-2 py-1 rounded-full text-xs ${exp.status === "approved"
+                                ? "bg-green-100 text-green-800"
+                                : exp.status === "rejected"
                                   ? "bg-red-100 text-red-800"
                                   : "bg-amber-100 text-amber-800"
-                              }`}
+                                }`}
                             >
                               {exp.status.charAt(0).toUpperCase() +
                                 exp.status.slice(1)}
                             </span>
                           </TableCell>
                           <TableCell>
-                            <div className="flex space-x-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
+                            <div className="flex space-x-3 gap-3">
+                              {/* 👁️ View Icon */}
+                              <Eye
+                                className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                 onClick={() =>
                                   router.push(`/org/${slug}/expenses/${exp.id}`)
                                 }
-                              >
-                                View
-                              </Button>
+                              />
+                              {/* ✏️ Edit Icon — status "submitted" ke liye */}
                               {exp.status === "submitted" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
+                                <Edit
+                                  className="w-4 h-4 text-gray-600 cursor-pointer hover:text-blue-700"
                                   onClick={() =>
-                                    router.push(
-                                      `/org/${slug}/expenses/${exp.id}/edit`
-                                    )
+                                    router.push(`/org/${slug}/expenses/${exp.id}/edit`)
                                   }
-                                >
-                                  Edit
-                                </Button>
+                                />
                               )}
-                              {(userRole === "admin" ||
-                                userRole === "owner") && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-red-600"
+                              {/* 🗑️ Delete Icon — Admin or Owner ke liye */}
+                              {(userRole === "admin" || userRole === "owner") && (
+                                <Trash2
+                                  className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
                                   onClick={() => handleDelete(exp.id)}
-                                >
-                                  Delete
-                                </Button>
+                                />
                               )}
                             </div>
                           </TableCell>

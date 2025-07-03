@@ -262,6 +262,7 @@ export const auth = {
       console.error("Error deleting user:", error);
       return { success: false, error };
     }
+    return { success: true };
   }
 };
 
