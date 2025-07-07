@@ -11,6 +11,8 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { organizations, invites, InviteRow } from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { toast } from "sonner";
+import { Check } from "lucide-react";
+
 import Link from "next/link";
 
 interface InviteLink {
@@ -207,12 +209,25 @@ export function SignupForm({
         toast.dismiss(toastId);
         toast.success("Please check your email to confirm your signup.");
         router.push(`/org/${inviteLink.organization.slug}`);
+
       } else {
         // Regular signup (no invite)
         toast.dismiss(toastId);
-        toast.success("Account created! Check your email.");
+        toast.custom(() => (
+          <div className="flex items-center space-x-2 rounded-lg border-l-4 border-green-500 bg-[#f0fff4] p-3 shadow">
+            {/* Circle icon */}
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500">
+              <Check className="h-4 w-4 text-white" />
+            </div>
+            {/* Text */}
+            <span className="text-sm font-normal text-black-800">
+              Account created! Check your email.
+            </span>
+          </div>
+        ));
         router.push("/auth/signin");
       }
+
 
       await syncExternalAuth(userId);
     } catch (err: any) {

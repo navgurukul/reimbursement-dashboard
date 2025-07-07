@@ -93,6 +93,7 @@ export default function PoliciesPage() {
         // Find the expense_type column
         const expenseTypeColumn = columnsToUse.find((col: any) => col.key === "expense_type");
 
+
         if (expenseTypeColumn && expenseTypeColumn.options) {
           // Extract expense type options
           const options = expenseTypeColumn.options;
@@ -401,7 +402,7 @@ export default function PoliciesPage() {
                     placeholder="e.g., 5000"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
+                <div className="grid grid-cols-4 items-center gap-4 mt-6">
                   <Label htmlFor="eligibility" className="text-right">
                     Eligibility
                   </Label>
@@ -453,6 +454,7 @@ export default function PoliciesPage() {
 
 
                 <DialogFooter>
+                  {/* {isFormValid &&( */}
                   <Button
                     type="submit"
                     disabled={isSubmitting}
@@ -466,6 +468,7 @@ export default function PoliciesPage() {
                       "Add Policy"
                     )}
                   </Button>
+                  {/* )} */}
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -474,7 +477,7 @@ export default function PoliciesPage() {
       </div>
 
       <div className="rounded-md border">
-        <Table>
+        <Table className="table-fixed w-full">
           <TableHeader>
             <TableRow>
               <TableHead>Expense Type</TableHead>
@@ -484,7 +487,7 @@ export default function PoliciesPage() {
               <TableHead>Conditions</TableHead>
               <TableHead>Policies</TableHead>
               {isAdminOrOwner && (
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-1/6 px-4 text-center">Actions</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -501,15 +504,15 @@ export default function PoliciesPage() {
             ) : (
               policyList.map((policy) => (
                 <TableRow key={policy.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className="w-1/6 px-4">
                     {policy.expense_type}
                   </TableCell>
-                  <TableCell>{policy.per_unit_cost || "N/A"}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="w-1/6 px-4">{policy.per_unit_cost || "N/A"}</TableCell>
+                  <TableCell className="w-1/6 px-4">
                     {policy.upper_limit ? `₹${policy.upper_limit}` : "N/A"}
                   </TableCell>
-                  <TableCell>{policy.eligibility || "N/A"}</TableCell>
-                  <TableCell className="max-w-xs truncate">
+                  <TableCell className="w-1/6 px-4">{policy.eligibility || "N/A"}</TableCell>
+                  <TableCell className="w-1/6 px-4">
                     {policy.conditions || "N/A"}
                   </TableCell>
 
@@ -532,23 +535,25 @@ export default function PoliciesPage() {
 
 
                   {isAdminOrOwner && (
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleOpenDialog(policy)}
-                        className="mr-2"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(policy.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <TableCell className="w-1/6 px-4">
+                      <div className="flex justify-center items-center space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenDialog(policy)}
+                          className="mr-2"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(policy.id)}
+                          className="h-8 w-8"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
+                        </Button>
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
