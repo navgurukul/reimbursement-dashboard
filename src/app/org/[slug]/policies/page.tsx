@@ -1,7 +1,6 @@
 // src/app/org/[slug]/settings/policies/page.tsx
 
 "use client";
-
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { policies, Policy, orgSettings } from "@/lib/db";
@@ -28,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
-import { PlusCircle, Edit, Trash2 } from "lucide-react";
+import { PlusCircle, Edit, Trash2, X, FileText } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -55,6 +54,8 @@ export default function PoliciesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
   const [currentPolicy, setCurrentPolicy] = useState<
     Omit<Policy, "id" | "created_at" | "updated_at" | "org_id"> | Policy
   >(defaultPolicy);
@@ -62,6 +63,9 @@ export default function PoliciesPage() {
   const [expenseTypeOptions, setExpenseTypeOptions] = useState<string[]>([]);
 
   const isAdminOrOwner = userRole === "admin" || userRole === "owner";
+
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,7 +92,7 @@ export default function PoliciesPage() {
 
         // Find the expense_type column
         const expenseTypeColumn = columnsToUse.find((col: any) => col.key === "expense_type");
-        
+
         if (expenseTypeColumn && expenseTypeColumn.options) {
           // Extract expense type options
           const options = expenseTypeColumn.options;
@@ -124,6 +128,8 @@ export default function PoliciesPage() {
       setCurrentPolicy(defaultPolicy);
       setIsEditing(false);
     }
+    // Reset file selection when opening dialog
+    setPdfFile(null);
     setIsDialogOpen(true);
   };
 
@@ -152,54 +158,149 @@ export default function PoliciesPage() {
     }));
   };
 
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Validate file type
+      if (!file.type.includes('pdf')) {
+        toast.error('Only PDF files are allowed');
+        return;
+      }
+
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('File size must be under 5MB');
+        return;
+      }
+
+      setPdfFile(file); // Keep your existing state management
+      toast.success('PDF selected successfully');
+    } catch (error) {
+      toast.error('Failed to select file');
+      if (e.target) e.target.value = ''; // Reset input on error
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setPdfFile(null);
+    const fileInput = document.getElementById("fileUpload") as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = "";
+    }
+  };
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!organization?.id || !isAdminOrOwner) return;
 
     setIsSubmitting(true);
-    const toastId = toast.loading(
-      isEditing ? "Updating policy..." : "Adding policy..."
-    );
+    const toastId = toast.loading(isEditing ? "Updating policy..." : "Adding policy...");
 
     try {
+      let pdfUrl = currentPolicy.policy_url; // Keep existing URL by default
+      console.log("Current PDF URL:", pdfUrl);
+
+      // Only upload if new file was selected
+      if (pdfFile) {
+        console.log("Starting file upload...", {
+          fileName: pdfFile.name,
+          fileSize: pdfFile.size,
+          fileType: pdfFile.type
+        });
+
+        const formData = new FormData();
+        formData.append("file", pdfFile);
+
+        const response = await fetch("/api/upload-policy-pdf", {
+          method: "POST",
+          body: formData,
+        });
+
+        console.log("Response status:", response.status);
+        console.log("Response ok:", response.ok);
+
+        // Get response text first to see what we're actually getting
+        const responseText = await response.text();
+        console.log("Raw response:", responseText);
+
+        if (!response.ok) {
+          console.error("Response not ok:", response.status, responseText);
+
+          // Try to parse as JSON, fallback to text
+          let errorData;
+          try {
+            errorData = JSON.parse(responseText);
+          } catch {
+            errorData = { error: responseText };
+          }
+
+          throw new Error(errorData.error || `HTTP ${response.status}: ${responseText}`);
+        }
+
+        // Parse the JSON response
+        const result = JSON.parse(responseText);
+        console.log("Parsed upload response:", result);
+
+        // Check if upload was successful
+        if (!result.success) {
+          throw new Error(result.error || "Upload failed - success false");
+        }
+
+        // Extract the URL from the response
+        pdfUrl = result.url;
+
+        // Verify we got a valid URL
+        if (!pdfUrl) {
+          throw new Error("No URL returned from upload");
+        }
+
+        console.log("PDF URL set to:", pdfUrl);
+      }
+
+      // CREATE THE POLICY PAYLOAD AND SAVE TO DATABASE
+      const policyPayload = {
+        ...currentPolicy,
+        org_id: organization.id,
+        policy_url: pdfUrl,
+      };
+
+      console.log("Policy payload being saved:", policyPayload);
+
       if (isEditing && "id" in currentPolicy) {
         // Update existing policy
-        const { id, org_id, created_at, updated_at, ...updateData } =
-          currentPolicy;
-        const { data, error } = await policies.updatePolicy(id, updateData);
+        const { data, error } = await policies.updatePolicy(currentPolicy.id, policyPayload);
         if (error) throw error;
-        setPolicyList((prev) =>
-          prev.map((p) => (p.id === id ? (data as Policy) : p))
-        );
-        toast.success("Policy updated successfully!");
+
+        console.log("Updated policy data:", data);
+        setPolicyList(prev => prev.map(p => p.id === currentPolicy.id ? data as Policy : p));
       } else {
         // Create new policy
-        const policyPayload = {
-          ...currentPolicy,
-          org_id: organization.id,
-        } as Omit<Policy, "id" | "created_at" | "updated_at">;
-
-        console.log("Creating policy with payload:", policyPayload);
         const { data, error } = await policies.createPolicy(policyPayload);
         if (error) throw error;
-        setPolicyList((prev) => [...prev, data as Policy]);
-        toast.success("Policy added successfully!");
+
+        console.log("Created policy data:", data);
+        setPolicyList(prev => [...prev, data as Policy]);
       }
+
+      // Close dialog and reset state
       setIsDialogOpen(false);
+      setPdfFile(null);
+      setCurrentPolicy(defaultPolicy);
+      toast.success(isEditing ? "Policy updated!" : "Policy created!");
+
     } catch (error: any) {
-      console.error("Error during policy operation:", error);
-      toast.error(
-        isEditing ? "Failed to update policy" : "Failed to add policy",
-        {
-          description: error.message || "Please try again.",
-        }
-      );
+      console.error("Submit error:", error);
+      toast.error(error.message || "Failed to save policy");
     } finally {
       setIsSubmitting(false);
       toast.dismiss(toastId);
     }
   };
-
+  // Create the policy payload
   const handleDelete = async (policyId: string) => {
     if (
       !isAdminOrOwner ||
@@ -326,6 +427,31 @@ export default function PoliciesPage() {
                     placeholder="Enter any specific conditions..."
                   />
                 </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="fileUpload" className="text-right">
+                    Policies
+                  </Label>
+                  <div className="col-span-3">
+                    <label
+                      htmlFor="fileUpload"
+                      className="cursor-pointer inline-block px-4 py-2  text-gray rounded border border-gray-400"
+                    >
+                      Upload PDF
+                    </label>
+                    <input
+                      type="file"
+                      id="fileUpload"
+                      name="fileUpload"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+
+                  </div>
+                </div>
+
+
                 <DialogFooter>
                   <Button
                     type="submit"
@@ -356,6 +482,7 @@ export default function PoliciesPage() {
               <TableHead className="text-right">Upper Limit</TableHead>
               <TableHead>Eligibility</TableHead>
               <TableHead>Conditions</TableHead>
+              <TableHead>Policies</TableHead>
               {isAdminOrOwner && (
                 <TableHead className="text-right">Actions</TableHead>
               )}
@@ -365,7 +492,7 @@ export default function PoliciesPage() {
             {policyList.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={isAdminOrOwner ? 6 : 5}
+                  colSpan={isAdminOrOwner ? 7 : 6}
                   className="h-24 text-center"
                 >
                   No policies defined yet.
@@ -385,6 +512,25 @@ export default function PoliciesPage() {
                   <TableCell className="max-w-xs truncate">
                     {policy.conditions || "N/A"}
                   </TableCell>
+
+                  <TableCell>
+                    {policy.policy_url ? (
+                      <a
+                        href={policy.policy_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-black-600"
+                      >
+                        View Policy
+                      </a>
+                    ) : (
+                      <span className="text-gray-500 italic">No PDF</span>
+                    )}
+                  </TableCell>
+
+
+
+
                   {isAdminOrOwner && (
                     <TableCell className="text-right">
                       <Button
