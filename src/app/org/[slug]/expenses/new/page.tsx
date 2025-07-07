@@ -86,9 +86,14 @@ export default function NewExpensePage() {
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
   });
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+  // const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  // const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [receiptFiles, setReceiptFiles] = useState<Record<number, File | null>>({});
+  const [receiptPreviews, setReceiptPreviews] = useState<Record<number, string | null>>({});
+
+  // const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+  const [voucherModalOpenMap, setVoucherModalOpenMap] = useState<Record<number, boolean>>({});
+
   const [events, setEvents] = useState<ExpenseEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
 
@@ -104,6 +109,19 @@ export default function NewExpensePage() {
     null
   );
   const [loadingSignature, setLoadingSignature] = useState(true);
+
+  const [expenseItemCount, setExpenseItemCount] = useState(1);
+
+  const addItem = () => {
+    setExpenseItemCount((prev) => prev + 1);
+  };
+
+  const deleteItem = (index: number) => {
+    if (expenseItemCount > 1) {
+      setExpenseItemCount((prev) => prev - 1);
+    }
+  };
+
 
   // Add these utility functions for error handling and UX improvements
   const scrollToFirstError = (errors: Record<string, string>) => {
@@ -345,23 +363,48 @@ export default function NewExpensePage() {
     fetchData();
   }, [orgId, eventIdFromQuery, user]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
+
+  //   // Clear receipt error if file is selected
+  //   setErrors((prevErrors) => {
+  //     const updatedErrors = { ...prevErrors };
+  //     delete updatedErrors["receipt"];
+  //     return updatedErrors;
+  //   });
+
+  //   setReceiptFile(file);
+  //   const reader = new FileReader();
+  //   reader.onloadend = () => {
+  //     setReceiptPreview(reader.result as string);
+  //   };
+  //   reader.readAsDataURL(file);
+  // };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Clear receipt error if file is selected
     setErrors((prevErrors) => {
       const updatedErrors = { ...prevErrors };
-      delete updatedErrors["receipt"];
+      delete updatedErrors[`receipt-${index}`];
       return updatedErrors;
     });
 
-    setReceiptFile(file);
     const reader = new FileReader();
     reader.onloadend = () => {
-      setReceiptPreview(reader.result as string);
+      setReceiptFiles((prev) => ({ ...prev, [index]: file }));
+      setReceiptPreviews((prev) => ({ ...prev, [index]: reader.result as string }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const toggleVoucherModal = (index: number) => {
+    setVoucherModalOpenMap((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
   };
 
   const handleInputChange = (
@@ -434,7 +477,7 @@ export default function NewExpensePage() {
 
     const newErrors: Record<string, string> = {};
 
-    if (voucherModalOpen) {
+    if (voucherModalOpenMap[0]) {
       if (!formData.yourName) newErrors["yourName"] = "Your Name is required";
       if (!formData.voucherAmount)
         newErrors["voucherAmount"] = "Amount is required";
@@ -452,7 +495,7 @@ export default function NewExpensePage() {
     }
 
     // Receipt required if not in voucher mode
-    if (!voucherModalOpen && !receiptFile) {
+    if (!voucherModalOpenMap[0] && !receiptFiles) {
       newErrors["receipt"] = "Receipt is required";
     }
 
@@ -488,7 +531,7 @@ export default function NewExpensePage() {
 
       // Validate signatures based on form type
       // FIXED: Moved this validation block up to ensure proper code structure
-      if (!voucherModalOpen) {
+      if (!voucherModalOpenMap[0]) {
         if (!formData.expense_signature_data_url) {
           toast.error("Please add your signature before submitting");
           setSaving(false);
@@ -508,9 +551,9 @@ export default function NewExpensePage() {
       let profileSignaturePath: string | null = null;
       if (
         (savedUserSignature === formData.expense_signature_data_url &&
-          !voucherModalOpen) ||
+          !voucherModalOpenMap[0]) ||
         (savedUserSignature === formData.voucher_signature_data_url &&
-          voucherModalOpen)
+          voucherModalOpenMap[0])
       ) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -529,7 +572,7 @@ export default function NewExpensePage() {
       let manager_signature_url: string | null = null;
 
       // First handle voucher signature (even if we're in expense mode, we'll need it for reference)
-      if (voucherModalOpen && formData.voucher_signature_data_url) {
+      if (voucherModalOpenMap[0] && formData.voucher_signature_data_url) {
         if (
           formData.voucher_signature_data_url === savedUserSignature &&
           profileSignaturePath
@@ -565,7 +608,7 @@ export default function NewExpensePage() {
       }
 
       // Handle expense signature
-      if (!voucherModalOpen && formData.expense_signature_data_url) {
+      if (!voucherModalOpenMap[0] && formData.expense_signature_data_url) {
         // For expense form
         if (
           formData.expense_signature_data_url === savedUserSignature &&
@@ -602,7 +645,7 @@ export default function NewExpensePage() {
       }
 
       // Proceed with approver signature if this is a voucher and it exists
-      if (voucherModalOpen && formData.manager_signature_data_url) {
+      if (voucherModalOpenMap[0] && formData.manager_signature_data_url) {
         if (formData.manager_signature_data_url.startsWith("data:image/")) {
           const { path, error } = await uploadSignature(
             formData.manager_signature_data_url,
@@ -627,7 +670,7 @@ export default function NewExpensePage() {
       const approver_id = formData.approver || null;
 
       // IMPORTANT CHANGE: For voucher mode, use the voucher signature URL for the expense
-      const signature_url_to_use = voucherModalOpen
+      const signature_url_to_use = voucherModalOpenMap[0]
         ? voucher_signature_url // Use voucher signature in voucher mode
         : expense_signature_url; // Use expense signature in regular mode
 
@@ -648,7 +691,7 @@ export default function NewExpensePage() {
       });
 
       // For voucher mode, make sure description is captured in custom fields
-      if (voucherModalOpen) {
+      if (voucherModalOpenMap[0]) {
         custom_fields["description"] = formData.purpose || "Cash Voucher";
       }
 
@@ -656,7 +699,7 @@ export default function NewExpensePage() {
       const baseExpenseData = {
         org_id: organization.id,
         user_id: user.id,
-        amount: voucherModalOpen
+        amount: voucherModalOpenMap[0]
           ? parseFloat(formData.voucherAmount || "0")
           : parseFloat(formData.amount || "0"),
         expense_type: (formData.expense_type as string) || "Other",
@@ -668,7 +711,7 @@ export default function NewExpensePage() {
         receipt: null, // Add the required receipt property
       };
 
-      if (voucherModalOpen) {
+      if (voucherModalOpenMap[0]) {
         const { data: expenseData, error: expenseError } =
           await expenses.create(baseExpenseData, undefined);
 
@@ -771,7 +814,7 @@ export default function NewExpensePage() {
         // FIXED: Added data to the destructuring to capture the return value
         const { data, error } = await expenses.create(
           baseExpenseData,
-          receiptFile || undefined
+          receiptFiles[0] || undefined
         );
 
         if (error) {
@@ -856,7 +899,7 @@ export default function NewExpensePage() {
 
   return (
     <div className="max-w-[800px] mx-auto py-6">
-      <div className="flex items-center justify-between mb-6">
+      {/* <div className="flex items-center justify-between mb-6">
         <Button
           variant="ghost"
           onClick={() => {
@@ -901,13 +944,60 @@ export default function NewExpensePage() {
             </>
           )}
         </Button>
-      </div>
+      </div> */}
 
       <Card className="shadow-sm">
         <CardHeader className="border-b">
-          <CardTitle className="text-lg font-medium">New Expense</CardTitle>
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (eventIdFromQuery) {
+                  router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+                } else {
+                  router.push(`/org/${slug}/expenses`);
+                }
+              }}
+              className="text-gray-600 hover:text-gray-900 cursor-pointer"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={saving}
+              className="bg-black text-white hover:bg-black/90 cursor-pointer"
+            >
+              {saving ? (
+                <>
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="mr-2 h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Save Expense
+                </>
+              )}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-6">
+          <CardTitle className="text-2xl font-bold mb-4">New Expense Report</CardTitle>
+          <h2 className="text-lg font-semibold mb-2">Basic Information</h2>
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
@@ -952,7 +1042,7 @@ export default function NewExpensePage() {
               </p>
             </div>
 
-            {columns.map((col) => {
+            {/* {columns.map((col) => {
               if (!col.visible || col.key === "receipt") return null;
 
               return (
@@ -1147,71 +1237,499 @@ export default function NewExpensePage() {
                   )}
                 </div>
               );
-            })}
+            })} */}
+
+            {/* Date, Approver, Overall Description */}
+            <div className="space-y-6">
+              {/* Grid Row: Date and Approver */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {columns.map((col) => {
+                  if (
+                    !col.visible ||
+                    !["date", "dropdown"].includes(col.type) ||
+                    col.key !== "date" && col.key !== "approver"
+                  )
+                    return null;
+
+                  return (
+                    <div key={col.key} className="space-y-2">
+                      <Label
+                        htmlFor={col.key}
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        {col.label}
+                        {col.required && (
+                          <span className="text-red-500 ml-1 text-sm">*</span>
+                        )}
+                      </Label>
+
+                      {/* Date Input */}
+                      {col.type === "date" && (
+                        <>
+                          <Input
+                            id={col.key}
+                            name={col.key}
+                            type="date"
+                            value={formData[col.key] || ""}
+                            onChange={(e) => handleInputChange(col.key, e.target.value)}
+                            className={`w-full ${errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                              }`}
+                          />
+                          {errors[col.key] && (
+                            <p
+                              className="text-red-500 text-sm mt-1"
+                              role="alert"
+                              id={`${col.key}-error`}
+                            >
+                              {errors[col.key]}
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      {/* Dropdown Input (Approver) */}
+                      {col.type === "dropdown" && col.options && (
+                        <>
+                          <Select
+                            value={formData[col.key] || ""}
+                            onValueChange={(value: string) =>
+                              handleInputChange(col.key, value)
+                            }
+                          >
+                            <SelectTrigger
+                              id={col.key}
+                              className={`w-full ${errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                                }`}
+                            >
+                              <SelectValue placeholder="Select an approver" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {col.options.map((option: any) => {
+                                const value =
+                                  typeof option === "string" ? option : option.value;
+                                const label =
+                                  typeof option === "string" ? option : option.label;
+                                return (
+                                  <SelectItem key={value} value={value}>
+                                    {label}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          {errors[col.key] && (
+                            <p
+                              className="text-red-500 text-sm mt-1"
+                              role="alert"
+                              id={`${col.key}-error`}
+                            >
+                              {errors[col.key]}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Full Width Description */}
+              {columns.map((col) => {
+                if (!col.visible || col.key !== "description") return null;
+
+                return (
+                  <div key={col.key} className="space-y-2">
+                    <Label
+                      htmlFor={col.key}
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      {col.label}
+                      {col.required && (
+                        <span className="text-red-500 ml-1 text-sm">*</span>
+                      )}
+                    </Label>
+                    <Textarea
+                      id={col.key}
+                      name={col.key}
+                      value={formData[col.key] || ""}
+                      onChange={(e) => handleInputChange(col.key, e.target.value)}
+                      className={`w-full min-h-[75px] ${errors[col.key]
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                        : ""
+                        }`}
+                      placeholder="Brief description of this expense report..."
+                    />
+                    {errors[col.key] && (
+                      <p
+                        className="text-red-500 text-sm mt-1"
+                        role="alert"
+                        id={`${col.key}-error`}
+                      >
+                        {errors[col.key]}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Expense Items Section */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-medium mb-2">Expense Items</h3>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-5 space-y-6 bg-gray-50">
+                {[...Array(expenseItemCount)].map((_, index) => (
+                  <div key={index} className="border rounded-lg bg-white p-5">
+                    <div className="flex justify-between items-center mb-3">
+
+                      <h1 className="text-sm font-medium text-gray-700">
+                        Item #{index + 1}
+                      </h1>
+
+                      {index > 0 && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => deleteItem(index)}
+                          className="cursor-pointer"
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Expense Type, Date, Amount */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {columns.map((col) => {
+                        if (
+                          !col.visible ||
+                          !['dropdown', 'date', 'number'].includes(col.type) ||
+                          col.key === "approver"
+                        )
+                          return null;
+
+                        return (
+                          <div key={col.key} className="space-y-2">
+                            <Label
+                              htmlFor={col.key}
+                              className="text-sm font-medium text-gray-700"
+                            >
+                              {col.label}
+                              {col.required && (
+                                <span className="text-red-500 ml-1 text-sm">*</span>
+                              )}
+                            </Label>
+
+                            {/* Dropdown */}
+                            {col.type === "dropdown" && col.options && (
+                              <>
+                                <Select
+                                  value={formData[col.key] || ""}
+                                  onValueChange={(value) => handleInputChange(col.key, value)}
+                                >
+                                  <SelectTrigger
+                                    id={col.key}
+                                    className={`w-full ${errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                      }`}
+                                  >
+                                    <SelectValue placeholder="Select expense type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {col.options.map((option: any) => {
+                                      const value = typeof option === "string" ? option : option.value;
+                                      const label = typeof option === "string" ? option : option.label;
+                                      return (
+                                        <SelectItem key={value} value={value}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                )}
+                              </>
+                            )}
+
+                            {/* Date */}
+                            {col.type === "date" && (
+                              <>
+                                <Input
+                                  id={col.key}
+                                  name={col.key}
+                                  type="date"
+                                  value={formData[col.key] || ""}
+                                  onChange={(e) => handleInputChange(col.key, e.target.value)}
+                                  className={`w-full ${errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                    }`}
+                                />
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                )}
+                              </>
+                            )}
+
+                            {/* Number */}
+                            {col.type === "number" && (
+                              <>
+                                <Input
+                                  id={col.key}
+                                  name={col.key}
+                                  type="number"
+                                  value={formData[col.key] || ""}
+                                  onChange={(e) =>
+                                    handleInputChange(col.key, parseFloat(e.target.value))
+                                  }
+                                  className={`w-full ${errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                    }`}
+                                />
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Description (full width) */}
+                    {columns.map((col) => {
+                      if (!col.visible || col.type !== "textarea" || col.key === "approver") return null;
+
+                      return (
+                        <div key={col.key} className="space-y-2">
+                          <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                            {col.label}
+                            {col.required && (
+                              <span className="text-red-500 ml-1 text-sm">*</span>
+                            )}
+                          </Label>
+                          <Textarea
+                            id={col.key}
+                            name={col.key}
+                            value={formData[col.key] || ""}
+                            onChange={(e) => handleInputChange(col.key, e.target.value)}
+                            className={`w-full min-h-[50px] ${errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                              }`}
+                          />
+                          {errors[col.key] && (
+                            <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Receipt Upload + Add Button */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Receipt</Label>
+                      {/* <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-sm text-gray-600 bg-white cursor-pointer">
+                    📎 Click to upload receipt or drag & drop
+                    <div className="text-xs text-gray-400">PNG, JPG, PDF up to 10MB</div>
+                  </div> */}
+
+                      <div className="p-4 bg-gray-50/50 rounded-lg border">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <svg
+                              className="h-5 w-5 text-gray-400"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            <Label
+                              htmlFor="voucher-switch"
+                              className="text-sm font-medium text-gray-900"
+                            >
+                              No receipt? Create a voucher instead
+                            </Label>
+                          </div>
+                          <Switch
+                            // checked={voucherModalOpen}
+                            // onCheckedChange={setVoucherModalOpen}
+                            checked={voucherModalOpenMap[index] || false}
+                            onCheckedChange={() => toggleVoucherModal(index)}
+                            id="voucher-switch"
+                          />
+                        </div>
+
+                        {!voucherModalOpenMap[index] && (
+                          <div className="mt-4">
+                            <Label
+                              htmlFor="receipt"
+                              className="text-sm font-medium text-gray-700"
+                            >
+                              Receipt <span className="text-red-500 ml-0.5">*</span>
+                            </Label>
+                            <div className="mt-2">
+                              <Input
+                                id="receipt"
+                                name="receipt"
+                                type="file"
+                                onChange={(e) => handleFileChange(e, index)}
+                                required={!voucherModalOpenMap[index]}
+                                aria-invalid={errors["receipt"] ? "true" : "false"}
+                                aria-describedby={
+                                  errors["receipt"] ? "receipt-error" : undefined
+                                }
+                                className={
+                                  errors["receipt"]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                }
+                              />
+                              {errors["receipt"] && (
+                                <p
+                                  id="receipt-error"
+                                  className="text-red-500 text-sm mt-1"
+                                  role="alert"
+                                >
+                                  {errors["receipt"]}
+                                </p>
+                              )}
+
+                              <div className="text-sm text-gray-500 mt-1">
+                                {receiptFiles[index] ? receiptFiles[index].name : "No file chosen"}
+                              </div>
+                            </div>
+                            {receiptPreviews[index] && (
+                              <div className="mt-2">
+                                {receiptPreviews[index].startsWith("data:image") ? (
+                                  <img
+                                    src={receiptPreviews[index]}
+                                    alt="Receipt preview"
+                                    className="max-h-40 rounded-md border"
+                                  />
+                                ) : (
+                                  <div className="p-3 bg-gray-50 rounded-md border">
+                                    <p className="text-sm text-gray-600">
+                                      PDF receipt selected
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {voucherModalOpenMap[index] && (
+                        <VoucherForm
+                          formData={formData}
+                          onInputChange={handleInputChange}
+                          userRole={userRole}
+                          savedUserSignature={savedUserSignature}
+                          errors={errors}
+                        />
+                      )}
+
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  onClick={addItem}
+                  className="bg-green-600 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-mdv cursor-pointer"
+                >
+                  ➕ Add Another Expense Item
+                </Button>
+              </div>
+            </div>
+
+
 
             {/* Expense Signature Section - Only shown when voucher is not open */}
-            {!voucherModalOpen && (
-              <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
-                <div className="flex items-center space-x-3">
-                  <svg
-                    className="h-5 w-5 text-gray-500"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M12.5 18H5C3.89543 18 3 17.1046 3 16V8C3 6.89543 3.89543 6 5 6H19C20.1046 6 21 6.89543 21 8V13"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M16 20L19 17M19 17L22 20M19 17V15"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <Label className="text-sm font-medium text-gray-900">
-                    Your Signature <span className="text-red-500">*</span>
-                  </Label>
-                </div>
+            {(() => {
+              // Only show the signature section if *none* of the vouchers are open (i.e., for the main expense form)
+              const anyVoucherOpen = Object.values(voucherModalOpenMap).some(Boolean);
+              if (!anyVoucherOpen) {
+                return (
+                  <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <svg
+                        className="h-5 w-5 text-gray-500"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M12.5 18H5C3.89543 18 3 17.1046 3 16V8C3 6.89543 3.89543 6 5 6H19C20.1046 6 21 6.89543 21 8V13"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M16 20L19 17M19 17L22 20M19 17V15"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <Label className="text-sm font-medium text-gray-900">
+                        Your Signature <span className="text-red-500">*</span>
+                      </Label>
+                    </div>
 
-                {loadingSignature ? (
-                  <div className="flex items-center justify-center h-32 bg-gray-50 border rounded-lg">
-                    <p className="text-sm text-gray-500">
-                      Loading your signature...
-                    </p>
+                    {loadingSignature ? (
+                      <div className="flex items-center justify-center h-32 bg-gray-50 border rounded-lg">
+                        <p className="text-sm text-gray-500">
+                          Loading your signature...
+                        </p>
+                      </div>
+                    ) : (
+                      <SignaturePad
+                        onSave={handleExpenseSignatureSave}
+                        label="Your Signature"
+                        signatureUrl={formData.expense_signature_preview}
+                        userSignatureUrl={savedUserSignature || undefined}
+                      />
+                    )}
+
+                    {savedUserSignature &&
+                      formData.expense_signature_preview !== savedUserSignature && (
+                        <p className="text-xs text-blue-600">
+                          * You're using a new signature. This will replace your
+                          saved signature when you submit.
+                        </p>
+                      )}
                   </div>
-                ) : (
-                  <SignaturePad
-                    onSave={handleExpenseSignatureSave}
-                    label="Your Signature"
-                    signatureUrl={formData.expense_signature_preview}
-                    userSignatureUrl={savedUserSignature || undefined}
-                  />
-                )}
+                );
+              }
+              return null;
+            })()}
 
-                {savedUserSignature &&
-                  formData.expense_signature_preview !== savedUserSignature && (
-                    <p className="text-xs text-blue-600">
-                      * You're using a new signature. This will replace your
-                      saved signature when you submit.
-                    </p>
-                  )}
-              </div>
-            )}
-
-            <div className="space-y-4">
+            {/* <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -1312,7 +1830,7 @@ export default function NewExpensePage() {
                   errors={errors}
                 />
               )}
-            </div>
+            </div> */}
           </form>
         </CardContent>
       </Card>
