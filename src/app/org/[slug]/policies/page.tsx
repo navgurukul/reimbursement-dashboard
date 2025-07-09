@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
-import { PlusCircle, Edit, Trash2, X, FileText } from "lucide-react";
+import { PlusCircle, Edit, Trash2, X, FileText, Upload } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -65,6 +65,7 @@ export default function PoliciesPage() {
   const isAdminOrOwner = userRole === "admin" || userRole === "owner";
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string>("");
 
 
   useEffect(() => {
@@ -178,6 +179,7 @@ export default function PoliciesPage() {
       }
 
       setPdfFile(file); // Keep your existing state management
+      setSelectedFileName(file.name);
       toast.success('PDF selected successfully');
     } catch (error) {
       toast.error('Failed to select file');
@@ -436,10 +438,12 @@ export default function PoliciesPage() {
                   <div className="col-span-3">
                     <label
                       htmlFor="fileUpload"
-                      className="cursor-pointer inline-block px-4 py-2  text-gray rounded border border-gray-400"
+                      className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-gray rounded border border-gray-400"
                     >
-                      Upload PDF
+                      <Upload className="w-5 h-5" />
+                      Upload Policy
                     </label>
+
                     <input
                       type="file"
                       id="fileUpload"
@@ -448,8 +452,15 @@ export default function PoliciesPage() {
                       className="hidden"
                       onChange={handleFileUpload}
                     />
+                    {selectedFileName && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        Selected file: {selectedFileName}
+                      </p>
+                    )}
 
                   </div>
+
+
                 </div>
 
 
