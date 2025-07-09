@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
-import { PlusCircle, Edit, Trash2, X, FileText, Upload } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Upload } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -54,8 +54,6 @@ export default function PoliciesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-
   const [currentPolicy, setCurrentPolicy] = useState<
     Omit<Policy, "id" | "created_at" | "updated_at" | "org_id"> | Policy
   >(defaultPolicy);
@@ -130,7 +128,6 @@ export default function PoliciesPage() {
       setCurrentPolicy(defaultPolicy);
       setIsEditing(false);
     }
-    // Reset file selection when opening dialog
     setPdfFile(null);
     setIsDialogOpen(true);
   };
@@ -178,23 +175,14 @@ export default function PoliciesPage() {
         return;
       }
 
-      setPdfFile(file); // Keep your existing state management
+      setPdfFile(file);
       setSelectedFileName(file.name);
       toast.success('PDF selected successfully');
     } catch (error) {
       toast.error('Failed to select file');
-      if (e.target) e.target.value = ''; // Reset input on error
+      if (e.target) e.target.value = '';
     }
   };
-
-  const handleRemoveFile = () => {
-    setPdfFile(null);
-    const fileInput = document.getElementById("fileUpload") as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = "";
-    }
-  };
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,7 +192,7 @@ export default function PoliciesPage() {
     const toastId = toast.loading(isEditing ? "Updating policy..." : "Adding policy...");
 
     try {
-      let pdfUrl = currentPolicy.policy_url; // Keep existing URL by default
+      let pdfUrl = currentPolicy.policy_url;
       console.log("Current PDF URL:", pdfUrl);
 
       // Only upload if new file was selected
@@ -457,15 +445,9 @@ export default function PoliciesPage() {
                         Selected file: {selectedFileName}
                       </p>
                     )}
-
                   </div>
-
-
                 </div>
-
-
                 <DialogFooter>
-                  {/* {isFormValid &&( */}
                   <Button
                     type="submit"
                     disabled={isSubmitting}
@@ -479,7 +461,6 @@ export default function PoliciesPage() {
                       "Add Policy"
                     )}
                   </Button>
-                  {/* )} */}
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -541,10 +522,6 @@ export default function PoliciesPage() {
                       <span className="text-gray-500 italic">No PDF</span>
                     )}
                   </TableCell>
-
-
-
-
                   {isAdminOrOwner && (
                     <TableCell className="w-1/6 px-4">
                       <div className="flex justify-center items-center space-x-2">
