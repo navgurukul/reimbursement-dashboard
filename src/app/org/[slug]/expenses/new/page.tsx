@@ -65,6 +65,13 @@ interface ExpenseData {
   signature_url?: string;
 }
 
+interface ExpenseItemData {
+  expense_type: string
+  amount: number
+  date: string
+  description: string
+}
+
 export default function NewExpensePage() {
   const router = useRouter();
   const params = useParams();
@@ -86,12 +93,13 @@ export default function NewExpensePage() {
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
   });
-  // const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  // const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [receiptFiles, setReceiptFiles] = useState<Record<number, File | null>>({});
   const [receiptPreviews, setReceiptPreviews] = useState<Record<number, string | null>>({});
 
-  // const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false);
   const [voucherModalOpenMap, setVoucherModalOpenMap] = useState<Record<number, boolean>>({});
 
   const [events, setEvents] = useState<ExpenseEvent[]>([]);
@@ -110,18 +118,84 @@ export default function NewExpensePage() {
   );
   const [loadingSignature, setLoadingSignature] = useState(true);
 
-  const [expenseItemCount, setExpenseItemCount] = useState(1);
+  const [expenseItems, setExpenseItems] = useState<number[]>([]);
+  // Separate state for expense items data
+  const [expenseItemsData, setExpenseItemsData] = useState<Record<number, ExpenseItemData>>({})
+
+  // const addItem = () => {
+  //   setExpenseItems((prev) => [...prev, prev.length + 1]);
+  // };
 
   const addItem = () => {
-    setExpenseItemCount((prev) => prev + 1);
-  };
+    const newId = Date.now() // Simple ID generation
+    setExpenseItems((prev) => [...prev, newId])
+    // Initialize empty data for new item
+    setExpenseItemsData((prev) => ({
+      ...prev,
+      [newId]: {
+        expense_type: "",
+        amount: 0,
+        date: new Date().toISOString(),
+        description: "",
+      },
+    }))
+  }
 
-  const deleteItem = (index: number) => {
-    if (expenseItemCount > 1) {
-      setExpenseItemCount((prev) => prev - 1);
+  // const deleteItem = (id: number) => {
+  //   setExpenseItems((prev) => prev.filter((item) => item !== id));
+  // };
+
+  const deleteItem = (id: number) => {
+    setExpenseItems((prev) => prev.filter((item) => item !== id))
+    setExpenseItemsData((prev) => {
+      const newData = { ...prev }
+      delete newData[id]
+      return newData
+    })
+    // Clean up voucher modal state
+    setVoucherModalOpenMap((prev) => {
+      const newMap = { ...prev }
+      delete newMap[id]
+      return newMap
+    })
+    // Clean up receipt files
+    setReceiptFiles((prev) => {
+      const newFiles = { ...prev }
+      delete newFiles[id]
+      return newFiles
+    })
+    setReceiptPreviews((prev) => {
+      const newPreviews = { ...prev }
+      delete newPreviews[id]
+      return newPreviews
+    })
+  }
+
+  // Handler for expense items - separate from main form
+  const handleExpenseItemChange = (itemId: number, key: keyof ExpenseItemData, value: string | number) => {
+    setExpenseItemsData((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [key]: value,
+      },
+    }))
+  }
+
+  // Get expense item value
+  const getExpenseItemValue = (itemId: number, key: keyof ExpenseItemData): string | number => {
+    // return expenseItemsData[itemId]?.[key] || (key === 'amount' || key === 'date' ? 0 : "")
+
+    const value = expenseItemsData[itemId]?.[key];
+    if (
+      value === undefined ||
+      value === null ||
+      (key === "amount" && (value === 0 || isNaN(Number(value))))
+    ) {
+      return "";
     }
-  };
-
+    return value;
+  }
 
   // Add these utility functions for error handling and UX improvements
   const scrollToFirstError = (errors: Record<string, string>) => {
@@ -363,26 +437,28 @@ export default function NewExpensePage() {
     fetchData();
   }, [orgId, eventIdFromQuery, user]);
 
-  // const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  //   const file = e.target.files?.[0];
-  //   if (!file) return;
+  // Handle single receipt files
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  //   // Clear receipt error if file is selected
-  //   setErrors((prevErrors) => {
-  //     const updatedErrors = { ...prevErrors };
-  //     delete updatedErrors["receipt"];
-  //     return updatedErrors;
-  //   });
+    // Clear receipt error if file is selected
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      delete updatedErrors["receipt"];
+      return updatedErrors;
+    });
 
-  //   setReceiptFile(file);
-  //   const reader = new FileReader();
-  //   reader.onloadend = () => {
-  //     setReceiptPreview(reader.result as string);
-  //   };
-  //   reader.readAsDataURL(file);
-  // };
+    setReceiptFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setReceiptPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+  // Handle multiple receipt files
+  const handleFileChanges = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -810,55 +886,85 @@ export default function NewExpensePage() {
 
         toast.success("Voucher submitted successfully");
       } else {
-        // For regular expenses, just create it directly
-        // FIXED: Added data to the destructuring to capture the return value
-        const { data, error } = await expenses.create(
+        // ✅ First: save the main/base expense form (the one at the top)
+        const { data: baseData, error: baseError } = await expenses.create(
           baseExpenseData,
           receiptFiles[0] || undefined
         );
 
-        if (error) {
-          console.error("Error creating regular expense:", error);
-          toast.error(`Failed to create expense: ${error.message}`);
+        if (baseError) {
+          console.error("Error creating base expense:", baseError);
+          toast.error(`Failed to create base expense: ${baseError.message}`);
           setSaving(false);
           return;
         }
 
-        // Add history entry for regular expense creation with improved username extraction
+        // 📝 Log history for main/base expense
         try {
           const authRaw = localStorage.getItem("auth-storage");
-          console.log("Auth raw:", authRaw);
           const authStorage = JSON.parse(authRaw || "{}");
 
-          // Try multiple paths and nested data
           let userName = "Unknown User";
-
           if (authStorage?.state?.user?.profile?.full_name) {
             userName = authStorage.state.user.profile.full_name;
-          } else if (
-            typeof authRaw === "string" &&
-            authRaw.includes("full_name")
-          ) {
+          } else if (typeof authRaw === "string" && authRaw.includes("full_name")) {
             const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
             if (match && match[1]) {
               userName = match[1];
             }
           }
 
-          if (data && data.id) {
-            await expenseHistory.addEntry(
-              data.id,
-              user.id,
-              userName,
-              "created",
-              null,
-              data.amount.toString()
-            );
-          }
+          await expenseHistory.addEntry(
+            baseData.id,
+            user.id,
+            userName,
+            "created",
+            null,
+            baseData.amount.toString()
+          );
         } catch (logError) {
-          console.error("Error logging expense creation:", logError);
-          // Fallback
-          if (data && data.id) {
+          console.error("Error logging base expense creation:", logError);
+          await expenseHistory.addEntry(
+            baseData.id,
+            user.id,
+            "Unknown User",
+            "created",
+            null,
+            baseData.amount.toString()
+          );
+        }
+
+        // ✅ Then: loop through additional expense items (if any)
+        if (expenseItems.length > 0) {
+          for (const itemId of expenseItems) {
+            const item = expenseItemsData[itemId];
+
+            const individualExpenseData = {
+              org_id: organization.id,
+              user_id: user.id,
+              amount: item.amount,
+              expense_type: item.expense_type || "Other",
+              date: new Date(item.date).toISOString(),
+              custom_fields: {
+                description: item.description || "",
+              },
+              event_id: formData.event_id || null,
+              approver_id: formData.approver || null,
+              signature_url: expense_signature_url || undefined,
+              receipt: null,
+            };
+
+            const { data, error } = await expenses.create(
+              individualExpenseData,
+              receiptFiles[itemId] || undefined
+            );
+
+            if (error) {
+              toast.error(`Failed to create expense item: ${error.message}`);
+              console.error("Error creating item:", error);
+              continue;
+            }
+
             await expenseHistory.addEntry(
               data.id,
               user.id,
@@ -868,16 +974,69 @@ export default function NewExpensePage() {
               data.amount.toString()
             );
           }
+
+          toast.success("All expense items submitted successfully");
+        } else {
+          // Single expense
+          const { data, error } = await expenses.create(
+            baseExpenseData,
+            receiptFiles[0] || undefined
+          );
+
+          if (error) {
+            console.error("Error creating regular expense:", error);
+            toast.error(`Failed to create expense: ${error.message}`);
+            setSaving(false);
+            return;
+          }
+
+          try {
+            const authRaw = localStorage.getItem("auth-storage");
+            const authStorage = JSON.parse(authRaw || "{}");
+
+            let userName = "Unknown User";
+            if (authStorage?.state?.user?.profile?.full_name) {
+              userName = authStorage.state.user.profile.full_name;
+            } else if (typeof authRaw === "string" && authRaw.includes("full_name")) {
+              const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+              if (match && match[1]) {
+                userName = match[1];
+              }
+            }
+
+            if (data && data.id) {
+              await expenseHistory.addEntry(
+                data.id,
+                user.id,
+                userName,
+                "created",
+                null,
+                data.amount.toString()
+              );
+            }
+          } catch (logError) {
+            console.error("Error logging expense creation:", logError);
+            if (data && data.id) {
+              await expenseHistory.addEntry(
+                data.id,
+                user.id,
+                "Unknown User",
+                "created",
+                null,
+                data.amount.toString()
+              );
+            }
+          }
+
+          toast.success("Expense created successfully");
         }
 
-        toast.success("Expense created successfully");
-      }
-
-      // If expense was added from an event's page, redirect back to that event
-      if (eventIdFromQuery) {
-        router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
-      } else {
-        router.push(`/org/${slug}/expenses`);
+        // After creation, redirect
+        if (eventIdFromQuery) {
+          router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+        } else {
+          router.push(`/org/${slug}/expenses`);
+        }
       }
     } catch (error: any) {
       console.error("Error in submit handler:", error);
@@ -899,55 +1058,8 @@ export default function NewExpensePage() {
 
   return (
     <div className="max-w-[800px] mx-auto py-6">
-      {/* <div className="flex items-center justify-between mb-6">
-        <Button
-          variant="ghost"
-          onClick={() => {
-            if (eventIdFromQuery) {
-              router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
-            } else {
-              router.push(`/org/${slug}/expenses`);
-            }
-          }}
-          className="text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={saving}
-          className="bg-black text-white hover:bg-black/90"
-        >
-          {saving ? (
-            <>
-              <Spinner className="mr-2 h-4 w-4" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <svg
-                className="mr-2 h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Save Expense
-            </>
-          )}
-        </Button>
-      </div> */}
-
       <Card className="shadow-sm">
-        <CardHeader className="border-b">
+        {/* <CardHeader className="border-b">
           <div className="flex items-center justify-between">
             <Button
               variant="ghost"
@@ -994,8 +1106,58 @@ export default function NewExpensePage() {
               )}
             </Button>
           </div>
+        </CardHeader> */}
+
+        <CardHeader className="border-b">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (eventIdFromQuery) {
+                  router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+                } else {
+                  router.push(`/org/${slug}/expenses`);
+                }
+              }}
+              className="text-gray-600 hover:text-gray-900 cursor-pointer w-full md:w-auto"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={saving}
+              className="bg-black text-white hover:bg-black/90 cursor-pointer w-full md:w-auto"
+            >
+              {saving ? (
+                <>
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="mr-2 h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Save Expense
+                </>
+              )}
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="p-6">
+
+        <CardContent className="p-6 pt-0">
           <CardTitle className="text-2xl font-bold mb-4">New Expense Report</CardTitle>
           <h2 className="text-lg font-semibold mb-2">Basic Information</h2>
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
@@ -1042,212 +1204,15 @@ export default function NewExpensePage() {
               </p>
             </div>
 
-            {/* {columns.map((col) => {
-              if (!col.visible || col.key === "receipt") return null;
-
-              return (
-                <div key={col.key} className="space-y-2">
-                  <Label
-                    htmlFor={col.key}
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    {col.label}
-                    {col.required && (
-                      <span className="text-red-500 ml-1 text-sm">*</span>
-                    )}
-                  </Label>
-
-                  {col.type === "text" && (
-                    <>
-                      <Input
-                        id={col.key}
-                        name={col.key}
-                        value={formData[col.key] || ""}
-                        onChange={(e) =>
-                          handleInputChange(col.key, e.target.value)
-                        }
-                        aria-invalid={errors[col.key] ? "true" : "false"}
-                        aria-describedby={
-                          errors[col.key] ? `${col.key}-error` : undefined
-                        }
-                        className={`w-full ${
-                          errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
-                        }`}
-                      />
-                      {errors[col.key] && (
-                        <p
-                          id={`${col.key}-error`}
-                          className="text-red-500 text-sm mt-1"
-                          role="alert"
-                        >
-                          {errors[col.key]}
-                        </p>
-                      )}
-                    </>
-                  )}
-
-                  {col.type === "number" && (
-                    <>
-                      <Input
-                        id={col.key}
-                        name={col.key}
-                        type="number"
-                        value={formData[col.key] || ""}
-                        onChange={(e) =>
-                          handleInputChange(col.key, parseFloat(e.target.value))
-                        }
-                        aria-invalid={errors[col.key] ? "true" : "false"}
-                        aria-describedby={
-                          errors[col.key] ? `${col.key}-error` : undefined
-                        }
-                        className={`w-full ${
-                          errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
-                        }`}
-                      />
-                      {errors[col.key] && (
-                        <p
-                          id={`${col.key}-error`}
-                          className="text-red-500 text-sm mt-1"
-                          role="alert"
-                        >
-                          {errors[col.key]}
-                        </p>
-                      )}
-                    </>
-                  )}
-
-                  {col.type === "date" && (
-                    <>
-                      <Input
-                        id={col.key}
-                        name={col.key}
-                        type="date"
-                        value={formData[col.key] || ""}
-                        onChange={(e) =>
-                          handleInputChange(col.key, e.target.value)
-                        }
-                        aria-invalid={errors[col.key] ? "true" : "false"}
-                        aria-describedby={
-                          errors[col.key] ? `${col.key}-error` : undefined
-                        }
-                        className={`w-full ${
-                          errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
-                        }`}
-                      />
-                      {errors[col.key] && (
-                        <p
-                          id={`${col.key}-error`}
-                          className="text-red-500 text-sm mt-1"
-                          role="alert"
-                        >
-                          {errors[col.key]}
-                        </p>
-                      )}
-                    </>
-                  )}
-
-                  {col.type === "textarea" && (
-                    <>
-                      <Textarea
-                        id={col.key}
-                        name={col.key}
-                        value={formData[col.key] || ""}
-                        onChange={(e) =>
-                          handleInputChange(col.key, e.target.value)
-                        }
-                        aria-invalid={errors[col.key] ? "true" : "false"}
-                        aria-describedby={
-                          errors[col.key] ? `${col.key}-error` : undefined
-                        }
-                        className={`w-full min-h-[100px] ${
-                          errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
-                        }`}
-                      />
-                      {errors[col.key] && (
-                        <p
-                          id={`${col.key}-error`}
-                          className="text-red-500 text-sm mt-1"
-                          role="alert"
-                        >
-                          {errors[col.key]}
-                        </p>
-                      )}
-                    </>
-                  )}
-
-                  {col.type === "dropdown" && col.options && (
-                    <>
-                      <Select
-                        value={formData[col.key] || ""}
-                        onValueChange={(value: string) =>
-                          handleInputChange(col.key, value)
-                        }
-                      >
-                        <SelectTrigger
-                          id={col.key}
-                          aria-invalid={errors[col.key] ? "true" : "false"}
-                          aria-describedby={
-                            errors[col.key] ? `${col.key}-error` : undefined
-                          }
-                          className={`w-full ${
-                            errors[col.key]
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                              : ""
-                          }`}
-                        >
-                          <SelectValue placeholder="Select an option" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {col.options.map((option: any) => {
-                            const value =
-                              typeof option === "string"
-                                ? option
-                                : option.value;
-                            const label =
-                              typeof option === "string"
-                                ? option
-                                : option.label;
-
-                            return (
-                              <SelectItem key={value} value={value}>
-                                {label}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                      {errors[col.key] && (
-                        <p
-                          id={`${col.key}-error`}
-                          className="text-red-500 text-sm mt-1"
-                          role="alert"
-                        >
-                          {errors[col.key]}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })} */}
-
-            {/* Date, Approver, Overall Description */}
+            {/* Expense Type, Amount, Date, Approver, Description */}
             <div className="space-y-6">
               {/* Grid Row: Date and Approver */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {columns.map((col) => {
                   if (
                     !col.visible ||
-                    !["date", "dropdown"].includes(col.type) ||
-                    col.key !== "date" && col.key !== "approver"
+                    !["date", "dropdown", "expense_type", "number"].includes(col.type) ||
+                    !["date", "approver", "expense_type", "amount"].includes(col.key)
                   )
                     return null;
 
@@ -1332,6 +1297,79 @@ export default function NewExpensePage() {
                           )}
                         </>
                       )}
+
+                      {/* Expense Type Dropdown */}
+                      {col.type === "expense_type" && col.options && (
+                        <>
+                          <Select
+                            value={formData[col.key] || ""}
+                            onValueChange={(value: string) =>
+                              handleInputChange(col.key, value)
+                            }
+                          >
+                            <SelectTrigger
+                              id={col.key}
+                              className={`w-full ${errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                                }`}
+                            >
+                              <SelectValue placeholder="Select expense type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {col.options.map((option: any) => {
+                                const value =
+                                  typeof option === "string" ? option : option.value;
+                                const label =
+                                  typeof option === "string" ? option : option.label;
+                                return (
+                                  <SelectItem key={value} value={value}>
+                                    {label}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          {errors[col.key] && (
+                            <p
+                              className="text-red-500 text-sm mt-1"
+                              role="alert"
+                              id={`${col.key}-error`}
+                            >
+                              {errors[col.key]}
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      {/* Amount Input */}
+                      {col.type === "number" && (
+                        <>
+                          <Input
+                            id={col.key}
+                            name={col.key}
+                            type="number"
+                            value={formData[col.key] || ""}
+                            onChange={(e) =>
+                              handleInputChange(col.key, parseFloat(e.target.value))
+                            }
+                            className={`w-full ${errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                              }`}
+                            placeholder="Enter amount"
+                          />
+                          {errors[col.key] && (
+                            <p
+                              className="text-red-500 text-sm mt-1"
+                              role="alert"
+                              id={`${col.key}-error`}
+                            >
+                              {errors[col.key]}
+                            </p>
+                          )}
+                        </>
+                      )}
                     </div>
                   );
                 })}
@@ -1377,288 +1415,399 @@ export default function NewExpensePage() {
               })}
             </div>
 
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50/50 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <svg
+                      className="h-5 w-5 text-gray-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <Label
+                      htmlFor="voucher-switch"
+                      className="text-sm font-medium text-gray-900"
+                    >
+                      No receipt? Create a voucher instead
+                    </Label>
+                  </div>
+                  <Switch
+                    checked={voucherModalOpen}
+                    className="cursor-pointer"
+                    onCheckedChange={setVoucherModalOpen}
+                    id="voucher-switch"
+                  />
+                </div>
+
+                {!voucherModalOpen && (
+                  <div className="mt-4">
+                    <Label
+                      htmlFor="receipt"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Receipt <span className="text-red-500 ml-0.5">*</span>
+                    </Label>
+                    <div className="mt-2">
+                      <Input
+                        id="receipt"
+                        name="receipt"
+                        type="file"
+                        onChange={(e) => handleFileChange(e)}
+                        required={!voucherModalOpen}
+                        aria-invalid={errors["receipt"] ? "true" : "false"}
+                        aria-describedby={
+                          errors["receipt"] ? "receipt-error" : undefined
+                        }
+                        className={
+                          errors["receipt"]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }
+                      />
+                      {errors["receipt"] && (
+                        <p
+                          id="receipt-error"
+                          className="text-red-500 text-sm mt-1"
+                          role="alert"
+                        >
+                          {errors["receipt"]}
+                        </p>
+                      )}
+
+                      <div className="text-sm text-gray-500 mt-1">
+                        {receiptFile ? receiptFile.name : "No file chosen"}
+                      </div>
+                    </div>
+                    {receiptPreview && (
+                      <div className="mt-2">
+                        {receiptPreview.startsWith("data:image") ? (
+                          <img
+                            src={receiptPreview}
+                            alt="Receipt preview"
+                            className="max-h-40 rounded-md border"
+                          />
+                        ) : (
+                          <div className="p-3 bg-gray-50 rounded-md border">
+                            <p className="text-sm text-gray-600">
+                              PDF receipt selected
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {voucherModalOpen && (
+                <VoucherForm
+                  formData={formData}
+                  onInputChange={handleInputChange}
+                  userRole={userRole}
+                  savedUserSignature={savedUserSignature}
+                  errors={errors}
+                />
+              )}
+            </div>
+
             {/* Expense Items Section */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium mb-2">Expense Items</h3>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-5 space-y-6 bg-gray-50">
-                {[...Array(expenseItemCount)].map((_, index) => (
-                  <div key={index} className="border rounded-lg bg-white p-5">
-                    <div className="flex justify-between items-center mb-3">
+            {expenseItems.length > 0 && (
+              <div className="space-y-6">
+                {/* <h3 className="text-lg font-medium mb-2">Expense Items</h3> */}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-5 space-y-6 bg-gray-50">
+                  {expenseItems.map((id, index) => (
+                    <div key={id} className="border rounded-lg bg-white p-5">
+                      <div className="flex justify-between items-center mb-3">
 
-                      <h1 className="text-sm font-medium text-gray-700">
-                        Item #{index + 1}
-                      </h1>
+                        <h1 className="text-xl font-medium text-gray-700">
+                          Expense Item #{index + 2}
+                        </h1>
 
-                      {index > 0 && (
                         <Button
                           type="button"
                           variant="destructive"
                           size="sm"
-                          onClick={() => deleteItem(index)}
+                          onClick={() => deleteItem(id)}
                           className="cursor-pointer"
                         >
                           Delete
                         </Button>
-                      )}
-                    </div>
 
-                    {/* Expense Type, Date, Amount */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      </div>
+
+                      {/* Expense Type, Date, Amount */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {columns.map((col) => {
+                          if (
+                            !col.visible ||
+                            !['dropdown', 'date', 'number'].includes(col.type) ||
+                            col.key === "approver"
+                          )
+                            return null;
+
+                          return (
+                            <div key={col.key} className="space-y-2">
+                              <Label
+                                htmlFor={col.key}
+                                className="text-sm font-medium text-gray-700"
+                              >
+                                {col.label}
+                                {col.required && (
+                                  <span className="text-red-500 ml-1 text-sm">*</span>
+                                )}
+                              </Label>
+
+                              {/* Dropdown */}
+                              {col.type === "dropdown" && col.options && (
+                                <>
+                                  <Select
+                                    // value={formData[col.key] || ""}
+                                    // onValueChange={(value) => handleInputChange(col.key, value)}
+                                    value={
+                                      getExpenseItemValue(id, "expense_type") !== undefined && getExpenseItemValue(id, "expense_type") !== null
+                                        ? String(getExpenseItemValue(id, "expense_type"))
+                                        : undefined
+                                    }
+                                    onValueChange={(value) => handleExpenseItemChange(id, "expense_type", value)}
+                                  >
+                                    <SelectTrigger
+                                      id={col.key}
+                                      className={`w-full ${errors[col.key]
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                        }`}
+                                    >
+                                      <SelectValue placeholder="Select expense type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {col.options.map((option: any) => {
+                                        const value = typeof option === "string" ? option : option.value;
+                                        const label = typeof option === "string" ? option : option.label;
+                                        return (
+                                          <SelectItem key={value} value={value}>
+                                            {label}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                  {errors[col.key] && (
+                                    <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                  )}
+                                </>
+                              )}
+
+                              {/* Date */}
+                              {col.type === "date" && (
+                                <>
+                                  <Input
+                                    id={col.key}
+                                    name={col.key}
+                                    type="date"
+                                    // value={formData[col.key] || ""}
+                                    // onChange={(e) => handleInputChange(col.key, e.target.value)}
+                                    value={getExpenseItemValue(id, "date")}
+                                    onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
+                                    className={`w-full ${errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                      }`}
+                                  />
+                                  {errors[col.key] && (
+                                    <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                  )}
+                                </>
+                              )}
+
+                              {/* Number */}
+                              {col.type === "number" && (
+                                <>
+                                  <Input
+                                    id={col.key}
+                                    name={col.key}
+                                    type="number"
+                                    placeholder="Enter amount"
+                                    // value={formData[col.key] || ""}
+                                    // onChange={(e) =>
+                                    //   handleInputChange(col.key, parseFloat(e.target.value))
+                                    // }
+
+                                    value={getExpenseItemValue(id, "amount")}
+                                    onChange={(e) => handleExpenseItemChange(id, "amount", parseFloat(e.target.value))}
+                                    className={`w-full ${errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                      }`}
+                                  />
+                                  {errors[col.key] && (
+                                    <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Description (full width) */}
                       {columns.map((col) => {
-                        if (
-                          !col.visible ||
-                          !['dropdown', 'date', 'number'].includes(col.type) ||
-                          col.key === "approver"
-                        )
-                          return null;
+                        if (!col.visible || col.type !== "textarea" || col.key === "approver") return null;
 
                         return (
                           <div key={col.key} className="space-y-2">
-                            <Label
-                              htmlFor={col.key}
-                              className="text-sm font-medium text-gray-700"
-                            >
+                            <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
                               {col.label}
                               {col.required && (
                                 <span className="text-red-500 ml-1 text-sm">*</span>
                               )}
                             </Label>
-
-                            {/* Dropdown */}
-                            {col.type === "dropdown" && col.options && (
-                              <>
-                                <Select
-                                  value={formData[col.key] || ""}
-                                  onValueChange={(value) => handleInputChange(col.key, value)}
-                                >
-                                  <SelectTrigger
-                                    id={col.key}
-                                    className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                      }`}
-                                  >
-                                    <SelectValue placeholder="Select expense type" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {col.options.map((option: any) => {
-                                      const value = typeof option === "string" ? option : option.value;
-                                      const label = typeof option === "string" ? option : option.label;
-                                      return (
-                                        <SelectItem key={value} value={value}>
-                                          {label}
-                                        </SelectItem>
-                                      );
-                                    })}
-                                  </SelectContent>
-                                </Select>
-                                {errors[col.key] && (
-                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                                )}
-                              </>
-                            )}
-
-                            {/* Date */}
-                            {col.type === "date" && (
-                              <>
-                                <Input
-                                  id={col.key}
-                                  name={col.key}
-                                  type="date"
-                                  value={formData[col.key] || ""}
-                                  onChange={(e) => handleInputChange(col.key, e.target.value)}
-                                  className={`w-full ${errors[col.key]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
-                                    }`}
-                                />
-                                {errors[col.key] && (
-                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                                )}
-                              </>
-                            )}
-
-                            {/* Number */}
-                            {col.type === "number" && (
-                              <>
-                                <Input
-                                  id={col.key}
-                                  name={col.key}
-                                  type="number"
-                                  value={formData[col.key] || ""}
-                                  onChange={(e) =>
-                                    handleInputChange(col.key, parseFloat(e.target.value))
-                                  }
-                                  className={`w-full ${errors[col.key]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
-                                    }`}
-                                />
-                                {errors[col.key] && (
-                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                                )}
-                              </>
+                            <Textarea
+                              id={col.key}
+                              name={col.key}
+                              // value={formData[col.key] || ""}
+                              // onChange={(e) => handleInputChange(col.key, e.target.value)}
+                              value={getExpenseItemValue(id, "description")}
+                              onChange={(e) => handleExpenseItemChange(id, "description", e.target.value)}
+                              className={`w-full min-h-[50px] ${errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                                }`}
+                            />
+                            {errors[col.key] && (
+                              <p className="text-red-500 text-sm">{errors[col.key]}</p>
                             )}
                           </div>
                         );
                       })}
-                    </div>
 
-                    {/* Description (full width) */}
-                    {columns.map((col) => {
-                      if (!col.visible || col.type !== "textarea" || col.key === "approver") return null;
+                      {/* Receipt Upload + Add Button */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700">Receipt</Label>
 
-                      return (
-                        <div key={col.key} className="space-y-2">
-                          <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
-                            {col.label}
-                            {col.required && (
-                              <span className="text-red-500 ml-1 text-sm">*</span>
-                            )}
-                          </Label>
-                          <Textarea
-                            id={col.key}
-                            name={col.key}
-                            value={formData[col.key] || ""}
-                            onChange={(e) => handleInputChange(col.key, e.target.value)}
-                            className={`w-full min-h-[50px] ${errors[col.key]
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                              : ""
-                              }`}
-                          />
-                          {errors[col.key] && (
-                            <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                        <div className="p-4 bg-gray-50/50 rounded-lg border">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <svg
+                                className="h-5 w-5 text-gray-400"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                              <Label
+                                htmlFor="voucher-switch"
+                                className="text-sm font-medium text-gray-900"
+                              >
+                                No receipt? Create a voucher instead
+                              </Label>
+                            </div>
+                            <Switch
+                              checked={voucherModalOpenMap[index] || false}
+                              className="cursor-pointer"
+                              onCheckedChange={() => toggleVoucherModal(index)}
+                              id="voucher-switch"
+                            />
+                          </div>
+
+                          {!voucherModalOpenMap[index] && (
+                            <div className="mt-4">
+                              <Label
+                                htmlFor="receipt"
+                                className="text-sm font-medium text-gray-700"
+                              >
+                                Receipt <span className="text-red-500 ml-0.5">*</span>
+                              </Label>
+                              <div className="mt-2">
+                                <Input
+                                  id="receipt"
+                                  name="receipt"
+                                  type="file"
+                                  onChange={(e) => handleFileChanges(e, index)}
+                                  required={!voucherModalOpenMap[index]}
+                                  aria-invalid={errors["receipt"] ? "true" : "false"}
+                                  aria-describedby={
+                                    errors["receipt"] ? "receipt-error" : undefined
+                                  }
+                                  className={
+                                    errors["receipt"]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                  }
+                                />
+                                {errors["receipt"] && (
+                                  <p
+                                    id="receipt-error"
+                                    className="text-red-500 text-sm mt-1"
+                                    role="alert"
+                                  >
+                                    {errors["receipt"]}
+                                  </p>
+                                )}
+
+                                <div className="text-sm text-gray-500 mt-1">
+                                  {receiptFiles[index] ? receiptFiles[index].name : "No file chosen"}
+                                </div>
+                              </div>
+                              {receiptPreviews[index] && (
+                                <div className="mt-2">
+                                  {receiptPreviews[index].startsWith("data:image") ? (
+                                    <img
+                                      src={receiptPreviews[index]}
+                                      alt="Receipt preview"
+                                      className="max-h-40 rounded-md border"
+                                    />
+                                  ) : (
+                                    <div className="p-3 bg-gray-50 rounded-md border">
+                                      <p className="text-sm text-gray-600">
+                                        PDF receipt selected
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
-                      );
-                    })}
 
-                    {/* Receipt Upload + Add Button */}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Receipt</Label>
-                      {/* <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-sm text-gray-600 bg-white cursor-pointer">
-                    📎 Click to upload receipt or drag & drop
-                    <div className="text-xs text-gray-400">PNG, JPG, PDF up to 10MB</div>
-                  </div> */}
-
-                      <div className="p-4 bg-gray-50/50 rounded-lg border">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <svg
-                              className="h-5 w-5 text-gray-400"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                            <Label
-                              htmlFor="voucher-switch"
-                              className="text-sm font-medium text-gray-900"
-                            >
-                              No receipt? Create a voucher instead
-                            </Label>
-                          </div>
-                          <Switch
-                            // checked={voucherModalOpen}
-                            // onCheckedChange={setVoucherModalOpen}
-                            checked={voucherModalOpenMap[index] || false}
-                            onCheckedChange={() => toggleVoucherModal(index)}
-                            id="voucher-switch"
+                        {voucherModalOpenMap[index] && (
+                          <VoucherForm
+                            formData={formData}
+                            onInputChange={handleInputChange}
+                            userRole={userRole}
+                            savedUserSignature={savedUserSignature}
+                            errors={errors}
                           />
-                        </div>
-
-                        {!voucherModalOpenMap[index] && (
-                          <div className="mt-4">
-                            <Label
-                              htmlFor="receipt"
-                              className="text-sm font-medium text-gray-700"
-                            >
-                              Receipt <span className="text-red-500 ml-0.5">*</span>
-                            </Label>
-                            <div className="mt-2">
-                              <Input
-                                id="receipt"
-                                name="receipt"
-                                type="file"
-                                onChange={(e) => handleFileChange(e, index)}
-                                required={!voucherModalOpenMap[index]}
-                                aria-invalid={errors["receipt"] ? "true" : "false"}
-                                aria-describedby={
-                                  errors["receipt"] ? "receipt-error" : undefined
-                                }
-                                className={
-                                  errors["receipt"]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
-                                }
-                              />
-                              {errors["receipt"] && (
-                                <p
-                                  id="receipt-error"
-                                  className="text-red-500 text-sm mt-1"
-                                  role="alert"
-                                >
-                                  {errors["receipt"]}
-                                </p>
-                              )}
-
-                              <div className="text-sm text-gray-500 mt-1">
-                                {receiptFiles[index] ? receiptFiles[index].name : "No file chosen"}
-                              </div>
-                            </div>
-                            {receiptPreviews[index] && (
-                              <div className="mt-2">
-                                {receiptPreviews[index].startsWith("data:image") ? (
-                                  <img
-                                    src={receiptPreviews[index]}
-                                    alt="Receipt preview"
-                                    className="max-h-40 rounded-md border"
-                                  />
-                                ) : (
-                                  <div className="p-3 bg-gray-50 rounded-md border">
-                                    <p className="text-sm text-gray-600">
-                                      PDF receipt selected
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
                         )}
+
                       </div>
-
-                      {voucherModalOpenMap[index] && (
-                        <VoucherForm
-                          formData={formData}
-                          onInputChange={handleInputChange}
-                          userRole={userRole}
-                          savedUserSignature={savedUserSignature}
-                          errors={errors}
-                        />
-                      )}
-
                     </div>
-                  </div>
-                ))}
-
-                <Button
-                  type="button"
-                  onClick={addItem}
-                  className="bg-green-600 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-mdv cursor-pointer"
-                >
-                  ➕ Add Another Expense Item
-                </Button>
+                  ))}
+                </div>
               </div>
-            </div>
-
-
+            )}
+            <Button
+              type="button"
+              onClick={addItem}
+              className="bg-green-600 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-mdv cursor-pointer"
+            >
+              ➕ Add Another Expense Item
+            </Button>
 
             {/* Expense Signature Section - Only shown when voucher is not open */}
             {(() => {
@@ -1729,108 +1878,6 @@ export default function NewExpensePage() {
               return null;
             })()}
 
-            {/* <div className="space-y-4">
-              <div className="p-4 bg-gray-50/50 rounded-lg border">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <svg
-                      className="h-5 w-5 text-gray-400"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <Label
-                      htmlFor="voucher-switch"
-                      className="text-sm font-medium text-gray-900"
-                    >
-                      No receipt? Create a voucher instead
-                    </Label>
-                  </div>
-                  <Switch
-                    checked={voucherModalOpen}
-                    onCheckedChange={setVoucherModalOpen}
-                    id="voucher-switch"
-                  />
-                </div>
-
-                {!voucherModalOpen && (
-                  <div className="mt-4">
-                    <Label
-                      htmlFor="receipt"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Receipt <span className="text-red-500 ml-0.5">*</span>
-                    </Label>
-                    <div className="mt-2">
-                      <Input
-                        id="receipt"
-                        name="receipt"
-                        type="file"
-                        onChange={handleFileChange}
-                        required={!voucherModalOpen}
-                        aria-invalid={errors["receipt"] ? "true" : "false"}
-                        aria-describedby={
-                          errors["receipt"] ? "receipt-error" : undefined
-                        }
-                        className={
-                          errors["receipt"]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
-                        }
-                      />
-                      {errors["receipt"] && (
-                        <p
-                          id="receipt-error"
-                          className="text-red-500 text-sm mt-1"
-                          role="alert"
-                        >
-                          {errors["receipt"]}
-                        </p>
-                      )}
-
-                      <div className="text-sm text-gray-500 mt-1">
-                        {receiptFile ? receiptFile.name : "No file chosen"}
-                      </div>
-                    </div>
-                    {receiptPreview && (
-                      <div className="mt-2">
-                        {receiptPreview.startsWith("data:image") ? (
-                          <img
-                            src={receiptPreview}
-                            alt="Receipt preview"
-                            className="max-h-40 rounded-md border"
-                          />
-                        ) : (
-                          <div className="p-3 bg-gray-50 rounded-md border">
-                            <p className="text-sm text-gray-600">
-                              PDF receipt selected
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {voucherModalOpen && (
-                <VoucherForm
-                  formData={formData}
-                  onInputChange={handleInputChange}
-                  userRole={userRole}
-                  savedUserSignature={savedUserSignature}
-                  errors={errors}
-                />
-              )}
-            </div> */}
           </form>
         </CardContent>
       </Card>
