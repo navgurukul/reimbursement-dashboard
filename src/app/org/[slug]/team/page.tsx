@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { invites, organizations, profiles, RemovedUsers } from "@/lib/db";
+import { organizations, profiles, RemovedUsers } from "@/lib/db";
 import {
   Card,
   CardContent,
@@ -32,6 +32,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Trash, Copy, Link2 } from "lucide-react";
 import supabase from "@/lib/supabase"; // Add this import
+import { useRouter } from "next/navigation";
 
 interface Member {
   id: string;
@@ -71,7 +72,7 @@ export default function TeamPage() {
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
-
+  const router = useRouter();
 
   // Fetch organization members
   useEffect(() => {
@@ -126,6 +127,23 @@ export default function TeamPage() {
     fetchMembers();
   }, [org?.id]);
 
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (!data?.user || error) {
+        toast.error("You have been removed from the dashboard");
+
+        await supabase.auth.signOut();
+
+        clearInterval(interval);
+        setTimeout(() => {
+          router.replace("/auth/signin");
+        }, 3000); // after 3 seconds
+      }
+    }, 300000); // Every 5 minutes (300000 ms)
+    return () => clearInterval(interval);
+  }, []);
+
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -153,6 +171,7 @@ export default function TeamPage() {
       if (!response.ok) {
         throw new Error(data.error || "Failed to send invitation");
       }
+
       // If we have an invite URL, copy it and show it to the user
       if (data.inviteUrl) {
         await navigator.clipboard.writeText(data.inviteUrl);
@@ -273,6 +292,20 @@ export default function TeamPage() {
 
       const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
       if (profileDeleteError) throw profileDeleteError;
+
+      // Delete the actual user account via API
+      const response = await fetch('/api/delete-auth-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete user account');
+      }
 
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
       toast.success("Member deleted successfully");
@@ -462,6 +495,7 @@ export default function TeamPage() {
             <h2 className="text-lg font-semibold mb-4">Are you sure you want to delete this user?</h2>
             <div className="flex justify-center space-x-4">
               <Button
+                className="cursor-pointer"
                 variant="outline"
                 onClick={() => {
                   setShowDeleteConfirm(false);
@@ -471,6 +505,7 @@ export default function TeamPage() {
                 No
               </Button>
               <Button
+                className="cursor-pointer"
                 variant="destructive"
                 onClick={executeDeleteMember}
               >
@@ -480,7 +515,6 @@ export default function TeamPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -255,6 +255,16 @@ export const auth = {
   onAuthStateChange: (callback: (event: string, session: any) => void) => {
     return supabase.auth.onAuthStateChange(callback);
   },
+
+  deleteUser: async (userId: string) => {
+    // Delete the user from Supabase Auth
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) {
+      console.error("Error deleting user:", error);
+      return { success: false, error };
+    }
+    return { success: true };
+  }
 };
 
 // Organization functions
