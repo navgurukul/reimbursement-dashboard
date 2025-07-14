@@ -79,6 +79,7 @@ export interface Policy {
   conditions: string | null;
   created_at: string;
   updated_at: string;
+  policy_url?: string | null;
 }
 
 export type ColumnType =
