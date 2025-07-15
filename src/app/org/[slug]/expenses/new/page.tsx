@@ -119,17 +119,14 @@ export default function NewExpensePage() {
   const [loadingSignature, setLoadingSignature] = useState(true);
 
   const [expenseItems, setExpenseItems] = useState<number[]>([]);
-  // Separate state for expense items data
   const [expenseItemsData, setExpenseItemsData] = useState<Record<number, ExpenseItemData>>({})
 
-  // const addItem = () => {
-  //   setExpenseItems((prev) => [...prev, prev.length + 1]);
-  // };
+  // voucherDataMap
+  const [voucherDataMap, setVoucherDataMap] = useState<Record<number, any>>({});
 
   const addItem = () => {
-    const newId = Date.now() // Simple ID generation
+    const newId = Date.now() 
     setExpenseItems((prev) => [...prev, newId])
-    // Initialize empty data for new item
     setExpenseItemsData((prev) => ({
       ...prev,
       [newId]: {
@@ -140,10 +137,6 @@ export default function NewExpensePage() {
       },
     }))
   }
-
-  // const deleteItem = (id: number) => {
-  //   setExpenseItems((prev) => prev.filter((item) => item !== id));
-  // };
 
   const deleteItem = (id: number) => {
     setExpenseItems((prev) => prev.filter((item) => item !== id))
@@ -442,7 +435,6 @@ export default function NewExpensePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Clear receipt error if file is selected
     setErrors((prevErrors) => {
       const updatedErrors = { ...prevErrors };
       delete updatedErrors["receipt"];
@@ -458,20 +450,20 @@ export default function NewExpensePage() {
   };
 
   // Handle multiple receipt files
-  const handleFileChanges = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+  const handleFileChanges = (e: React.ChangeEvent<HTMLInputElement>, itemId: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setErrors((prevErrors) => {
       const updatedErrors = { ...prevErrors };
-      delete updatedErrors[`receipt-${index}`];
+      delete updatedErrors[`receipt-${itemId}`];
       return updatedErrors;
     });
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      setReceiptFiles((prev) => ({ ...prev, [index]: file }));
-      setReceiptPreviews((prev) => ({ ...prev, [index]: reader.result as string }));
+      setReceiptFiles((prev) => ({ ...prev, [itemId]: file }));
+      setReceiptPreviews((prev) => ({ ...prev, [itemId]: reader.result as string }));
     };
     reader.readAsDataURL(file);
   };
@@ -553,49 +545,62 @@ export default function NewExpensePage() {
 
     const newErrors: Record<string, string> = {};
 
-    if (voucherModalOpenMap[0]) {
+    // Validate main form fields
+    if (voucherModalOpen) {
       if (!formData.yourName) newErrors["yourName"] = "Your Name is required";
-      if (!formData.voucherAmount)
-        newErrors["voucherAmount"] = "Amount is required";
+      if (!formData.voucherAmount) newErrors["voucherAmount"] = "Amount is required";
       if (!formData.purpose) newErrors["purpose"] = "Purpose is required";
-      if (!formData.voucherCreditPerson)
-        newErrors["voucherCreditPerson"] = "Credit Person is required";
-      if (!formData.voucher_signature_data_url)
-        newErrors["voucher_signature_data_url"] = "Signature is required";
+      if (!formData.voucherCreditPerson) newErrors["voucherCreditPerson"] = "Credit Person is required";
+      if (!formData.voucher_signature_data_url) newErrors["voucher_signature_data_url"] = "Signature is required";
     }
-    // Loop through all required and visible fields
+
+    // Validate expense items
+    for (const itemId of expenseItems) {
+      const item = expenseItemsData[itemId];
+      if (!item.expense_type) newErrors[`expense_type-${itemId}`] = "Expense Type is required";
+      if (!item.amount || isNaN(item.amount)) newErrors[`amount-${itemId}`] = "Amount is required";
+      if (!item.date) newErrors[`date-${itemId}`] = "Date is required";
+      if (voucherModalOpenMap[itemId]) {
+        const voucherData = voucherDataMap[itemId] || {};
+        if (!voucherData.yourName) newErrors[`yourName-${itemId}`] = "Your Name is required";
+        if (!voucherData.voucherAmount) newErrors[`voucherAmount-${itemId}`] = "Amount is required";
+        if (!voucherData.purpose) newErrors[`purpose-${itemId}`] = "Purpose is required";
+        if (!voucherData.voucherCreditPerson) newErrors[`voucherCreditPerson-${itemId}`] = "Credit Person is required";
+        if (!voucherData.voucher_signature_data_url) newErrors[`voucher_signature_data_url-${itemId}`] = "Signature is required";
+      } else {
+        if (!receiptFiles[itemId]) newErrors[`receipt-${itemId}`] = "Receipt is required";
+      }
+    }
+
+    // Validate required fields from columns
     for (const col of columns) {
       if (col.required && col.visible && !formData[col.key]) {
         newErrors[col.key] = `${col.label} is required`;
       }
     }
 
-    // Receipt required if not in voucher mode
-    if (!voucherModalOpenMap[0] && !receiptFiles) {
+    // Receipt required for main expense if not in voucher mode
+    if (!voucherModalOpen && !receiptFile) {
       newErrors["receipt"] = "Receipt is required";
     }
 
-    // If any error found, show them and stop
+    // If any errors, stop and show them
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-
-      // Show error summary
       showErrorSummary(newErrors);
-
-      // Scroll to first error after a small delay to ensure state is updated
       setTimeout(() => {
         scrollToFirstError(newErrors);
       }, 100);
-
       setSaving(false);
       return;
     }
-    // Clear previous errors if no issues
+
+    // Clear previous errors
     setErrors({});
+
     try {
       if (!user?.id || !organization) {
         throw new Error("Missing required data");
-        // No need for 'return' after throw as it's unreachable
       }
 
       // Validate that user is not approving their own expense
@@ -605,31 +610,11 @@ export default function NewExpensePage() {
         return;
       }
 
-      // Validate signatures based on form type
-      // FIXED: Moved this validation block up to ensure proper code structure
-      if (!voucherModalOpenMap[0]) {
-        if (!formData.expense_signature_data_url) {
-          toast.error("Please add your signature before submitting");
-          setSaving(false);
-          return;
-        }
-      } else {
-        if (!formData.voucher_signature_data_url) {
-          toast.error(
-            "Please add your signature before submitting the voucher"
-          );
-          setSaving(false);
-          return;
-        }
-      }
-
       // Get the user's saved signature path from their profile if needed
       let profileSignaturePath: string | null = null;
       if (
-        (savedUserSignature === formData.expense_signature_data_url &&
-          !voucherModalOpenMap[0]) ||
-        (savedUserSignature === formData.voucher_signature_data_url &&
-          voucherModalOpenMap[0])
+        (savedUserSignature === formData.expense_signature_data_url && !voucherModalOpen) ||
+        (savedUserSignature === formData.voucher_signature_data_url && voucherModalOpen)
       ) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -642,86 +627,61 @@ export default function NewExpensePage() {
         }
       }
 
-      // Process signatures - use separate variables for expense and voucher
+      // Process signatures
       let expense_signature_url: string | null = null;
       let voucher_signature_url: string | null = null;
       let manager_signature_url: string | null = null;
 
-      // First handle voucher signature (even if we're in expense mode, we'll need it for reference)
-      if (voucherModalOpenMap[0] && formData.voucher_signature_data_url) {
-        if (
-          formData.voucher_signature_data_url === savedUserSignature &&
-          profileSignaturePath
-        ) {
-          // Use the saved signature path directly
+      // Handle voucher signature
+      if (voucherModalOpen && formData.voucher_signature_data_url) {
+        if (formData.voucher_signature_data_url === savedUserSignature && profileSignaturePath) {
           voucher_signature_url = profileSignaturePath;
-        } else if (
-          formData.voucher_signature_data_url.startsWith("data:image/")
-        ) {
-          // Upload a new signature
+        } else if (formData.voucher_signature_data_url.startsWith("data:image/")) {
           const { path, error } = await uploadSignature(
             formData.voucher_signature_data_url,
             user.id,
             organization.id,
             "user"
           );
-
           if (error) {
             toast.error(`Failed to upload your signature: ${error.message}`);
             setSaving(false);
             return;
-          } else {
-            voucher_signature_url = path;
           }
+          voucher_signature_url = path;
         } else {
-          // Invalid signature format
-          toast.error(
-            "Invalid signature format. Please redraw your signature."
-          );
+          toast.error("Invalid signature format. Please redraw your signature.");
           setSaving(false);
           return;
         }
       }
 
       // Handle expense signature
-      if (!voucherModalOpenMap[0] && formData.expense_signature_data_url) {
-        // For expense form
-        if (
-          formData.expense_signature_data_url === savedUserSignature &&
-          profileSignaturePath
-        ) {
-          // Use the saved signature path directly
+      if (!voucherModalOpen && formData.expense_signature_data_url) {
+        if (formData.expense_signature_data_url === savedUserSignature && profileSignaturePath) {
           expense_signature_url = profileSignaturePath;
-        } else if (
-          formData.expense_signature_data_url.startsWith("data:image/")
-        ) {
-          // Upload a new signature
+        } else if (formData.expense_signature_data_url.startsWith("data:image/")) {
           const { path, error } = await uploadSignature(
             formData.expense_signature_data_url,
             user.id,
             organization.id,
             "user"
           );
-
           if (error) {
             toast.error(`Failed to upload your signature: ${error.message}`);
             setSaving(false);
             return;
-          } else {
-            expense_signature_url = path;
           }
+          expense_signature_url = path;
         } else {
-          // Invalid signature format
-          toast.error(
-            "Invalid signature format. Please redraw your signature."
-          );
+          toast.error("Invalid signature format. Please redraw your signature.");
           setSaving(false);
           return;
         }
       }
 
-      // Proceed with approver signature if this is a voucher and it exists
-      if (voucherModalOpenMap[0] && formData.manager_signature_data_url) {
+      // Handle manager signature for voucher
+      if (voucherModalOpen && formData.manager_signature_data_url) {
         if (formData.manager_signature_data_url.startsWith("data:image/")) {
           const { path, error } = await uploadSignature(
             formData.manager_signature_data_url,
@@ -729,138 +689,114 @@ export default function NewExpensePage() {
             organization.id,
             "approver"
           );
-
           if (error) {
-            toast.error(
-              `Failed to upload approver signature: ${error.message}`
-            );
-          } else {
-            manager_signature_url = path;
+            toast.error(`Failed to upload approver signature: ${error.message}`);
+            setSaving(false);
+            return;
           }
+          manager_signature_url = path;
         } else {
           toast.error("Invalid manager signature format.");
+          setSaving(false);
+          return;
         }
       }
 
-      // Extract approver_id directly from formData
       const approver_id = formData.approver || null;
-
-      // IMPORTANT CHANGE: For voucher mode, use the voucher signature URL for the expense
-      const signature_url_to_use = voucherModalOpenMap[0]
-        ? voucher_signature_url // Use voucher signature in voucher mode
-        : expense_signature_url; // Use expense signature in regular mode
+      const signature_url_to_use = voucherModalOpen ? voucher_signature_url : expense_signature_url;
 
       const custom_fields: Record<string, any> = {};
-
-      // Process custom fields regardless of expense type
       columns.forEach((col) => {
         if (
           col.visible &&
           col.key !== "expense_type" &&
           col.key !== "amount" &&
           col.key !== "date" &&
-          col.key !== "approver" && // Skip adding approver to custom fields
+          col.key !== "approver" &&
           col.key !== "event_id"
         ) {
           custom_fields[col.key] = formData[col.key];
         }
       });
 
-      // For voucher mode, make sure description is captured in custom fields
-      if (voucherModalOpenMap[0]) {
+      if (voucherModalOpen) {
         custom_fields["description"] = formData.purpose || "Cash Voucher";
       }
 
-      // Create the base expense data structure - make it consistent for both paths
+      // Create the base expense
       const baseExpenseData = {
         org_id: organization.id,
         user_id: user.id,
-        amount: voucherModalOpenMap[0]
+        amount: voucherModalOpen
           ? parseFloat(formData.voucherAmount || "0")
           : parseFloat(formData.amount || "0"),
         expense_type: (formData.expense_type as string) || "Other",
         date: new Date(formData.date).toISOString(),
         custom_fields: custom_fields,
         event_id: formData.event_id || null,
-        approver_id, // Include approver_id directly
+        approver_id,
         signature_url: signature_url_to_use || undefined,
-        receipt: null, // Add the required receipt property
+        receipt: null,
       };
 
-      if (voucherModalOpenMap[0]) {
-        const { data: expenseData, error: expenseError } =
-          await expenses.create(baseExpenseData, undefined);
+      const { data: baseData, error: baseError } = await expenses.create(
+        baseExpenseData,
+        receiptFile || undefined
+      );
 
-        if (expenseError || !expenseData) {
-          console.error("Expense creation error:", expenseError);
-          toast.error("Failed to create expense");
-          setSaving(false);
-          return;
-        }
+      if (baseError) {
+        console.error("Error creating base expense:", baseError);
+        toast.error(`Failed to create base expense: ${baseError.message}`);
+        setSaving(false);
+        return;
+      }
 
-        // Add history entry for expense creation with improved username extraction
-        try {
-          const authRaw = localStorage.getItem("auth-storage");
-
-          const authStorage = JSON.parse(authRaw || "{}");
-
-          // Try multiple paths and nested data
-          let userName = "Unknown User";
-
-          if (authStorage?.state?.user?.profile?.full_name) {
-            userName = authStorage.state.user.profile.full_name;
-          } else if (
-            typeof authRaw === "string" &&
-            authRaw.includes("full_name")
-          ) {
-            // Fallback - try to extract from the raw string if JSON parsing doesn't get the nested structure
-            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
-            if (match && match[1]) {
-              userName = match[1];
-            }
+      // Log history for main/base expense
+      try {
+        const authRaw = localStorage.getItem("auth-storage");
+        const authStorage = JSON.parse(authRaw || "{}");
+        let userName = "Unknown User";
+        if (authStorage?.state?.user?.profile?.full_name) {
+          userName = authStorage.state.user.profile.full_name;
+        } else if (typeof authRaw === "string" && authRaw.includes("full_name")) {
+          const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+          if (match && match[1]) {
+            userName = match[1];
           }
-
-          console.log("Final username to be used:", userName);
-
-          await expenseHistory.addEntry(
-            expenseData.id,
-            user.id,
-            userName,
-            "created",
-            null,
-            expenseData.amount.toString()
-          );
-        } catch (logError) {
-          console.error("Error logging expense creation:", logError);
-          // Fallback
-          await expenseHistory.addEntry(
-            expenseData.id,
-            user.id,
-            "Unknown User",
-            "created",
-            null,
-            expenseData.amount.toString()
-          );
         }
+        await expenseHistory.addEntry(
+          baseData.id,
+          user.id,
+          userName,
+          "created",
+          null,
+          baseData.amount.toString()
+        );
+      } catch (logError) {
+        console.error("Error logging base expense creation:", logError);
+        await expenseHistory.addEntry(
+          baseData.id,
+          user.id,
+          "Unknown User",
+          "created",
+          null,
+          baseData.amount.toString()
+        );
+      }
 
-        console.log("Expense created successfully, now creating voucher...");
-        console.log("Signature URLs being sent to backend:", {
-          signature_url: voucher_signature_url, // FIXED: Use voucher_signature_url instead of signature_url
-          manager_signature_url,
-        });
-
-        // Create voucher with direct Supabase insert to avoid type issues
+      // Create voucher for the base expense if in voucher mode
+      if (voucherModalOpen) {
         const voucherData = {
-          expense_id: expenseData.id, // Reference the expense we just created
+          expense_id: baseData.id,
           your_name: formData.yourName || null,
           amount: parseFloat(formData.voucherAmount || "0"),
-          purpose: formData.purpose || null, // Description for the voucher
+          purpose: formData.purpose || null,
           credit_person: formData.voucherCreditPerson || null,
-          signature_url: voucher_signature_url, // Use voucher signature
+          signature_url: voucher_signature_url,
           manager_signature_url: manager_signature_url,
           created_by: user.id,
           org_id: organization.id,
-          approver_id, // Include approver_id
+          approver_id,
         };
 
         const { data: voucherResponse, error: voucherError } = await supabase
@@ -872,128 +808,86 @@ export default function NewExpensePage() {
         if (voucherError) {
           console.error("Voucher creation error:", voucherError);
           toast.error(`Failed to create voucher: ${voucherError.message}`);
-
-          // Attempt to delete the expense if voucher creation fails
           try {
-            await supabase.from("expenses").delete().eq("id", expenseData.id);
+            await supabase.from("expenses").delete().eq("id", baseData.id);
           } catch (cleanupError) {
             console.error("Failed to clean up expense:", cleanupError);
           }
-
           setSaving(false);
           return;
         }
+      }
 
-        toast.success("Voucher submitted successfully");
-      } else {
-        // ✅ First: save the main/base expense form (the one at the top)
-        const { data: baseData, error: baseError } = await expenses.create(
-          baseExpenseData,
-          receiptFiles[0] || undefined
-        );
+      // Process additional expense items
+      if (expenseItems.length > 0) {
+        for (const itemId of expenseItems) {
+          const item = expenseItemsData[itemId];
+          const isVoucher = voucherModalOpenMap[itemId] || voucherModalOpen;
 
-        if (baseError) {
-          console.error("Error creating base expense:", baseError);
-          toast.error(`Failed to create base expense: ${baseError.message}`);
-          setSaving(false);
-          return;
-        }
+          // Prepare custom fields for the item
+          const itemCustomFields: Record<string, any> = {
+            description: item.description || "",
+          };
 
-        // 📝 Log history for main/base expense
-        try {
-          const authRaw = localStorage.getItem("auth-storage");
-          const authStorage = JSON.parse(authRaw || "{}");
+          const individualExpenseData = {
+            org_id: organization.id,
+            user_id: user.id,
+            amount: item.amount,
+            expense_type: item.expense_type || "Other",
+            date: new Date(item.date).toISOString(),
+            custom_fields: itemCustomFields,
+            event_id: formData.event_id || null,
+            approver_id: formData.approver || null,
+            signature_url: isVoucher ? voucher_signature_url ?? undefined : expense_signature_url ?? undefined,
+            receipt: null,
+          };
 
-          let userName = "Unknown User";
-          if (authStorage?.state?.user?.profile?.full_name) {
-            userName = authStorage.state.user.profile.full_name;
-          } else if (typeof authRaw === "string" && authRaw.includes("full_name")) {
-            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
-            if (match && match[1]) {
-              userName = match[1];
-            }
+          const { data: itemData, error: itemError } = await expenses.create(
+            individualExpenseData,
+            receiptFiles[itemId] || undefined
+          );
+
+          if (itemError) {
+            toast.error(`Failed to create expense item: ${itemError.message}`);
+            console.error("Error creating item:", itemError);
+            continue;
           }
 
-          await expenseHistory.addEntry(
-            baseData.id,
-            user.id,
-            userName,
-            "created",
-            null,
-            baseData.amount.toString()
-          );
-        } catch (logError) {
-          console.error("Error logging base expense creation:", logError);
-          await expenseHistory.addEntry(
-            baseData.id,
-            user.id,
-            "Unknown User",
-            "created",
-            null,
-            baseData.amount.toString()
-          );
-        }
-
-        // ✅ Then: loop through additional expense items (if any)
-        if (expenseItems.length > 0) {
-          for (const itemId of expenseItems) {
-            const item = expenseItemsData[itemId];
-
-            const individualExpenseData = {
-              org_id: organization.id,
-              user_id: user.id,
+          if (isVoucher) {
+            const itemVoucherData = voucherDataMap[itemId] || {};
+            const voucherData = {
+              expense_id: itemData.id,
+              your_name: itemVoucherData.yourName || formData.yourName || null,
               amount: item.amount,
-              expense_type: item.expense_type || "Other",
-              date: new Date(item.date).toISOString(),
-              custom_fields: {
-                description: item.description || "",
-              },
-              event_id: formData.event_id || null,
+              purpose: itemVoucherData.purpose || formData.purpose || "Cash Voucher",
+              credit_person: itemVoucherData.voucherCreditPerson || formData.voucherCreditPerson || null,
+              signature_url: itemVoucherData.voucher_signature_url || voucher_signature_url || null,
+              manager_signature_url: itemVoucherData.manager_signature_url || manager_signature_url || null,
+              created_by: user.id,
+              org_id: organization.id,
               approver_id: formData.approver || null,
-              signature_url: expense_signature_url || undefined,
-              receipt: null,
             };
 
-            const { data, error } = await expenses.create(
-              individualExpenseData,
-              receiptFiles[itemId] || undefined
-            );
+            const { error: voucherError } = await supabase
+              .from("vouchers")
+              .insert([voucherData]);
 
-            if (error) {
-              toast.error(`Failed to create expense item: ${error.message}`);
-              console.error("Error creating item:", error);
+            if (voucherError) {
+              console.error("Voucher creation error:", voucherError);
+              toast.error(`Failed to create voucher for item: ${voucherError.message}`);
+              try {
+                await supabase.from("expenses").delete().eq("id", itemData.id);
+              } catch (cleanupError) {
+                console.error("Failed to clean up expense:", cleanupError);
+              }
               continue;
             }
-
-            await expenseHistory.addEntry(
-              data.id,
-              user.id,
-              "Unknown User",
-              "created",
-              null,
-              data.amount.toString()
-            );
           }
 
-          toast.success("All expense items submitted successfully");
-        } else {
-          // Single expense
-          const { data, error } = await expenses.create(
-            baseExpenseData,
-            receiptFiles[0] || undefined
-          );
-
-          if (error) {
-            console.error("Error creating regular expense:", error);
-            toast.error(`Failed to create expense: ${error.message}`);
-            setSaving(false);
-            return;
-          }
-
+          // Log history entry
           try {
             const authRaw = localStorage.getItem("auth-storage");
             const authStorage = JSON.parse(authRaw || "{}");
-
             let userName = "Unknown User";
             if (authStorage?.state?.user?.profile?.full_name) {
               userName = authStorage.state.user.profile.full_name;
@@ -1003,40 +897,33 @@ export default function NewExpensePage() {
                 userName = match[1];
               }
             }
-
-            if (data && data.id) {
-              await expenseHistory.addEntry(
-                data.id,
-                user.id,
-                userName,
-                "created",
-                null,
-                data.amount.toString()
-              );
-            }
+            await expenseHistory.addEntry(
+              itemData.id,
+              user.id,
+              userName,
+              "created",
+              null,
+              itemData.amount.toString()
+            );
           } catch (logError) {
-            console.error("Error logging expense creation:", logError);
-            if (data && data.id) {
-              await expenseHistory.addEntry(
-                data.id,
-                user.id,
-                "Unknown User",
-                "created",
-                null,
-                data.amount.toString()
-              );
-            }
+            console.error("Error logging expense item creation:", logError);
+            await expenseHistory.addEntry(
+              itemData.id,
+              user.id,
+              "Unknown User",
+              "created",
+              null,
+              itemData.amount.toString()
+            );
           }
-
-          toast.success("Expense created successfully");
         }
+      }
 
-        // After creation, redirect
-        if (eventIdFromQuery) {
-          router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
-        } else {
-          router.push(`/org/${slug}/expenses`);
-        }
+      toast.success("All expenses and vouchers submitted successfully");
+      if (eventIdFromQuery) {
+        router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+      } else {
+        router.push(`/org/${slug}/expenses`);
       }
     } catch (error: any) {
       console.error("Error in submit handler:", error);
@@ -1058,108 +945,58 @@ export default function NewExpensePage() {
 
   return (
     <div className="max-w-[800px] mx-auto py-6">
+      <div className="flex items-center justify-between mb-6">
+        <Button
+          variant="ghost"
+          onClick={() => {
+            if (eventIdFromQuery) {
+              router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+            } else {
+              router.push(`/org/${slug}/expenses`);
+            }
+          }}
+          className="text-gray-600 hover:text-gray-900 cursor-pointer"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={saving}
+          className="bg-black text-white hover:bg-black/90 cursor-pointer"
+        >
+          {saving ? (
+            <>
+              <Spinner className="mr-2 h-4 w-4" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <svg
+                className="mr-2 h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Save Expense
+            </>
+          )}
+        </Button>
+      </div>
+
       <Card className="shadow-sm">
-        {/* <CardHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                if (eventIdFromQuery) {
-                  router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
-                } else {
-                  router.push(`/org/${slug}/expenses`);
-                }
-              }}
-              className="text-gray-600 hover:text-gray-900 cursor-pointer"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={saving}
-              className="bg-black text-white hover:bg-black/90 cursor-pointer"
-            >
-              {saving ? (
-                <>
-                  <Spinner className="mr-2 h-4 w-4" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="mr-2 h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Save Expense
-                </>
-              )}
-            </Button>
-          </div>
-        </CardHeader> */}
-
         <CardHeader className="border-b">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                if (eventIdFromQuery) {
-                  router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
-                } else {
-                  router.push(`/org/${slug}/expenses`);
-                }
-              }}
-              className="text-gray-600 hover:text-gray-900 cursor-pointer w-full md:w-auto"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={saving}
-              className="bg-black text-white hover:bg-black/90 cursor-pointer w-full md:w-auto"
-            >
-              {saving ? (
-                <>
-                  <Spinner className="mr-2 h-4 w-4" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="mr-2 h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Save Expense
-                </>
-              )}
-            </Button>
-          </div>
+          <CardTitle className="text-lg font-medium">New Expense</CardTitle>
         </CardHeader>
-
         <CardContent className="p-6 pt-0">
-          <CardTitle className="text-2xl font-bold mb-4">New Expense Report</CardTitle>
-          <h2 className="text-lg font-semibold mb-2">Basic Information</h2>
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
@@ -1522,14 +1359,13 @@ export default function NewExpensePage() {
             {/* Expense Items Section */}
             {expenseItems.length > 0 && (
               <div className="space-y-6">
-                {/* <h3 className="text-lg font-medium mb-2">Expense Items</h3> */}
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-5 space-y-6 bg-gray-50">
                   {expenseItems.map((id, index) => (
                     <div key={id} className="border rounded-lg bg-white p-5">
                       <div className="flex justify-between items-center mb-3">
 
                         <h1 className="text-xl font-medium text-gray-700">
-                          Expense Item #{index + 2}
+                          Expense {index + 2}
                         </h1>
 
                         <Button
@@ -1570,8 +1406,6 @@ export default function NewExpensePage() {
                               {col.type === "dropdown" && col.options && (
                                 <>
                                   <Select
-                                    // value={formData[col.key] || ""}
-                                    // onValueChange={(value) => handleInputChange(col.key, value)}
                                     value={
                                       getExpenseItemValue(id, "expense_type") !== undefined && getExpenseItemValue(id, "expense_type") !== null
                                         ? String(getExpenseItemValue(id, "expense_type"))
@@ -1613,8 +1447,6 @@ export default function NewExpensePage() {
                                     id={col.key}
                                     name={col.key}
                                     type="date"
-                                    // value={formData[col.key] || ""}
-                                    // onChange={(e) => handleInputChange(col.key, e.target.value)}
                                     value={getExpenseItemValue(id, "date")}
                                     onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
                                     className={`w-full ${errors[col.key]
@@ -1636,11 +1468,6 @@ export default function NewExpensePage() {
                                     name={col.key}
                                     type="number"
                                     placeholder="Enter amount"
-                                    // value={formData[col.key] || ""}
-                                    // onChange={(e) =>
-                                    //   handleInputChange(col.key, parseFloat(e.target.value))
-                                    // }
-
                                     value={getExpenseItemValue(id, "amount")}
                                     onChange={(e) => handleExpenseItemChange(id, "amount", parseFloat(e.target.value))}
                                     className={`w-full ${errors[col.key]
@@ -1673,8 +1500,6 @@ export default function NewExpensePage() {
                             <Textarea
                               id={col.key}
                               name={col.key}
-                              // value={formData[col.key] || ""}
-                              // onChange={(e) => handleInputChange(col.key, e.target.value)}
                               value={getExpenseItemValue(id, "description")}
                               onChange={(e) => handleExpenseItemChange(id, "description", e.target.value)}
                               className={`w-full min-h-[50px] ${errors[col.key]
@@ -1689,7 +1514,7 @@ export default function NewExpensePage() {
                         );
                       })}
 
-                      {/* Receipt Upload + Add Button */}
+                      {/* Receipt Upload */}
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-gray-700">Receipt</Label>
 
@@ -1718,14 +1543,14 @@ export default function NewExpensePage() {
                               </Label>
                             </div>
                             <Switch
-                              checked={voucherModalOpenMap[index] || false}
+                              checked={voucherModalOpenMap[id] || false}
                               className="cursor-pointer"
-                              onCheckedChange={() => toggleVoucherModal(index)}
+                              onCheckedChange={() => toggleVoucherModal(id)}
                               id="voucher-switch"
                             />
                           </div>
 
-                          {!voucherModalOpenMap[index] && (
+                          {!voucherModalOpenMap[id] && (
                             <div className="mt-4">
                               <Label
                                 htmlFor="receipt"
@@ -1738,7 +1563,7 @@ export default function NewExpensePage() {
                                   id="receipt"
                                   name="receipt"
                                   type="file"
-                                  onChange={(e) => handleFileChanges(e, index)}
+                                  onChange={(e) => handleFileChanges(e, id)}
                                   required={!voucherModalOpenMap[index]}
                                   aria-invalid={errors["receipt"] ? "true" : "false"}
                                   aria-describedby={
@@ -1761,14 +1586,14 @@ export default function NewExpensePage() {
                                 )}
 
                                 <div className="text-sm text-gray-500 mt-1">
-                                  {receiptFiles[index] ? receiptFiles[index].name : "No file chosen"}
+                                  {receiptFiles[id] && receiptFiles[id].name ? receiptFiles[id].name : "No file chosen"}
                                 </div>
                               </div>
-                              {receiptPreviews[index] && (
+                              {receiptPreviews[id] && (
                                 <div className="mt-2">
-                                  {receiptPreviews[index].startsWith("data:image") ? (
+                                  {receiptPreviews[id].startsWith("data:image") ? (
                                     <img
-                                      src={receiptPreviews[index]}
+                                      src={receiptPreviews[id]}
                                       alt="Receipt preview"
                                       className="max-h-40 rounded-md border"
                                     />
@@ -1785,10 +1610,18 @@ export default function NewExpensePage() {
                           )}
                         </div>
 
-                        {voucherModalOpenMap[index] && (
+                        {voucherModalOpenMap[id] && (
                           <VoucherForm
-                            formData={formData}
-                            onInputChange={handleInputChange}
+                            formData={voucherDataMap[id] || {}}
+                            onInputChange={(key, value) => {
+                              setVoucherDataMap((prev) => ({
+                                ...prev,
+                                [id]: {
+                                  ...prev[id],
+                                  [key]: value,
+                                },
+                              }));
+                            }}
                             userRole={userRole}
                             savedUserSignature={savedUserSignature}
                             errors={errors}
