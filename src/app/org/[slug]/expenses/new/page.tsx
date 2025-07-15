@@ -1546,7 +1546,7 @@ export default function NewExpensePage() {
                               checked={voucherModalOpenMap[id] || false}
                               className="cursor-pointer"
                               onCheckedChange={() => toggleVoucherModal(id)}
-                              id="voucher-switch"
+                              id={`voucher-switch-${id}`}
                             />
                           </div>
 
@@ -1637,7 +1637,7 @@ export default function NewExpensePage() {
             <Button
               type="button"
               onClick={addItem}
-              className="bg-green-600 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-mdv cursor-pointer"
+              className="bg-green-600 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-md cursor-pointer"
             >
               ➕ Add Another Expense Item
             </Button>
