@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { invites, organizations, profiles, RemovedUsers } from "@/lib/db";
+import { organizations, profiles, RemovedUsers } from "@/lib/db";
 import {
   Card,
   CardContent,
@@ -30,8 +30,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Trash } from "lucide-react";
+import { Trash, Copy, Link2 } from "lucide-react";
 import supabase from "@/lib/supabase"; // Add this import
+import { useRouter } from "next/navigation";
 
 interface Member {
   id: string;
@@ -62,11 +63,16 @@ export default function TeamPage() {
   const [inviteRole, setInviteRole] = useState<"member" | "manager" | "admin">(
     "member"
   );
+  const [multiUserRole, setMultiUserRole] = useState<
+    "member" | "manager" | "admin"
+  >("member");
+  const [generatedLink, setGeneratedLink] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
-
+  const router = useRouter();
 
   // Fetch organization members
   useEffect(() => {
@@ -121,6 +127,23 @@ export default function TeamPage() {
     fetchMembers();
   }, [org?.id]);
 
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (!data?.user || error) {
+        toast.error("You have been removed from the dashboard");
+
+        await supabase.auth.signOut();
+
+        clearInterval(interval);
+        setTimeout(() => {
+          router.replace("/auth/signin");
+        }, 3000); // after 3 seconds
+      }
+    }, 300000); // Every 5 minutes (300000 ms)
+    return () => clearInterval(interval);
+  }, []);
+
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -148,6 +171,7 @@ export default function TeamPage() {
       if (!response.ok) {
         throw new Error(data.error || "Failed to send invitation");
       }
+
       // If we have an invite URL, copy it and show it to the user
       if (data.inviteUrl) {
         await navigator.clipboard.writeText(data.inviteUrl);
@@ -173,6 +197,73 @@ export default function TeamPage() {
       setLoading(false);
     }
   };
+
+
+  // Handle multi-user link generation
+  const handleGenerateLink = async () => {
+    if (!org?.id || !org?.name) {
+      toast.error("Organization information is missing");
+      return;
+    }
+
+    setLinkLoading(true);
+
+    try {
+      // Get current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        toast.error("User not authenticated");
+        return;
+      }
+
+      const response = await fetch("/api/invite/generate-link", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          role: multiUserRole,
+          orgId: org.id,
+          orgName: org.name || "Our Organization",
+          userId: user.id, // Send user ID from frontend
+          maxUses: null, // You can add UI controls for this later
+          expiresInDays: 7, // You can add UI controls for this later
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate link");
+      }
+
+      if (data.inviteUrl) {
+        setGeneratedLink(data.inviteUrl);
+        toast.success("Link generated successfully!", {
+          description: "You can now share this link with multiple users.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error generating link:", error);
+      toast.error("Failed to generate link", {
+        description: error.message || "Please try again",
+      });
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  // Copy generated link to clipboard
+  const copyLinkToClipboard = async () => {
+    if (generatedLink) {
+      await navigator.clipboard.writeText(generatedLink);
+      toast.success("Link copied to clipboard!");
+    }
+  };
+
 
   const handleDeleteMember = async (memberId: string) => {
     if (!org?.id) return;
@@ -201,6 +292,20 @@ export default function TeamPage() {
 
       const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
       if (profileDeleteError) throw profileDeleteError;
+
+      // Delete the actual user account via API
+      const response = await fetch('/api/delete-auth-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete user account');
+      }
 
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
       toast.success("Member deleted successfully");
@@ -284,63 +389,113 @@ export default function TeamPage() {
       </Card>
 
       {/* Invite Form (only owners/admins/managers) */}
-      {(userRole === "owner" ||
-        userRole === "admin") && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Invite New Team Member</CardTitle>
-              <CardDescription>
-                Send an email invite for someone to join this organization.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={handleInviteSubmit}>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div className="sm:col-span-2">
-                    <Input
-                      placeholder="their‑email@example.com"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      required
-                      type="email"
-                    />
-                  </div>
-                  <Select
-                    value={inviteRole}
-                    onValueChange={(v: any) => setInviteRole(v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        {(userRole === "owner" || userRole === "admin") && (
-                          <SelectItem value="admin">Admin</SelectItem>
-                        )}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="cursor-pointer"
-                  >
-                    {loading ? "Sending…" : "Send Invite"}
-                  </Button>
+      {(userRole === "owner" || userRole === "admin") && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Invite New Team Members</CardTitle>
+            <CardDescription>
+              Invite people via email or generate a shareable link.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-8">
+            {/* Email Invite */}
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground mb-2">
+                Send an email invite:
+              </div>
+              <form className="grid grid-cols-1 gap-4 sm:grid-cols-3" onSubmit={handleInviteSubmit}>
+                <div className="sm:col-span-2">
+                  <Input
+                    placeholder="their‑email@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    required
+                    type="email"
+                  />
                 </div>
+                <Select
+                  value={inviteRole}
+                  onValueChange={(v: any) => setInviteRole(v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      {(userRole === "owner" || userRole === "admin") && (
+                        <SelectItem value="admin">Admin</SelectItem>
+                      )}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Button type="submit" disabled={loading} className="col-span-full sm:col-auto">
+                  {loading ? "Sending…" : "Send Invite"}
+                </Button>
               </form>
-            </CardContent>
-          </Card>
-        )}
+            </div>
 
+            {/* Multi-User Link */}
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                Or generate a shareable invite link:
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Select
+                  value={multiUserRole}
+                  onValueChange={(v: any) => setMultiUserRole(v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      {(userRole === "owner" || userRole === "admin") && (
+                        <SelectItem value="admin">Admin</SelectItem>
+                      )}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  onClick={handleGenerateLink}
+                  disabled={linkLoading}
+                  className="cursor-pointer"
+                >
+                  <Link2 className="w-4 h-4 mr-2" />
+                  {linkLoading ? "Generating…" : "Generate Link"}
+                </Button>
+              </div>
+
+              {generatedLink && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Generated Invite Link:</label>
+                  <div className="flex gap-2">
+                    <Input value={generatedLink} readOnly className="font-mono text-sm" />
+                    <Button type="button" variant="outline" size="icon" onClick={copyLinkToClipboard}>
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Anyone with this link can join your organization as a {multiUserRole}.
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white p-6 rounded shadow-md w-full max-w-sm">
             <h2 className="text-lg font-semibold mb-4">Are you sure you want to delete this user?</h2>
             <div className="flex justify-center space-x-4">
               <Button
+                className="cursor-pointer"
                 variant="outline"
                 onClick={() => {
                   setShowDeleteConfirm(false);
@@ -350,6 +505,7 @@ export default function TeamPage() {
                 No
               </Button>
               <Button
+                className="cursor-pointer"
                 variant="destructive"
                 onClick={executeDeleteMember}
               >
@@ -359,7 +515,6 @@ export default function TeamPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -114,6 +114,7 @@ export async function uploadSignature(
   }
 }
 
+
 // Updated uploadProfileSignature function for utils.ts
 export async function uploadProfileSignature(
   dataURL: string,
@@ -354,5 +355,134 @@ export async function getUserSignatureUrl(
       url: null,
       error: error instanceof Error ? error : new Error(String(error))
     };
+  }
+}
+
+
+
+// export async function uploadPdf(file: File, filePath: string): Promise<{ path: string | null; error: Error | null }> {
+//   try {
+//     const { data, error } = await supabase.storage
+//       .from("policies-bucket")
+//       .upload(filePath, file, {
+//         contentType: "application/pdf",
+//         upsert: true,
+//       });
+
+//     if (error) return { path: null, error: new Error(error.message) };
+//     return { path: data?.path ?? null, error: null };
+//   } catch (err) {
+//     return { path: null, error: err instanceof Error ? err : new Error(String(err)) };
+//   }
+// }
+
+// export function getPdfPublicUrl(filePath: string): string {
+//   const { data } = supabase.storage.from("policies-bucket").getPublicUrl(filePath);
+//   return data?.publicUrl ?? "";
+// }
+
+
+import { SupabaseClient } from '@supabase/supabase-js';
+
+// Define a return type for better type safety
+type UploadResult = {
+  path: string | null;
+  publicUrl: string | null;
+  error: Error | null;
+};
+
+export async function uploadPdf(
+  supabase: SupabaseClient,
+  file: File,
+  filePath: string,
+  options?: {
+    upsert?: boolean;
+    cacheControl?: string;
+  }
+): Promise<UploadResult> {
+  // Validate inputs
+  if (!file || !(file instanceof File)) {
+    return {
+      path: null,
+      publicUrl: null,
+      error: new Error('Invalid file provided'),
+    };
+  }
+
+  if (!filePath) {
+    return {
+      path: null,
+      publicUrl: null,
+      error: new Error('File path is required'),
+    };
+  }
+
+  // Validate file type
+  if (!file.type.includes('pdf')) {
+    return {
+      path: null,
+      publicUrl: null,
+      error: new Error('Only PDF files are allowed'),
+    };
+  }
+
+  // Validate file size (5MB limit)
+  if (file.size > 5 * 1024 * 1024) {
+    return {
+      path: null,
+      publicUrl: null,
+      error: new Error('File size exceeds 5MB limit'),
+    };
+  }
+
+  try {
+    // Upload the file
+    const { data, error } = await supabase.storage
+      .from('policies-bucket')
+      .upload(filePath, file, {
+        contentType: 'application/pdf',
+        upsert: options?.upsert ?? false,
+        cacheControl: options?.cacheControl ?? '3600', // 1 hour cache
+      });
+
+    if (error) {
+      return {
+        path: null,
+        publicUrl: null,
+        error: new Error(`Upload failed: ${error.message}`),
+      };
+    }
+
+    // Get public URL
+    const publicUrl = getPdfPublicUrl(supabase, data.path);
+
+    return {
+      path: data.path,
+      publicUrl,
+      error: null,
+    };
+  } catch (err) {
+    return {
+      path: null,
+      publicUrl: null,
+      error: err instanceof Error ? err : new Error(String(err)),
+    };
+  }
+}
+
+export function getPdfPublicUrl(
+  supabase: SupabaseClient,
+  filePath: string
+): string {
+  if (!filePath) return '';
+
+  try {
+    const { data } = supabase.storage
+      .from('policies-bucket')
+      .getPublicUrl(filePath);
+    return data?.publicUrl ?? '';
+  } catch (err) {
+    console.error('Error generating public URL:', err);
+    return '';
   }
 }
