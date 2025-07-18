@@ -20,6 +20,7 @@ interface VoucherFormProps {
   onInputChange: (key: string, value: any) => void;
   userRole: Role;
   savedUserSignature: string | null;
+  selectedEvent?: { start_date: string; end_date: string };
   errors?: Record<string, string>;
 }
 
@@ -29,6 +30,7 @@ export default function VoucherForm({
   userRole,
   errors,
   savedUserSignature,
+  selectedEvent,
 }: VoucherFormProps) {
   const getError = (field: string) => errors?.[field] || "";
 
@@ -139,6 +141,8 @@ export default function VoucherForm({
               type="date"
               value={formData.date || ""}
               onChange={(e) => onInputChange("date", e.target.value)}
+              min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
+              max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
               aria-invalid={getError("date") ? "true" : "false"}
               aria-describedby={getError("date") ? "date-error" : undefined}
               className={getError("date") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
