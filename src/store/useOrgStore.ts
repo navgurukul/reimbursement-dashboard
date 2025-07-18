@@ -10,6 +10,8 @@ interface Organization {
 }
 
 interface OrgState {
+  id: any;
+  org: any;
   organization: Organization | null;
   userRole: Role | null;
 

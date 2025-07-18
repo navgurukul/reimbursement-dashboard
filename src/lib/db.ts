@@ -126,7 +126,9 @@ export type ExpenseStatus =
   | "submitted"
   | "approved"
   | "approved_as_per_policy"
-  | "rejected";
+  | "rejected"
+  | "finance_approved";
+
 export type ValidationStatus = "valid" | "warning" | "violation";
 
 export interface ReceiptInfo {
@@ -923,6 +925,8 @@ export const orgSettings = {
   },
 };
 
+
+
 // Expenses functions
 export const expenses = {
   /**
@@ -1403,6 +1407,117 @@ export const expenses = {
       };
     }
   },
+
+
+
+
+  /**
+ * Update expense status based on finance approval/rejection
+ */
+// updateByFinance: async (id: string, approved: boolean, comment: string) => {
+//   try {
+//     const status = approved ? "finance_approved" : "finance_rejected";
+//     const updates = { 
+//       status,
+//       finance_comment: comment,
+//       finance_decision_at: new Date().toISOString(),
+//       payment_status: approved ? "pending" : null
+//     };
+
+//     const { data, error } = await supabase
+//       .from("expenses")
+//       .update(updates)
+//       .eq("id", id)
+//       .select()
+//       .single();
+
+//     if (error) {
+//       return { data: null, error: error as DatabaseError };
+//     }
+
+//     // Create history record
+//     await supabase.from("expense_history").insert({
+//       expense_id: id,
+//       action: status,
+//       actor_type: "finance",
+//       comment: comment,
+//       changed_fields: updates,
+//     });
+
+//     return { data, error: null };
+
+//   } catch (error) {
+//     console.error("Error in updateByFinance:", error);
+//     return {
+//       data: null,
+//       error: {
+//         message: error instanceof Error ? error.message : "Unknown error",
+//         details: "",
+//         hint: "Please try again",
+//         code: "UNKNOWN_ERROR",
+//       },
+//     };
+//   }
+// },
+
+
+updateByFinance: async (id: string, approved: boolean, comment: string) => {
+  try {
+    const status = approved ? "finance_approved" : "finance_rejected";
+    // const status = approved ? "approved" : "rejected";
+
+    const updates = {
+      status,
+      finance_comment: comment,
+      finance_decision_at: new Date().toISOString(),
+      payment_status: approved ? "pending" : null,
+    };
+
+    // Step 1: Update the expense record
+    const { data, error } = await supabase
+      .from("expenses")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("❌ Expense update error:", error);
+      return { data: null, error };
+    }
+
+    // Step 2: Insert into expense_history
+    // const { error: historyError } = await supabase.from("expense_history").insert({
+    //   expense_id: id,
+    //   action: status,
+    //   actor_type: "finance",
+    //   comment,
+    //   changed_fields: updates, // Make sure 'changed_fields' is a JSONB column in Supabase
+    //   created_at: new Date().toISOString(), // Optional: if you have this field
+    // });
+
+    // if (historyError) {
+    //   console.warn("⚠️ Expense history insert failed:", historyError);
+    //   // Not returning error here to prevent blocking the flow
+    // }
+
+    return { data, error: null };
+
+  } catch (err: any) {
+    console.error("🔥 Unhandled error in updateByFinance:", err);
+
+    return {
+      data: null,
+      error: {
+        message: err.message || "Unexpected error",
+        code: "UNHANDLED_EXCEPTION",
+        details: "",
+        hint: "Check column existence and JSON formats",
+      },
+    };
+  }
+},
+
   /**
    * Update an expense
    */
