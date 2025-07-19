@@ -4,6 +4,8 @@ import { StorageError } from "@supabase/storage-js";
 import { StorageApiError } from "@supabase/storage-js";
 import { getProfileSignatureUrl } from "./utils";
 // Types
+
+
 export interface Organization {
   id: string;
   name: string;
@@ -1420,57 +1422,9 @@ export const expenses = {
   },
 
 
-
-
   /**
- * Update expense status based on finance approval/rejection
- */
-// updateByFinance: async (id: string, approved: boolean, comment: string) => {
-//   try {
-//     const status = approved ? "finance_approved" : "finance_rejected";
-//     const updates = { 
-//       status,
-//       finance_comment: comment,
-//       finance_decision_at: new Date().toISOString(),
-//       payment_status: approved ? "pending" : null
-//     };
-
-//     const { data, error } = await supabase
-//       .from("expenses")
-//       .update(updates)
-//       .eq("id", id)
-//       .select()
-//       .single();
-
-//     if (error) {
-//       return { data: null, error: error as DatabaseError };
-//     }
-
-//     // Create history record
-//     await supabase.from("expense_history").insert({
-//       expense_id: id,
-//       action: status,
-//       actor_type: "finance",
-//       comment: comment,
-//       changed_fields: updates,
-//     });
-
-//     return { data, error: null };
-
-//   } catch (error) {
-//     console.error("Error in updateByFinance:", error);
-//     return {
-//       data: null,
-//       error: {
-//         message: error instanceof Error ? error.message : "Unknown error",
-//         details: "",
-//         hint: "Please try again",
-//         code: "UNKNOWN_ERROR",
-//       },
-//     };
-//   }
-// },
-
+   * Update an expense by finance
+   */
 
 updateByFinance: async (id: string, approved: boolean, comment: string) => {
   try {

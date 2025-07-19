@@ -5,6 +5,8 @@ import { expenses } from "@/lib/db";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Eye } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 import {
   Table,
   TableHeader,
@@ -27,6 +29,8 @@ export default function PaymentProcessingOnly() {
   const [processingExpenses, setProcessingExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const router = useRouter(); // ✅ Added
+
   useEffect(() => {
     async function fetchExpenses() {
       if (!orgId) return;
@@ -41,7 +45,7 @@ export default function PaymentProcessingOnly() {
           .map((exp: any) => ({
             ...exp,
             creator_name: exp.creator?.full_name || "—",
-            approver_name: exp.approver?.full_name || "—", // ✅ FIXED
+            approver_name: exp.approver?.full_name || "—",
             expense_type: exp.expense_type || "—",
           }));
 
@@ -57,12 +61,6 @@ export default function PaymentProcessingOnly() {
 
     fetchExpenses();
   }, [orgId]);
-
-  function handleViewClick(id: any) {
-    toast.info(`Viewing expense details`, {
-      description: `Expense ID: ${id}`,
-    });
-  }
 
   return (
     <div className="space-y-6">
@@ -116,11 +114,10 @@ export default function PaymentProcessingOnly() {
                   </TableCell>
                   <TableCell className="text-center py-3">
                     <button
-                      onClick={() => handleViewClick(expense.id)}
+                      onClick={() => router.push(`/org/${orgId}/finance/payments/${expense.id}`)}
                       title="View Expense"
-                      className="hover:scale-110 transition-transform"
                     >
-                      <Eye className="w-4 h-4 text-gray-700 hover:text-black" />
+                      <Eye className="w-4 h-4 text-gray-700" />
                     </button>
                   </TableCell>
                 </TableRow>
