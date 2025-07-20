@@ -83,15 +83,13 @@ export async function uploadSignature(
     // Create a unique filename
     const timestamp = new Date().getTime();
     const randomString = Math.random().toString(36).substring(2, 10);
-    // const fileName = `sig_${type}_${timestamp}_${randomString}.png`;
-    const fileName = `signature_${timestamp}_${randomString}.png`;
-    const filePath = `${userId}/${fileName}`;
+    const filePath = `${userId}.png`;
 
     console.log(`Uploading ${type} signature to ${filePath}`);
 
     // Upload to Supabase
     const { error } = await supabase.storage
-      .from("voucher-signatures")
+      .from("user-signatures")
       .upload(filePath, blob, {
         contentType: "image/png",
         cacheControl: "3600",
@@ -137,10 +135,9 @@ export async function uploadProfileSignature(
     // Create a filename with org/user path structure
     const timestamp = new Date().getTime();
     const randomString = Math.random().toString(36).substring(2, 10);
-    const fileName = `signature_${timestamp}_${randomString}.png`;
 
     // Important: Create directories for organization and user if they don't exist
-    const filePath = `${userId}/${fileName}`;
+    const filePath = `${userId}.png`;
 
     console.log(`Uploading profile signature to ${filePath}`);
 
@@ -252,10 +249,9 @@ export async function saveUserSignature(
     // Step 2: Create a unique filename
     const timestamp = new Date().getTime();
     const randomString = Math.random().toString(36).substring(2, 10);
-    const fileName = `signature_${timestamp}_${randomString}.png`;
 
-    // Store in user-signatures/orgId/userId/filename format
-    const filePath = `${userId}/${fileName}`;
+    // Store in userId.png format
+    const filePath = `${userId}.png`;
     console.log(`Uploading signature to path: ${filePath}`);
 
     // Step 3: Upload the signature to storage
