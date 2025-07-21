@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { expenses } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
+
 import { toast } from "sonner";
 import {
     Table,
@@ -39,12 +40,6 @@ export default function PaymentProcessingDetails() {
         <div className="p-6 space-y-6">
             {/* Header */}
             <div className="flex justify-between items-center">
-                {/* <button
-                    onClick={() => router.push(`/org/${expense.org_id}/finance?tab=payment-processing`)}
-                    className="text-md text-black-600 "
-                >
-                    ← Back to Payment Processing
-                </button> */}
                 <Button
                     variant="outline"
                     onClick={() => router.push(`/org/${expense.org_id}/finance`)}
@@ -148,17 +143,15 @@ export default function PaymentProcessingDetails() {
                 </div>
 
                 {/* Activity History */}
-                <div>
+                <div className="space-y-6">
+                    {/* Activity History */}
                     <div className="bg-white p-6 rounded shadow border">
                         <h2 className="text-lg font-semibold mb-4">Activity History</h2>
                         <div className="space-y-4 text-sm text-gray-700">
                             {expense.history?.length > 0 ? (
                                 expense.history.map((entry: any, i: number) => (
                                     <div key={i} className="flex items-start gap-2">
-                                        <div
-                                            className={`w-2 h-2 mt-1 rounded-full ${entry.action === "Approved" ? "bg-green-600" : "bg-blue-500"
-                                                }`}
-                                        />
+                                        <div className={`w-2 h-2 mt-1 rounded-full ${entry.action === "Approved" ? "bg-green-600" : "bg-blue-500"}`} />
                                         <div>
                                             <div className="font-semibold">{entry.action}</div>
                                             <div className="text-xs text-gray-500">
@@ -174,8 +167,7 @@ export default function PaymentProcessingDetails() {
                                         <div>
                                             <div className="font-semibold">Approved</div>
                                             <div className="text-xs text-gray-500">
-                                                {expense.approver?.full_name || "—"} ·{" "}
-                                                {new Date().toLocaleString("en-IN")}
+                                                {expense.approver?.full_name || "—"} · {new Date().toLocaleString("en-IN")}
                                             </div>
                                         </div>
                                     </div>
@@ -184,8 +176,7 @@ export default function PaymentProcessingDetails() {
                                         <div>
                                             <div className="font-semibold">Created</div>
                                             <div className="text-xs text-gray-500">
-                                                {expense.creator?.full_name || "—"} ·{" "}
-                                                {new Date(expense.date).toLocaleString("en-IN")}
+                                                {expense.creator?.full_name || "—"} · {new Date(expense.date).toLocaleString("en-IN")}
                                             </div>
                                         </div>
                                     </div>

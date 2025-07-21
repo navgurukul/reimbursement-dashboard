@@ -130,7 +130,8 @@ export type ExpenseStatus =
   | "approved"
   | "approved_as_per_policy"
   | "rejected"
-  | "finance_approved";
+  // | "finance_approved";
+  |"ready_for_payment";
 
 export type ValidationStatus = "valid" | "warning" | "violation";
 
@@ -1469,7 +1470,7 @@ updateByFinance: async (id: string, approved: boolean, comment: string) => {
     return { data, error: null };
 
   } catch (err: any) {
-    console.error("🔥 Unhandled error in updateByFinance:", err);
+    console.error(" Unhandled error in updateByFinance:", err);
 
     return {
       data: null,
