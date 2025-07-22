@@ -771,6 +771,9 @@ export default function NewExpensePage() {
         custom_fields["description"] = formData.purpose || "Cash Voucher";
       }
 
+      const approverProfile = await profiles.getById(formData.approver);
+      const approverEmail = approverProfile?.data?.email || "";
+
       // Create the base expense
       const baseExpenseData = {
         org_id: organization.id,
@@ -785,6 +788,8 @@ export default function NewExpensePage() {
         approver_id,
         signature_url: signature_url_to_use || undefined,
         receipt: null,
+        creator_email: user.email,
+        approver_email: approverEmail,
       };
 
       const { data: baseData, error: baseError } = await expenses.create(
@@ -889,6 +894,8 @@ export default function NewExpensePage() {
             approver_id: formData.approver || null,
             signature_url: expense_signature_url || voucher_signature_url || undefined,
             receipt: null,
+            creator_email: user.email,
+            approver_email: approverEmail,
           };
 
           const { data: itemData, error: itemError } = await expenses.create(
