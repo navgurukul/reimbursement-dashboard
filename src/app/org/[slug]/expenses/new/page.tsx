@@ -125,14 +125,14 @@ export default function NewExpensePage() {
   const [voucherDataMap, setVoucherDataMap] = useState<Record<number, any>>({});
 
   const addItem = () => {
-    const newId = Date.now() 
+    const newId = Date.now()
     setExpenseItems((prev) => [...prev, newId])
     setExpenseItemsData((prev) => ({
       ...prev,
       [newId]: {
         expense_type: "",
         amount: 0,
-        date: new Date().toISOString(),
+        date: new Date().toISOString().split("T")[0],
         description: "",
       },
     }))
@@ -165,15 +165,30 @@ export default function NewExpensePage() {
   }
 
   // Handler for expense items - separate from main form
-  const handleExpenseItemChange = (itemId: number, key: keyof ExpenseItemData, value: string | number) => {
+  const handleExpenseItemChange = (
+    itemId: number,
+    key: keyof ExpenseItemData,
+    value: string | number
+  ) => {
     setExpenseItemsData((prev) => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
         [key]: value,
       },
-    }))
-  }
+    }));
+
+    // If "date" field is changed, also update voucherDataMap
+    if (key === "date") {
+      setVoucherDataMap((prev) => ({
+        ...prev,
+        [itemId]: {
+          ...prev[itemId],
+          date: value,
+        },
+      }));
+    }
+  };
 
   // Get expense item value
   const getExpenseItemValue = (itemId: number, key: keyof ExpenseItemData): string | number => {
@@ -473,6 +488,17 @@ export default function NewExpensePage() {
       ...prev,
       [index]: !prev[index],
     }));
+
+    setVoucherDataMap((prev) => {
+      const current = prev[index] || {};
+      return {
+        ...prev,
+        [index]: {
+          ...current,
+          date: current.date || new Date().toISOString().split("T")[0],
+        },
+      };
+    });
   };
 
   const handleInputChange = (
@@ -545,6 +571,17 @@ export default function NewExpensePage() {
 
     const newErrors: Record<string, string> = {};
 
+    // Validate date against selected event
+    if (selectedEvent && formData.date) {
+      const selectedDate = new Date(formData.date);
+      const startDate = new Date(selectedEvent.start_date);
+      const endDate = new Date(selectedEvent.end_date);
+
+      if (selectedDate < startDate || selectedDate > endDate) {
+        newErrors["date"] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
+      }
+    }
+
     // Validate main form fields
     if (voucherModalOpen) {
       if (!formData.yourName) newErrors["yourName"] = "Your Name is required";
@@ -559,7 +596,18 @@ export default function NewExpensePage() {
       const item = expenseItemsData[itemId];
       if (!item.expense_type) newErrors[`expense_type-${itemId}`] = "Expense Type is required";
       if (!item.amount || isNaN(item.amount)) newErrors[`amount-${itemId}`] = "Amount is required";
-      if (!item.date) newErrors[`date-${itemId}`] = "Date is required";
+
+      if (!item.date) {
+        newErrors[`date-${itemId}`] = "Date is required";
+      } else if (selectedEvent && item.date) {
+        const itemDate = new Date(item.date);
+        const startDate = new Date(selectedEvent.start_date);
+        const endDate = new Date(selectedEvent.end_date);
+        if (itemDate < startDate || itemDate > endDate) {
+          newErrors[`date-${itemId}`] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
+        }
+      }
+
       if (voucherModalOpenMap[itemId]) {
         const voucherData = voucherDataMap[itemId] || {};
         if (!voucherData.yourName) newErrors[`yourName-${itemId}`] = "Your Name is required";
@@ -723,6 +771,9 @@ export default function NewExpensePage() {
         custom_fields["description"] = formData.purpose || "Cash Voucher";
       }
 
+      const approverProfile = await profiles.getById(formData.approver);
+      const approverEmail = approverProfile?.data?.email || "";
+
       // Create the base expense
       const baseExpenseData = {
         org_id: organization.id,
@@ -737,6 +788,8 @@ export default function NewExpensePage() {
         approver_id,
         signature_url: signature_url_to_use || undefined,
         receipt: null,
+        creator_email: user.email,
+        approver_email: approverEmail,
       };
 
       const { data: baseData, error: baseError } = await expenses.create(
@@ -829,6 +882,7 @@ export default function NewExpensePage() {
             description: item.description || "",
           };
 
+          const itemVoucherData = voucherDataMap[itemId] || {};
           const individualExpenseData = {
             org_id: organization.id,
             user_id: user.id,
@@ -838,8 +892,10 @@ export default function NewExpensePage() {
             custom_fields: itemCustomFields,
             event_id: formData.event_id || null,
             approver_id: formData.approver || null,
-            signature_url: isVoucher ? voucher_signature_url ?? undefined : expense_signature_url ?? undefined,
+            signature_url: expense_signature_url || voucher_signature_url || undefined,
             receipt: null,
+            creator_email: user.email,
+            approver_email: approverEmail,
           };
 
           const { data: itemData, error: itemError } = await expenses.create(
@@ -861,8 +917,8 @@ export default function NewExpensePage() {
               amount: item.amount,
               purpose: itemVoucherData.purpose || formData.purpose || "Cash Voucher",
               credit_person: itemVoucherData.voucherCreditPerson || formData.voucherCreditPerson || null,
-              signature_url: itemVoucherData.voucher_signature_url || voucher_signature_url || null,
-              manager_signature_url: itemVoucherData.manager_signature_url || manager_signature_url || null,
+              signature_url: expense_signature_url || voucher_signature_url,
+              manager_signature_url: itemVoucherData.manager_signature_data_url || manager_signature_url || null,
               created_by: user.id,
               org_id: organization.id,
               approver_id: formData.approver || null,
@@ -1078,6 +1134,8 @@ export default function NewExpensePage() {
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : ""
                               }`}
+                            min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
+                            max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
                           />
                           {errors[col.key] && (
                             <p
@@ -1351,6 +1409,7 @@ export default function NewExpensePage() {
                   onInputChange={handleInputChange}
                   userRole={userRole}
                   savedUserSignature={savedUserSignature}
+                  selectedEvent={selectedEvent ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date } : undefined}
                   errors={errors}
                 />
               )}
@@ -1453,6 +1512,8 @@ export default function NewExpensePage() {
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
                                       }`}
+                                    min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
+                                    max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
                                   />
                                   {errors[col.key] && (
                                     <p className="text-red-500 text-sm">{errors[col.key]}</p>
@@ -1621,9 +1682,24 @@ export default function NewExpensePage() {
                                   [key]: value,
                                 },
                               }));
+                              // Sync back to expense item if voucher date changes
+                              if (key === "date") {
+                                setExpenseItemsData((prev) => ({
+                                  ...prev,
+                                  [id]: {
+                                    ...prev[id],
+                                    date: value,
+                                  },
+                                }));
+                              }
                             }}
                             userRole={userRole}
                             savedUserSignature={savedUserSignature}
+                            selectedEvent={
+                              selectedEvent
+                                ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date }
+                                : undefined
+                            }
                             errors={errors}
                           />
                         )}
