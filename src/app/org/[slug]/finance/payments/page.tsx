@@ -2,9 +2,10 @@
 
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
+import supabase from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Eye } from "lucide-react";
+import { Eye, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -16,6 +17,16 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const formatCurrency = (amount: number) => {
   if (isNaN(amount) || amount === null || amount === undefined) return "—";
@@ -30,31 +41,53 @@ export default function PaymentProcessingOnly() {
   const orgId = organization?.id;
   const [processingExpenses, setProcessingExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
   const router = useRouter();
 
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  const allColumns = [
+    "Created By", "Email", "Approved By", "Beneficiary Name", "Account Number", "IFSC",
+    "Payment Type", "Debit Account", "Transaction Date", "Amount", "Currency",
+    "Remarks", "Unique ID", "Status"
+  ];
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([...allColumns]);
+
   useEffect(() => {
-    async function fetchExpenses() {
+    async function fetchExpensesAndBankDetails() {
       if (!orgId) return;
 
       try {
         setLoading(true);
-        const { data, error } = await expenses.getByOrg(orgId);
-        if (error) throw error;
 
-        const paymentProcessingExpenses = (data || [])
+        const { data: expenseData, error: expenseError } = await expenses.getByOrg(orgId);
+        if (expenseError) throw expenseError;
+
+        const filteredExpenses = (expenseData || [])
           .filter((exp: any) => exp.status === "finance_approved")
           .map((exp: any) => ({
             ...exp,
-            email: exp.creator?.email || "—",
+            email: exp.creator_email || "-",
             creator_name: exp.creator?.full_name || "—",
             approver_name: exp.approver?.full_name || "—",
             payment_type: exp.payment_type || "NEFT",
           }));
 
-        setProcessingExpenses(paymentProcessingExpenses);
+        const { data: bankData, error: bankError } = await supabase.from("bank_details").select("*");
+        if (bankError) throw bankError;
+
+        const enrichedExpenses = filteredExpenses.map((exp) => {
+          const matchedBank = bankData?.find((bank) => bank.email === exp.email);
+          return {
+            ...exp,
+            beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "—",
+            account_number: exp.account_number || matchedBank?.account_number || "—",
+            ifsc: exp.ifsc || matchedBank?.ifsc_code || "—",
+          };
+        });
+
+        setProcessingExpenses(enrichedExpenses);
       } catch (error: any) {
-        toast.error("Failed to load expenses", {
+        toast.error("Failed to load data", {
           description: error.message,
         });
       } finally {
@@ -62,13 +95,66 @@ export default function PaymentProcessingOnly() {
       }
     }
 
-    fetchExpenses();
+    fetchExpensesAndBankDetails();
   }, [orgId]);
+
+  const exportToCSV = () => {
+    const headers = selectedColumns;
+
+    const rows = processingExpenses.map((exp) => {
+      const row = [];
+
+      for (const col of headers) {
+        switch (col) {
+          case "Created By": row.push(exp.creator_name); break;
+          case "Email": row.push(exp.email); break;
+          case "Approved By": row.push(exp.approver_name); break;
+          case "Beneficiary Name": row.push(exp.beneficiary_name); break;
+          case "Account Number": row.push(exp.account_number); break;
+          case "IFSC": row.push(exp.ifsc); break;
+          case "Payment Type": row.push(exp.payment_type); break;
+          case "Debit Account": row.push(exp.debit_account || "—"); break;
+          case "Transaction Date":
+            row.push(exp.value_date ? new Date(exp.value_date).toLocaleDateString("en-IN") : "—");
+            break;
+          case "Amount": row.push(exp.amount); break;
+          case "Currency": row.push(exp.currency || "INR"); break;
+          case "Remarks": row.push(exp.remarks || "—"); break;
+          case "Unique ID": row.push(exp.unique_id || "—"); break;
+          case "Status": row.push("Finance Approved"); break;
+          default: row.push("—");
+        }
+      }
+
+      return row;
+    });
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "payment_processing.csv");
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-800">Payment Processing</h3>
+        <Button
+          onClick={() => setShowExportModal(true)}
+          className="flex items-center gap-2"
+          variant="outline"
+        >
+          <Download className="w-4 h-4" />
+          Export to CSV
+        </Button>
       </div>
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
@@ -112,9 +198,9 @@ export default function PaymentProcessingOnly() {
                   <TableCell className="text-center py-3">{expense.creator_name}</TableCell>
                   <TableCell className="text-center py-3">{expense.email}</TableCell>
                   <TableCell className="text-center py-3">{expense.approver_name}</TableCell>
-                  <TableCell className="text-center py-3">{expense.beneficiary_name || "—"}</TableCell>
-                  <TableCell className="text-center py-3">{expense.account_number || "—"}</TableCell>
-                  <TableCell className="text-center py-3">{expense.ifsc || "—"}</TableCell>
+                  <TableCell className="text-center py-3">{expense.beneficiary_name}</TableCell>
+                  <TableCell className="text-center py-3">{expense.account_number}</TableCell>
+                  <TableCell className="text-center py-3">{expense.ifsc}</TableCell>
                   <TableCell className="text-center py-3">
                     <select
                       className="border px-2 py-1 rounded bg-white text-sm"
@@ -180,6 +266,45 @@ export default function PaymentProcessingOnly() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Export Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Columns to Export</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-3 max-h-[300px] overflow-auto mt-2">
+            {allColumns.map((col) => (
+              <div key={col} className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedColumns.includes(col)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedColumns((prev) => [...prev, col]);
+                    } else {
+                      setSelectedColumns((prev) => prev.filter((c) => c !== col));
+                    }
+                  }}
+                />
+                <span>{col}</span>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              onClick={() => {
+                exportToCSV();
+                setShowExportModal(false);
+              }}
+              disabled={selectedColumns.length === 0}
+            >
+              Download CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
