@@ -771,6 +771,9 @@ export default function NewExpensePage() {
         custom_fields["description"] = formData.purpose || "Cash Voucher";
       }
 
+      const approverProfile = await profiles.getById(formData.approver);
+      const approverEmail = approverProfile?.data?.email || "";
+
       // Create the base expense
       const baseExpenseData = {
         org_id: organization.id,
@@ -785,6 +788,8 @@ export default function NewExpensePage() {
         approver_id,
         signature_url: signature_url_to_use || undefined,
         receipt: null,
+        creator_email: user.email,
+        approver_email: approverEmail,
       };
 
       const { data: baseData, error: baseError } = await expenses.create(
@@ -877,6 +882,7 @@ export default function NewExpensePage() {
             description: item.description || "",
           };
 
+          const itemVoucherData = voucherDataMap[itemId] || {};
           const individualExpenseData = {
             org_id: organization.id,
             user_id: user.id,
@@ -886,8 +892,10 @@ export default function NewExpensePage() {
             custom_fields: itemCustomFields,
             event_id: formData.event_id || null,
             approver_id: formData.approver || null,
-            signature_url: isVoucher ? voucher_signature_url ?? undefined : expense_signature_url ?? undefined,
+            signature_url: expense_signature_url || voucher_signature_url || undefined,
             receipt: null,
+            creator_email: user.email,
+            approver_email: approverEmail,
           };
 
           const { data: itemData, error: itemError } = await expenses.create(
@@ -909,8 +917,8 @@ export default function NewExpensePage() {
               amount: item.amount,
               purpose: itemVoucherData.purpose || formData.purpose || "Cash Voucher",
               credit_person: itemVoucherData.voucherCreditPerson || formData.voucherCreditPerson || null,
-              signature_url: itemVoucherData.voucher_signature_url || voucher_signature_url || null,
-              manager_signature_url: itemVoucherData.manager_signature_url || manager_signature_url || null,
+              signature_url: expense_signature_url || voucher_signature_url,
+              manager_signature_url: itemVoucherData.manager_signature_data_url || manager_signature_url || null,
               created_by: user.id,
               org_id: organization.id,
               approver_id: formData.approver || null,
