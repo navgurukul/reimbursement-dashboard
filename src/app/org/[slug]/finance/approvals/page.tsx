@@ -6,6 +6,13 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Eye } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 import {
   Table,
@@ -31,6 +38,7 @@ export default function FinanceReview({ onApproved }: { onApproved?: () => void 
 
   const [expenseList, setExpenseList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmApproveAllOpen, setConfirmApproveAllOpen] = useState(false);
 
   useEffect(() => {
     async function fetchExpenses() {
@@ -68,10 +76,51 @@ export default function FinanceReview({ onApproved }: { onApproved?: () => void 
     router.push(`/org/${organization.slug}/finance/${expense.id}`);
   };
 
+ const handleApproveAll = async () => {
+  if (!orgId || expenseList.length === 0) {
+    toast.warning("No expenses to approve.");
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    const results = await Promise.all(
+      expenseList.map((expense) =>
+        expenses.updateByFinance(expense.id, true, "").catch((err) => ({ error: err }))
+      )
+    );
+
+    const failed = results.filter((res: any) => res?.error);
+    if (failed.length > 0) {
+      toast.error(`${failed.length} approvals failed`);
+    } else {
+      toast.success("All expenses approved by Finance");
+    }
+
+    setExpenseList([]);
+    onApproved?.();
+  } catch (err: any) {
+    toast.error("Approval failed", { description: err.message });
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-800">Finance Review</h2>
+        <Button
+          onClick={() => setConfirmApproveAllOpen(true)}
+          className="bg-gray-600 hover:bg-gray-700 text-white"
+          disabled={expenseList.length === 0 || loading}
+        >
+          Approve All
+        </Button>
+
       </div>
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
@@ -137,6 +186,29 @@ export default function FinanceReview({ onApproved }: { onApproved?: () => void 
           </TableBody>
         </Table>
       </div>
+      <Dialog open={confirmApproveAllOpen} onOpenChange={setConfirmApproveAllOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Bulk Approval</DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to approve all listed expenses?</p>
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmApproveAllOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-gray-600 hover:bg-gray-700 text-white"
+              onClick={async () => {
+                setConfirmApproveAllOpen(false);
+                await handleApproveAll(); // Call the actual approval logic
+              }}
+            >
+              Yes, Approve All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

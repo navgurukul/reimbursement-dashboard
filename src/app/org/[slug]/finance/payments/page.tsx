@@ -28,6 +28,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CheckCircle } from "lucide-react";
+
 
 const formatCurrency = (amount: number) => {
   if (isNaN(amount) || amount === null || amount === undefined) return "—";
@@ -185,6 +187,32 @@ export default function PaymentProcessingOnly() {
     }
   };
 
+  const handleMarkAsPaidIndividual = async (expenseId: string) => {
+    try {
+      setLoading(true);
+
+      const { error } = await supabase
+        .from("expenses")
+        .update({ payment_status: "done" })
+        .eq("id", expenseId);
+
+      if (error) throw error;
+
+      toast.success("Expense marked as paid");
+
+      // Remove the paid expense from state
+      setProcessingExpenses((prev) =>
+        prev.filter((exp) => exp.id !== expenseId)
+      );
+    } catch (error: any) {
+      toast.error("Failed to mark as paid", {
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
 
 
@@ -214,21 +242,21 @@ export default function PaymentProcessingOnly() {
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-50">
             <TableRow>
-              <TableHead className="text-center py-3">Created By</TableHead>
-              <TableHead className="text-center py-3">Email</TableHead>
-              <TableHead className="text-center py-3">Approved By</TableHead>
-              <TableHead className="text-center py-3">Beneficiary Name</TableHead>
-              <TableHead className="text-center py-3">Account Number</TableHead>
-              <TableHead className="text-center py-3">IFSC</TableHead>
-              <TableHead className="text-center py-3">Payment Type</TableHead>
-              <TableHead className="text-center py-3">Debit Account</TableHead>
-              <TableHead className="text-center py-3">Transaction Date</TableHead>
-              <TableHead className="text-center py-3">Amount</TableHead>
-              <TableHead className="text-center py-3">Currency</TableHead>
-              <TableHead className="text-center py-3">Remarks</TableHead>
-              <TableHead className="text-center py-3">Unique ID</TableHead>
-              <TableHead className="text-center py-3">Status</TableHead>
-              {/* <TableHead className="text-center py-3">Actions</TableHead> */}
+              <TableHead className="px-4 py-3 text-center">Created By</TableHead>
+              <TableHead className="px-4 py-3 text-center">Email</TableHead>
+              <TableHead className="px-4 py-3 text-center">Approved By</TableHead>
+              <TableHead className="px-4 py-3 text-center">Beneficiary Name</TableHead>
+              <TableHead className="px-4 py-3 text-center">Account Number</TableHead>
+              <TableHead className="px-4 py-3 text-center">IFSC</TableHead>
+              <TableHead className="px-4 py-3 text-center">Payment Type</TableHead>
+              <TableHead className="px-4 py-3 text-center">Debit Account</TableHead>
+              <TableHead className="px-4 py-3 text-center">Transaction Date</TableHead>
+              <TableHead className="px-4 py-3 text-center">Amount</TableHead>
+              <TableHead className="px-4 py-3 text-center">Currency</TableHead>
+              <TableHead className="px-4 py-3 text-center">Remarks</TableHead>
+              <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
+              <TableHead className="px-4 py-3 text-center">Status</TableHead>
+              <TableHead className="px-4 py-3 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -248,13 +276,13 @@ export default function PaymentProcessingOnly() {
             ) : (
               processingExpenses.map((expense) => (
                 <TableRow key={expense.id} className="hover:bg-gray-50 transition py-3">
-                  <TableCell className="text-center py-3">{expense.creator_name}</TableCell>
-                  <TableCell className="text-center py-3">{expense.email}</TableCell>
-                  <TableCell className="text-center py-3">{expense.approver_name}</TableCell>
-                  <TableCell className="text-center py-3">{expense.beneficiary_name}</TableCell>
-                  <TableCell className="text-center py-3">{expense.account_number}</TableCell>
-                  <TableCell className="text-center py-3">{expense.ifsc}</TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">{expense.creator_name}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.email}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.approver_name}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.beneficiary_name}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.account_number}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.ifsc}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">
                     <select
                       className="border px-2 py-1 rounded bg-white text-sm"
                       value={expense.payment_type}
@@ -272,7 +300,7 @@ export default function PaymentProcessingOnly() {
                       <option value="RTGS">RTGS - Inter-Bank(RTGS) Payment</option>
                     </select>
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     {editingFields[expense.id]?.debit ? (
                       <div className="flex items-center space-x-2 w-40">
                         <input
@@ -326,7 +354,7 @@ export default function PaymentProcessingOnly() {
                   </TableCell>
 
 
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     <input
                       type="date"
                       className="border px-2 py-1 rounded text-sm"
@@ -345,11 +373,11 @@ export default function PaymentProcessingOnly() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     {formatCurrency(expense.amount)}
                   </TableCell>
-                  <TableCell className="text-center py-3">{expense.currency || "INR"}</TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">{expense.currency || "INR"}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">
                     {editingFields[expense.id]?.remarks ? (
                       <div className="flex items-center space-x-2 w-40">
                         <input
@@ -400,13 +428,23 @@ export default function PaymentProcessingOnly() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-center py-3">{expense.unique_id || "—"}</TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">{expense.unique_id || "—"}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">
                     <Badge className="bg-green-100 text-green-800 border border-green-300">
                       Finance Approved
                     </Badge>
                   </TableCell>
-                  {/* <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
+                    <button
+                      title="Mark as Paid"
+                      onClick={() => handleMarkAsPaidIndividual(expense.id)}
+                      className="text-green-600 hover:text-green-800 transition-transform hover:scale-110"
+                    >
+                      <CheckCircle className="w-5 h-5 " />
+                    </button>
+                  </TableCell>
+
+                  {/* <TableCell className="px-4 py-3 text-center">
                     <button
                       onClick={() =>
                         router.push(`/org/${orgId}/finance/payments/${expense.id}`)
