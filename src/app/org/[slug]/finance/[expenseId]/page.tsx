@@ -14,6 +14,7 @@ import {
   TableHead,
   TableRow,
 } from "@/components/ui/table";
+import  supabase  from "@/lib/supabase"; // Make sure this is correctly imported
 
 export default function FinanceExpenseDetails() {
   const { expenseId } = useParams();
@@ -28,11 +29,42 @@ export default function FinanceExpenseDetails() {
   useEffect(() => {
     const fetchExpense = async () => {
       if (!expenseId) return;
+
       const { data, error } = await expenses.getById(expenseId as string);
-      if (error) toast.error("Failed to load expense details");
-      else setExpense(data);
+      if (error || !data) {
+        toast.error("Failed to load expense details");
+        setLoading(false);
+        return;
+      }
+
+      const expenseData = { ...data };
+
+      // Resolve creator signature
+      const signaturePath = expenseData.signature_url;
+      if (signaturePath && !signaturePath.startsWith("http")) {
+        const { data: sigData } = supabase.storage
+          .from("user-signatures")
+          .getPublicUrl(signaturePath);
+        if (sigData?.publicUrl) {
+          expenseData.signature_url = sigData.publicUrl;
+        }
+      }
+
+      // Resolve approver signature
+      const approverSignaturePath = expenseData.approver_signature_url;
+      if (approverSignaturePath && !approverSignaturePath.startsWith("http")) {
+        const { data: approverSigData } = supabase.storage
+          .from("user-signatures")
+          .getPublicUrl(approverSignaturePath);
+        if (approverSigData?.publicUrl) {
+          expenseData.approver_signature_url = approverSigData.publicUrl;
+        }
+      }
+
+      setExpense(expenseData);
       setLoading(false);
     };
+
     fetchExpense();
   }, [expenseId]);
 
