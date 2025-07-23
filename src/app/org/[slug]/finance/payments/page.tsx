@@ -54,8 +54,8 @@ export default function PaymentProcessingOnly() {
     "Remarks", "Unique ID", "Status"
   ];
   const [selectedColumns, setSelectedColumns] = useState<string[]>([...allColumns]);
-
-  useEffect(() => {
+  
+ useEffect(() => {
     async function fetchExpensesAndBankDetails() {
       if (!orgId) return;
 
@@ -67,9 +67,8 @@ export default function PaymentProcessingOnly() {
         console.log("Fetched Expenses:", expenseData);
 
 
-        // const filteredExpenses = (expenseData || [])
-        //   .filter((exp: any) => exp.status === "finance_approved")
         const filteredExpenses = (expenseData || [])
+          // .filter((exp: any) => exp.status === "finance_approved")
           .filter((exp: any) =>
             exp.status === "finance_approved" &&
             (!exp.payment_status || exp.payment_status === "pending")
@@ -112,6 +111,7 @@ export default function PaymentProcessingOnly() {
 
     fetchExpensesAndBankDetails();
   }, [orgId]);
+
 
   const exportToCSV = () => {
     const headers = selectedColumns;
