@@ -67,8 +67,13 @@ export default function PaymentProcessingOnly() {
         console.log("Fetched Expenses:", expenseData);
 
 
+        // const filteredExpenses = (expenseData || [])
+        //   .filter((exp: any) => exp.status === "finance_approved")
         const filteredExpenses = (expenseData || [])
-          .filter((exp: any) => exp.status === "finance_approved")
+          .filter((exp: any) =>
+            exp.status === "finance_approved" &&
+            (!exp.payment_status || exp.payment_status === "pending")
+          )
           .map((exp: any) => ({
             ...exp,
             email: exp.creator_email || "-",
@@ -153,18 +158,56 @@ export default function PaymentProcessingOnly() {
     URL.revokeObjectURL(url);
   };
 
+  const handleMarkAsPaid = async () => {
+    if (!orgId || processingExpenses.length === 0) {
+      toast.warning("No expenses to mark as paid.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const ids = processingExpenses.map((e) => e.id);
+
+      // Only update payment_status
+      const { error } = await supabase
+        .from("expenses")
+        .update({ payment_status: "done" })
+        .in("id", ids);
+
+      if (error) throw error;
+
+      toast.success("All expenses marked as paid.");
+      setProcessingExpenses([]); // clear current list (will reload on refresh)
+    } catch (error: any) {
+      toast.error("Failed to mark as paid", { description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-800">Payment Processing</h3>
-        <Button
-          onClick={() => setShowExportModal(true)}
-          className="flex items-center gap-2"
-          variant="outline"
-        >
-          <Download className="w-4 h-4" />
-          Export to CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleMarkAsPaid}
+            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white"
+          >
+            Mark all as Paid
+          </Button>
+          <Button
+            onClick={() => setShowExportModal(true)}
+            className="flex items-center gap-2"
+            variant="outline"
+          >
+            <Download className="w-4 h-4" />
+            Export to CSV
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
