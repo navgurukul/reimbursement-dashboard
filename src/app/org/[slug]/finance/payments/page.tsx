@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Eye, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+
 import {
   Table,
   TableHeader,
@@ -41,6 +42,8 @@ export default function PaymentProcessingOnly() {
   const orgId = organization?.id;
   const [processingExpenses, setProcessingExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingFields, setEditingFields] = useState<Record<string, { remarks: boolean; debit: boolean }>>({});
+
   const router = useRouter();
 
   const [showExportModal, setShowExportModal] = useState(false);
@@ -61,6 +64,8 @@ export default function PaymentProcessingOnly() {
 
         const { data: expenseData, error: expenseError } = await expenses.getByOrg(orgId);
         if (expenseError) throw expenseError;
+        console.log("Fetched Expenses:", expenseData);
+
 
         const filteredExpenses = (expenseData || [])
           .filter((exp: any) => exp.status === "finance_approved")
@@ -70,6 +75,8 @@ export default function PaymentProcessingOnly() {
             creator_name: exp.creator?.full_name || "—",
             approver_name: exp.approver?.full_name || "—",
             payment_type: exp.payment_type || "NEFT",
+            unique_id: exp.unique_id || "—", 
+
           }));
 
         const { data: bankData, error: bankError } = await supabase.from("bank_details").select("*");
@@ -82,6 +89,9 @@ export default function PaymentProcessingOnly() {
             beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "—",
             account_number: exp.account_number || matchedBank?.account_number || "—",
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "—",
+            debit_account: exp.debit_account || "32145624619", 
+            remarks: exp.remarks || "Pune campuses 2 Hariom",
+
           };
         });
 
@@ -175,7 +185,7 @@ export default function PaymentProcessingOnly() {
               <TableHead className="text-center py-3">Remarks</TableHead>
               <TableHead className="text-center py-3">Unique ID</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
-              <TableHead className="text-center py-3">Actions</TableHead>
+              {/* <TableHead className="text-center py-3">Actions</TableHead> */}
             </TableRow>
           </TableHeader>
 
@@ -219,7 +229,60 @@ export default function PaymentProcessingOnly() {
                       <option value="RTGS">RTGS - Inter-Bank(RTGS) Payment</option>
                     </select>
                   </TableCell>
-                  <TableCell className="text-center py-3">{expense.debit_account || "—"}</TableCell>
+                  <TableCell className="text-center py-3">
+                    {editingFields[expense.id]?.debit ? (
+                      <div className="flex items-center space-x-2 w-40">
+                        <input
+                          type="text"
+                          className="border px-2 py-1 rounded text-sm text-center w-full"
+                          value={expense.debit_account}
+                          onChange={(e) => {
+                            const updated = processingExpenses.map((exp) =>
+                              exp.id === expense.id ? { ...exp, debit_account: e.target.value } : exp
+                            );
+                            setProcessingExpenses(updated);
+                          }}
+                        />
+                        <div className="w-16">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-full px-1 text-sm"
+                            onClick={() =>
+                              setEditingFields((prev) => ({
+                                ...prev,
+                                [expense.id]: { ...prev[expense.id], debit: false },
+                              }))
+                            }
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 w-40">
+                        <span className="text-sm">{expense.debit_account}</span>
+                        <div className="w-16">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-full px-1 text-sm"
+                            onClick={() =>
+                              setEditingFields((prev) => ({
+                                ...prev,
+                                [expense.id]: { ...(prev[expense.id] || {}), debit: true },
+                              }))
+                            }
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                  </TableCell>
+
+
                   <TableCell className="text-center py-3">
                     <input
                       type="date"
@@ -243,14 +306,64 @@ export default function PaymentProcessingOnly() {
                     {formatCurrency(expense.amount)}
                   </TableCell>
                   <TableCell className="text-center py-3">{expense.currency || "INR"}</TableCell>
-                  <TableCell className="text-center py-3">{expense.remarks || "—"}</TableCell>
+                  <TableCell className="text-center py-3">
+                    {editingFields[expense.id]?.remarks ? (
+                      <div className="flex items-center space-x-2 w-40">
+                        <input
+                          type="text"
+                          className="border px-2 py-1 rounded text-sm text-center w-full"
+                          value={expense.remarks}
+                          onChange={(e) => {
+                            const updated = processingExpenses.map((exp) =>
+                              exp.id === expense.id ? { ...exp, remarks: e.target.value } : exp
+                            );
+                            setProcessingExpenses(updated);
+                          }}
+                        />
+                        <div className="w-16">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-full px-1 text-sm"
+                            onClick={() =>
+                              setEditingFields((prev) => ({
+                                ...prev,
+                                [expense.id]: { ...prev[expense.id], remarks: false },
+                              }))
+                            }
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 w-40">
+                        <span className="truncate max-w-[100px] text-sm">{expense.remarks}</span>
+                        <div className="w-16">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-full px-1 text-sm"
+                            onClick={() =>
+                              setEditingFields((prev) => ({
+                                ...prev,
+                                [expense.id]: { ...(prev[expense.id] || {}), remarks: true },
+                              }))
+                            }
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-center py-3">{expense.unique_id || "—"}</TableCell>
                   <TableCell className="text-center py-3">
                     <Badge className="bg-green-100 text-green-800 border border-green-300">
                       Finance Approved
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  {/* <TableCell className="text-center py-3">
                     <button
                       onClick={() =>
                         router.push(`/org/${orgId}/finance/payments/${expense.id}`)
@@ -259,7 +372,7 @@ export default function PaymentProcessingOnly() {
                     >
                       <Eye className="w-4 h-4 text-gray-700" />
                     </button>
-                  </TableCell>
+                  </TableCell> */}
                 </TableRow>
               ))
             )}
