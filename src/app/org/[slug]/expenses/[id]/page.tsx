@@ -455,7 +455,7 @@ export default function ViewExpensePage() {
           await supabase
             .from("expenses")
             .update({ approver_signature_url: profileData.signature_url })
-            .eq("id", expenseId);
+            .eq("id", expenseId).select().single();
         }
       }
 
