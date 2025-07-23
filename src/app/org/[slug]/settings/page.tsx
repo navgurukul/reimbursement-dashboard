@@ -638,7 +638,7 @@ export default function SettingsPage() {
                         <SelectItem value="dropdown">Dropdown</SelectItem>
                         <SelectItem value="radio">Radio</SelectItem>
                         <SelectItem value="checkbox">Checkbox</SelectItem>
-                        <SelectItem value="file">File Upload</SelectItem>
+                        {/* <SelectItem value="file">File Upload</SelectItem> */}
                       </SelectContent>
                     </Select>
                   </div>

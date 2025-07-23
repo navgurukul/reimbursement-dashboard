@@ -70,6 +70,7 @@ interface ExpenseItemData {
   amount: number
   date: string
   description: string
+  [key: string]: string | number | string[] | undefined;
 }
 
 export default function NewExpensePage() {
@@ -124,9 +125,33 @@ export default function NewExpensePage() {
   // voucherDataMap
   const [voucherDataMap, setVoucherDataMap] = useState<Record<number, any>>({});
 
+  const getDefaultValueByType = (type: string) => {
+    switch (type) {
+      case "text":
+      case "textarea":
+      case "dropdown":
+      case "radio":
+        return "";
+      case "checkbox":
+        return [];
+      case "number":
+        return 0;
+      case "date":
+        return new Date().toISOString().split("T")[0];
+      default:
+        return "";
+    }
+  };
+
   const addItem = () => {
-    const newId = Date.now()
-    setExpenseItems((prev) => [...prev, newId])
+    const newId = Date.now();
+
+    const customFieldValues: Record<string, any> = {};
+    customFields.forEach((col) => {
+      customFieldValues[col.label] = getDefaultValueByType(col.type);
+    });
+
+    setExpenseItems((prev) => [...prev, newId]);
     setExpenseItemsData((prev) => ({
       ...prev,
       [newId]: {
@@ -134,9 +159,10 @@ export default function NewExpensePage() {
         amount: 0,
         date: new Date().toISOString().split("T")[0],
         description: "",
+        ...customFieldValues, // ✅ Add label-based custom fields
       },
-    }))
-  }
+    }));
+  };
 
   const deleteItem = (id: number) => {
     setExpenseItems((prev) => prev.filter((item) => item !== id))
@@ -165,33 +191,18 @@ export default function NewExpensePage() {
   }
 
   // Handler for expense items - separate from main form
-  const handleExpenseItemChange = (
-    itemId: number,
-    key: keyof ExpenseItemData,
-    value: string | number
-  ) => {
+  const handleExpenseItemChange = (itemId: number, key: keyof ExpenseItemData, value: string | number | string[]) => {
     setExpenseItemsData((prev) => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
         [key]: value,
       },
-    }));
-
-    // If "date" field is changed, also update voucherDataMap
-    if (key === "date") {
-      setVoucherDataMap((prev) => ({
-        ...prev,
-        [itemId]: {
-          ...prev[itemId],
-          date: value,
-        },
-      }));
-    }
-  };
+    }))
+  }
 
   // Get expense item value
-  const getExpenseItemValue = (itemId: number, key: keyof ExpenseItemData): string | number => {
+  const getExpenseItemValue = (itemId: number, key: keyof ExpenseItemData): string | number | string[] => {
     // return expenseItemsData[itemId]?.[key] || (key === 'amount' || key === 'date' ? 0 : "")
 
     const value = expenseItemsData[itemId]?.[key];
@@ -488,17 +499,6 @@ export default function NewExpensePage() {
       ...prev,
       [index]: !prev[index],
     }));
-
-    setVoucherDataMap((prev) => {
-      const current = prev[index] || {};
-      return {
-        ...prev,
-        [index]: {
-          ...current,
-          date: current.date || new Date().toISOString().split("T")[0],
-        },
-      };
-    });
   };
 
   const handleInputChange = (
@@ -571,17 +571,6 @@ export default function NewExpensePage() {
 
     const newErrors: Record<string, string> = {};
 
-    // Validate date against selected event
-    if (selectedEvent && formData.date) {
-      const selectedDate = new Date(formData.date);
-      const startDate = new Date(selectedEvent.start_date);
-      const endDate = new Date(selectedEvent.end_date);
-
-      if (selectedDate < startDate || selectedDate > endDate) {
-        newErrors["date"] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
-      }
-    }
-
     // Validate main form fields
     if (voucherModalOpen) {
       if (!formData.yourName) newErrors["yourName"] = "Your Name is required";
@@ -596,17 +585,14 @@ export default function NewExpensePage() {
       const item = expenseItemsData[itemId];
       if (!item.expense_type) newErrors[`expense_type-${itemId}`] = "Expense Type is required";
       if (!item.amount || isNaN(item.amount)) newErrors[`amount-${itemId}`] = "Amount is required";
+      if (!item.date) newErrors[`date-${itemId}`] = "Date is required";
 
-      if (!item.date) {
-        newErrors[`date-${itemId}`] = "Date is required";
-      } else if (selectedEvent && item.date) {
-        const itemDate = new Date(item.date);
-        const startDate = new Date(selectedEvent.start_date);
-        const endDate = new Date(selectedEvent.end_date);
-        if (itemDate < startDate || itemDate > endDate) {
-          newErrors[`date-${itemId}`] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
+      // Validate custom fields for expense items
+      customFields.forEach((col) => {
+        if (col.required && !item[col.key]) {
+          newErrors[`${col.key}-${itemId}`] = `${col.label} is required`;
         }
-      }
+      });
 
       if (voucherModalOpenMap[itemId]) {
         const voucherData = voucherDataMap[itemId] || {};
@@ -753,6 +739,24 @@ export default function NewExpensePage() {
       const approver_id = formData.approver || null;
       const signature_url_to_use = voucherModalOpen ? voucher_signature_url : expense_signature_url;
 
+      // const custom_fields: Record<string, any> = {};
+      // columns.forEach((col) => {
+      //   if (
+      //     col.visible &&
+      //     col.key !== "expense_type" &&
+      //     col.key !== "amount" &&
+      //     col.key !== "date" &&
+      //     col.key !== "approver" &&
+      //     col.key !== "event_id"
+      //   ) {
+      //     // const label=col.label?.trim();
+      //     // if(label){
+      //     //   custom_fields[label]=formData[col.key]
+      //     // }
+      //     custom_fields[col.key] = formData[col.key];
+      //   }
+      // });
+
       const custom_fields: Record<string, any> = {};
       columns.forEach((col) => {
         if (
@@ -763,16 +767,17 @@ export default function NewExpensePage() {
           col.key !== "approver" &&
           col.key !== "event_id"
         ) {
-          custom_fields[col.key] = formData[col.key];
+          const label = col.label?.trim();
+          if (label) {
+            custom_fields[label] = formData[col.key];
+          }
         }
       });
+
 
       if (voucherModalOpen) {
         custom_fields["description"] = formData.purpose || "Cash Voucher";
       }
-
-      const approverProfile = await profiles.getById(formData.approver);
-      const approverEmail = approverProfile?.data?.email || "";
 
       // Create the base expense
       const baseExpenseData = {
@@ -788,8 +793,6 @@ export default function NewExpensePage() {
         approver_id,
         signature_url: signature_url_to_use || undefined,
         receipt: null,
-        creator_email: user.email,
-        approver_email: approverEmail,
       };
 
       const { data: baseData, error: baseError } = await expenses.create(
@@ -882,7 +885,14 @@ export default function NewExpensePage() {
             description: item.description || "",
           };
 
-          const itemVoucherData = voucherDataMap[itemId] || {};
+          // Add custom fields from expenseItemsData
+          customFields.forEach((col) => {
+            const label = col.label?.trim();
+            if (label && item[col.key] !== undefined) {
+              itemCustomFields[label] = item[col.key];
+            }
+          });
+
           const individualExpenseData = {
             org_id: organization.id,
             user_id: user.id,
@@ -892,10 +902,8 @@ export default function NewExpensePage() {
             custom_fields: itemCustomFields,
             event_id: formData.event_id || null,
             approver_id: formData.approver || null,
-            signature_url: expense_signature_url || voucher_signature_url || undefined,
+            signature_url: isVoucher ? voucher_signature_url ?? undefined : expense_signature_url ?? undefined,
             receipt: null,
-            creator_email: user.email,
-            approver_email: approverEmail,
           };
 
           const { data: itemData, error: itemError } = await expenses.create(
@@ -917,8 +925,8 @@ export default function NewExpensePage() {
               amount: item.amount,
               purpose: itemVoucherData.purpose || formData.purpose || "Cash Voucher",
               credit_person: itemVoucherData.voucherCreditPerson || formData.voucherCreditPerson || null,
-              signature_url: expense_signature_url || voucher_signature_url,
-              manager_signature_url: itemVoucherData.manager_signature_data_url || manager_signature_url || null,
+              signature_url: itemVoucherData.voucher_signature_url || voucher_signature_url || null,
+              manager_signature_url: itemVoucherData.manager_signature_url || manager_signature_url || null,
               created_by: user.id,
               org_id: organization.id,
               approver_id: formData.approver || null,
@@ -998,6 +1006,14 @@ export default function NewExpensePage() {
       </div>
     );
   }
+
+  const defaultSystemFields = ["amount", "date", "expense_type", "approver", "event_id", "description"];
+  const customFields = columns.filter(
+    (col) =>
+      col.visible &&
+      !defaultSystemFields.includes(col.key)
+  );
+
 
   return (
     <div className="max-w-[800px] mx-auto py-6">
@@ -1134,8 +1150,6 @@ export default function NewExpensePage() {
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : ""
                               }`}
-                            min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
-                            max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
                           />
                           {errors[col.key] && (
                             <p
@@ -1308,6 +1322,205 @@ export default function NewExpensePage() {
                   </div>
                 );
               })}
+              {/* Text and Number Fields (e.g., New, New One) */}
+              {customFields.map((col) => {
+                if (
+                  !col.visible ||
+                  !["text", "number", "date", "textarea", "dropdown", "radio", "checkbox"].includes(col.type)
+                ) return null;
+
+
+                return (
+                  <div key={col.key} className="space-y-2">
+                    <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                      {col.label}
+                      {col.required && (
+                        <span className="text-red-500 ml-1 text-sm">*</span>
+                      )}
+                    </Label>
+                    {(col.type === "text") && (
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        type={col.type}
+                        value={formData[col.key] || ""}
+                        onChange={(e) => handleInputChange(col.key, e.target.value)}
+                        className={`w-full ${errors[col.key]
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
+                          }`}
+                        placeholder={`Enter ${col.label}`}
+                      />)}
+                    {(col.type === "number") && (
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        type={col.type}
+                        value={formData[col.key] || ""}
+                        onChange={(e) => handleInputChange(col.key, col.type === "number" ? parseFloat(e.target.value) : e.target.value)}
+                        className={`w-full ${errors[col.key]
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
+                          }`}
+                        placeholder={`Enter ${col.label}`}
+                      />)}
+                    {(col.type === "date") && (
+
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        type="date"
+                        value={formData[col.key] || ""}
+                        onChange={(e) => handleInputChange(col.key, e.target.value)}
+                        className={`w-full ${errors[col.key]
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
+                          }`}
+                      />)}
+                    {(col.type === "textarea") && (
+                      <Textarea
+                        id={col.key}
+                        name={col.key}
+                        value={formData[col.key] || ""}
+                        onChange={(e) => handleInputChange(col.key, e.target.value)}
+                        className={`w-full min-h-[75px] ${errors[col.key]
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
+                          }`}
+                        placeholder="Brief description of this expense report..."
+                      />)}
+                    {col.type === "dropdown" && col.options && (
+                      <>
+                        <Select
+                          value={formData[col.key] || ""}
+                          onValueChange={(value: string) =>
+                            handleInputChange(col.key, value)
+                          }
+                        >
+                          <SelectTrigger
+                            id={col.key}
+                            className={`w-full ${errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                              }`}
+                          >
+                            <SelectValue placeholder="Select an approver" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {col.options.map((option: any) => {
+                              const value =
+                                typeof option === "string" ? option : option.value;
+                              const label =
+                                typeof option === "string" ? option : option.label;
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </>
+                    )}
+                    {col.type === "radio" && col.options && (
+                      <div className="space-y-1">
+                        {col.options.map((option: any) => {
+                          const value = typeof option === "string" ? option : option.value;
+                          const label = typeof option === "string" ? option : option.label;
+                          return (
+                            <div key={value} className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                id={`${col.key}-${value}`}
+                                name={col.key}
+                                value={value}
+                                checked={formData[col.key] === value}
+                                onChange={() => handleInputChange(col.key, value)}
+                                className="h-4 w-4 text-blue-600 border-gray-300"
+                              />
+                              <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
+                                {label}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* {col.type === "radio" && col.options && (
+                      <div className="space-y-1">
+                        {col.options.map((option: any) => {
+                          const value = typeof option === "string" ? option : option.value;
+                          const label = typeof option === "string" ? option : option.label;
+                          const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
+                          const selectedRadioValue =
+                            typeof currentValue === "string" || typeof currentValue === "number"
+                              ? String(currentValue)
+                              : "";
+                          return (
+                            <div key={value} className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                id={`${col.key}-${value}-${id}`} // Include itemId in id for uniqueness
+                                name={`${col.key}-${id}`} // Include itemId in name to create separate radio groups
+                                value={value}
+                                checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
+                                onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
+                                className="h-4 w-4 text-blue-600 border-gray-300"
+                              />
+                              <label htmlFor={`${col.key}-${value}-${id}`} className="text-sm text-gray-700">
+                                {label}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )} */}
+                    {col.type === "checkbox" && col.options && (
+                      <div className="space-y-2">
+                        {col.options.map((option: any) => {
+                          const value = typeof option === "string" ? option : option.value;
+                          const label = typeof option === "string" ? option : option.label;
+
+                          // Get current selected values (as an array)
+                          const selectedValues: string[] = formData[col.key] || [];
+
+                          const isChecked = selectedValues.includes(value);
+
+                          const handleCheckboxChange = (checked: boolean) => {
+                            const updatedValues = checked
+                              ? [...selectedValues, value]
+                              : selectedValues.filter((v) => v !== value);
+
+                            handleInputChange(col.key, updatedValues);
+                          };
+
+                          return (
+                            <div key={value} className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`${col.key}-${value}`}
+                                name={`${col.key}-${value}`}
+                                checked={isChecked}
+                                onChange={(e) => handleCheckboxChange(e.target.checked)}
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                              />
+                              <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
+                                {label}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {errors[col.key] && (
+                      <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
+                        {errors[col.key]}
+                      </p>
+                    )}
+                  </div>
+                );
+                return null;
+              })}
             </div>
 
             <div className="space-y-4">
@@ -1409,7 +1622,6 @@ export default function NewExpensePage() {
                   onInputChange={handleInputChange}
                   userRole={userRole}
                   savedUserSignature={savedUserSignature}
-                  selectedEvent={selectedEvent ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date } : undefined}
                   errors={errors}
                 />
               )}
@@ -1436,7 +1648,6 @@ export default function NewExpensePage() {
                         >
                           Delete
                         </Button>
-
                       </div>
 
                       {/* Expense Type, Date, Amount */}
@@ -1445,7 +1656,7 @@ export default function NewExpensePage() {
                           if (
                             !col.visible ||
                             !['dropdown', 'date', 'number'].includes(col.type) ||
-                            col.key === "approver"
+                            col.key === "approver" || !defaultSystemFields.includes(col.key)
                           )
                             return null;
 
@@ -1512,8 +1723,6 @@ export default function NewExpensePage() {
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
                                       }`}
-                                    min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
-                                    max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
                                   />
                                   {errors[col.key] && (
                                     <p className="text-red-500 text-sm">{errors[col.key]}</p>
@@ -1548,7 +1757,8 @@ export default function NewExpensePage() {
 
                       {/* Description (full width) */}
                       {columns.map((col) => {
-                        if (!col.visible || col.type !== "textarea" || col.key === "approver") return null;
+                        if (!col.visible || col.type !== "textarea" || col.key === "approver" || !defaultSystemFields.includes(col.key)
+                        ) return null;
 
                         return (
                           <div key={col.key} className="space-y-2">
@@ -1574,6 +1784,213 @@ export default function NewExpensePage() {
                           </div>
                         );
                       })}
+                      {/* Text and Number Fields (e.g., New, New One) */}
+                      {customFields.map((col) => {
+                        if (
+                          !col.visible ||
+                          !["text", "number", "date", "textarea", "dropdown", "radio", "checkbox"].includes(col.type)
+                        ) return null;
+
+
+                        return (
+                          <div key={col.key} className="space-y-2">
+                            <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                              {col.label}
+                              {col.required && (
+                                <span className="text-red-500 ml-1 text-sm">*</span>
+                              )}
+                            </Label>
+                            {(col.type === "text") && (
+                              <Input
+                                id={col.key}
+                                name={col.key}
+                                type={col.type}
+                                value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
+                                onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
+                                className={`w-full ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                  }`}
+                                placeholder={`Enter ${col.label}`}
+                              />)}
+                            {(col.type === "number") && (
+                              <Input
+                                id={col.key}
+                                name={col.key}
+                                type={col.type}
+                                value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
+                                onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, col.type === "number" ? parseFloat(e.target.value) : e.target.value)}
+                                className={`w-full ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                  }`}
+                                placeholder={`Enter ${col.label}`}
+                              />)}
+                            {(col.type === "date") && (
+                              <Input
+                                id={col.key}
+                                name={col.key}
+                                type="date"
+                                value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
+                                onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
+                                className={`w-full ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                  }`}
+                              />)}
+                            {(col.type === "textarea") && (
+                              <Textarea
+                                id={col.key}
+                                name={col.key}
+                                value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
+                                onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
+                                className={`w-full min-h-[75px] ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                  }`}
+                                placeholder="Brief description of this expense report..."
+                              />)}
+                            {col.type === "dropdown" && col.options && (
+                              <>
+                                <Select
+                                  value={String(getExpenseItemValue(id, col.key as keyof ExpenseItemData) || "")}
+                                  onValueChange={(value: string) =>
+                                    handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id={col.key}
+                                    className={`w-full ${errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                      }`}
+                                  >
+                                    <SelectValue placeholder="Select an approver" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {col.options.map((option: any) => {
+                                      const value =
+                                        typeof option === "string" ? option : option.value;
+                                      const label =
+                                        typeof option === "string" ? option : option.label;
+                                      return (
+                                        <SelectItem key={value} value={value}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              </>
+                            )}
+                            {/* {col.type === "radio" && col.options && (
+                              <div className="space-y-1">
+                                {col.options.map((option: any) => {
+                                  const value = typeof option === "string" ? option : option.value;
+                                  const label = typeof option === "string" ? option : option.label;
+                                  const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
+                                  const selectedRadioValue =
+                                    typeof currentValue === "string" || typeof currentValue === "number"
+                                      ? String(currentValue)
+                                      : "";
+                                  return (
+                                    <div key={value} className="flex items-center space-x-2">
+                                      <input
+                                        type="radio"
+                                        id={`${col.key}-${value}`}
+                                        name={col.key}
+                                        value={value}
+                                        checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
+                                        onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
+                                        className="h-4 w-4 text-blue-600 border-gray-300"
+                                      />
+                                      <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
+                                        {label}
+                                      </label>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )} */}
+                            {col.type === "radio" && col.options && (
+                              <div className="space-y-1">
+                                {col.options.map((option: any) => {
+                                  const value = typeof option === "string" ? option : option.value;
+                                  const label = typeof option === "string" ? option : option.label;
+                                  const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
+                                  const selectedRadioValue =
+                                    typeof currentValue === "string" || typeof currentValue === "number"
+                                      ? String(currentValue)
+                                      : "";
+                                  return (
+                                    <div key={value} className="flex items-center space-x-2">
+                                      <input
+                                        type="radio"
+                                        id={`${col.key}-${value}-${id}`} // Include itemId in id for uniqueness
+                                        name={`${col.key}-${id}`} // Include itemId in name to create separate radio groups
+                                        value={value}
+                                        checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
+                                        onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
+                                        className="h-4 w-4 text-blue-600 border-gray-300"
+                                      />
+                                      <label htmlFor={`${col.key}-${value}-${id}`} className="text-sm text-gray-700">
+                                        {label}
+                                      </label>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {col.type === "checkbox" && col.options && (
+                              <div className="space-y-2">
+                                {col.options.map((option: any) => {
+                                  const value = typeof option === "string" ? option : option.value;
+                                  const label = typeof option === "string" ? option : option.label;
+
+                                  // Get current selected values (as an array)
+                                  const rawValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
+                                  const selectedValues: string[] = Array.isArray(rawValue) ? rawValue : [];
+
+
+                                  const isChecked = selectedValues.includes(value);
+
+                                  const handleCheckboxChange = (checked: boolean) => {
+                                    const updatedValues = checked
+                                      ? [...selectedValues, value]
+                                      : selectedValues.filter((v) => v !== value);
+
+                                    handleExpenseItemChange(id, col.key as keyof ExpenseItemData, updatedValues);
+                                  };
+
+                                  return (
+                                    <div key={value} className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id={`${col.key}-${value}`}
+                                        name={`${col.key}-${value}`}
+                                        checked={isChecked}
+                                        onChange={(e) => handleCheckboxChange(e.target.checked)}
+                                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                                      />
+                                      <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
+                                        {label}
+                                      </label>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {errors[col.key] && (
+                              <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
+                                {errors[col.key]}
+                              </p>
+                            )}
+                          </div>
+
+                        );
+                        return null;
+                      })}
+
 
                       {/* Receipt Upload */}
                       <div className="space-y-2">
@@ -1682,24 +2099,9 @@ export default function NewExpensePage() {
                                   [key]: value,
                                 },
                               }));
-                              // Sync back to expense item if voucher date changes
-                              if (key === "date") {
-                                setExpenseItemsData((prev) => ({
-                                  ...prev,
-                                  [id]: {
-                                    ...prev[id],
-                                    date: value,
-                                  },
-                                }));
-                              }
                             }}
                             userRole={userRole}
                             savedUserSignature={savedUserSignature}
-                            selectedEvent={
-                              selectedEvent
-                                ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date }
-                                : undefined
-                            }
                             errors={errors}
                           />
                         )}

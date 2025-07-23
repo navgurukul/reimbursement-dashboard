@@ -494,7 +494,8 @@ export default function ExpensesPage() {
                                 ) : typeof exp[c.key] === "object" && exp[c.key] !== null ? (
                                   JSON.stringify(exp[c.key])
                                 ) : (
-                                  exp[c.key] || "—"
+                                  exp[c.key] ?? exp.custom_fields?.[c.label?.trim()] ?? "—"
+
                                 )}
 
                               </TableCell>
