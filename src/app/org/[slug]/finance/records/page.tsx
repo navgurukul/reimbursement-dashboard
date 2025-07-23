@@ -5,6 +5,7 @@ import supabase from "@/lib/supabase";
 import { BadgeDollarSign } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -18,7 +19,7 @@ export default function PaymentRecords() {
         const { data, error } = await supabase
           .from("expenses")
           .select("*")
-          .eq("payment_status", "done")
+          .eq("payment_status", "paid")
           .order("updated_at", { ascending: false });
 
         if (error) throw error;
@@ -72,7 +73,11 @@ export default function PaymentRecords() {
                     {new Date(record.date).toLocaleDateString("en-IN")}
                   </TableCell>
                   <TableCell className="text-center py-2">{record.status}</TableCell>
-                  <TableCell className="text-center py-2">{record.payment_status}</TableCell>
+                  <TableCell className="text-center py-2">
+                    <Badge variant="success" className="text-xs">
+                      {record.payment_status}
+                    </Badge>
+                  </TableCell>
                 </TableRow>
               ))
             )}

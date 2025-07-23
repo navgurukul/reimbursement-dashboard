@@ -28,7 +28,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Pencil, Save  } from "lucide-react";
 
 
 const formatCurrency = (amount: number) => {
@@ -66,7 +66,7 @@ export default function PaymentProcessingOnly() {
 
         const { data: expenseData, error: expenseError } = await expenses.getByOrg(orgId);
         if (expenseError) throw expenseError;
-        console.log("Fetched Expenses:", expenseData);
+        // console.log("Fetched Expenses:", expenseData);
 
 
         const filteredExpenses = (expenseData || [])
@@ -97,7 +97,7 @@ export default function PaymentProcessingOnly() {
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "—",
             debit_account: exp.debit_account || "32145624619", 
             remarks: exp.remarks || "Pune campuses 2 Hariom",
-
+            unique_id: matchedBank?.unique_id || "—",
           };
         });
 
@@ -173,7 +173,7 @@ export default function PaymentProcessingOnly() {
       // Only update payment_status
       const { error } = await supabase
         .from("expenses")
-        .update({ payment_status: "done" })
+        .update({ payment_status: "paid" })
         .in("id", ids);
 
       if (error) throw error;
@@ -193,7 +193,7 @@ export default function PaymentProcessingOnly() {
 
       const { error } = await supabase
         .from("expenses")
-        .update({ payment_status: "done" })
+        .update({ payment_status: "paid" })
         .eq("id", expenseId);
 
       if (error) throw error;
@@ -325,8 +325,9 @@ export default function PaymentProcessingOnly() {
                                 [expense.id]: { ...prev[expense.id], debit: false },
                               }))
                             }
+                            title="Save"
                           >
-                            Save
+                            <Save className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -344,8 +345,9 @@ export default function PaymentProcessingOnly() {
                                 [expense.id]: { ...(prev[expense.id] || {}), debit: true },
                               }))
                             }
+                            title="Edit"
                           >
-                            Edit
+                            <Pencil className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -402,8 +404,9 @@ export default function PaymentProcessingOnly() {
                                 [expense.id]: { ...prev[expense.id], remarks: false },
                               }))
                             }
+                            title="Save"
                           >
-                            Save
+                            <Save className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -421,8 +424,9 @@ export default function PaymentProcessingOnly() {
                                 [expense.id]: { ...(prev[expense.id] || {}), remarks: true },
                               }))
                             }
+                            title="Edit"
                           >
-                            Edit
+                            <Pencil className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
