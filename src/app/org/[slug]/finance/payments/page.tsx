@@ -5,7 +5,7 @@ import { expenses } from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Eye, Download } from "lucide-react";
+import { Eye, Download, Pencil, Save  } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 
@@ -28,7 +28,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CheckCircle, Pencil, Save  } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 
 
 const formatCurrency = (amount: number) => {
@@ -300,6 +300,7 @@ export default function PaymentProcessingOnly() {
                       <option value="RTGS">RTGS - Inter-Bank(RTGS) Payment</option>
                     </select>
                   </TableCell>
+                  
                   <TableCell className="px-4 py-3 text-center">
                     {editingFields[expense.id]?.debit ? (
                       <div className="flex items-center space-x-2 w-40">
