@@ -1833,7 +1833,7 @@ export const vouchers = {
     path: string
   ): Promise<{ url: string; error: StorageError | null }> => {
     const { data, error } = await supabase.storage
-      .from("voucher-signatures")
+      .from("user-signatures")
       .createSignedUrl(path, 3600); // URL valid for 1 hour
 
     if (error) {
