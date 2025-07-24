@@ -399,16 +399,17 @@ export default function ExpensesPage() {
             {/* table */}
             <Card>
               <CardContent className="p-0">
+                <div className="overflow-x-auto w-full">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       {columns
                         .filter((c) => c.visible)
                         .map((c) => (
-                          <TableHead key={c.key}>{c.label}</TableHead>
+                          <TableHead className="min-w-[150px]" key={c.key}>{c.label}</TableHead>
                         ))}
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="min-w-[120px]">Status</TableHead>
+                      <TableHead className="min-w-[120px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -416,7 +417,7 @@ export default function ExpensesPage() {
                       <TableRow>
                         <TableCell
                           colSpan={columns.filter((c) => c.visible).length + 2}
-                          className="text-center py-4"
+                          className="text-center py-4 break-words whitespace-normal"
                         >
                           Loading…
                         </TableCell>
@@ -425,7 +426,7 @@ export default function ExpensesPage() {
                       <TableRow>
                         <TableCell
                           colSpan={columns.filter((c) => c.visible).length + 2}
-                          className="text-center py-4 text-muted-foreground"
+                          className="text-center py-4 text-muted-foreground break-words whitespace-normal"
                         >
                           No expenses.
                         </TableCell>
@@ -436,7 +437,7 @@ export default function ExpensesPage() {
                           {columns
                             .filter((c) => c.visible)
                             .map((c) => (
-                              <TableCell key={c.key}>
+                              <TableCell key={c.key} className="break-all whitespace-normal">
                                 {c.key === "amount" ? (
                                   formatCurrency(exp[c.key])
                                 ) : c.key === "date" ? (
@@ -500,7 +501,7 @@ export default function ExpensesPage() {
 
                               </TableCell>
                             ))}
-                          <TableCell>
+                          <TableCell className="break-words whitespace-normal">
                             <span
                               className={`px-2 py-1 rounded-full text-xs ${exp.status === "approved"
                                 ? "bg-green-100 text-green-800"
@@ -545,6 +546,7 @@ export default function ExpensesPage() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
