@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
-import { FileText } from "lucide-react";
+import { FileText, Landmark } from "lucide-react";
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -86,6 +86,11 @@ export function AppSidebar() {
       href: `/org/${organization?.slug}/expense-events`,
       icon: Calendar,
     },
+    ...(isAdmin ? [{
+    title: "Finance Management",
+    href: `/org/${organization?.slug}/finance`,
+    icon: Landmark,
+  }] : [])
   ];
 
   const adminRoutes = {
