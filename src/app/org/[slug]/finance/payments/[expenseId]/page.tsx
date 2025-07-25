@@ -194,7 +194,7 @@ export default function PaymentProcessingDetails() {
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Description</TableHead>
-                                    <TableCell>{expense.custom_fields?.description || "—"}</TableCell>
+                                    <TableCell>{expense.custom_fields?.description || expense.custom_fields?.Description || "—"}</TableCell>
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Signature</TableHead>

@@ -81,6 +81,7 @@ export default function FinanceExpenseDetails() {
       }
 
       setExpense(expenseData);
+      console.log("HHHHH",expenseData);
       setLoading(false);
     };
 
@@ -243,7 +244,7 @@ export default function FinanceExpenseDetails() {
                 </TableRow>
                 <TableRow>
                   <TableHead>Description</TableHead>
-                  <TableCell>{expense.custom_fields?.description || "—"}</TableCell>
+                  <TableCell>{expense.custom_fields?.description || expense.custom_fields?.Description || "—"}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableHead>Signature</TableHead>
