@@ -42,6 +42,7 @@ const defaultExpenseColumns = [
   { key: "amount", label: "Amount", visible: true },
   { key: "creator_name", label: "Created By", visible: true },
   { key: "receipt", label: "Receipt", visible: true },
+  { key: "finance_comment", label: "Rejection Reason", visible: true },
   { key: "approver", label: "Approver", visible: true },
 ];
 
@@ -266,14 +267,14 @@ export default function ExpensesPage() {
     router.push(`/org/${slug}/expenses/new`);
   };
 
-  
+
   const handleDelete = async (id: string) => {
     try {
       const { error } = await expenses.delete(id);
       if (error) throw error;
       toast.success("Expense deleted successfully");
       // Refresh the expenses list
-       // Update the local state to reflect the deletion
+      // Update the local state to reflect the deletion
       if (activeTab === "my") {
         setExpensesData((prev) => prev.filter((expense) => expense.id !== id));
       } else if (activeTab === "pending") {
@@ -487,6 +488,7 @@ export default function ExpensesPage() {
                                   ) : (
                                     "No receipt or voucher"
                                   )
+
                                 ) : c.key === "approver" ? (
                                   exp.approver?.full_name || "—"
                                 ) : c.key === "category" ? (
@@ -503,9 +505,13 @@ export default function ExpensesPage() {
                             <span
                               className={`px-2 py-1 rounded-full text-xs ${exp.status === "approved"
                                 ? "bg-green-100 text-green-800"
-                                : exp.status === "rejected"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-amber-100 text-amber-800"
+                                : exp.status === "finance_approved"
+                                  ? "bg-green-100 text-green-800"
+                                  : exp.status === "rejected"
+                                    ? "bg-red-100 text-black-800"
+                                    : exp.status === "submitted"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : "bg-gray-100 text-gray-800"
                                 }`}
                             >
                               {exp.status.charAt(0).toUpperCase() +
@@ -524,7 +530,7 @@ export default function ExpensesPage() {
                               {/* ✏️ Edit Icon — status "submitted" ke liye */}
                               {exp.status === "submitted" && (
                                 <Edit
-                                  className="w-4 h-4 text-gray-600 cursor-pointer hover:text-blue-700"
+                                  className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                   onClick={() =>
                                     router.push(`/org/${slug}/expenses/${exp.id}/edit`)
                                   }

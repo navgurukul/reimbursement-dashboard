@@ -903,7 +903,8 @@ export default function ViewExpensePage() {
                 <>
                   <Button
                     onClick={() => handleApprove("full")}
-                    className="bg-green-600 hover:bg-green-700"
+                    // className="bg-green-600 hover:bg-green-700"
+                    className="bg-[#A1A79E] hover:bg-[#949A91] text-white font-medium border border-[#949A91]"
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
@@ -916,7 +917,10 @@ export default function ViewExpensePage() {
 
                   <Button
                     onClick={() => handleApprove("custom")}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    // className="bg-blue-200 hover:bg-blue-200 text-white-800 font-medium"
+                    // className="bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 font-medium"
+                    className="bg-[#88A5BC] hover:bg-[#7b94aa] text-white font-medium border border-[#7b94aa]"
+
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
@@ -986,6 +990,8 @@ export default function ViewExpensePage() {
                   <p className="text-sm font-medium text-muted-foreground">Date</p>
                   <p>{new Date(expense.date).toLocaleDateString('en-GB')}</p>
                 </div>
+
+
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
                     Status
@@ -1002,6 +1008,7 @@ export default function ViewExpensePage() {
                       expense.status.slice(1)}
                   </p>
                 </div>
+
 
                 {expense.approver && (
                   <div>
@@ -1026,6 +1033,14 @@ export default function ViewExpensePage() {
                   </div>
                 )}
               </div>
+              {/* Finance Rejected Comment */}
+              {expense.status === "finance_rejected" && expense.finance_comment && (
+                <div className="mt-1 text-sm">
+                  <span className="block font-medium text-muted-foreground">Finance Comment</span>
+                  <span>{expense.finance_comment}</span>
+                </div>
+              )}
+
 
               {/* Receipt section with View Receipt button */}
               <div>
@@ -1059,6 +1074,7 @@ export default function ViewExpensePage() {
                 )}
               </div>
 
+
               {/* Signature Section - Add this section to show the signature */}
               {signatureUrl && (
                 <div className="mt-6">
@@ -1074,7 +1090,7 @@ export default function ViewExpensePage() {
                   </div>
                 </div>
               )}
-              
+
               {/* Show approver signature section only if current user is the approver */}
               {currentUserId === expense.approver_id && (
                 <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">

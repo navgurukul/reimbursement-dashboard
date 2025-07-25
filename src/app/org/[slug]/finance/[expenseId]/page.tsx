@@ -29,7 +29,6 @@ export default function FinanceExpenseDetails() {
   useEffect(() => {
     const fetchExpense = async () => {
       if (!expenseId) return;
-
       const { data, error } = await expenses.getById(expenseId as string);
       if (error || !data) {
         toast.error("Failed to load expense details");
@@ -227,7 +226,7 @@ export default function FinanceExpenseDetails() {
 
           {/* Rejection comment box */}
           {showCommentBox && (
-            <div className="bg-red-50 border border-red-300 rounded p-4 space-y-3">
+            <div className="border border-gray-300 rounded p-4 space-y-3">
               <label className="font-medium text-red-800">
                 Rejection Reason (required)
               </label>
