@@ -437,7 +437,7 @@ export default function ExpensesPage() {
                           {columns
                             .filter((c) => c.visible)
                             .map((c) => (
-                              <TableCell key={c.key} className="break-all whitespace-normal">
+                              <TableCell key={c.key} className="break-words whitespace-normal">
                                 {c.key === "amount" ? (
                                   formatCurrency(exp[c.key])
                                 ) : c.key === "date" ? (
