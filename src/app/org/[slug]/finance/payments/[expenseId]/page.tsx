@@ -129,7 +129,7 @@ export default function PaymentProcessingDetails() {
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Approved Amount</TableHead>
-                                    <TableCell>₹{expense.amount}</TableCell>
+                                    <TableCell>₹{expense.approved_amount}</TableCell>
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Date</TableHead>

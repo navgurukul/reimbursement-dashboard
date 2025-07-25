@@ -68,7 +68,7 @@ export default function PaymentRecords() {
               records.map((record) => (
                 <TableRow key={record.id}>
                   <TableCell className="text-center py-2">{record.creator_email}</TableCell>
-                  <TableCell className="text-center py-2">₹{record.amount}</TableCell>
+                  <TableCell className="text-center py-2">₹{record.approved_amount}</TableCell>
                   <TableCell className="text-center py-2">
                     {new Date(record.date).toLocaleDateString("en-IN")}
                   </TableCell>
