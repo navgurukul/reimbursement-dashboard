@@ -1,9 +1,14 @@
 "use client";
 
+import supabase from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { expenses } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FileText, Clock } from "lucide-react";
+import ExpenseHistory from "../../../expenses/[id]/history/expense-history"
+
 
 import { toast } from "sonner";
 import {
@@ -18,9 +23,12 @@ import { Button } from "@/components/ui/button";
 export default function PaymentProcessingDetails() {
     const { expenseId } = useParams();
     const router = useRouter();
+    const params = useParams();
+    const slug = params.slug as string;
 
     const [expense, setExpense] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [hasVoucher, setHasVoucher] = useState(false);
 
     useEffect(() => {
         const fetchExpense = async () => {
@@ -28,10 +36,64 @@ export default function PaymentProcessingDetails() {
             const { data, error } = await expenses.getById(expenseId as string);
             if (error) toast.error("Failed to load expense details");
             else setExpense(data);
+            // Check if this expense has a voucher
+            const { data: voucherData, error: voucherError } = await supabase
+                .from("vouchers")
+                .select("id, signature_url")
+                .eq("expense_id", expenseId)
+                .maybeSingle();
+
+            if (!voucherError && voucherData) {
+                setHasVoucher(true);
+            }
+
+            const expenseData = { ...data };
+            const signaturePath = expenseData.signature_url;
+            if (signaturePath && !signaturePath.startsWith("http")) {
+                const { data: sigData } = supabase.storage
+                    .from("user-signatures")
+                    .getPublicUrl(signaturePath);
+                if (sigData?.publicUrl) {
+                    expenseData.signature_url = sigData.publicUrl;
+                }
+            }
+
+            // Resolve approver signature
+            const approverSignaturePath = expenseData.approver_signature_url;
+            if (approverSignaturePath && !approverSignaturePath.startsWith("http")) {
+                const { data: approverSigData } = supabase.storage
+                    .from("user-signatures")
+                    .getPublicUrl(approverSignaturePath);
+                if (approverSigData?.publicUrl) {
+                    expenseData.approver_signature_url = approverSigData.publicUrl;
+                }
+            }
+            setExpense(expenseData);
             setLoading(false);
         };
         fetchExpense();
     }, [expenseId]);
+
+    const handleViewReceipt = async () => {
+        if (expense.receipt?.path) {
+            try {
+                const { url, error } = await expenses.getReceiptUrl(
+                    expense.receipt.path
+                );
+                if (error) {
+                    console.error("Error getting receipt URL:", error);
+                    toast.error("Failed to load receipt");
+                    return;
+                }
+                if (url) {
+                    window.open(url, "_blank");
+                }
+            } catch (err) {
+                console.error("Error opening receipt:", err);
+                toast.error("Failed to open receipt");
+            }
+        }
+    };
 
     if (loading) return <div className="p-6 text-gray-600">Loading...</div>;
     if (!expense) return <div className="p-6 text-red-600">Expense not found</div>;
@@ -67,7 +129,7 @@ export default function PaymentProcessingDetails() {
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Approved Amount</TableHead>
-                                    <TableCell>₹{expense.amount}</TableCell>
+                                    <TableCell>₹{expense.approved_amount}</TableCell>
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Date</TableHead>
@@ -88,7 +150,7 @@ export default function PaymentProcessingDetails() {
                                 <TableRow>
                                     <TableHead>Receipt</TableHead>
                                     <TableCell>
-                                        {expense.voucherId ? (
+                                        {/* {expense.voucherId ? (
                                             <Button
                                                 size="sm"
                                                 variant="link"
@@ -102,6 +164,31 @@ export default function PaymentProcessingDetails() {
                                             </Button>
                                         ) : (
                                             "No Voucher"
+                                        )} */}
+                                        {expense.receipt ? (
+                                            <Button
+                                                variant="outline"
+                                                onClick={handleViewReceipt}
+                                                className="flex items-center"
+                                            >
+                                                <FileText className="mr-2 h-4 w-4" />
+                                                View Receipt ({expense.receipt.filename || "Document"})
+                                            </Button>
+                                        ) : hasVoucher ? (
+                                            <Button
+                                                variant="outline"
+                                                className="flex items-center text-blue-600"
+                                                onClick={() =>
+                                                    router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
+                                                }
+                                            >
+                                                <FileText className="mr-2 h-4 w-4" />
+                                                View Voucher
+                                            </Button>
+                                        ) : (
+                                            <p className="text-muted-foreground">
+                                                No receipt or voucher available
+                                            </p>
                                         )}
                                     </TableCell>
                                 </TableRow>
@@ -145,44 +232,17 @@ export default function PaymentProcessingDetails() {
                 {/* Activity History */}
                 <div className="space-y-6">
                     {/* Activity History */}
-                    <div className="bg-white p-6 rounded shadow border">
-                        <h2 className="text-lg font-semibold mb-4">Activity History</h2>
-                        <div className="space-y-4 text-sm text-gray-700">
-                            {expense.history?.length > 0 ? (
-                                expense.history.map((entry: any, i: number) => (
-                                    <div key={i} className="flex items-start gap-2">
-                                        <div className={`w-2 h-2 mt-1 rounded-full ${entry.action === "Approved" ? "bg-green-600" : "bg-blue-500"}`} />
-                                        <div>
-                                            <div className="font-semibold">{entry.action}</div>
-                                            <div className="text-xs text-gray-500">
-                                                {entry.user} · {new Date(entry.timestamp).toLocaleString("en-IN")}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <>
-                                    <div className="flex items-start gap-2">
-                                        <div className="w-2 h-2 mt-1 rounded-full bg-green-600" />
-                                        <div>
-                                            <div className="font-semibold">Approved</div>
-                                            <div className="text-xs text-gray-500">
-                                                {expense.approver?.full_name || "—"} · {new Date().toLocaleString("en-IN")}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                        <div className="w-2 h-2 mt-1 rounded-full bg-blue-500" />
-                                        <div>
-                                            <div className="font-semibold">Created</div>
-                                            <div className="text-xs text-gray-500">
-                                                {expense.creator?.full_name || "—"} · {new Date(expense.date).toLocaleString("en-IN")}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                    {/* Activity History */}
+                    <div className="md:col-span-3">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center">
+                                <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
+                                <CardTitle>Activity History</CardTitle>
+                            </CardHeader>
+                            <CardContent className="max-h-[500px] overflow-auto">
+                                <ExpenseHistory expenseId={typeof expenseId === "string" ? expenseId : ""} />
+                            </CardContent>
+                        </Card>
                     </div>
                 </div>
             </div>

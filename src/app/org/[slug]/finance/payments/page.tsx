@@ -377,7 +377,7 @@ export default function PaymentProcessingOnly() {
                     />
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    {formatCurrency(expense.amount)}
+                    {formatCurrency(expense.approved_amount)}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.currency || "INR"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">
@@ -439,17 +439,7 @@ export default function PaymentProcessingOnly() {
                       Finance Approved
                     </Badge>
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <button
-                      title="Mark as Paid"
-                      onClick={() => handleMarkAsPaidIndividual(expense.id)}
-                      className="text-green-600 hover:text-green-800 transition-transform hover:scale-110"
-                    >
-                      <CheckCircle className="w-5 h-5 " />
-                    </button>
-                  </TableCell>
-
-                  {/* <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="px-4 py-3 text-center space-x-2">
                     <button
                       onClick={() =>
                         router.push(`/org/${orgId}/finance/payments/${expense.id}`)
@@ -458,7 +448,14 @@ export default function PaymentProcessingOnly() {
                     >
                       <Eye className="w-4 h-4 text-gray-700" />
                     </button>
-                  </TableCell> */}
+                    <button
+                      title="Mark as Paid"
+                      onClick={() => handleMarkAsPaidIndividual(expense.id)}
+                      className="text-green-600 hover:text-green-800 transition-transform hover:scale-110"
+                    >
+                      <CheckCircle className="w-5 h-5 " />
+                    </button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
