@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
               display: inline-block;
               background-color: #4f46e5;
               color: white;
+              text-color: white;
               text-decoration: none;
               padding: 12px 24px;
               border-radius: 4px;

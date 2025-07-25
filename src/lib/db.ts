@@ -4,6 +4,8 @@ import { StorageError } from "@supabase/storage-js";
 import { StorageApiError } from "@supabase/storage-js";
 import { getProfileSignatureUrl } from "./utils";
 // Types
+
+
 export interface Organization {
   id: string;
   name: string;
@@ -127,7 +129,10 @@ export type ExpenseStatus =
   | "submitted"
   | "approved"
   | "approved_as_per_policy"
-  | "rejected";
+  | "rejected"
+  // | "finance_approved";
+  |"ready_for_payment";
+
 export type ValidationStatus = "valid" | "warning" | "violation";
 
 export interface ReceiptInfo {
@@ -934,6 +939,8 @@ export const orgSettings = {
   },
 };
 
+
+
 // Expenses functions
 export const expenses = {
   /**
@@ -1414,6 +1421,69 @@ export const expenses = {
       };
     }
   },
+
+
+  /**
+   * Update an expense by finance
+   */
+
+updateByFinance: async (id: string, approved: boolean, comment: string) => {
+  try {
+    const status = approved ? "finance_approved" : "finance_rejected";
+    // const status = approved ? "approved" : "rejected";
+
+    const updates = {
+      status,
+      finance_comment: comment,
+      finance_decision_at: new Date().toISOString(),
+      payment_status: approved ? "pending" : null,
+    };
+
+    // Step 1: Update the expense record
+    const { data, error } = await supabase
+      .from("expenses")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("❌ Expense update error:", error);
+      return { data: null, error };
+    }
+
+    // Step 2: Insert into expense_history
+    // const { error: historyError } = await supabase.from("expense_history").insert({
+    //   expense_id: id,
+    //   action: status,
+    //   actor_type: "finance",
+    //   comment,
+    //   changed_fields: updates, // Make sure 'changed_fields' is a JSONB column in Supabase
+    //   created_at: new Date().toISOString(), // Optional: if you have this field
+    // });
+
+    // if (historyError) {
+    //   console.warn("⚠️ Expense history insert failed:", historyError);
+    //   // Not returning error here to prevent blocking the flow
+    // }
+
+    return { data, error: null };
+
+  } catch (err: any) {
+    console.error(" Unhandled error in updateByFinance:", err);
+
+    return {
+      data: null,
+      error: {
+        message: err.message || "Unexpected error",
+        code: "UNHANDLED_EXCEPTION",
+        details: "",
+        hint: "Check column existence and JSON formats",
+      },
+    };
+  }
+},
+
   /**
    * Update an expense
    */
@@ -1763,7 +1833,7 @@ export const vouchers = {
     path: string
   ): Promise<{ url: string; error: StorageError | null }> => {
     const { data, error } = await supabase.storage
-      .from("voucher-signatures")
+      .from("user-signatures")
       .createSignedUrl(path, 3600); // URL valid for 1 hour
 
     if (error) {
