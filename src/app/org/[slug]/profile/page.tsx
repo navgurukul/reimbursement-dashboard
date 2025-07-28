@@ -356,34 +356,6 @@ export default function ProfilePage() {
             {/* Signature */}
             <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
                 <div className="flex items-center space-x-3">
-                    {/* <svg
-                        className="h-5 w-5 text-gray-500"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                    >
-                        <path
-                            d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                        <path
-                            d="M12.5 18H5C3.89543 18 3 17.1046 3 16V8C3 6.89543 3.89543 6 5 6H19C20.1046 6 21 6.89543 21 8V13"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                        <path
-                            d="M16 20L19 17M19 17L22 20M19 17V15"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg> */}
                     <Signature className="h-5 w-5 text-gray-500" />
                     <Label className="text-sm font-medium text-gray-900">
                         User Signature <span className="text-red-500">*</span>
