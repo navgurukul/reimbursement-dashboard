@@ -11,6 +11,7 @@ import {
     LockKeyhole
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import SignaturePad from "@/components/SignatureCanvas";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
@@ -117,6 +118,13 @@ export default function ProfilePage() {
 
     return (
         <div className="max-w-[1320px] mx-auto min-h-screen">
+            <Button
+                variant="outline"
+                onClick={() => router.push( `/org/${organization?.slug}`)}
+                className="text-sm cursor-pointer"
+            >
+                ← Back to Dashboard
+            </Button>
             <h1 className="text-[1.5rem] font-extrabold mb-1 text-center text-[#111827]">
                 My Profile
             </h1>
@@ -139,7 +147,7 @@ export default function ProfilePage() {
                     <span className="text-[15px] text-[#64748b] mb-4 text-center">
                         Upload a photo to personalize your profile
                     </span>
-                    <button className="w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9]">
+                    <button className="w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer">
                         <Upload className="w-5 h-5 text-[#64748b]" />
                         Upload Photo
                     </button>
