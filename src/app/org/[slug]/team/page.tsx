@@ -30,9 +30,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Trash, Copy, Link2 } from "lucide-react";
+import { Trash, Copy, Link2, Users, User, Shield } from "lucide-react";
 import supabase from "@/lib/supabase"; // Add this import
 import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface Member {
   id: string;
@@ -66,8 +73,10 @@ export default function TeamPage() {
   const [multiUserRole, setMultiUserRole] = useState<
     "member" | "manager" | "admin"
   >("member");
+  const [showInviteCard, setShowInviteCard] = useState(false);
   const [generatedLink, setGeneratedLink] = useState("");
   const [linkLoading, setLinkLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'email' | 'link'>('email');
   const [loading, setLoading] = useState(false);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -175,7 +184,7 @@ export default function TeamPage() {
       // If we have an invite URL, copy it and show it to the user
       if (data.inviteUrl) {
         await navigator.clipboard.writeText(data.inviteUrl);
-        toast.success("Invitation created successfully!", {
+        toast.success("Invitation Sended successfully!", {
           description: "Share this link with the invited user.",
           duration: 5000,
         });
@@ -198,6 +207,16 @@ export default function TeamPage() {
     }
   };
 
+
+  // Add this wrapper function inside your TeamPage component
+  const handleInviteSubmitWrapper = (event: React.MouseEvent<HTMLButtonElement> | React.FormEvent<HTMLFormElement>) => {
+    // If it's a form event, prevent default behavior
+    if (event.type === 'submit') {
+      event.preventDefault();
+    }
+    // Call the original handler
+    handleInviteSubmit(event as React.FormEvent<HTMLFormElement>);
+  };
 
   // Handle multi-user link generation
   const handleGenerateLink = async () => {
@@ -264,7 +283,6 @@ export default function TeamPage() {
     }
   };
 
-
   const handleDeleteMember = async (memberId: string) => {
     if (!org?.id) return;
 
@@ -328,193 +346,268 @@ export default function TeamPage() {
     setMemberToDelete(null);
   };
 
-
-
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Team Members</h1>
+          <p className="text-sm text-muted-foreground">
+            {org?.name} — {members.length} member{members.length !== 1 && "s"}
+          </p>
+        </div>
+        {(userRole === "owner" || userRole === "admin") && (
+          <Button
+            onClick={() => setShowInviteCard(true)}
+            className="bg-primary text-white"
+          >
+            Invite Members
+          </Button>
+        )}
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Team Members</CardTitle>
-          <CardDescription>
-            {org?.name} — {members.length} member
-            {members.length !== 1 && "s"}
-          </CardDescription>
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Users className="w-5 h-5 text-gray-700" /> {/* Lucide Users icon */}
+            Active Members
+          </CardTitle>
+          <CardDescription>Manage your team members and their roles.</CardDescription>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="space-y-4">
           {isLoadingMembers ? (
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={3}
-                      className="text-center py-4 text-muted-foreground"
-                    >
-                      No team members found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  members.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell>{m.fullName || "—"}</TableCell>
-                      <TableCell>{m.email}</TableCell>
-                      <TableCell className="capitalize">{m.role}</TableCell>
-                      <TableCell>
-                        {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
-                          <Trash
-                            className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
-                            onClick={() => confirmDeleteMember(m.id)}
-                          />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            members.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
+              >
+                <div>
+                  <div className="font-medium">{m.fullName || "—"}</div>
+                  <div className="text-sm text-muted-foreground">{m.email}</div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : m.role === "admin"
+                        ? "bg-red-100 text-red-800"
+                        : m.role === "manager"
+                          ? "bg-indigo-100 text-indigo-800"
+                          : "bg-green-100 text-green-800"
+                      }`}
+                  >
+                    {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 font-medium">
+                    Active
+                  </span>
+
+                  {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
+                    <Trash
+                      className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
+                      onClick={() => confirmDeleteMember(m.id)}
+                    />
+                  )}
+                </div>
+              </div>
+            ))
           )}
         </CardContent>
       </Card>
 
-      {/* Invite Form (only owners/admins/managers) */}
-      {(userRole === "owner" || userRole === "admin") && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Invite New Team Members</CardTitle>
-            <CardDescription>
-              Invite people via email or generate a shareable link.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-8">
-            {/* Email Invite */}
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground mb-2">
-                Send an email invite:
+      {/* Invite Modal */}
+
+      <Dialog open={showInviteCard} onOpenChange={setShowInviteCard}>
+        <DialogContent className="max-w-[500px] bg-white text-gray-900">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">Invite New Team Members</DialogTitle>
+            <DialogDescription className="text-gray-600 text-sm">
+              Add new members to your team by sending email invitations or generating a shareable link.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200">
+            <button
+              className={`px-4 py-2 text-sm font-medium ${activeTab === 'email' ? 'text-black border-b-2 border-black' : 'text-gray-500'}`}
+              onClick={() => setActiveTab('email')}
+            >
+              Email Invites
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium ${activeTab === 'link' ? 'text-black border-b-2 border-black' : 'text-gray-500'}`}
+              onClick={() => setActiveTab('link')}
+            >
+              Shareable Link
+            </button>
+          </div>
+
+          {/* Email Invite Tab */}
+          {activeTab === 'email' && (
+            <div className="space-y-4 pt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email Addresses</label>
+                <textarea
+                  className="w-full p-2 border border-gray-300 rounded text-sm h-24"
+                  placeholder="john@example.com&#10;sarah@example.com&#10;mike@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter one email address per line. You can invite multiple people at once.
+                </p>
               </div>
-              <form className="grid grid-cols-1 gap-4 sm:grid-cols-3" onSubmit={handleInviteSubmit}>
-                <div className="sm:col-span-2">
-                  <Input
-                    placeholder="their‑email@example.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    required
-                    type="email"
-                  />
-                </div>
-                <Select
-                  value={inviteRole}
-                  onValueChange={(v: any) => setInviteRole(v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Role" />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Default Role</label>
+                <Select value={inviteRole} onValueChange={(v: any) => setInviteRole(v)}>
+                  <SelectTrigger className="w-full border-gray-300">
+                    <SelectValue placeholder="Select role" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     <SelectGroup>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="member" className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        Member
+                      </SelectItem>
+                      <SelectItem value="manager" className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Manager
+                      </SelectItem>
                       {(userRole === "owner" || userRole === "admin") && (
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="admin" className="flex items-center gap-2">
+                          <Shield className="w-4 h-4" />
+                          Admin
+                        </SelectItem>
                       )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <Button type="submit" disabled={loading} className="col-span-full sm:col-auto">
-                  {loading ? "Sending…" : "Send Invite"}
-                </Button>
-              </form>
-            </div>
-
-            {/* Multi-User Link */}
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                Or generate a shareable invite link:
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-black"
+                  onClick={() => setShowInviteCard(false)}
+                >
+                  Cancel
+                </Button>
+
+                {/* // Then modify your button to use the wrapper */}
+                <Button
+                  className="bg-black text-white hover:bg-gray-800"
+                  onClick={handleInviteSubmitWrapper}
+                  disabled={loading}
+                >
+                  {loading ? <Spinner className="mr-2 h-4 w-4" /> : null}
+                  {loading ? "Sending..." : "Send invitations"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Shareable Link Tab */}
+          {activeTab === 'link' && (
+            <div className="space-y-4 pt-4">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-black flex-1"
+                  onClick={handleGenerateLink}
+                  disabled={linkLoading}
+                >
+                  {linkLoading ? <Spinner className="mr-2 h-4 w-4" /> : <Link2 className="w-4 h-4 mr-2" />}
+                  {linkLoading ? "Generating..." : "Generate Link"}
+                </Button>
                 <Select
                   value={multiUserRole}
                   onValueChange={(v: any) => setMultiUserRole(v)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Role" />
+                  <SelectTrigger className="w-[150px] border-gray-300">
+                    <SelectValue placeholder="Select role" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     <SelectGroup>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="member" className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        Member
+                      </SelectItem>
+                      <SelectItem value="manager" className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Manager
+                      </SelectItem>
                       {(userRole === "owner" || userRole === "admin") && (
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="admin" className="flex items-center gap-2">
+                          <Shield className="w-4 h-4" />
+                          Admin
+                        </SelectItem>
                       )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
-                  onClick={handleGenerateLink}
-                  disabled={linkLoading}
-                  className="cursor-pointer"
-                >
-                  <Link2 className="w-4 h-4 mr-2" />
-                  {linkLoading ? "Generating…" : "Generate Link"}
-                </Button>
               </div>
-
               {generatedLink && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Generated Invite Link:</label>
+                  <label className="text-sm font-medium text-gray-700">Generated Link</label>
                   <div className="flex gap-2">
-                    <Input value={generatedLink} readOnly className="font-mono text-sm" />
-                    <Button type="button" variant="outline" size="icon" onClick={copyLinkToClipboard}>
+                    <Input
+                      value={generatedLink}
+                      readOnly
+                      className="font-mono text-sm border-gray-300"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="border-gray-300 hover:bg-gray-50"
+                      onClick={copyLinkToClipboard}
+                    >
                       <Copy className="w-4 h-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Anyone with this link can join your organization as a {multiUserRole}.
+                  <p className="text-xs text-gray-500">
+                    Anyone with this link can join as {multiUserRole}.
                   </p>
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white p-6 rounded shadow-md w-full max-w-sm">
-            <h2 className="text-lg font-semibold mb-4">Are you sure you want to delete this user?</h2>
-            <div className="flex justify-center space-x-4">
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Are you sure you want to delete this user?</DialogTitle>
+              <DialogDescription>
+                This action cannot be undone. The user will be permanently removed from your organization.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-4">
               <Button
-                className="cursor-pointer"
                 variant="outline"
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setMemberToDelete(null);
                 }}
               >
-                No
+                Cancel
               </Button>
               <Button
-                className="cursor-pointer"
                 variant="destructive"
                 onClick={executeDeleteMember}
               >
-                Yes
+                Delete User
               </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
 }
+
