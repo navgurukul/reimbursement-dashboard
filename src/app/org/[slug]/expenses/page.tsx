@@ -373,7 +373,7 @@ export default function ExpensesPage() {
                 <CardHeader>
                   <CardTitle className="text-sm">Rejected</CardTitle>
                 </CardHeader>
-                <CardContent className="text-red-600">
+                <CardContent className="text-red-600 ">
                   {stats.rejected}
                 </CardContent>
               </Card>
@@ -507,7 +507,7 @@ export default function ExpensesPage() {
                                 ? "bg-green-100 text-green-800"
                                 : exp.status === "finance_approved"
                                   ? "bg-green-100 text-green-800"
-                                  : exp.status === "finance_rejected"
+                                  : exp.status === "finance_rejected" || exp.status === "rejected"
                                     ? "bg-red-100 text-red-800"
                                     : exp.status === "submitted"
                                       ? "bg-yellow-100 text-yellow-800"
