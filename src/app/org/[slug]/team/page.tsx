@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Trash, Copy, Link2, Users, User, Shield } from "lucide-react";
+import { Trash, Copy, Link2, Users, User, Shield, Settings } from "lucide-react";
 import supabase from "@/lib/supabase"; // Add this import
 import { useRouter } from "next/navigation";
 import {
@@ -453,7 +453,7 @@ export default function TeamPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Addresses</label>
                 <textarea
-                  className="w-full p-2 border border-gray-300 rounded text-sm h-24"
+                  className="w-full p-2 border border-gray-300 rounded text-sm h-15"
                   placeholder="john@example.com&#10;sarah@example.com&#10;mike@example.com"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
@@ -470,24 +470,32 @@ export default function TeamPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-white">
                     <SelectGroup>
-                      <SelectItem value="member" className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        Member
+                      <SelectItem value="member">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          <span>Member</span>
+                        </div>
                       </SelectItem>
-                      <SelectItem value="manager" className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        Manager
+                      <SelectItem value="manager">
+                        <div className="flex items-center gap-2">
+                          <Settings className="w-4 h-4" />
+                          <span>Manager</span>
+                        </div>
                       </SelectItem>
                       {(userRole === "owner" || userRole === "admin") && (
-                        <SelectItem value="admin" className="flex items-center gap-2">
-                          <Shield className="w-4 h-4" />
-                          Admin
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            <span>Admin</span>
+                          </div>
                         </SelectItem>
                       )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+
               </div>
+
               <div className="flex justify-end gap-3 pt-4">
                 <Button
                   variant="outline"
@@ -532,23 +540,30 @@ export default function TeamPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-white">
                     <SelectGroup>
-                      <SelectItem value="member" className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        Member
+                      <SelectItem value="member">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          <span>Member</span>
+                        </div>
                       </SelectItem>
-                      <SelectItem value="manager" className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        Manager
+                      <SelectItem value="manager">
+                        <div className="flex items-center gap-2">
+                          <Settings className="w-4 h-4" />
+                          <span>Manager</span>
+                        </div>
                       </SelectItem>
                       {(userRole === "owner" || userRole === "admin") && (
-                        <SelectItem value="admin" className="flex items-center gap-2">
-                          <Shield className="w-4 h-4" />
-                          Admin
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            <span>Admin</span>
+                          </div>
                         </SelectItem>
                       )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+
               </div>
               {generatedLink && (
                 <div className="space-y-2">
