@@ -50,17 +50,17 @@ export default function BankDetailsPage() {
     fetchBankDetails();
   }, [search, currentPage]);
 
-  async function fetchBankDetails() {
-    const query = supabase
-      .from("bank_details")
-      .select("*", { count: "exact" })
-      .order("id", { ascending: false })
-      .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+    async function fetchBankDetails() {
+        let query = supabase
+            .from("bank_details")
+            .select("*", { count: "exact" })
+            .order("id", { ascending: false });
 
-    if (search) {
-      query.ilike("account_holder", `%${search}%`);
-    }
+        if (search) {
+            query = query.or(`account_holder.ilike.%${search}%,email.ilike.%${search}%`);
+        }
 
+        query = query.range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
     const { data, error } = await query;
 
     if (error) {
@@ -187,7 +187,7 @@ export default function BankDetailsPage() {
       {/* Search */}
       <Input
         type="text"
-        placeholder="Search by account name..."
+        placeholder="Search by account name or email..."
         value={search}
         onChange={(e) => {
           setCurrentPage(1);
@@ -253,8 +253,13 @@ export default function BankDetailsPage() {
           Previous
         </Button>
         <span>Page {currentPage}</span>
-        <Button onClick={() => setCurrentPage((p) => p + 1)}>Next</Button>
-      </div>
-    </div>
-  );
+            <Button 
+                onClick={() => setCurrentPage((p) => p + 1)}
+                disabled={data.length < PAGE_SIZE}
+                >
+                    Next
+            </Button>
+            </div>
+        </div>
+    );
 }
