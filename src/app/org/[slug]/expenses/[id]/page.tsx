@@ -824,7 +824,7 @@ export default function ViewExpensePage() {
               </div>
               <Button
                 onClick={handleApproveCustomAmount}
-                  className="bg-[#0353a4] hover:bg-[#02458b] text-white"
+                className="bg-[#0353a4] hover:bg-[#02458b] text-white"
 
                 disabled={updateLoading || !customAmount}
               >
@@ -847,7 +847,6 @@ export default function ViewExpensePage() {
             <>
               <Button
                 variant="destructive"
-                // className="text-black-600 bg-red-600 hover:bg-red-30"
                 onClick={handleReject}
                 disabled={updateLoading}
               >
@@ -886,11 +885,10 @@ export default function ViewExpensePage() {
                     )}
                     Approve full amount
                   </Button>
-
                   <Button
-                  variant="secondary"
-                  onClick={() => handleApprove("custom")}
-                  disabled={updateLoading}
+                    variant="secondary"
+                    onClick={() => handleApprove("custom")}
+                    disabled={updateLoading}
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
@@ -899,12 +897,13 @@ export default function ViewExpensePage() {
                     )}
                     Custom amount
                   </Button>
+
                 </>
               ) : (
                 <>
                   <Button
                     onClick={() => handleApprove("full")}
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    variant="default"
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
