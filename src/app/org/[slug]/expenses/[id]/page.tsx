@@ -915,8 +915,7 @@ export default function ViewExpensePage() {
                   </Button>
                   <Button
                     onClick={() => handleApprove("custom")}
-                    className="bg-[#2176ff] hover:bg-[#7b94aa] text-white font-medium border border-[#7b94aa]"
-
+                    variant="secondary"
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
