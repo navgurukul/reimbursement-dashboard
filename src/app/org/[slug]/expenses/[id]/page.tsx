@@ -824,7 +824,9 @@ export default function ViewExpensePage() {
               </div>
               <Button
                 onClick={handleApproveCustomAmount}
-                className="bg-blue-600 hover:bg-blue-700"
+                // className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-[#0353a4] hover:bg-[#02458b] text-white"
+
                 disabled={updateLoading || !customAmount}
               >
                 {updateLoading ? (
@@ -846,7 +848,9 @@ export default function ViewExpensePage() {
             <>
               <Button
                 variant="outline"
-                className="bg-white"
+                // className="bg-white"
+                className="text-black-600 bg-red-600 hover:bg-red-30"
+
                 onClick={handleReject}
                 disabled={updateLoading}
               >
@@ -904,7 +908,9 @@ export default function ViewExpensePage() {
                   <Button
                     onClick={() => handleApprove("full")}
                     // className="bg-green-600 hover:bg-green-700"
-                    className="bg-[#A1A79E] hover:bg-[#949A91] text-white font-medium border border-[#949A91]"
+                    // className="bg-[#A1A79E] hover:bg-[#949A91] text-white font-medium border border-[#949A91]"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
@@ -919,7 +925,7 @@ export default function ViewExpensePage() {
                     onClick={() => handleApprove("custom")}
                     // className="bg-blue-200 hover:bg-blue-200 text-white-800 font-medium"
                     // className="bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 font-medium"
-                    className="bg-[#88A5BC] hover:bg-[#7b94aa] text-white font-medium border border-[#7b94aa]"
+                    className="bg-[#2176ff] hover:bg-[#7b94aa] text-white font-medium border border-[#7b94aa]"
 
                     disabled={updateLoading}
                   >
