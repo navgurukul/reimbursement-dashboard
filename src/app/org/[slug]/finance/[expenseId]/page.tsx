@@ -213,7 +213,7 @@ export default function FinanceExpenseDetails() {
                   <TableCell>{expense.approver?.full_name || "—"}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableHead>Receipt</TableHead>
+                  <TableHead>Receipt/Voucher</TableHead>
                   <TableCell>
                     {expense.receipt ? (
                       <Button
@@ -244,7 +244,8 @@ export default function FinanceExpenseDetails() {
                 </TableRow>
                 <TableRow>
                   <TableHead>Description</TableHead>
-                  <TableCell>{expense.custom_fields?.description || expense.custom_fields?.Description || "—"}</TableCell>
+                  <TableCell>{expense.custom_fields?.description || "—"}</TableCell>
+
                 </TableRow>
                 <TableRow>
                   <TableHead>Signature</TableHead>

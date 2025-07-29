@@ -148,7 +148,7 @@ export default function PaymentProcessingDetails() {
                                     <TableCell>{expense.approver?.full_name || "—"}</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                    <TableHead>Receipt</TableHead>
+                                    <TableHead>Receipt/Voucher</TableHead>
                                     <TableCell>
                                         {/* {expense.voucherId ? (
                                             <Button
@@ -194,7 +194,7 @@ export default function PaymentProcessingDetails() {
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Description</TableHead>
-                                    <TableCell>{expense.custom_fields?.description || expense.custom_fields?.Description || "—"}</TableCell>
+                                    <TableCell>{expense.custom_fields?.description || "—"}</TableCell>
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Signature</TableHead>

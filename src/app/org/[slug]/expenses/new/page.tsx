@@ -739,23 +739,13 @@ export default function NewExpensePage() {
       const approver_id = formData.approver || null;
       const signature_url_to_use = voucherModalOpen ? voucher_signature_url : expense_signature_url;
 
-      // const custom_fields: Record<string, any> = {};
-      // columns.forEach((col) => {
-      //   if (
-      //     col.visible &&
-      //     col.key !== "expense_type" &&
-      //     col.key !== "amount" &&
-      //     col.key !== "date" &&
-      //     col.key !== "approver" &&
-      //     col.key !== "event_id"
-      //   ) {
-      //     // const label=col.label?.trim();
-      //     // if(label){
-      //     //   custom_fields[label]=formData[col.key]
-      //     // }
-      //     custom_fields[col.key] = formData[col.key];
-      //   }
-      // });
+      const sanitizeLabel = (label: string): string => {
+        return label
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, "")
+          .replace(/\s+/g, "_");
+      };
 
       const custom_fields: Record<string, any> = {};
       columns.forEach((col) => {
@@ -767,8 +757,9 @@ export default function NewExpensePage() {
           col.key !== "approver" &&
           col.key !== "event_id"
         ) {
-          const label = col.label?.trim();
+          let label = col.label?.trim();
           if (label) {
+            label = sanitizeLabel(label);
             custom_fields[label] = formData[col.key];
           }
         }
@@ -776,7 +767,7 @@ export default function NewExpensePage() {
 
 
       if (voucherModalOpen) {
-        custom_fields["description"] = formData.purpose || "Cash Voucher";
+        custom_fields["description"] = formData.description || "Cash Voucher";
       }
 
       const approverProfile = await profiles.getById(formData.approver);
@@ -1453,35 +1444,6 @@ export default function NewExpensePage() {
                         })}
                       </div>
                     )}
-                    {/* {col.type === "radio" && col.options && (
-                      <div className="space-y-1">
-                        {col.options.map((option: any) => {
-                          const value = typeof option === "string" ? option : option.value;
-                          const label = typeof option === "string" ? option : option.label;
-                          const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
-                          const selectedRadioValue =
-                            typeof currentValue === "string" || typeof currentValue === "number"
-                              ? String(currentValue)
-                              : "";
-                          return (
-                            <div key={value} className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id={`${col.key}-${value}-${id}`} // Include itemId in id for uniqueness
-                                name={`${col.key}-${id}`} // Include itemId in name to create separate radio groups
-                                value={value}
-                                checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
-                                onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
-                                className="h-4 w-4 text-blue-600 border-gray-300"
-                              />
-                              <label htmlFor={`${col.key}-${value}-${id}`} className="text-sm text-gray-700">
-                                {label}
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )} */}
                     {col.type === "checkbox" && col.options && (
                       <div className="space-y-2">
                         {col.options.map((option: any) => {

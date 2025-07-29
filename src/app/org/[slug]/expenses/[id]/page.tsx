@@ -109,6 +109,7 @@ export default function ViewExpensePage() {
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
   });
+  const [customFields, setCustomFields] = useState<any[]>([]);
 
   // Load the user's saved signature if it exists
   useEffect(() => {
@@ -150,6 +151,29 @@ export default function ViewExpensePage() {
     fetchUserSignature();
   }, [user?.id]);
 
+  useEffect(() => {
+    async function fetchOrgSettings() {
+      const { data, error } = await supabase
+        .from("org_settings")
+        .select("expense_columns")
+        .eq("org_id", organization?.id)
+        .single();
+
+      if (error) {
+        console.error("Error fetching custom fields:", error);
+        return;
+      }
+
+      if (data?.expense_columns) {
+        setCustomFields(data.expense_columns);
+      }
+    }
+
+    if (organization?.id) {
+      fetchOrgSettings();
+    }
+  }, [organization?.id]);
+  
   // Fetch the current user ID when the component mounts
   useEffect(() => {
     async function getCurrentUser() {
@@ -1030,7 +1054,7 @@ export default function ViewExpensePage() {
               {/* Receipt section with View Receipt button */}
               <div>
                 <p className="text-sm font-medium text-muted-foreground mb-2">
-                  Receipt
+                  Receipt/Voucher
                 </p>
                 {expense.receipt ? (
                   <Button
@@ -1074,7 +1098,7 @@ export default function ViewExpensePage() {
                   </div>
                 </div>
               )}
-              
+
               {/* Show approver signature section only if current user is the approver */}
               {currentUserId === expense.approver_id && (
                 <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
@@ -1135,7 +1159,7 @@ export default function ViewExpensePage() {
               )}
 
               {/* Custom fields section */}
-              {expense.custom_fields &&
+              {/* {expense.custom_fields &&
                 Object.keys(expense.custom_fields).length > 0 && (
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     {Object.entries(expense.custom_fields).map(([key, value]) => (
@@ -1146,6 +1170,23 @@ export default function ViewExpensePage() {
                         <p>{(value as string) || "—"}</p>
                       </div>
                     ))}
+                  </div>
+                )} */}
+              {expense.custom_fields &&
+                Object.keys(expense.custom_fields).length > 0 &&
+                customFields.length > 0 && ( // make sure customFields are loaded
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    {Object.entries(expense.custom_fields).map(([key, value]) => {
+                      const matchedField = customFields.find((field) => field.key === key);
+                      return (
+                        <div key={key}>
+                          <p className="text-sm font-medium text-muted-foreground">
+                            {matchedField?.label || formatFieldName(key)}
+                          </p>
+                          <p>{value !== undefined && value !== "" ? String(value) : "—"}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
             </CardContent>
