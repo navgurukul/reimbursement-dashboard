@@ -36,6 +36,8 @@ export default function BankDetailsPage() {
   const [editing, setEditing] = useState<BankDetail | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+
 
   const [form, setForm] = useState<Omit<BankDetail, "id">>({
     account_holder: "",
@@ -45,6 +47,7 @@ export default function BankDetailsPage() {
     email: "",
     unique_id: "",
   });
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     fetchBankDetails();
@@ -60,8 +63,11 @@ export default function BankDetailsPage() {
             query = query.or(`account_holder.ilike.%${search}%,email.ilike.%${search}%`);
         }
 
-        query = query.range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
-    const { data, error } = await query;
+    const from = (currentPage - 1) * PAGE_SIZE;
+    const to = currentPage * PAGE_SIZE - 1;
+
+    // Run the query with range
+    const { data, count, error } = await query.range(from, to);
 
     if (error) {
       toast.error("Failed to fetch data");
@@ -69,20 +75,91 @@ export default function BankDetailsPage() {
     }
 
     setData(data || []);
+    setTotalCount(count || 0);
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+
+    const newErrors = { ...errors };
+
+    switch (name) {
+      case "account_holder":
+        if (!value.trim()) newErrors[name] = "Account holder is required";
+        else if (value.length < 2) newErrors[name] = "Minimum 2 characters";
+        else if (/^\d+$/.test(value)) newErrors[name] = "Account holder cannot be only numbers";
+        else delete newErrors[name];
+        break;
+
+      case "account_number":
+        if (!value.trim()) newErrors[name] = "Account number is required";
+        else if (!/^\d+$/.test(value)) newErrors[name] = "Only digits allowed";
+        else if (value.length < 9 || value.length > 18)
+          newErrors[name] = "Must be 9–18 digits";
+        else delete newErrors[name];
+        break;
+
+      case "ifsc_code":
+        if (!value.trim()) newErrors[name] = "IFSC code is required";
+        else delete newErrors[name];
+        break;
+
+      case "bank_name":
+        if (!value.trim()) newErrors[name] = "Bank name is required";
+        else if (value.length < 3) newErrors[name] = "Minimum 3 characters";
+        else delete newErrors[name];
+        break;
+
+      case "email":
+        if (!value.trim()) newErrors[name] = "Email is required";
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+          newErrors[name] = "Invalid email address";
+        else delete newErrors[name];
+        break;
+
+      default:
+        break;
+    }
+
+    setErrors(newErrors);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const newErrors: { [key: string]: string } = {};
+
+    if (!form.account_holder.trim())
+      newErrors.account_holder = "Account holder is required";
+    else if (form.account_holder.length < 2)
+      newErrors.account_holder = "Minimum 2 characters";
+
+    if (!form.account_number.trim())
+      newErrors.account_number = "Account number is required";
+    else if (!/^\d+$/.test(form.account_number))
+      newErrors.account_number = "Only digits allowed";
+    else if (form.account_number.length < 9 || form.account_number.length > 18)
+      newErrors.account_number = "Must be 9–18 digits";
+
+    if (!form.ifsc_code.trim()) newErrors.ifsc_code = "IFSC code is required";
+
+    if (!form.bank_name.trim()) newErrors.bank_name = "Bank name is required";
+    else if (form.bank_name.length < 3)
+      newErrors.bank_name = "Minimum 3 characters";
+
+    if (!form.email.trim()) newErrors.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
+      newErrors.email = "Invalid email address";
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) return;
+
     if (editing) {
-      // Ask for confirmation before update
       setShowConfirmDialog(true);
     } else {
-      await saveForm(); // Insert directly
+      await saveForm();
     }
   };
 
@@ -112,6 +189,7 @@ export default function BankDetailsPage() {
       email: "",
       unique_id: "",
     });
+    setErrors({});
     fetchBankDetails();
     setDialogOpen(false);
     setShowConfirmDialog(false);
@@ -124,6 +202,15 @@ export default function BankDetailsPage() {
         <Button
           onClick={() => {
             setEditing(null);
+            setForm({
+              account_holder: "",
+              account_number: "",
+              ifsc_code: "",
+              bank_name: "",
+              email: "",
+              unique_id: "",
+            });
+            setErrors({});
             setDialogOpen(true);
           }}
         >
@@ -154,8 +241,10 @@ export default function BankDetailsPage() {
                   name={name}
                   value={(form as any)[name]}
                   onChange={handleInputChange}
-                  required
                 />
+                {errors[name] && (
+                  <p className="text-red-500 text-xs mt-1">{errors[name]}</p>
+                )}
               </div>
             ))}
             <Button type="submit">{editing ? "Update" : "Save"}</Button>
@@ -163,7 +252,7 @@ export default function BankDetailsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Custom Confirmation Dialog for Update */}
+      {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="max-w-xs mx-auto p-4 rounded shadow bg-white">
           <DialogTitle className="text-lg font-semibold">
@@ -232,6 +321,7 @@ export default function BankDetailsPage() {
                     onClick={() => {
                       setEditing(row);
                       setForm({ ...row });
+                      setErrors({});
                       setDialogOpen(true);
                     }}
                   >
@@ -252,14 +342,16 @@ export default function BankDetailsPage() {
         >
           Previous
         </Button>
-        <span>Page {currentPage}</span>
-            <Button 
-                onClick={() => setCurrentPage((p) => p + 1)}
-                disabled={data.length < PAGE_SIZE}
-                >
-                    Next
-            </Button>
-            </div>
-        </div>
-    );
+        <span>
+          Page {currentPage} of {Math.ceil(totalCount / PAGE_SIZE)}
+        </span>
+        <Button 
+          onClick={() => setCurrentPage((p) => p + 1)}
+          disabled={data.length < PAGE_SIZE}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
 }
