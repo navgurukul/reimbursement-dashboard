@@ -82,15 +82,24 @@ export function AppSidebar() {
       icon: FileText,
     },
     {
-      title: "Expense Events", // Add this new item
+      title: "Expense Events",
       href: `/org/${organization?.slug}/expense-events`,
       icon: Calendar,
     },
-    ...(isAdmin ? [{
-    title: "Finance Management",
-    href: `/org/${organization?.slug}/finance`,
-    icon: Landmark,
-  }] : [])
+    ...(isAdmin
+      ? [
+          {
+            title: "Finance Management",
+            href: `/org/${organization?.slug}/finance`,
+            icon: Landmark,
+          },
+          {
+            title: "Bank Details",
+            href: `/org/${organization?.slug}/bank-details`,
+            icon: Receipt,
+          },
+        ]
+      : []),
   ];
 
   const adminRoutes = {
