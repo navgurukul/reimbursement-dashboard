@@ -932,7 +932,7 @@ export default function ViewExpensePage() {
         </div>
       )}
 
-      {/* Adjusted grid - added gap-6 to create more space between cards */}
+      {/* Adjusted grid - added gap-6 to create more space between card */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Main content - takes slightly more than 3/4 of the space */}
         <div className="lg:col-span-3">
