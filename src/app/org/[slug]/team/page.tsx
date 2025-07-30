@@ -505,7 +505,7 @@ export default function TeamPage() {
                   Cancel
                 </Button>
 
-                {/* // Then modify your button to use the wrapper */}
+                {/*Then modify your button to use the wrapper */}
                 <Button
                   className="bg-black text-white hover:bg-gray-800"
                   onClick={handleInviteSubmitWrapper}
