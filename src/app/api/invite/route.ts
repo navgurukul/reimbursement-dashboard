@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
               <p>You've been invited to join <strong>${orgName}</strong> as a <strong>${role}</strong> on the Reimbursement App.</p>
               <p>Click the button below to accept the invitation and create your account:</p>
               <p style="text-align: center;">
-                <a href="${signupUrl}" class="button">Accept Invitation</a>
+                <a href="${signupUrl}" class="button" style="color: white; font-size: 16px; font-weight: bold;">Accept Invitation</a>
               </p>
               <p>Or copy and paste this link into your browser:</p>
               <p style="word-break: break-all;">${signupUrl}</p>
