@@ -507,22 +507,52 @@ export default function ExpensesPage() {
 
                                     (() => {
                                       // Direct value first
-                                      if (exp[c.key] !== undefined && exp[c.key] !== null) return exp[c.key];
+                                      let value = exp[c.key];
+                                      if (value !== undefined && value !== null) {
+                                        if (Array.isArray(value)) {
+                                          // ✅ Sort + join with commas
+                                          return value.sort().join(", ");
+                                        } else if (typeof value === "string" && value.includes("box")) {
+                                          // ✅ Handle concatenated strings like "box 1box 2box 3"
+                                          return value
+                                            .match(/box\s*\d+/g) // extract ["box 1", "box 2", "box 3"]
+                                            ?.sort()
+                                            .join(", ") || value;
+                                        }
+                                        return value;
+                                      }
 
                                       // Check custom_fields with key or label
                                       if (exp.custom_fields) {
-                                        if (exp.custom_fields[c.key] !== undefined) return exp.custom_fields[c.key];
-                                        if (exp.custom_fields[c.label] !== undefined) return exp.custom_fields[c.label];
+                                        value =
+                                          exp.custom_fields[c.key] ??
+                                          exp.custom_fields[c.label];
+
+                                        if (value !== undefined) {
+                                          if (Array.isArray(value)) {
+                                            return value.sort().join(", ");
+                                          } else if (typeof value === "string" && value.includes("box")) {
+                                            return value
+                                              .match(/box\s*\d+/g)
+                                              ?.sort()
+                                              .join(", ") || value;
+                                          }
+                                          return value;
+                                        }
 
                                         // Try case-insensitive or snake_case match
-                                        const normalizedLabel = c.label
-                                          .toLowerCase()
-                                          .replace(/\s+/g, "_");
-
+                                        const normalizedLabel = c.label.toLowerCase().replace(/\s+/g, "_");
                                         const matchKey = Object.keys(exp.custom_fields).find(
                                           (k) => k.toLowerCase() === normalizedLabel
                                         );
-                                        if (matchKey) return exp.custom_fields[matchKey];
+                                        if (matchKey) {
+                                          let val = exp.custom_fields[matchKey];
+                                          if (Array.isArray(val)) return val.sort().join(", ");
+                                          if (typeof val === "string" && val.includes("box")) {
+                                            return val.match(/box\s*\d+/g)?.sort().join(", ") || val;
+                                          }
+                                          return val;
+                                        }
                                       }
                                       return "—";
                                     })()
