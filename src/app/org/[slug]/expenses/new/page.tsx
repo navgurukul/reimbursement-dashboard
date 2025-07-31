@@ -1765,7 +1765,7 @@ export default function NewExpensePage() {
 
 
                         return (
-                          <div key={col.key} className="space-y-2">
+                          <div key={col.key} className="space-y-2 mt-5">
                             <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
                               {col.label}
                               {col.required && (
@@ -1965,7 +1965,7 @@ export default function NewExpensePage() {
 
 
                       {/* Receipt Upload */}
-                      <div className="space-y-2">
+                      <div className="space-y-2 mt-5">
                         <Label className="text-sm font-medium text-gray-700">Receipt</Label>
 
                         <div className="p-4 bg-gray-50/50 rounded-lg border">
