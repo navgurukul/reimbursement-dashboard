@@ -173,7 +173,7 @@ export default function ViewExpensePage() {
       fetchOrgSettings();
     }
   }, [organization?.id]);
-  
+
   // Fetch the current user ID when the component mounts
   useEffect(() => {
     async function getCurrentUser() {
@@ -811,6 +811,28 @@ export default function ViewExpensePage() {
       : "Expense Details";
   };
 
+  // Format checkbox or multi-select values safely
+  const formatFieldValue = (val: any): string => {
+    if (val === undefined || val === null) return "—";
+
+    // Array case: ["option 1", "option 2"]
+    if (Array.isArray(val)) {
+      return val.sort().join(", ");
+    }
+
+    // String case: "box 1box 2box 3" or "option1option2"
+    if (typeof val === "string") {
+      const matches = val.match(/(box\s*\d+|option\s*\d+)/gi);
+      if (matches) {
+        return matches.sort().join(", ");
+      }
+      return val; // fallback for normal text
+    }
+
+    return String(val);
+  };
+
+
   return (
     <div className="container mx-auto py-6">
       <div className="mb-4">
@@ -1159,19 +1181,6 @@ export default function ViewExpensePage() {
               )}
 
               {/* Custom fields section */}
-              {/* {expense.custom_fields &&
-                Object.keys(expense.custom_fields).length > 0 && (
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    {Object.entries(expense.custom_fields).map(([key, value]) => (
-                      <div key={key}>
-                        <p className="text-sm font-medium text-muted-foreground">
-                          {formatFieldName(key)}
-                        </p>
-                        <p>{(value as string) || "—"}</p>
-                      </div>
-                    ))}
-                  </div>
-                )} */}
               {expense.custom_fields &&
                 Object.keys(expense.custom_fields).length > 0 &&
                 customFields.length > 0 && ( // make sure customFields are loaded
@@ -1183,7 +1192,7 @@ export default function ViewExpensePage() {
                           <p className="text-sm font-medium text-muted-foreground">
                             {matchedField?.label || formatFieldName(key)}
                           </p>
-                          <p>{value !== undefined && value !== "" ? String(value) : "—"}</p>
+                          <p>{value !== undefined && value !== "" ? formatFieldValue(value) : "—"}</p>
                         </div>
                       );
                     })}
