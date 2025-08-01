@@ -489,7 +489,7 @@ export default function PoliciesPage() {
                   <TableCell className="w-1/6 px-4">
                     {policy.upper_limit ? `₹${policy.upper_limit}` : "N/A"}
                   </TableCell>
-                  <TableCell className="w-1/6 px-4">{policy.eligibility || "N/A"}</TableCell>
+                  <TableCell className="whitespace-pre-wrap break-words max-w-xs">{policy.eligibility || "N/A"}</TableCell>
                   <TableCell className="whitespace-pre-wrap break-words max-w-xs">
                     {policy.conditions || "N/A"}
                   </TableCell>
@@ -531,11 +531,11 @@ export default function PoliciesPage() {
                       </div>
                       {/* Delete Confirmation Dialog */}
                       <Dialog open={!!deletePolicyId} onOpenChange={() => setDeletePolicyId(null)}>
-                        <DialogContent className="top-10 translate-y-0">
+                        <DialogContent className="!bg-white !text-black">
                           <DialogHeader>
                             <DialogTitle>Delete Policy</DialogTitle>
                             <DialogDescription>
-                              Are you sure you want to delete this policy? This action cannot be undone.
+                              Are you sure you want to delete this policy?
                             </DialogDescription>
                           </DialogHeader>
                           <DialogFooter>
