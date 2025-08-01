@@ -184,7 +184,7 @@ export default function TeamPage() {
       // If we have an invite URL, copy it and show it to the user
       if (data.inviteUrl) {
         await navigator.clipboard.writeText(data.inviteUrl);
-        toast.success("Invitation Sended successfully!", {
+        toast.success("Invitation Sent successfully!", {
           description: "Share this link with the invited user.",
           duration: 5000,
         });
