@@ -1,8 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-
 import supabase from "./supabase";
-
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -16,14 +15,12 @@ export function formatDate(date: string | Date): string {
   });
 }
 
-
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'INR',
   }).format(amount)
 }
-
 
 export function dataURLtoBlob(dataURL: string): Blob {
   // Convert base64/URLEncoded data component to raw binary data
@@ -112,7 +109,6 @@ export async function uploadSignature(
   }
 }
 
-
 // Updated uploadProfileSignature function for utils.ts
 export async function uploadProfileSignature(
   dataURL: string,
@@ -167,10 +163,6 @@ export async function uploadProfileSignature(
   }
 }
 
-
-
-
-
 export async function updateProfileWithSignature(
   userId: string,
   signaturePath: string
@@ -219,7 +211,6 @@ export async function getProfileSignatureUrl(
     };
   }
 }
-
 
 // In utils.ts or a new file called signature-utils.ts
 
@@ -354,7 +345,97 @@ export async function getUserSignatureUrl(
   }
 }
 
+// Function to upload a profile photo to Supabase Storage
+export async function uploadToProfilePhotos(
+  supabase: SupabaseClient,
+  file: File,
+  userId: string
+): Promise<{ path: string | null; error: Error | null }> {
+  try {
+    if (!file || !(file instanceof File)) {
+      throw new Error('Invalid file provided');
+    }
 
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    const filePath = `${userId}.png`;
+    const { error } = await supabase.storage
+      .from('profile-photos')
+      .upload(filePath, file, {
+        contentType: "image/jpeg",
+        cacheControl: "3600",
+        upsert: true, // Overwrite if exists
+      });
+
+    return error
+      ? { path: null, error }
+      : { path: filePath, error: null };
+  } catch (err) {
+    return {
+      path: null,
+      error: err instanceof Error ? err : new Error(String(err))
+    };
+  }
+}
+
+// Only updates the avatar_url in profiles table
+export async function updateProfileAvatarUrl(
+  userId: string,
+  path: string
+): Promise<{ success: boolean; error: Error | null }> {
+  try {
+    const publicUrl = supabase.storage
+      .from('profile-photos')
+      .getPublicUrl(path).data.publicUrl;
+
+    if (!publicUrl) {
+      throw new Error('Unable to generate public URL');
+    }
+
+    console.log("Public URL for avatar ==============:", publicUrl);
+    const fileName = path.split("/").pop();
+    console.log("Uploaded file name:", fileName);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: fileName })
+      .eq('user_id', userId);
+
+    return {
+      success: !error,
+      error: error ? new Error(error.message) : null
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err : new Error(String(err))
+    };
+  }
+}
+
+// get profile avatar URL from profiles table
+export async function getProfileAvatarUrl(userId: string): Promise<string | null> {
+    const { data, error } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("user_id", userId)
+        .single();
+
+    if (error || !data?.avatar_url) {
+        console.error("Error fetching avatar_url from profile:", error);
+        return null;
+    }
+
+    // Now get a public URL for avatar_url from Supabase storage
+    const { data: urlData } = supabase
+        .storage
+        .from("profile-photos")
+        .getPublicUrl(data.avatar_url);
+
+    return urlData?.publicUrl || null;
+}
 
 // export async function uploadPdf(file: File, filePath: string): Promise<{ path: string | null; error: Error | null }> {
 //   try {
@@ -376,9 +457,6 @@ export async function getUserSignatureUrl(
 //   const { data } = supabase.storage.from("policies-bucket").getPublicUrl(filePath);
 //   return data?.publicUrl ?? "";
 // }
-
-
-import { SupabaseClient } from '@supabase/supabase-js';
 
 // Define a return type for better type safety
 type UploadResult = {
