@@ -565,6 +565,9 @@ export default function NewExpensePage() {
     }
   };
 
+
+  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);

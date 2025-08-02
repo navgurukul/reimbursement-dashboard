@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -47,6 +47,7 @@ interface Expense {
   id: string;
   expense_type: string;
   amount: number;
+  approved_amount?: number;
   date: string;
   status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed" | "approved_as_per_policy";
   receipt: any;
@@ -141,7 +142,6 @@ export default function ExpenseEventDetailPage() {
           start_date: eventData.start_date,
           end_date: eventData.end_date,
         });
-
         // Fetch expenses for this event
         const { data: expensesData, error: expensesError } =
           await expenses.getByEventId(eventId);
@@ -160,6 +160,20 @@ export default function ExpenseEventDetailPage() {
 
     fetchEventDetails();
   }, [eventId, orgId, slug, router]);
+
+
+  const approvedTotal = useMemo(() => {
+    return eventExpenses.reduce((sum, expense) => {
+      return sum + (expense.approved_amount || 0);
+    }, 0);
+  }, [eventExpenses]);
+
+
+  const draftTotal = useMemo(() => {
+    return eventExpenses.reduce((sum, expense) => {
+      return sum + (expense.status === "draft" ? expense.amount : 0);
+    }, 0);
+  }, [eventExpenses]);
 
   const handleInputChange = (field: string, value: string) => {
     setEditedEvent((prev) => ({
@@ -382,15 +396,14 @@ export default function ExpenseEventDetailPage() {
               )}
               <div className="flex items-center mt-1">
                 <Badge
-                  className={`${
-                    event.status === "approved"
-                      ? "bg-green-100 text-green-800"
-                      : event.status === "rejected"
+                  className={`${event.status === "approved"
+                    ? "bg-green-100 text-green-800"
+                    : event.status === "rejected"
                       ? "bg-red-100 text-red-800"
                       : event.status === "submitted"
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
                 >
                   {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                 </Badge>
@@ -427,8 +440,10 @@ export default function ExpenseEventDetailPage() {
             <div className="text-right">
               <p className="text-sm font-medium">Total Amount</p>
               <p className="text-2xl font-bold">
-                {formatCurrency(event.total_amount)}
+                {formatCurrency(approvedTotal)}
               </p>
+
+
             </div>
           </div>
         </CardHeader>
@@ -492,6 +507,7 @@ export default function ExpenseEventDetailPage() {
                     <TableHead>Type</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Amount</TableHead>
+                    <TableHead>Approved Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -505,17 +521,17 @@ export default function ExpenseEventDetailPage() {
                         {expense.custom_fields?.description || "—"}
                       </TableCell>
                       <TableCell>{formatCurrency(expense.amount)}</TableCell>
+                      <TableCell>{formatCurrency(expense.approved_amount || 0)}</TableCell>
                       <TableCell>
                         <Badge
-                          className={`${
-                            expense.status === "approved"
-                              ? "bg-green-100 text-green-800"
-                              : expense.status === "rejected"
+                          className={`${expense.status === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : expense.status === "rejected"
                               ? "bg-red-100 text-red-800"
                               : expense.status === "submitted"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
                         >
                           {expense.status.charAt(0).toUpperCase() +
                             expense.status.slice(1)}
