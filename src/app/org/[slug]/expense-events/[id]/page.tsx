@@ -266,6 +266,18 @@ export default function ExpenseEventDetailPage() {
     }
   };
 
+
+  function getEventTimelineStatus(startDate: string, endDate: string): string {
+    const today = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (today < start) return "Upcoming";
+    if (today > end) return "Closed";
+    return "Ongoing";
+  }
+
+
   const handleRemoveExpense = async (expenseId: string) => {
     try {
       const { error } = await expenses.update(expenseId, {
@@ -396,17 +408,19 @@ export default function ExpenseEventDetailPage() {
               )}
               <div className="flex items-center mt-1">
                 <Badge
-                  className={`${event.status === "approved"
-                    ? "bg-green-100 text-green-800"
-                    : event.status === "rejected"
-                      ? "bg-red-100 text-red-800"
-                      : event.status === "submitted"
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}
+                  className={(() => {
+                    const status = getEventTimelineStatus(event.start_date, event.end_date);
+                    return status === "Ongoing"
+                      ? "bg-green-100 text-green-800"
+                      : status === "Upcoming"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-gray-300 text-gray-800";
+                  })()}
+                  variant="outline"
                 >
-                  {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                  {getEventTimelineStatus(event.start_date, event.end_date)}
                 </Badge>
+
                 <p className="text-sm text-gray-500 ml-2">
                   {editing ? (
                     <div className="flex space-x-2">
@@ -460,11 +474,12 @@ export default function ExpenseEventDetailPage() {
                 className="min-h-[100px]"
               />
             ) : (
-              <p className="text-gray-700">
+              <p className="text-gray-700 whitespace-pre-line">
                 {event.description || "No description provided."}
               </p>
             )}
           </div>
+
 
           <div className="mt-6 pt-6 border-t">
             <div className="flex justify-between items-center mb-4">

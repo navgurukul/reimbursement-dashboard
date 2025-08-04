@@ -171,7 +171,6 @@ export default function ExpenseEventsPage() {
                 <TableHead>Dates</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Total Amount</TableHead>
-                {/* <TableHead>Approved Amount</TableHead> */}
                 <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
@@ -189,7 +188,6 @@ export default function ExpenseEventsPage() {
                     {formatDate(event.start_date)} -{" "}
                     {formatDate(event.end_date)}
                   </TableCell>
-                  {/* <TableCell> */}
                     <TableCell className="space-x-2">
                       {(() => {
                         const status = getEventTimelineStatus(event.start_date, event.end_date);
@@ -207,15 +205,9 @@ export default function ExpenseEventsPage() {
                         );
                       })()}
                     </TableCell>
-
-
-                  {/* </TableCell> */}
                   <TableCell>
                     {formatCurrency(event.total_amount || 0)}
                   </TableCell>
-                  {/* <TableCell>{formatCurrency(event.approved_amount || 0)}</TableCell> */}
-                  {/* <TableCell>{formatCurrency(event.custom_fields?.approved_amount || 0)}</TableCell> */}
-
                   <TableCell>{formatDate(event.created_at)}</TableCell>
                 </TableRow>
               ))}
