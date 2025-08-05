@@ -4,14 +4,14 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
 import {
-  User,
-  Upload,
-  Mail,
-  BadgeCheck,
-  Landmark,
-  Signature,
-  CreditCard,
-  LockKeyhole,
+    User,
+    Upload,
+    Mail,
+    BadgeCheck,
+    Landmark,
+    Signature,
+    CreditCard,
+    LockKeyhole,
 } from "lucide-react";
 
 import { useRouter, useParams, useSearchParams } from "next/navigation";
@@ -22,15 +22,19 @@ import { Button } from "@/components/ui/button";
 
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
-
+import {
+    getUserSignatureUrl,
+    saveUserSignature,
+    uploadToProfilePhotos,
+    updateProfileAvatarUrl,
+    getProfileAvatarUrl
+} from "@/lib/utils";
 
 export default function ProfilePage() {
     const router = useRouter();
     const params = useParams();
     const { organization, userRole } = useOrgStore();
     const { user } = useAuthStore();
-
 
     const searchParams = useSearchParams();
     const eventIdFromQuery = searchParams.get("eventId");
@@ -44,6 +48,7 @@ export default function ProfilePage() {
     const [userProfile, setUserProfile] = useState<{
         full_name: string;
         email: string;
+        avatar_url?: string;
     } | null>(null);
 
     const supabase = createClient(
@@ -55,16 +60,26 @@ export default function ProfilePage() {
     useEffect(() => {
         async function fetchUserProfile() {
             if (!user?.id) return;
-            const { data, error } = await supabase
-                .from("profiles")
-                .select("full_name, email")
-                .eq("user_id", user.id)
-                .single();
 
-            if (!error && data) {
-                setUserProfile(data);
-            } else {
-                console.error("Error fetching user profile:", error);
+            try {
+                const avatar_url = await getProfileAvatarUrl(user.id);
+
+                const { data, error } = await supabase
+                    .from("profiles")
+                    .select("full_name, email")
+                    .eq("user_id", user.id)
+                    .single();
+
+                if (!error && data) {
+                    setUserProfile({
+                        ...data,
+                        avatar_url: avatar_url || undefined,
+                    });
+                } else {
+                    console.error("Error fetching user profile:", error);
+                }
+            } catch (err) {
+                console.error("Failed to fetch profile:", err);
             }
         }
 
@@ -167,6 +182,55 @@ export default function ProfilePage() {
         }
     };
 
+    const handleProfilePhotoChange = async (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        const file = e.target.files?.[0];
+        if (!file || !user?.id) return;
+
+        try {
+            // 1. Only upload to storage bucket
+            const { path, error: uploadError } = await uploadToProfilePhotos(
+                supabase,
+                file,
+                user.id
+            );
+
+            if (uploadError || !path) {
+                throw uploadError || new Error('Upload failed');
+            }
+
+            // 2. Only update profile table
+            const { error: updateError } = await updateProfileAvatarUrl(
+                user.id,
+                path
+            );
+
+            if (updateError) {
+                console.error('Profile update failed (but file uploaded):', updateError);
+                toast.error('Profile update failed');
+                // Continue to update UI since upload succeeded
+            }
+
+              // 3. Get public URL for display
+                const url = await getProfileAvatarUrl(user.id);
+                if (!url) throw new Error('Failed to get public URL');
+
+                // Update UI state
+                setFormData(prev => ({
+                    ...prev,
+                    profile_photo_url: url
+                }));
+
+            toast.success('Profile photo updated');
+
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Upload failed';
+            toast.error(message);
+            console.error('Profile photo error:', err);
+        }
+    };
+
     return (
         <div className="max-w-[1320px] mx-auto min-h-screen">
             <Button
@@ -193,6 +257,12 @@ export default function ProfilePage() {
                                 alt="Profile"
                                 className="w-full h-full object-cover rounded-full"
                             />
+                        ) : userProfile?.avatar_url ? (
+                            <img
+                                src={userProfile.avatar_url}
+                                alt="Profile Photo"
+                                className="w-full h-full object-cover rounded-full"
+                            />
                         ) : (
                             <User className="w-[100px] h-[100px] text-slate-300" />
                         )}
@@ -203,10 +273,19 @@ export default function ProfilePage() {
                     <span className="text-[15px] text-[#64748b] mb-4 text-center">
                         Add a photo to complete your profile
                     </span>
-                    <button className="w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer">
-                        <Upload className="w-5 h-5 text-[#64748b]" />
-                        Upload Photo
-                    </button>
+                    <label htmlFor="profilePhotoInput" className="w-full block">
+                        <input
+                            type="file"
+                            id="profilePhotoInput"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleProfilePhotoChange}
+                        />
+                        <div className="w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer">
+                            <Upload className="w-5 h-5 text-[#64748b]" />
+                            Upload Photo
+                        </div>
+                    </label>
                 </div>
 
                 <div className="flex-1 flex flex-col gap-8 justify-center">
