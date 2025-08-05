@@ -434,7 +434,7 @@ export default function ExpensesPage() {
                         <TableRow>
                           <TableCell
                             colSpan={columns.filter((c) => c.visible).length + 2}
-                            className="text-center py-4 text-muted-foreground break-words whitespace-normal"
+                            className="text-center py-4 text-muted-foreground whitespace-normal"
                           >
                             No expenses.
                           </TableCell>
@@ -445,7 +445,7 @@ export default function ExpensesPage() {
                             {columns
                               .filter((c) => c.visible)
                               .map((c) => (
-                                <TableCell key={c.key} className="break-words whitespace-normal">
+                                <TableCell key={c.key} className="whitespace-normal break-words max-w-xs">
                                   {c.key === "amount" ? (
                                     formatCurrency(exp[c.key])
                                   ) : c.key === "date" ? (

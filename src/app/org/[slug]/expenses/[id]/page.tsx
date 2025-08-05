@@ -1184,7 +1184,7 @@ export default function ViewExpensePage() {
               {expense.custom_fields &&
                 Object.keys(expense.custom_fields).length > 0 &&
                 customFields.length > 0 && ( // make sure customFields are loaded
-                  <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4 mt-4 break-words">
                     {Object.entries(expense.custom_fields).map(([key, value]) => {
                       const matchedField = customFields.find((field) => field.key === key);
                       return (
