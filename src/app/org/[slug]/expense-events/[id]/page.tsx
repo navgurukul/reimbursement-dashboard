@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -47,6 +47,7 @@ interface Expense {
   id: string;
   expense_type: string;
   amount: number;
+  approved_amount?: number;
   date: string;
   status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed" | "approved_as_per_policy";
   receipt: any;
@@ -141,7 +142,6 @@ export default function ExpenseEventDetailPage() {
           start_date: eventData.start_date,
           end_date: eventData.end_date,
         });
-
         // Fetch expenses for this event
         const { data: expensesData, error: expensesError } =
           await expenses.getByEventId(eventId);
@@ -160,6 +160,20 @@ export default function ExpenseEventDetailPage() {
 
     fetchEventDetails();
   }, [eventId, orgId, slug, router]);
+  
+  const approvedStatuses = [
+    "finance_approved",
+    "approved",
+    "approved_as_per_policy",
+    "approve_full_amount",
+    "custom_amount"
+  ];
+
+  const approvedTotal = eventExpenses
+    .filter((exp) =>
+      approvedStatuses.includes(exp.status?.toLowerCase())
+    )
+    .reduce((sum, exp) => sum + (exp.approved_amount || 0), 0);
 
   const handleInputChange = (field: string, value: string) => {
     setEditedEvent((prev) => ({
@@ -251,6 +265,18 @@ export default function ExpenseEventDetailPage() {
       setSaving(false);
     }
   };
+
+
+  function getEventTimelineStatus(startDate: string, endDate: string): string {
+    const today = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (today < start) return "Upcoming";
+    if (today > end) return "Closed";
+    return "Ongoing";
+  }
+
 
   const handleRemoveExpense = async (expenseId: string) => {
     try {
@@ -380,54 +406,57 @@ export default function ExpenseEventDetailPage() {
               ) : (
                 <CardTitle className="text-xl">{event.title}</CardTitle>
               )}
-              <div className="flex items-center mt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4">
                 <Badge
-                  className={`${
-                    event.status === "approved"
+                  className={(() => {
+                    const status = getEventTimelineStatus(event.start_date, event.end_date);
+                    return status === "Ongoing"
                       ? "bg-green-100 text-green-800"
-                      : event.status === "rejected"
-                      ? "bg-red-100 text-red-800"
-                      : event.status === "submitted"
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
+                      : status === "Upcoming"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-gray-300 text-gray-800";
+                  })()}
+                  variant="outline"
                 >
-                  {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                  {getEventTimelineStatus(event.start_date, event.end_date)}
                 </Badge>
-                <p className="text-sm text-gray-500 ml-2">
+                <p className="text-sm text-gray-500 mt-1 sm:mt-0 sm:ml-2">
                   {editing ? (
-                    <div className="flex space-x-2">
+                    <div className="flex flex-col sm:flex-row sm:space-x-2">
                       <Input
                         type="date"
                         value={editedEvent.start_date || ""}
                         onChange={(e) =>
                           handleInputChange("start_date", e.target.value)
                         }
-                        className="w-32"
+                        className="w-full sm:w-32"
                       />
-                      <span>to</span>
+                      <span className="hidden sm:inline">to</span>
                       <Input
                         type="date"
                         value={editedEvent.end_date || ""}
                         onChange={(e) =>
                           handleInputChange("end_date", e.target.value)
                         }
-                        className="w-32"
+                        className="w-full sm:w-32"
                       />
                     </div>
                   ) : (
                     <>
-                      {formatDate(event.start_date)} -{" "}
-                      {formatDate(event.end_date)}
+                      {formatDate(event.start_date)} - {formatDate(event.end_date)}
                     </>
                   )}
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm font-medium">Total Amount</p>
-              <p className="text-2xl font-bold">
+              <p className="text-xl font-medium">Total Amount</p>
+              <p className="text-xl font-bold">
                 {formatCurrency(event.total_amount)}
+              </p>
+              <p className="text-xl font-medium text-green-600 mt-2">Approved Amount</p>
+              <p className="text-xl font-bold text-green-600">
+                {formatCurrency(approvedTotal)}
               </p>
             </div>
           </div>
@@ -438,19 +467,16 @@ export default function ExpenseEventDetailPage() {
             {editing ? (
               <Textarea
                 value={editedEvent.description || ""}
-                onChange={(e) =>
-                  handleInputChange("description", e.target.value)
-                }
+                onChange={(e) => handleInputChange("description", e.target.value)}
                 placeholder="Event description"
                 className="min-h-[100px]"
               />
             ) : (
-              <p className="text-gray-700">
+              <p className="text-gray-700 whitespace-pre-line break-words max-w-full overflow-auto">
                 {event.description || "No description provided."}
               </p>
             )}
           </div>
-
           <div className="mt-6 pt-6 border-t">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">Expenses</h3>
@@ -492,6 +518,7 @@ export default function ExpenseEventDetailPage() {
                     <TableHead>Type</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Amount</TableHead>
+                    <TableHead>Approved Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -505,20 +532,19 @@ export default function ExpenseEventDetailPage() {
                         {expense.custom_fields?.description || "—"}
                       </TableCell>
                       <TableCell>{formatCurrency(expense.amount)}</TableCell>
+                      <TableCell>{formatCurrency(expense.approved_amount || 0)}</TableCell>
                       <TableCell>
                         <Badge
-                          className={`${
-                            expense.status === "approved"
-                              ? "bg-green-100 text-green-800"
-                              : expense.status === "rejected"
-                              ? "bg-red-100 text-red-800"
+                          className={`${["approved", "finance_approved"].includes(expense.status)
+                            ? "bg-green-100 text-green-800 hover:bg-green-700 hover:text-white"
+                            : ["rejected", "finance_rejected"].includes(expense.status)
+                              ? "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white"
                               : expense.status === "submitted"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
+                                ? "bg-amber-100 text-amber-800 hover:bg-amber-700 hover:text-white"
+                                : "bg-gray-100 text-gray-800 hover:bg-gray-700 hover:text-white"
+                            }`}
                         >
-                          {expense.status.charAt(0).toUpperCase() +
-                            expense.status.slice(1)}
+                          {expense.status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
                         </Badge>
                       </TableCell>
                       <TableCell>

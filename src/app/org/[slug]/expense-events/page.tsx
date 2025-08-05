@@ -33,6 +33,8 @@ interface ExpenseEvent {
   status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed";
   custom_fields: Record<string, any>;
   created_at: string;
+  approved_amount?: number; // Add this line
+
 }
 
 export default function ExpenseEventsPage() {
@@ -59,6 +61,7 @@ export default function ExpenseEventsPage() {
           user.id,
           userRole || "member"
         );
+        console.log("Fetched Events:", data); // ← ADD THIS HERE ✅
 
         if (error) throw error;
         setEvents(data || []);
@@ -87,6 +90,22 @@ export default function ExpenseEventsPage() {
       </div>
     );
   }
+
+
+  const getEventTimelineStatus = (start: string, end: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    if (endDate < today) return "Closed";
+    if (startDate > today) return "Upcoming";
+    return "Ongoing";
+  };
+
 
   return (
     <div className="max-w-[1200px] mx-auto py-6 space-y-6">
@@ -169,21 +188,23 @@ export default function ExpenseEventsPage() {
                     {formatDate(event.start_date)} -{" "}
                     {formatDate(event.end_date)}
                   </TableCell>
-                  <TableCell>
-                    <Badge
-                      className={`${event.status === "approved"
-                          ? "bg-green-100 text-green-800"
-                          : event.status === "rejected"
-                            ? "bg-red-100 text-red-800"
-                            : event.status === "submitted"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-gray-100 text-gray-800"
-                        }`}
-                    >
-                      {event.status.charAt(0).toUpperCase() +
-                        event.status.slice(1)}
-                    </Badge>
-                  </TableCell>
+                    <TableCell className="space-x-2">
+                      {(() => {
+                        const status = getEventTimelineStatus(event.start_date, event.end_date);
+                        const badgeColor =
+                          status === "Ongoing"
+                            ? "bg-green-100 text-green-800"
+                            : status === "Upcoming"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-gray-300 text-gray-800";
+
+                        return (
+                          <Badge className={badgeColor} variant="outline">
+                            {status}
+                          </Badge>
+                        );
+                      })()}
+                    </TableCell>
                   <TableCell>
                     {formatCurrency(event.total_amount || 0)}
                   </TableCell>
