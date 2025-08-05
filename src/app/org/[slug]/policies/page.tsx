@@ -54,6 +54,8 @@ export default function PoliciesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deletePolicyId, setDeletePolicyId] = useState<string | null>(null);
+
   const [currentPolicy, setCurrentPolicy] = useState<
     Omit<Policy, "id" | "created_at" | "updated_at" | "org_id"> | Policy
   >(defaultPolicy);
@@ -291,28 +293,13 @@ export default function PoliciesPage() {
       toast.dismiss(toastId);
     }
   };
-  // Create the policy payload
-  const handleDelete = async (policyId: string) => {
-    if (
-      !isAdminOrOwner ||
-      !window.confirm("Are you sure you want to delete this policy?")
-    )
-      return;
 
-    const toastId = toast.loading("Deleting policy...");
-    try {
-      const { error } = await policies.deletePolicy(policyId);
-      if (error) throw error;
-      setPolicyList((prev) => prev.filter((p) => p.id !== policyId));
-      toast.success("Policy deleted successfully!");
-    } catch (error: any) {
-      toast.error("Failed to delete policy", {
-        description: error.message || "Please try again.",
-      });
-    } finally {
-      toast.dismiss(toastId);
-    }
+
+  const handleDelete = (policyId: string) => {
+    if (!isAdminOrOwner) return;
+    setDeletePolicyId(policyId); // Triggers the modal
   };
+
 
   if (isLoading) {
     return (
@@ -379,7 +366,7 @@ export default function PoliciesPage() {
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="upper_limit" className="text-right">
+                  <Label htmlFor="upper_limit">
                     Upper Limit (₹)
                   </Label>
                   <Input
@@ -418,7 +405,6 @@ export default function PoliciesPage() {
                     placeholder="Enter any specific conditions..."
                   />
                 </div>
-
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="fileUpload" className="text-right">
                     Policies
@@ -474,7 +460,7 @@ export default function PoliciesPage() {
             <TableRow>
               <TableHead>Expense Type</TableHead>
               <TableHead>Per Unit Cost</TableHead>
-              <TableHead className="text-right">Upper Limit</TableHead>
+              <TableHead>Upper Limit</TableHead>
               <TableHead>Eligibility</TableHead>
               <TableHead>Conditions</TableHead>
               <TableHead>Policies</TableHead>
@@ -503,10 +489,11 @@ export default function PoliciesPage() {
                   <TableCell className="w-1/6 px-4">
                     {policy.upper_limit ? `₹${policy.upper_limit}` : "N/A"}
                   </TableCell>
-                  <TableCell className="w-1/6 px-4">{policy.eligibility || "N/A"}</TableCell>
-                  <TableCell className="w-1/6 px-4">
+                  <TableCell className="whitespace-pre-wrap break-words max-w-xs">{policy.eligibility || "N/A"}</TableCell>
+                  <TableCell className="whitespace-pre-wrap break-words max-w-xs">
                     {policy.conditions || "N/A"}
                   </TableCell>
+
 
                   <TableCell>
                     {policy.policy_url ? (
@@ -536,12 +523,50 @@ export default function PoliciesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(policy.id)}
+                          onClick={() => setDeletePolicyId(policy.id)} // Open modal
                           className="h-8 w-8"
                         >
                           <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
                         </Button>
                       </div>
+                      {/* Delete Confirmation Dialog */}
+                      <Dialog open={!!deletePolicyId} onOpenChange={() => setDeletePolicyId(null)}>
+                        <DialogContent className="!bg-white !text-black">
+                          <DialogHeader>
+                            <DialogTitle>Delete Policy</DialogTitle>
+                            <DialogDescription>
+                              Are you sure you want to delete this policy?
+                            </DialogDescription>
+                          </DialogHeader>
+                          <DialogFooter>
+                            <Button variant="secondary" onClick={() => setDeletePolicyId(null)}>
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={async () => {
+                                const toastId = toast.loading("Deleting policy...");
+                                try {
+                                  const { error } = await policies.deletePolicy(deletePolicyId!);
+                                  if (error) throw error;
+                                  setPolicyList((prev) => prev.filter((p) => p.id !== deletePolicyId));
+                                  toast.success("Policy deleted successfully!");
+                                } catch (error: any) {
+                                  toast.error("Failed to delete policy", {
+                                    description: error.message || "Please try again.",
+                                  });
+                                } finally {
+                                  toast.dismiss(toastId);
+                                  setDeletePolicyId(null);
+                                }
+                              }}
+                            >
+                              Yes, Delete
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+
                     </TableCell>
                   )}
                 </TableRow>
