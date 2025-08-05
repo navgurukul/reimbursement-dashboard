@@ -160,20 +160,20 @@ export default function ExpenseEventDetailPage() {
 
     fetchEventDetails();
   }, [eventId, orgId, slug, router]);
+  
+  const approvedStatuses = [
+    "finance_approved",
+    "approved",
+    "approved_as_per_policy",
+    "approve_full_amount",
+    "custom_amount"
+  ];
 
-
-  const approvedTotal = useMemo(() => {
-    return eventExpenses.reduce((sum, expense) => {
-      return sum + (expense.approved_amount || 0);
-    }, 0);
-  }, [eventExpenses]);
-
-
-  const draftTotal = useMemo(() => {
-    return eventExpenses.reduce((sum, expense) => {
-      return sum + (expense.status === "draft" ? expense.amount : 0);
-    }, 0);
-  }, [eventExpenses]);
+  const approvedTotal = eventExpenses
+    .filter((exp) =>
+      approvedStatuses.includes(exp.status?.toLowerCase())
+    )
+    .reduce((sum, exp) => sum + (exp.approved_amount || 0), 0);
 
   const handleInputChange = (field: string, value: string) => {
     setEditedEvent((prev) => ({
@@ -406,7 +406,7 @@ export default function ExpenseEventDetailPage() {
               ) : (
                 <CardTitle className="text-xl">{event.title}</CardTitle>
               )}
-              <div className="flex items-center mt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4">
                 <Badge
                   className={(() => {
                     const status = getEventTimelineStatus(event.start_date, event.end_date);
@@ -420,44 +420,44 @@ export default function ExpenseEventDetailPage() {
                 >
                   {getEventTimelineStatus(event.start_date, event.end_date)}
                 </Badge>
-
-                <p className="text-sm text-gray-500 ml-2">
+                <p className="text-sm text-gray-500 mt-1 sm:mt-0 sm:ml-2">
                   {editing ? (
-                    <div className="flex space-x-2">
+                    <div className="flex flex-col sm:flex-row sm:space-x-2">
                       <Input
                         type="date"
                         value={editedEvent.start_date || ""}
                         onChange={(e) =>
                           handleInputChange("start_date", e.target.value)
                         }
-                        className="w-32"
+                        className="w-full sm:w-32"
                       />
-                      <span>to</span>
+                      <span className="hidden sm:inline">to</span>
                       <Input
                         type="date"
                         value={editedEvent.end_date || ""}
                         onChange={(e) =>
                           handleInputChange("end_date", e.target.value)
                         }
-                        className="w-32"
+                        className="w-full sm:w-32"
                       />
                     </div>
                   ) : (
                     <>
-                      {formatDate(event.start_date)} -{" "}
-                      {formatDate(event.end_date)}
+                      {formatDate(event.start_date)} - {formatDate(event.end_date)}
                     </>
                   )}
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm font-medium">Total Amount</p>
-              <p className="text-2xl font-bold">
+              <p className="text-xl font-medium">Total Amount</p>
+              <p className="text-xl font-bold">
+                {formatCurrency(event.total_amount)}
+              </p>
+              <p className="text-xl font-medium text-green-600 mt-2">Approved Amount</p>
+              <p className="text-xl font-bold text-green-600">
                 {formatCurrency(approvedTotal)}
               </p>
-
-
             </div>
           </div>
         </CardHeader>
@@ -467,20 +467,16 @@ export default function ExpenseEventDetailPage() {
             {editing ? (
               <Textarea
                 value={editedEvent.description || ""}
-                onChange={(e) =>
-                  handleInputChange("description", e.target.value)
-                }
+                onChange={(e) => handleInputChange("description", e.target.value)}
                 placeholder="Event description"
                 className="min-h-[100px]"
               />
             ) : (
-              <p className="text-gray-700 whitespace-pre-line">
+              <p className="text-gray-700 whitespace-pre-line break-words max-w-full overflow-auto">
                 {event.description || "No description provided."}
               </p>
             )}
           </div>
-
-
           <div className="mt-6 pt-6 border-t">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">Expenses</h3>
@@ -539,17 +535,16 @@ export default function ExpenseEventDetailPage() {
                       <TableCell>{formatCurrency(expense.approved_amount || 0)}</TableCell>
                       <TableCell>
                         <Badge
-                          className={`${expense.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : expense.status === "rejected"
-                              ? "bg-red-100 text-red-800"
+                          className={`${["approved", "finance_approved"].includes(expense.status)
+                            ? "bg-green-100 text-green-800 hover:bg-green-700 hover:text-white"
+                            : ["rejected", "finance_rejected"].includes(expense.status)
+                              ? "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white"
                               : expense.status === "submitted"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-gray-100 text-gray-800"
+                                ? "bg-amber-100 text-amber-800 hover:bg-amber-700 hover:text-white"
+                                : "bg-gray-100 text-gray-800 hover:bg-gray-700 hover:text-white"
                             }`}
                         >
-                          {expense.status.charAt(0).toUpperCase() +
-                            expense.status.slice(1)}
+                          {expense.status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
                         </Badge>
                       </TableCell>
                       <TableCell>
