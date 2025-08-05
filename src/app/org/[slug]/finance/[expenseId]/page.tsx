@@ -80,6 +80,7 @@ export default function FinanceExpenseDetails() {
       }
 
       setExpense(expenseData);
+      console.log("HHHHH",expenseData);
       setLoading(false);
     };
 
@@ -211,7 +212,7 @@ export default function FinanceExpenseDetails() {
                   <TableCell>{expense.approver?.full_name || "—"}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableHead>Receipt</TableHead>
+                  <TableHead>Receipt/Voucher</TableHead>
                   <TableCell>
                     {expense.receipt ? (
                       <Button
@@ -243,6 +244,7 @@ export default function FinanceExpenseDetails() {
                 <TableRow>
                   <TableHead>Description</TableHead>
                   <TableCell>{expense.custom_fields?.description || "—"}</TableCell>
+
                 </TableRow>
                 <TableRow>
                   <TableHead>Signature</TableHead>
@@ -292,7 +294,7 @@ export default function FinanceExpenseDetails() {
       {/* Rejection comment box */}
 
       {showCommentBox && (
-        <div className="w-full sm:max-w-[600px] md:max-w-[354px] lg:max-w-[374px] xl:max-w-[610px] 2xl:max-w-[847px] mt-2 space-y-4">
+          <div className="w-full sm:max-w-[600px] md:max-w-[354px] lg:max-w-[374px] xl:max-w-[610px] 2xl:max-w-[847px] mt-2 space-y-4">
           <div className="bg-red-50 border border-red-300 rounded p-3 space-y-2">
             <label className="block font-medium text-red-800">
               Rejection Reason <span className="text-red-600">*</span>

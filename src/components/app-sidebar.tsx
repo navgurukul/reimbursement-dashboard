@@ -14,7 +14,7 @@ import {
   LayoutDashboard,
   Receipt,
   Users,
-  Calendar ,
+  Calendar,
   Settings,
   LogOut,
   Menu,
@@ -40,17 +40,17 @@ export function AppSidebar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isAdmin = userRole === "owner" || userRole === "admin";
 
- const { profile, user, refreshProfile, logout } = useAuthStore();
-  
+  const { profile, user, refreshProfile, logout } = useAuthStore();
+
   // Get email from multiple possible sources
   const userEmail = profile?.email || user?.email || user?.user_metadata?.email || "";
   const userName = profile?.full_name || userEmail.split('@')[0] || "?";
 
-   useEffect(() => {
-     if (user && !profile) {
-       refreshProfile();
-     }
-   }, [user, profile, refreshProfile]);
+  useEffect(() => {
+    if (user && !profile) {
+      refreshProfile();
+    }
+  }, [user, profile, refreshProfile]);
 
   const handleSignOut = async () => {
     try {
@@ -88,17 +88,17 @@ export function AppSidebar() {
     },
     ...(isAdmin
       ? [
-          {
-            title: "Finance Management",
-            href: `/org/${organization?.slug}/finance`,
-            icon: Landmark,
-          },
-          {
-            title: "Bank Details",
-            href: `/org/${organization?.slug}/bank-details`,
-            icon: Receipt,
-          },
-        ]
+        {
+          title: "Finance Management",
+          href: `/org/${organization?.slug}/finance`,
+          icon: Landmark,
+        },
+        {
+          title: "Bank Details",
+          href: `/org/${organization?.slug}/bank-details`,
+          icon: Receipt,
+        },
+      ]
       : []),
   ];
 
@@ -159,7 +159,10 @@ export function AppSidebar() {
               </Avatar>
               <div className="flex-1 text-left">
                 <p className="text-sm font-medium leading-none">{userName}</p>
-                <p className="text-xs leading-none text-muted-foreground">
+                <p
+                  className="text-xs leading-none text-muted-foreground truncate max-w-[180px]"
+                  title={userEmail}
+                >
                   {userEmail}
                 </p>
               </div>
