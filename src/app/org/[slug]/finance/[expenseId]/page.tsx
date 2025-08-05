@@ -81,6 +81,7 @@ export default function FinanceExpenseDetails() {
       }
 
       setExpense(expenseData);
+      console.log("HHHHH",expenseData);
       setLoading(false);
     };
 
@@ -212,7 +213,7 @@ export default function FinanceExpenseDetails() {
                   <TableCell>{expense.approver?.full_name || "—"}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableHead>Receipt</TableHead>
+                  <TableHead>Receipt/Voucher</TableHead>
                   <TableCell>
                     {expense.receipt ? (
                       <Button
@@ -244,6 +245,7 @@ export default function FinanceExpenseDetails() {
                 <TableRow>
                   <TableHead>Description</TableHead>
                   <TableCell>{expense.custom_fields?.description || "—"}</TableCell>
+
                 </TableRow>
                 <TableRow>
                   <TableHead>Signature</TableHead>
