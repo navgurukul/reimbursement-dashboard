@@ -266,14 +266,14 @@ export default function ExpensesPage() {
     router.push(`/org/${slug}/expenses/new`);
   };
 
-  
+
   const handleDelete = async (id: string) => {
     try {
       const { error } = await expenses.delete(id);
       if (error) throw error;
       toast.success("Expense deleted successfully");
       // Refresh the expenses list
-       // Update the local state to reflect the deletion
+      // Update the local state to reflect the deletion
       if (activeTab === "my") {
         setExpensesData((prev) => prev.filter((expense) => expense.id !== id));
       } else if (activeTab === "pending") {
@@ -399,151 +399,213 @@ export default function ExpensesPage() {
             {/* table */}
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {columns
-                        .filter((c) => c.visible)
-                        .map((c) => (
-                          <TableHead key={c.key}>{c.label}</TableHead>
-                        ))}
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
+                <div className="overflow-x-auto w-full">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 2}
-                          className="text-center py-4"
-                        >
-                          Loading…
-                        </TableCell>
+                        {columns
+                          .filter((c) => c.visible)
+                          .map((c) => {
+                            const cleanLabel = c.label.replace(/[^a-zA-Z ]/g, "").trim();
+                            const capitalizedLabel = cleanLabel.replace(/\b\w/g, (char: string) =>
+                              char.toUpperCase()
+                            );
+                            return (
+                              <TableHead className="min-w-[150px]" key={c.key}>
+                                {capitalizedLabel}
+                              </TableHead>
+                            );
+                          })}
+                        <TableHead className="min-w-[120px]">Status</TableHead>
+                        <TableHead className="min-w-[120px]">Actions</TableHead>
                       </TableRow>
-                    ) : getCurrent().length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 2}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No expenses.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      getCurrent().map((exp) => (
-                        <TableRow key={exp.id}>
-                          {columns
-                            .filter((c) => c.visible)
-                            .map((c) => (
-                              <TableCell key={c.key}>
-                                {c.key === "amount" ? (
-                                  formatCurrency(exp[c.key])
-                                ) : c.key === "date" ? (
-                                  formatDate(exp[c.key])
-                                ) : c.key === "creator_name" ? (
-                                  exp.creator?.full_name || "—"
-                                ) : c.key === "receipt" ? (
-                                  exp.receipt ? (
-                                    <Button
-                                      variant="link"
-                                      size="sm"
-                                      className="p-0 h-auto font-normal"
-                                      onClick={() => {
-                                        if (exp.receipt?.path) {
-                                          expenses
-                                            .getReceiptUrl(exp.receipt.path)
-                                            .then(({ url, error }) => {
-                                              if (error) {
-                                                console.error(
-                                                  "Error getting receipt URL:",
-                                                  error
-                                                );
-                                                toast.error(
-                                                  "Failed to load receipt"
-                                                );
-                                              } else if (url) {
-                                                window.open(url, "_blank");
-                                              }
-                                            });
-                                        }
-                                      }}
-                                    >
-                                      View Receipt
-                                    </Button>
-                                  ) : exp.hasVoucher ? (
-                                    <Button
-                                      variant="link"
-                                      size="sm"
-                                      className="p-0 h-auto font-normal text-blue-600"
-                                      onClick={() =>
-                                        router.push(
-                                          `/org/${slug}/expenses/${exp.id}/voucher`
-                                        )
-                                      }
-                                    >
-                                      View Voucher
-                                    </Button>
-                                  ) : (
-                                    "No receipt or voucher"
-                                  )
-                                ) : c.key === "approver" ? (
-                                  exp.approver?.full_name || "—"
-                                ) : c.key === "category" ? (
-                                  getExpenseValue(exp, "category")
-                                ) : typeof exp[c.key] === "object" && exp[c.key] !== null ? (
-                                  JSON.stringify(exp[c.key])
-                                ) : (
-                                  exp[c.key] || "—"
-                                )}
-
-                              </TableCell>
-                            ))}
-                          <TableCell>
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs ${exp.status === "approved"
-                                ? "bg-green-100 text-green-800"
-                                : exp.status === "rejected"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-amber-100 text-amber-800"
-                                }`}
-                            >
-                              {exp.status.charAt(0).toUpperCase() +
-                                exp.status.slice(1)}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-3 gap-3">
-                              {/* 👁️ View Icon */}
-                              <Eye
-                                className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
-                                onClick={() =>
-                                  router.push(`/org/${slug}/expenses/${exp.id}`)
-                                }
-                              />
-                              {/* ✏️ Edit Icon — status "submitted" ke liye */}
-                              {exp.status === "submitted" && (
-                                <Edit
-                                  className="w-4 h-4 text-gray-600 cursor-pointer hover:text-blue-700"
-                                  onClick={() =>
-                                    router.push(`/org/${slug}/expenses/${exp.id}/edit`)
-                                  }
-                                />
-                              )}
-                              {/* 🗑️ Delete Icon — Admin or Owner ke liye */}
-                              {(userRole === "admin" || userRole === "owner") && (
-                                <Trash2
-                                  className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
-                                  onClick={() => handleDelete(exp.id)}
-                                />
-                              )}
-                            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={columns.filter((c) => c.visible).length + 2}
+                            className="text-center py-4 break-words whitespace-normal"
+                          >
+                            Loading…
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ) : getCurrent().length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={columns.filter((c) => c.visible).length + 2}
+                            className="text-center py-4 text-muted-foreground whitespace-normal"
+                          >
+                            No expenses.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        getCurrent().map((exp) => (
+                          <TableRow key={exp.id}>
+                            {columns
+                              .filter((c) => c.visible)
+                              .map((c) => (
+                                <TableCell key={c.key} className="whitespace-normal break-words max-w-xs">
+                                  {c.key === "amount" ? (
+                                    formatCurrency(exp[c.key])
+                                  ) : c.key === "date" ? (
+                                    formatDate(exp[c.key])
+                                  ) : c.key === "creator_name" ? (
+                                    exp.creator?.full_name || "—"
+                                  ) : c.key === "receipt" ? (
+                                    exp.receipt ? (
+                                      <Button
+                                        variant="link"
+                                        size="sm"
+                                        className="p-0 h-auto font-normal"
+                                        onClick={() => {
+                                          if (exp.receipt?.path) {
+                                            expenses
+                                              .getReceiptUrl(exp.receipt.path)
+                                              .then(({ url, error }) => {
+                                                if (error) {
+                                                  console.error(
+                                                    "Error getting receipt URL:",
+                                                    error
+                                                  );
+                                                  toast.error(
+                                                    "Failed to load receipt"
+                                                  );
+                                                } else if (url) {
+                                                  window.open(url, "_blank");
+                                                }
+                                              });
+                                          }
+                                        }}
+                                      >
+                                        View Receipt
+                                      </Button>
+                                    ) : exp.hasVoucher ? (
+                                      <Button
+                                        variant="link"
+                                        size="sm"
+                                        className="p-0 h-auto font-normal text-blue-600"
+                                        onClick={() =>
+                                          router.push(
+                                            `/org/${slug}/expenses/${exp.id}/voucher`
+                                          )
+                                        }
+                                      >
+                                        View Voucher
+                                      </Button>
+                                    ) : (
+                                      "No receipt or voucher"
+                                    )
+                                  ) : c.key === "approver" ? (
+                                    exp.approver?.full_name || "—"
+                                  ) : c.key === "category" ? (
+                                    getExpenseValue(exp, "category")
+                                  ) : typeof exp[c.key] === "object" && exp[c.key] !== null ? (
+                                    JSON.stringify(exp[c.key])
+                                  ) : (
+                                    // exp[c.key] ?? exp.custom_fields?.[c.key] ?? "—"
+
+                                    (() => {
+                                      // Direct value first
+                                      let value = exp[c.key];
+                                      if (value !== undefined && value !== null) {
+                                        if (Array.isArray(value)) {
+                                          // ✅ Sort + join with commas
+                                          return value.sort().join(", ");
+                                        } else if (typeof value === "string" && value.includes("box")) {
+                                          // ✅ Handle concatenated strings like "box 1box 2box 3"
+                                          return value
+                                            .match(/box\s*\d+/g) // extract ["box 1", "box 2", "box 3"]
+                                            ?.sort()
+                                            .join(", ") || value;
+                                        }
+                                        return value;
+                                      }
+
+                                      // Check custom_fields with key or label
+                                      if (exp.custom_fields) {
+                                        value =
+                                          exp.custom_fields[c.key] ??
+                                          exp.custom_fields[c.label];
+
+                                        if (value !== undefined) {
+                                          if (Array.isArray(value)) {
+                                            return value.sort().join(", ");
+                                          } else if (typeof value === "string" && value.includes("box")) {
+                                            return value
+                                              .match(/box\s*\d+/g)
+                                              ?.sort()
+                                              .join(", ") || value;
+                                          }
+                                          return value;
+                                        }
+
+                                        // Try case-insensitive or snake_case match
+                                        const normalizedLabel = c.label.toLowerCase().replace(/\s+/g, "_");
+                                        const matchKey = Object.keys(exp.custom_fields).find(
+                                          (k) => k.toLowerCase() === normalizedLabel
+                                        );
+                                        if (matchKey) {
+                                          let val = exp.custom_fields[matchKey];
+                                          if (Array.isArray(val)) return val.sort().join(", ");
+                                          if (typeof val === "string" && val.includes("box")) {
+                                            return val.match(/box\s*\d+/g)?.sort().join(", ") || val;
+                                          }
+                                          return val;
+                                        }
+                                      }
+                                      return "—";
+                                    })()
+                                  )}
+
+                                </TableCell>
+                              ))}
+                            <TableCell className="break-words whitespace-normal">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs ${exp.status === "approved"
+                                  ? "bg-green-100 text-green-800"
+                                  : exp.status === "rejected"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-amber-100 text-amber-800"
+                                  }`}
+                              >
+                                {exp.status.charAt(0).toUpperCase() +
+                                  exp.status.slice(1)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-3 gap-3">
+                                {/* 👁️ View Icon */}
+                                <Eye
+                                  className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
+                                  onClick={() =>
+                                    router.push(`/org/${slug}/expenses/${exp.id}`)
+                                  }
+                                />
+                                {/* ✏️ Edit Icon — status "submitted" ke liye */}
+                                {exp.status === "submitted" && (
+                                  <Edit
+                                    className="w-4 h-4 text-gray-600 cursor-pointer hover:text-blue-700"
+                                    onClick={() =>
+                                      router.push(`/org/${slug}/expenses/${exp.id}/edit`)
+                                    }
+                                  />
+                                )}
+                                {/* 🗑️ Delete Icon — Admin or Owner ke liye */}
+                                {(userRole === "admin" || userRole === "owner") && (
+                                  <Trash2
+                                    className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
+                                    onClick={() => handleDelete(exp.id)}
+                                  />
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

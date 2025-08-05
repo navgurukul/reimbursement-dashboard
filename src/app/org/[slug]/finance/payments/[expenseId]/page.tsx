@@ -148,7 +148,7 @@ export default function PaymentProcessingDetails() {
                                     <TableCell>{expense.approver?.full_name || "—"}</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                    <TableHead>Receipt</TableHead>
+                                    <TableHead>Receipt/Voucher</TableHead>
                                     <TableCell>
                                         {/* {expense.voucherId ? (
                                             <Button

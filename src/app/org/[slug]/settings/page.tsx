@@ -407,10 +407,24 @@ export default function SettingsPage() {
 
   const handleSaveColumn = () => {
     if (!editingColumn) return;
+    let cleanedLabel = editingColumn.label
+    .trim()
+    .replace(/\s+/g, " ");
+    const invalidChars = /[^a-zA-Z ]/; // only allow letters and spaces
+
+    if (!cleanedLabel) {
+    toast.error("Column label cannot be empty!");
+    return;
+  }
+
+  if (invalidChars.test(cleanedLabel)) {
+    toast.error("only allow letters and spaces!");
+    return;
+  }
 
     try {
       // Create a copy of the editing column
-      const updatedColumn = { ...editingColumn };
+      const updatedColumn = { ...editingColumn, label: cleanedLabel };
 
       // Handle options for dropdown, radio, and checkbox types
       if (
@@ -638,7 +652,7 @@ export default function SettingsPage() {
                         <SelectItem value="dropdown">Dropdown</SelectItem>
                         <SelectItem value="radio">Radio</SelectItem>
                         <SelectItem value="checkbox">Checkbox</SelectItem>
-                        <SelectItem value="file">File Upload</SelectItem>
+                        {/* <SelectItem value="file">File Upload</SelectItem> */}
                       </SelectContent>
                     </Select>
                   </div>
