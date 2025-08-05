@@ -37,7 +37,6 @@ export default function FinanceExpenseDetails() {
   useEffect(() => {
     const fetchExpense = async () => {
       if (!expenseId) return;
-
       const { data, error } = await expenses.getById(expenseId as string);
       if (error || !data) {
         toast.error("Failed to load expense details");
@@ -293,25 +292,32 @@ export default function FinanceExpenseDetails() {
         </div>
       </div>
       {/* Rejection comment box */}
+
       {showCommentBox && (
-        <div className="bg-red-50 border border-red-300 rounded p-4 space-y-3">
-          <label className="font-medium text-red-800">
-            Rejection Reason (required)
-          </label>
-          <Textarea
-            rows={3}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Enter rejection reason..."
-          />
-          <Button
-            variant="destructive"
-            onClick={handleFinanceReject}
-            disabled={processing}
-          >
-            Submit Rejection
-          </Button>
+          <div className="w-full sm:max-w-[600px] md:max-w-[354px] lg:max-w-[374px] xl:max-w-[610px] 2xl:max-w-[847px] mt-2 space-y-4">
+          <div className="bg-red-50 border border-red-300 rounded p-3 space-y-2">
+            <label className="block font-medium text-red-800">
+              Rejection Reason <span className="text-red-600">*</span>
+            </label>
+            <Textarea
+              rows={3}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Enter rejection reason..."
+              className="w-full"
+            />
+            <div className="text-right">
+              <Button
+                variant="destructive"
+                onClick={handleFinanceReject}
+                disabled={processing}
+              >
+                Submit Rejection
+              </Button>
+            </div>
+          </div>
         </div>
+
       )}
     </div>
   );

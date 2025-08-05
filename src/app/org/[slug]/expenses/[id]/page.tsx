@@ -870,7 +870,8 @@ export default function ViewExpensePage() {
               </div>
               <Button
                 onClick={handleApproveCustomAmount}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-[#0353a4] hover:bg-[#02458b] text-white"
+
                 disabled={updateLoading || !customAmount}
               >
                 {updateLoading ? (
@@ -891,8 +892,7 @@ export default function ViewExpensePage() {
           ) : (
             <>
               <Button
-                variant="outline"
-                className="bg-white"
+                variant="destructive"
                 onClick={handleReject}
                 disabled={updateLoading}
               >
@@ -931,10 +931,9 @@ export default function ViewExpensePage() {
                     )}
                     Approve full amount
                   </Button>
-
                   <Button
+                    variant="secondary"
                     onClick={() => handleApprove("custom")}
-                    className="bg-blue-600 hover:bg-blue-700"
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
@@ -944,12 +943,13 @@ export default function ViewExpensePage() {
                     )}
                     Custom amount
                   </Button>
+
                 </>
               ) : (
                 <>
                   <Button
                     onClick={() => handleApprove("full")}
-                    className="bg-green-600 hover:bg-green-700"
+                    variant="default"
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
@@ -959,10 +959,9 @@ export default function ViewExpensePage() {
                     )}
                     Approve
                   </Button>
-
                   <Button
                     onClick={() => handleApprove("custom")}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    variant="secondary"
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
@@ -979,7 +978,7 @@ export default function ViewExpensePage() {
         </div>
       )}
 
-      {/* Adjusted grid - added gap-6 to create more space between cards */}
+      {/* Adjusted grid - added gap-6 to create more space between card */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Main content - takes slightly more than 3/4 of the space */}
         <div className="lg:col-span-3">
@@ -1032,6 +1031,8 @@ export default function ViewExpensePage() {
                   <p className="text-sm font-medium text-muted-foreground">Date</p>
                   <p>{new Date(expense.date).toLocaleDateString('en-GB')}</p>
                 </div>
+
+
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
                     Status
@@ -1048,6 +1049,7 @@ export default function ViewExpensePage() {
                       expense.status.slice(1)}
                   </p>
                 </div>
+
 
                 {expense.approver && (
                   <div>
@@ -1072,6 +1074,14 @@ export default function ViewExpensePage() {
                   </div>
                 )}
               </div>
+              {/* Finance Rejected Comment */}
+              {expense.status === "finance_rejected" && expense.finance_comment && (
+                <div className="mt-1 text-sm">
+                  <span className="block font-medium text-muted-foreground">Finance Comment</span>
+                  <span>{expense.finance_comment}</span>
+                </div>
+              )}
+
 
               {/* Receipt section with View Receipt button */}
               <div>
@@ -1104,6 +1114,7 @@ export default function ViewExpensePage() {
                   </p>
                 )}
               </div>
+
 
               {/* Signature Section - Add this section to show the signature */}
               {signatureUrl && (

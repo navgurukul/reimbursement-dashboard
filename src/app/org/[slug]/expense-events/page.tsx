@@ -171,15 +171,14 @@ export default function ExpenseEventsPage() {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      className={`${
-                        event.status === "approved"
+                      className={`${event.status === "approved"
                           ? "bg-green-100 text-green-800"
                           : event.status === "rejected"
-                          ? "bg-red-100 text-red-800"
-                          : event.status === "submitted"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
+                            ? "bg-red-100 text-red-800"
+                            : event.status === "submitted"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-gray-100 text-gray-800"
+                        }`}
                     >
                       {event.status.charAt(0).toUpperCase() +
                         event.status.slice(1)}

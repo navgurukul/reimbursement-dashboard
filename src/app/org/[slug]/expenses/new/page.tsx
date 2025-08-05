@@ -27,7 +27,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, CalendarIcon, Save, Upload } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Save, Upload, Trash } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations, expenseHistory } from "@/lib/db";
@@ -1599,7 +1599,6 @@ export default function NewExpensePage() {
             {/* Expense Items Section */}
             {expenseItems.length > 0 && (
               <div className="space-y-6">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-5 space-y-6 bg-gray-50">
                   {expenseItems.map((id, index) => (
                     <div key={id} className="border rounded-lg bg-white p-5">
                       <div className="flex justify-between items-center mb-3">
@@ -1610,12 +1609,11 @@ export default function NewExpensePage() {
 
                         <Button
                           type="button"
-                          variant="destructive"
-                          size="sm"
                           onClick={() => deleteItem(id)}
-                          className="cursor-pointer"
+                          className="p-2 rounded-md bg-white-200 hover:bg-red-200 text-red-600 hover:text-red-700 shadow-sm transition duration-200"
+                          title="Delete"
                         >
-                          Delete
+                          <Trash className="w-4 h-4" />
                         </Button>
                       </div>
 
@@ -2082,15 +2080,18 @@ export default function NewExpensePage() {
                     </div>
                   ))}
                 </div>
-              </div>
             )}
+
             <Button
               type="button"
               onClick={addItem}
-              className="bg-green-600 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-md cursor-pointer"
+              className="bg-black hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-md cursor-pointer"
             >
               ➕ Add Another Expense Item
             </Button>
+
+
+
 
             {/* Expense Signature Section - Only shown when voucher is not open */}
             {(() => {
