@@ -2,6 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import supabase from "./supabase";
 import { SupabaseClient } from '@supabase/supabase-js';
+import { toast } from "sonner";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -362,7 +363,7 @@ export async function uploadToProfilePhotos(
 
     const filePath = `${userId}.png`;
     const { error } = await supabase.storage
-      .from('profile-photos')
+      .from('pictures')
       .upload(filePath, file, {
         contentType: "image/jpeg",
         cacheControl: "3600",
@@ -387,16 +388,14 @@ export async function updateProfileAvatarUrl(
 ): Promise<{ success: boolean; error: Error | null }> {
   try {
     const publicUrl = supabase.storage
-      .from('profile-photos')
+      .from('pictures')
       .getPublicUrl(path).data.publicUrl;
 
     if (!publicUrl) {
       throw new Error('Unable to generate public URL');
     }
 
-    console.log("Public URL for avatar ==============:", publicUrl);
     const fileName = path.split("/").pop();
-    console.log("Uploaded file name:", fileName);
 
     const { error } = await supabase
       .from('profiles')
@@ -424,14 +423,14 @@ export async function getProfileAvatarUrl(userId: string): Promise<string | null
         .single();
 
     if (error || !data?.avatar_url) {
-        console.error("Error fetching avatar_url from profile:", error);
+      // toast.error("Error fetching avatar_url from profile");
         return null;
     }
 
     // Now get a public URL for avatar_url from Supabase storage
     const { data: urlData } = supabase
         .storage
-        .from("profile-photos")
+        .from("pictures")
         .getPublicUrl(data.avatar_url);
 
     return urlData?.publicUrl || null;
