@@ -39,6 +39,7 @@ export default function ProfilePage() {
     const searchParams = useSearchParams();
     const eventIdFromQuery = searchParams.get("eventId");
     const [loadingSignature, setLoadingSignature] = useState(true);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [formData, setFormData] = useState<Record<string, any>>({
         event_id: eventIdFromQuery || "",
     });
@@ -188,8 +189,9 @@ export default function ProfilePage() {
         const file = e.target.files?.[0];
         if (!file || !user?.id) return;
 
+        setUploadingPhoto(true);
         try {
-            // 1. Only upload to storage bucket
+            // 1. Upload to storage bucket
             const { path, error: uploadError } = await uploadToProfilePhotos(
                 supabase,
                 file,
@@ -200,7 +202,7 @@ export default function ProfilePage() {
                 throw uploadError || new Error('Upload failed');
             }
 
-            // 2. Only update profile table
+            // 2. Update profile table
             const { error: updateError } = await updateProfileAvatarUrl(
                 user.id,
                 path
@@ -212,22 +214,36 @@ export default function ProfilePage() {
                 // Continue to update UI since upload succeeded
             }
 
-              // 3. Get public URL for display
-                const url = await getProfileAvatarUrl(user.id);
-                if (!url) throw new Error('Failed to get public URL');
+            // 3. Get public URL for display with cache busting
+            const url = await getProfileAvatarUrl(user.id);
+            if (!url) throw new Error('Failed to get public URL');
 
-                // Update UI state
-                setFormData(prev => ({
-                    ...prev,
-                    profile_photo_url: url
-                }));
+            // Add cache busting parameter
+            const cacheBustedUrl = `${url}?t=${Date.now()}`;
+
+            // Update both formData and userProfile state
+            setFormData(prev => ({
+                ...prev,
+                profile_photo_url: cacheBustedUrl
+            }));
+
+            // Also update userProfile state to ensure the photo shows immediately
+            setUserProfile(prev => prev ? {
+                ...prev,
+                avatar_url: cacheBustedUrl
+            } : null);
 
             toast.success('Profile photo updated');
+            
+            // Clear the file input to allow re-uploading the same file
+            e.target.value = '';
 
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Upload failed';
             toast.error(message);
             console.error('Profile photo error:', err);
+        } finally {
+            setUploadingPhoto(false);
         }
     };
 
@@ -250,18 +266,20 @@ export default function ProfilePage() {
             {/* Personal Information */}
             <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 flex flex-col md:flex-row gap-8 shadow-sm">
                 <div className="flex flex-col items-center w-full md:w-[340px] bg-[#f9fafb] rounded-2xl border border-[#e5e7eb] p-8">
-                    <div className="w-[180px] h-[180px] rounded-full bg-white flex items-center justify-center mb-4 border border-[#e5e7eb] overflow-hidden">
+                    <div className="w-[180px] h-[180px] rounded bg-white flex items-center justify-center mb-4 border border-[#e5e7eb] overflow-hidden">
                         {formData.profile_photo_url ? (
                             <img
+                                key={formData.profile_photo_url}
                                 src={formData.profile_photo_url}
                                 alt="Profile"
-                                className="w-full h-full object-cover rounded-full"
+                                className="w-full h-full object-fit rounded"
                             />
                         ) : userProfile?.avatar_url ? (
                             <img
+                                key={userProfile.avatar_url}
                                 src={userProfile.avatar_url}
                                 alt="Profile Photo"
-                                className="w-full h-full object-cover rounded-full"
+                                className="w-full h-full object-fit rounded"
                             />
                         ) : (
                             <User className="w-[100px] h-[100px] text-slate-300" />
@@ -280,10 +298,20 @@ export default function ProfilePage() {
                             accept="image/*"
                             className="hidden"
                             onChange={handleProfilePhotoChange}
+                            disabled={uploadingPhoto}
                         />
-                        <div className="w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer">
-                            <Upload className="w-5 h-5 text-[#64748b]" />
-                            Upload Photo
+                        <div className={`w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer ${uploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            {uploadingPhoto ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#64748b]"></div>
+                                    Uploading...
+                                </>
+                            ) : (
+                                <>
+                                    <Upload className="w-5 h-5 text-[#64748b]" />
+                                    Upload Photo
+                                </>
+                            )}
                         </div>
                     </label>
                 </div>
