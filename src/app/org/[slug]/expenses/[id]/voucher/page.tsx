@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses, vouchers } from "@/lib/db";
@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ArrowLeft, Download } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import supabase from "@/lib/supabase";
+import { useReactToPrint } from "react-to-print";
 
 export default function VoucherViewPage() {
   const router = useRouter();
@@ -24,6 +25,8 @@ export default function VoucherViewPage() {
   const [loading, setLoading] = useState(true);
   const [userSignatureUrl, setUserSignatureUrl] = useState<string | null>(null);
   const [approverName, setApproverName] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const voucherRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -77,6 +80,19 @@ export default function VoucherViewPage() {
             setApproverName(approverProfile.full_name);
           }
         }
+
+        // Get user email from expense data
+        if (expenseData.user_id) {
+          const { data: userProfile } = await supabase
+            .from("profiles")
+            .select("email")
+            .eq("user_id", expenseData.user_id)
+            .single();
+          if (userProfile) {
+            setUserEmail(userProfile.email);
+          }
+        }
+
       } catch (error: any) {
         console.error("Error fetching voucher data:", error);
         toast.error(error.message || "Failed to load voucher");
@@ -96,6 +112,22 @@ export default function VoucherViewPage() {
       currency: "INR",
     }).format(amount);
   };
+
+  // Function to handle PDF download
+  const handleDownloadPDF = useReactToPrint({
+    contentRef: voucherRef,
+    pageStyle: `
+      @page { size: A4; margin: 10mm; }
+      @media print {
+        body { padding: 20px; }
+        button { display: none !important; }
+        .bg-amber-100 { background-color: #fef3c7 !important; }
+        .text-amber-800 { color: #92400e !important; }
+      }
+    `,
+    documentTitle: `Voucher_${voucher?.id ?? ""}_${userEmail ?? ""}_${voucher?.created_at ? formatDate(voucher.created_at) : ""}`,
+    onAfterPrint: () => toast.success("Voucher downloaded successfully"),
+  });
 
   if (loading) {
     return (
@@ -144,89 +176,91 @@ export default function VoucherViewPage() {
           Back to Expenses
         </Button>
 
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleDownloadPDF} className="cursor-pointer">
           <Download className="mr-2 h-4 w-4" />
           Download PDF
         </Button>
       </div>
 
-      <Card className="shadow-sm mb-6">
-        <CardHeader className="bg-gray-50 border-b">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-xl font-medium">Voucher</CardTitle>
-            <div className="py-1 px-3 rounded-full text-xs bg-amber-100 text-amber-800">
-              {expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-6">
-          <div className="border-b pb-6 mb-6">
-            <h3 className="text-base font-medium mb-4">Voucher Details</h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Your Name</div>
-                <div className="font-medium">{voucher.your_name}</div>
-              </div>
-
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Amount</div>
-                <div className="font-medium">
-                  {formatCurrency(voucher.amount)}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Date</div>
-                <div className="font-medium">{formatDate(expense.date)}</div>
-              </div>
-
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Credit Person</div>
-                <div className="font-medium">{voucher.credit_person}</div>
-              </div>
-
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Approver</div>
-                <div className="font-medium">{approverName || "—"}</div>
-              </div>
-
-              <div className="md:col-span-2">
-                <div className="text-sm text-gray-500 mb-1">Purpose</div>
-                <div className="border rounded-md p-3 bg-gray-50">
-                  {voucher.purpose}
-                </div>
+      <div ref={voucherRef}>
+        <Card className="shadow-sm mb-6">
+          <CardHeader className="bg-gray-50 border-b">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl font-medium">Voucher</CardTitle>
+              <div className="py-1 px-3 rounded-full text-xs bg-amber-100 text-amber-800">
+                {expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
               </div>
             </div>
-          </div>
+          </CardHeader>
 
-          <div>
-            <h3 className="text-base font-medium mb-4">Signature</h3>
+          <CardContent className="p-6">
+            <div className="border-b pb-6 mb-6">
+              <h3 className="text-base font-medium mb-4">Voucher Details</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">Your Name</div>
+                  <div className="font-medium">{voucher.your_name}</div>
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">Amount</div>
+                  <div className="font-medium">
+                    {formatCurrency(voucher.amount)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">Date</div>
+                  <div className="font-medium">{formatDate(expense.date)}</div>
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">Credit Person</div>
+                  <div className="font-medium">{voucher.credit_person}</div>
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">Approver</div>
+                  <div className="font-medium">{approverName || "—"}</div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <div className="text-sm text-gray-500 mb-1">Purpose</div>
+                  <div className="border rounded-md p-3 bg-gray-50">
+                    {voucher.purpose}
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div>
-              <div className="text-sm text-gray-500 mb-2">Your Signature</div>
-              {userSignatureUrl ? (
-                <div className="border rounded-md p-2 bg-white">
-                  <img
-                    src={userSignatureUrl}
-                    alt="Your signature"
-                    className="max-h-24 mx-auto"
-                  />
-                </div>
-              ) : (
-                <div className="text-amber-500 text-sm">
-                  No signature provided
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              <h3 className="text-base font-medium mb-4">Signature</h3>
 
-      <div className="text-sm text-gray-500">
-        <p>Voucher ID: {voucher.id}</p>
-        <p>Created: {formatDate(voucher.created_at)}</p>
+              <div>
+                <div className="text-sm text-gray-500 mb-2">Your Signature</div>
+                {userSignatureUrl ? (
+                  <div className="border rounded-md p-2 bg-white">
+                    <img
+                      src={userSignatureUrl}
+                      alt="Your signature"
+                      className="max-h-24 mx-auto"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-amber-500 text-sm">
+                    No signature provided
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="text-sm text-gray-500">
+          <p>Voucher ID: {voucher.id}</p>
+          <p>Created: {formatDate(voucher.created_at)}</p>
+        </div>
       </div>
     </div>
   );
