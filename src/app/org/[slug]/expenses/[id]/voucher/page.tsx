@@ -250,8 +250,8 @@ export default function VoucherViewPage() {
       }
 
       // Save the PDF with formatted name
-      // doc.save(`voucher-${voucher.id}.pdf`);
-      doc.save(`voucher_${expense.creator_email}.pdf`);
+      doc.save(`voucher_${voucher.id}.pdf`);
+      // doc.save(`voucher_${expense.creator_email}.pdf`);
 
       toast.success('PDF downloaded successfully');
     } catch (error: any) {
