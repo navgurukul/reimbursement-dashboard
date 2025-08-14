@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { voucherAttachments } from "@/lib/db";
 
 // Add type augmentation for jsPDF
 declare module 'jspdf' {
@@ -36,6 +37,20 @@ export default function VoucherViewPage() {
   const [loading, setLoading] = useState(true);
   const [userSignatureUrl, setUserSignatureUrl] = useState<string | null>(null);
   const [approverName, setApproverName] = useState<string | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+
+  // Fetch attachment URL after voucher loads
+  useEffect(() => {
+    if (voucher?.attachment) {
+      const [, filePath] = String(voucher.attachment).split(",");
+      if (filePath) {
+        (async () => {
+          const { url, error } = await voucherAttachments.getUrl(filePath);
+          if (!error) setAttachmentUrl(url);
+        })();
+      }
+    }
+  }, [voucher]);
 
   useEffect(() => {
     async function fetchData() {
@@ -176,7 +191,7 @@ export default function VoucherViewPage() {
         doc.setFontSize(14);
         doc.setTextColor(52, 73, 94);
         // doc.text(organization.name, pageWidth/2, margin + lineHeight, { align: 'center' });
-        doc.text(`Org Name: ${organization.name}`,pageWidth / 2, margin + lineHeight * 1, { align: 'center' });
+        doc.text(`Org Name: ${organization.name}`, pageWidth / 2, margin + lineHeight * 1, { align: 'center' });
       }
 
       // Add voucher details in enhanced table format
@@ -327,6 +342,31 @@ export default function VoucherViewPage() {
               </div>
             </div>
           </div>
+
+          {/* Attachment Section */}
+          {voucher?.attachment && (() => {
+            const [fileName] = String(voucher.attachment).split(",");
+            if (!attachmentUrl) {
+              return (
+                <div className="mt-6 border-b pb-6 mb-6">
+                  <h3 className="text-base font-medium mb-2">Attachment</h3>
+                  <p className="text-gray-500 text-sm">Loading attachment...</p>
+                </div>
+              );
+            }
+            return (
+              <div className="mt-6 border-b pb-6 mb-6">
+                <h3 className="text-base font-medium mb-2">Attachment</h3>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(attachmentUrl, "_blank")}
+                  className="inline-flex items-center text-blue-800 hover:text-blue-800 cursor-pointer"
+                >
+                  View Attachment
+                </Button>
+              </div>
+            );
+          })()}
 
           <div>
             <h3 className="text-base font-medium mb-4">Signature</h3>

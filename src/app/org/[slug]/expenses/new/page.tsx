@@ -30,7 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CalendarIcon, Save, Upload, Trash } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
-import { organizations, expenseHistory } from "@/lib/db";
+import { organizations, expenseHistory, voucherAttachments } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
 import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
@@ -121,6 +121,7 @@ export default function NewExpensePage() {
 
   const [expenseItems, setExpenseItems] = useState<number[]>([]);
   const [expenseItemsData, setExpenseItemsData] = useState<Record<number, ExpenseItemData>>({})
+  const [voucherAttachmentsMap, setVoucherAttachmentsMap] = useState<Record<number, File | null>>({});
 
   // voucherDataMap
   const [voucherDataMap, setVoucherDataMap] = useState<Record<number, any>>({});
@@ -565,9 +566,6 @@ export default function NewExpensePage() {
     }
   };
 
-
-  
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -839,6 +837,26 @@ export default function NewExpensePage() {
         );
       }
 
+      let attachmentData = null;
+      if (formData.attachment) {
+        const file = formData.attachment;
+
+        const { path, error: fileError } = await voucherAttachments.upload(
+          file,
+          user.id,
+          organization.id
+        );
+
+        if (fileError) {
+          console.error("Upload error:", fileError.message || fileError);
+          toast.error("Failed to upload payment screenshot");
+          setSaving(false);
+          return;
+        }
+        // Store in same format as expense.receipt
+        attachmentData = [file.name, path, file.type].join(",");
+      }
+
       // Create voucher for the base expense if in voucher mode
       if (voucherModalOpen) {
         const voucherData = {
@@ -852,6 +870,7 @@ export default function NewExpensePage() {
           created_by: user.id,
           org_id: organization.id,
           approver_id,
+          attachment: attachmentData
         };
 
         const { data: voucherResponse, error: voucherError } = await supabase
@@ -918,6 +937,23 @@ export default function NewExpensePage() {
             continue;
           }
 
+          let attachmentData = null;
+          const voucherAttachment = voucherDataMap[itemId]?.attachment;
+          if (voucherAttachment) {
+            const { path, error: fileError } = await voucherAttachments.upload(
+              voucherAttachment,
+              user.id,
+              organization.id
+            );
+            if (fileError) {
+              console.error("Upload error:", fileError.message || fileError);
+              toast.error("Failed to upload payment screenshot");
+              setSaving(false);
+              return;
+            }
+            attachmentData = [voucherAttachment.name, path, voucherAttachment.type].join(",");
+          }
+
           if (isVoucher) {
             const itemVoucherData = voucherDataMap[itemId] || {};
             const voucherData = {
@@ -931,6 +967,7 @@ export default function NewExpensePage() {
               created_by: user.id,
               org_id: organization.id,
               approver_id: formData.approver || null,
+              attachment: attachmentData
             };
 
             const { error: voucherError } = await supabase
@@ -1602,234 +1639,58 @@ export default function NewExpensePage() {
             {/* Expense Items Section */}
             {expenseItems.length > 0 && (
               <div className="space-y-6">
-                  {expenseItems.map((id, index) => (
-                    <div key={id} className="border rounded-lg bg-white p-5">
-                      <div className="flex justify-between items-center mb-3">
+                {expenseItems.map((id, index) => (
+                  <div key={id} className="border rounded-lg bg-white p-5">
+                    <div className="flex justify-between items-center mb-3">
 
-                        <h1 className="text-xl font-medium text-gray-700">
-                          Expense {index + 2}
-                        </h1>
+                      <h1 className="text-xl font-medium text-gray-700">
+                        Expense {index + 2}
+                      </h1>
 
-                        <Button
-                          type="button"
-                          onClick={() => deleteItem(id)}
-                          className="p-2 rounded-md bg-white-200 hover:bg-red-200 text-red-600 hover:text-red-700 shadow-sm transition duration-200"
-                          title="Delete"
-                        >
-                          <Trash className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => deleteItem(id)}
+                        className="p-2 rounded-md bg-white-200 hover:bg-red-200 text-red-600 hover:text-red-700 shadow-sm transition duration-200"
+                        title="Delete"
+                      >
+                        <Trash className="w-4 h-4" />
+                      </Button>
+                    </div>
 
-                      {/* Expense Type, Date, Amount */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {columns.map((col) => {
-                          if (
-                            !col.visible ||
-                            !['dropdown', 'date', 'number'].includes(col.type) ||
-                            col.key === "approver" || !defaultSystemFields.includes(col.key)
-                          )
-                            return null;
-
-                          return (
-                            <div key={col.key} className="space-y-2">
-                              <Label
-                                htmlFor={col.key}
-                                className="text-sm font-medium text-gray-700"
-                              >
-                                {col.label}
-                                {col.required && (
-                                  <span className="text-red-500 ml-1 text-sm">*</span>
-                                )}
-                              </Label>
-
-
-
-                              {/* Dropdown */}
-                              {col.type === "dropdown" && col.options && (
-                                <>
-                                  <Select
-                                    value={
-                                      getExpenseItemValue(id, "expense_type") !== undefined && getExpenseItemValue(id, "expense_type") !== null
-                                        ? String(getExpenseItemValue(id, "expense_type"))
-                                        : undefined
-                                    }
-                                    onValueChange={(value) => handleExpenseItemChange(id, "expense_type", value)}
-                                  >
-                                    <SelectTrigger
-                                      id={col.key}
-                                      className={`w-full ${errors[col.key]
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                        }`}
-                                    >
-                                      <SelectValue placeholder="Select expense type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {col.options.map((option: any) => {
-                                        const value = typeof option === "string" ? option : option.value;
-                                        const label = typeof option === "string" ? option : option.label;
-                                        return (
-                                          <SelectItem key={value} value={value}>
-                                            {label}
-                                          </SelectItem>
-                                        );
-                                      })}
-                                    </SelectContent>
-                                  </Select>
-                                  {errors[col.key] && (
-                                    <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                                  )}
-                                </>
-                              )}
-
-                              {/* Date */}
-                              {col.type === "date" && (
-                                <>
-                                  <Input
-                                    id={col.key}
-                                    name={col.key}
-                                    type="date"
-                                    value={getExpenseItemValue(id, "date")}
-                                    onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
-                                    className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                      }`}
-                                  />
-                                  {errors[col.key] && (
-                                    <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                                  )}
-                                </>
-                              )}
-
-                              {/* Number */}
-                              {col.type === "number" && (
-                                <>
-                                  <Input
-                                    id={col.key}
-                                    name={col.key}
-                                    type="number"
-                                    placeholder="Enter amount"
-                                    value={getExpenseItemValue(id, "amount")}
-                                    onChange={(e) => handleExpenseItemChange(id, "amount", parseFloat(e.target.value))}
-                                    className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                      }`}
-                                  />
-                                  {errors[col.key] && (
-                                    <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Description (full width) */}
+                    {/* Expense Type, Date, Amount */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {columns.map((col) => {
-                        if (!col.visible || col.type !== "textarea" || col.key === "approver" || !defaultSystemFields.includes(col.key)
-                        ) return null;
+                        if (
+                          !col.visible ||
+                          !['dropdown', 'date', 'number'].includes(col.type) ||
+                          col.key === "approver" || !defaultSystemFields.includes(col.key)
+                        )
+                          return null;
 
                         return (
                           <div key={col.key} className="space-y-2">
-                            <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                            <Label
+                              htmlFor={col.key}
+                              className="text-sm font-medium text-gray-700"
+                            >
                               {col.label}
                               {col.required && (
                                 <span className="text-red-500 ml-1 text-sm">*</span>
                               )}
                             </Label>
-                            <Textarea
-                              id={col.key}
-                              name={col.key}
-                              value={getExpenseItemValue(id, "description")}
-                              onChange={(e) => handleExpenseItemChange(id, "description", e.target.value)}
-                              className={`w-full min-h-[50px] ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                                }`}
-                              placeholder="Brief description of this expense report..."
-                            />
-                            {errors[col.key] && (
-                              <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {/* Text and Number Fields (e.g., New, New One) */}
-                      {customFields.map((col) => {
-                        if (
-                          !col.visible ||
-                          !["text", "number", "date", "textarea", "dropdown", "radio", "checkbox"].includes(col.type)
-                        ) return null;
 
 
-                        return (
-                          <div key={col.key} className="space-y-2 mt-5">
-                            <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
-                              {col.label}
-                              {col.required && (
-                                <span className="text-red-500 ml-1 text-sm">*</span>
-                              )}
-                            </Label>
-                            {(col.type === "text") && (
-                              <Input
-                                id={col.key}
-                                name={col.key}
-                                type={col.type}
-                                value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
-                                onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
-                                className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
-                                  }`}
-                                placeholder={`Enter ${col.label}`}
-                              />)}
-                            {(col.type === "number") && (
-                              <Input
-                                id={col.key}
-                                name={col.key}
-                                type={col.type}
-                                value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
-                                onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, col.type === "number" ? parseFloat(e.target.value) : e.target.value)}
-                                className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
-                                  }`}
-                                placeholder={`Enter ${col.label}`}
-                              />)}
-                            {(col.type === "date") && (
-                              <Input
-                                id={col.key}
-                                name={col.key}
-                                type="date"
-                                value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
-                                onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
-                                className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
-                                  }`}
-                              />)}
-                            {(col.type === "textarea") && (
-                              <Textarea
-                                id={col.key}
-                                name={col.key}
-                                value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
-                                onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
-                                className={`w-full min-h-[75px] ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
-                                  }`}
-                                placeholder="Brief description of this expense report..."
-                              />)}
+
+                            {/* Dropdown */}
                             {col.type === "dropdown" && col.options && (
                               <>
                                 <Select
-                                  value={String(getExpenseItemValue(id, col.key as keyof ExpenseItemData) || "")}
-                                  onValueChange={(value: string) =>
-                                    handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)
+                                  value={
+                                    getExpenseItemValue(id, "expense_type") !== undefined && getExpenseItemValue(id, "expense_type") !== null
+                                      ? String(getExpenseItemValue(id, "expense_type"))
+                                      : undefined
                                   }
+                                  onValueChange={(value) => handleExpenseItemChange(id, "expense_type", value)}
                                 >
                                   <SelectTrigger
                                     id={col.key}
@@ -1838,14 +1699,12 @@ export default function NewExpensePage() {
                                       : ""
                                       }`}
                                   >
-                                    <SelectValue placeholder="Please Select" />
+                                    <SelectValue placeholder="Select expense type" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {col.options.map((option: any) => {
-                                      const value =
-                                        typeof option === "string" ? option : option.value;
-                                      const label =
-                                        typeof option === "string" ? option : option.label;
+                                      const value = typeof option === "string" ? option : option.value;
+                                      const label = typeof option === "string" ? option : option.label;
                                       return (
                                         <SelectItem key={value} value={value}>
                                           {label}
@@ -1854,9 +1713,187 @@ export default function NewExpensePage() {
                                     })}
                                   </SelectContent>
                                 </Select>
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                )}
                               </>
                             )}
-                            {/* {col.type === "radio" && col.options && (
+
+                            {/* Date */}
+                            {col.type === "date" && (
+                              <>
+                                <Input
+                                  id={col.key}
+                                  name={col.key}
+                                  type="date"
+                                  value={getExpenseItemValue(id, "date")}
+                                  onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
+                                  className={`w-full ${errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                    }`}
+                                />
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                )}
+                              </>
+                            )}
+
+                            {/* Number */}
+                            {col.type === "number" && (
+                              <>
+                                <Input
+                                  id={col.key}
+                                  name={col.key}
+                                  type="number"
+                                  placeholder="Enter amount"
+                                  value={getExpenseItemValue(id, "amount")}
+                                  onChange={(e) => handleExpenseItemChange(id, "amount", parseFloat(e.target.value))}
+                                  className={`w-full ${errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                    }`}
+                                />
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Description (full width) */}
+                    {columns.map((col) => {
+                      if (!col.visible || col.type !== "textarea" || col.key === "approver" || !defaultSystemFields.includes(col.key)
+                      ) return null;
+
+                      return (
+                        <div key={col.key} className="space-y-2">
+                          <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                            {col.label}
+                            {col.required && (
+                              <span className="text-red-500 ml-1 text-sm">*</span>
+                            )}
+                          </Label>
+                          <Textarea
+                            id={col.key}
+                            name={col.key}
+                            value={getExpenseItemValue(id, "description")}
+                            onChange={(e) => handleExpenseItemChange(id, "description", e.target.value)}
+                            className={`w-full min-h-[50px] ${errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                              }`}
+                            placeholder="Brief description of this expense report..."
+                          />
+                          {errors[col.key] && (
+                            <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {/* Text and Number Fields (e.g., New, New One) */}
+                    {customFields.map((col) => {
+                      if (
+                        !col.visible ||
+                        !["text", "number", "date", "textarea", "dropdown", "radio", "checkbox"].includes(col.type)
+                      ) return null;
+
+
+                      return (
+                        <div key={col.key} className="space-y-2 mt-5">
+                          <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                            {col.label}
+                            {col.required && (
+                              <span className="text-red-500 ml-1 text-sm">*</span>
+                            )}
+                          </Label>
+                          {(col.type === "text") && (
+                            <Input
+                              id={col.key}
+                              name={col.key}
+                              type={col.type}
+                              value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
+                              onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
+                              className={`w-full ${errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                                }`}
+                              placeholder={`Enter ${col.label}`}
+                            />)}
+                          {(col.type === "number") && (
+                            <Input
+                              id={col.key}
+                              name={col.key}
+                              type={col.type}
+                              value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
+                              onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, col.type === "number" ? parseFloat(e.target.value) : e.target.value)}
+                              className={`w-full ${errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                                }`}
+                              placeholder={`Enter ${col.label}`}
+                            />)}
+                          {(col.type === "date") && (
+                            <Input
+                              id={col.key}
+                              name={col.key}
+                              type="date"
+                              value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
+                              onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
+                              className={`w-full ${errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                                }`}
+                            />)}
+                          {(col.type === "textarea") && (
+                            <Textarea
+                              id={col.key}
+                              name={col.key}
+                              value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
+                              onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
+                              className={`w-full min-h-[75px] ${errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                                }`}
+                              placeholder="Brief description of this expense report..."
+                            />)}
+                          {col.type === "dropdown" && col.options && (
+                            <>
+                              <Select
+                                value={String(getExpenseItemValue(id, col.key as keyof ExpenseItemData) || "")}
+                                onValueChange={(value: string) =>
+                                  handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)
+                                }
+                              >
+                                <SelectTrigger
+                                  id={col.key}
+                                  className={`w-full ${errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                    }`}
+                                >
+                                  <SelectValue placeholder="Please Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {col.options.map((option: any) => {
+                                    const value =
+                                      typeof option === "string" ? option : option.value;
+                                    const label =
+                                      typeof option === "string" ? option : option.label;
+                                    return (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            </>
+                          )}
+                          {/* {col.type === "radio" && col.options && (
                               <div className="space-y-1">
                                 {col.options.map((option: any) => {
                                   const value = typeof option === "string" ? option : option.value;
@@ -1885,204 +1922,204 @@ export default function NewExpensePage() {
                                 })}
                               </div>
                             )} */}
-                            {col.type === "radio" && col.options && (
-                              <div className="space-y-1">
-                                {col.options.map((option: any) => {
-                                  const value = typeof option === "string" ? option : option.value;
-                                  const label = typeof option === "string" ? option : option.label;
-                                  const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
-                                  const selectedRadioValue =
-                                    typeof currentValue === "string" || typeof currentValue === "number"
-                                      ? String(currentValue)
-                                      : "";
-                                  return (
-                                    <div key={value} className="flex items-center space-x-2">
-                                      <input
-                                        type="radio"
-                                        id={`${col.key}-${value}-${id}`} // Include itemId in id for uniqueness
-                                        name={`${col.key}-${id}`} // Include itemId in name to create separate radio groups
-                                        value={value}
-                                        checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
-                                        onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
-                                        className="h-4 w-4 text-blue-600 border-gray-300"
-                                      />
-                                      <label htmlFor={`${col.key}-${value}-${id}`} className="text-sm text-gray-700">
-                                        {label}
-                                      </label>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {col.type === "checkbox" && col.options && (
-                              <div className="space-y-2">
-                                {col.options.map((option: any) => {
-                                  const value = typeof option === "string" ? option : option.value;
-                                  const label = typeof option === "string" ? option : option.label;
-
-                                  // Get current selected values (as an array)
-                                  const rawValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
-                                  const selectedValues: string[] = Array.isArray(rawValue) ? rawValue : [];
-
-
-                                  const isChecked = selectedValues.includes(value);
-
-                                  const handleCheckboxChange = (checked: boolean) => {
-                                    const updatedValues = checked
-                                      ? [...selectedValues, value]
-                                      : selectedValues.filter((v) => v !== value);
-
-                                    handleExpenseItemChange(id, col.key as keyof ExpenseItemData, updatedValues);
-                                  };
-
-                                  return (
-                                    <div key={value} className="flex items-center space-x-2">
-                                      <input
-                                        type="checkbox"
-                                        id={`${col.key}-${value}`}
-                                        name={`${col.key}-${value}`}
-                                        checked={isChecked}
-                                        onChange={(e) => handleCheckboxChange(e.target.checked)}
-                                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                                      />
-                                      <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
-                                        {label}
-                                      </label>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {errors[col.key] && (
-                              <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
-                                {errors[col.key]}
-                              </p>
-                            )}
-                          </div>
-
-                        );
-                        return null;
-                      })}
-
-
-                      {/* Receipt Upload */}
-                      <div className="space-y-2 mt-5">
-                        <Label className="text-sm font-medium text-gray-700">Receipt</Label>
-
-                        <div className="p-4 bg-gray-50/50 rounded-lg border">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <svg
-                                className="h-5 w-5 text-gray-400"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                              <Label
-                                htmlFor="voucher-switch"
-                                className="text-sm font-medium text-gray-900"
-                              >
-                                No receipt? Create a voucher instead
-                              </Label>
-                            </div>
-                            <Switch
-                              checked={voucherModalOpenMap[id] || false}
-                              className="cursor-pointer"
-                              onCheckedChange={() => toggleVoucherModal(id)}
-                              id={`voucher-switch-${id}`}
-                            />
-                          </div>
-
-                          {!voucherModalOpenMap[id] && (
-                            <div className="mt-4">
-                              <Label
-                                htmlFor="receipt"
-                                className="text-sm font-medium text-gray-700"
-                              >
-                                Receipt <span className="text-red-500 ml-0.5">*</span>
-                              </Label>
-                              <div className="mt-2">
-                                <Input
-                                  id="receipt"
-                                  name="receipt"
-                                  type="file"
-                                  onChange={(e) => handleFileChanges(e, id)}
-                                  required={!voucherModalOpenMap[index]}
-                                  aria-invalid={errors["receipt"] ? "true" : "false"}
-                                  aria-describedby={
-                                    errors["receipt"] ? "receipt-error" : undefined
-                                  }
-                                  className={
-                                    errors["receipt"]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                  }
-                                />
-                                {errors["receipt"] && (
-                                  <p
-                                    id="receipt-error"
-                                    className="text-red-500 text-sm mt-1"
-                                    role="alert"
-                                  >
-                                    {errors["receipt"]}
-                                  </p>
-                                )}
-
-                                <div className="text-sm text-gray-500 mt-1">
-                                  {receiptFiles[id] && receiptFiles[id].name ? receiptFiles[id].name : "No file chosen"}
-                                </div>
-                              </div>
-                              {receiptPreviews[id] && (
-                                <div className="mt-2">
-                                  {receiptPreviews[id].startsWith("data:image") ? (
-                                    <img
-                                      src={receiptPreviews[id]}
-                                      alt="Receipt preview"
-                                      className="max-h-40 rounded-md border"
+                          {col.type === "radio" && col.options && (
+                            <div className="space-y-1">
+                              {col.options.map((option: any) => {
+                                const value = typeof option === "string" ? option : option.value;
+                                const label = typeof option === "string" ? option : option.label;
+                                const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
+                                const selectedRadioValue =
+                                  typeof currentValue === "string" || typeof currentValue === "number"
+                                    ? String(currentValue)
+                                    : "";
+                                return (
+                                  <div key={value} className="flex items-center space-x-2">
+                                    <input
+                                      type="radio"
+                                      id={`${col.key}-${value}-${id}`} // Include itemId in id for uniqueness
+                                      name={`${col.key}-${id}`} // Include itemId in name to create separate radio groups
+                                      value={value}
+                                      checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
+                                      onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
+                                      className="h-4 w-4 text-blue-600 border-gray-300"
                                     />
-                                  ) : (
-                                    <div className="p-3 bg-gray-50 rounded-md border">
-                                      <p className="text-sm text-gray-600">
-                                        PDF receipt selected
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                                    <label htmlFor={`${col.key}-${value}-${id}`} className="text-sm text-gray-700">
+                                      {label}
+                                    </label>
+                                  </div>
+                                );
+                              })}
                             </div>
+                          )}
+                          {col.type === "checkbox" && col.options && (
+                            <div className="space-y-2">
+                              {col.options.map((option: any) => {
+                                const value = typeof option === "string" ? option : option.value;
+                                const label = typeof option === "string" ? option : option.label;
+
+                                // Get current selected values (as an array)
+                                const rawValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
+                                const selectedValues: string[] = Array.isArray(rawValue) ? rawValue : [];
+
+
+                                const isChecked = selectedValues.includes(value);
+
+                                const handleCheckboxChange = (checked: boolean) => {
+                                  const updatedValues = checked
+                                    ? [...selectedValues, value]
+                                    : selectedValues.filter((v) => v !== value);
+
+                                  handleExpenseItemChange(id, col.key as keyof ExpenseItemData, updatedValues);
+                                };
+
+                                return (
+                                  <div key={value} className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id={`${col.key}-${value}`}
+                                      name={`${col.key}-${value}`}
+                                      checked={isChecked}
+                                      onChange={(e) => handleCheckboxChange(e.target.checked)}
+                                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                                    />
+                                    <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
+                                      {label}
+                                    </label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {errors[col.key] && (
+                            <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
+                              {errors[col.key]}
+                            </p>
                           )}
                         </div>
 
-                        {voucherModalOpenMap[id] && (
-                          <VoucherForm
-                            formData={voucherDataMap[id] || {}}
-                            onInputChange={(key, value) => {
-                              setVoucherDataMap((prev) => ({
-                                ...prev,
-                                [id]: {
-                                  ...prev[id],
-                                  [key]: value,
-                                },
-                              }));
-                            }}
-                            userRole={userRole}
-                            savedUserSignature={savedUserSignature}
-                            errors={errors}
-                          />
-                        )}
+                      );
+                      return null;
+                    })}
 
+
+                    {/* Receipt Upload */}
+                    <div className="space-y-2 mt-5">
+                      <Label className="text-sm font-medium text-gray-700">Receipt</Label>
+
+                      <div className="p-4 bg-gray-50/50 rounded-lg border">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <svg
+                              className="h-5 w-5 text-gray-400"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            <Label
+                              htmlFor="voucher-switch"
+                              className="text-sm font-medium text-gray-900"
+                            >
+                              No receipt? Create a voucher instead
+                            </Label>
+                          </div>
+                          <Switch
+                            checked={voucherModalOpenMap[id] || false}
+                            className="cursor-pointer"
+                            onCheckedChange={() => toggleVoucherModal(id)}
+                            id={`voucher-switch-${id}`}
+                          />
+                        </div>
+
+                        {!voucherModalOpenMap[id] && (
+                          <div className="mt-4">
+                            <Label
+                              htmlFor="receipt"
+                              className="text-sm font-medium text-gray-700"
+                            >
+                              Receipt <span className="text-red-500 ml-0.5">*</span>
+                            </Label>
+                            <div className="mt-2">
+                              <Input
+                                id="receipt"
+                                name="receipt"
+                                type="file"
+                                onChange={(e) => handleFileChanges(e, id)}
+                                required={!voucherModalOpenMap[index]}
+                                aria-invalid={errors["receipt"] ? "true" : "false"}
+                                aria-describedby={
+                                  errors["receipt"] ? "receipt-error" : undefined
+                                }
+                                className={
+                                  errors["receipt"]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                }
+                              />
+                              {errors["receipt"] && (
+                                <p
+                                  id="receipt-error"
+                                  className="text-red-500 text-sm mt-1"
+                                  role="alert"
+                                >
+                                  {errors["receipt"]}
+                                </p>
+                              )}
+
+                              <div className="text-sm text-gray-500 mt-1">
+                                {receiptFiles[id] && receiptFiles[id].name ? receiptFiles[id].name : "No file chosen"}
+                              </div>
+                            </div>
+                            {receiptPreviews[id] && (
+                              <div className="mt-2">
+                                {receiptPreviews[id].startsWith("data:image") ? (
+                                  <img
+                                    src={receiptPreviews[id]}
+                                    alt="Receipt preview"
+                                    className="max-h-40 rounded-md border"
+                                  />
+                                ) : (
+                                  <div className="p-3 bg-gray-50 rounded-md border">
+                                    <p className="text-sm text-gray-600">
+                                      PDF receipt selected
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
+
+                      {voucherModalOpenMap[id] && (
+                        <VoucherForm
+                          formData={voucherDataMap[id] || {}}
+                          onInputChange={(key, value) => {
+                            setVoucherDataMap((prev) => ({
+                              ...prev,
+                              [id]: {
+                                ...prev[id],
+                                [key]: value,
+                              },
+                            }));
+                          }}
+                          userRole={userRole}
+                          savedUserSignature={savedUserSignature}
+                          errors={errors}
+                        />
+                      )}
+
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
             )}
 
             <Button
