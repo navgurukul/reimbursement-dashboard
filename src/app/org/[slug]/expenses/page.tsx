@@ -528,7 +528,9 @@ export default function ExpensesPage() {
                                 }
                               />
                               {/* ✏️ Edit Icon — status "submitted" ke liye */}
-                              {exp.status === "submitted" && (
+                              {/* {exp.status === "submitted" && ( */}
+                              {/* ✏️ Edit Icon — sabko dikhega except expense approver ke liye aur status "submitted" ke liye */}
+                              {exp.status === "submitted" && exp.approver?.user_id !== user?.id && (
                                 <Edit
                                   className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                   onClick={() =>

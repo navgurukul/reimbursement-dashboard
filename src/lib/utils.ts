@@ -433,7 +433,12 @@ export async function getProfileAvatarUrl(userId: string): Promise<string | null
         .from("pictures")
         .getPublicUrl(data.avatar_url);
 
-    return urlData?.publicUrl || null;
+    // return urlData?.publicUrl || null;
+    const publicUrl = urlData?.publicUrl;
+    if (!publicUrl) return null;
+
+    // Add cache busting parameter to prevent browser caching
+    return `${publicUrl}?t=${Date.now()}`;
 }
 
 // export async function uploadPdf(file: File, filePath: string): Promise<{ path: string | null; error: Error | null }> {
