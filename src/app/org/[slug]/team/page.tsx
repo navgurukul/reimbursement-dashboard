@@ -136,22 +136,138 @@ export default function TeamPage() {
     fetchMembers();
   }, [org?.id]);
 
-  useEffect(() => {
-    const interval = setInterval(async () => {
+  // useEffect(() => {
+  //   const interval = setInterval(async () => {
+  //     const { data, error } = await supabase.auth.getUser();
+  //     if (!data?.user || error) {
+  //       toast.error("You have been removed from the dashboard");
+
+  //       await supabase.auth.signOut();
+
+  //       clearInterval(interval);
+  //       setTimeout(() => {
+  //         router.replace("/auth/signin");
+  //       }, 3000); // after 3 seconds
+  //     }
+  //   }, 300000); // Every 5 minutes (300000 ms)
+  //   return () => clearInterval(interval);
+  // }, []);
+
+
+
+//   useEffect(() => {
+//   const interval = setInterval(async () => {
+//     const { data, error } = await supabase.auth.getUser();
+//     const userId = data?.user?.id;
+
+//     if (!userId || error) return; 
+
+//     const { data: removed, error: removedError } = await supabase
+//       .from("removed_users")
+//       .select("*")
+//       .eq("user_id", userId)
+//       .maybeSingle();
+
+//     if (removedError) {
+//       console.error("Error checking removed users:", removedError);
+//       return;
+//     }
+
+//     if (removed) {
+//       toast.error("You have been removed from the dashboard");
+//       await supabase.auth.signOut();
+//       clearInterval(interval);
+//       setTimeout(() => router.replace("/auth/signin"), 3000);
+//     }
+//   }, 300000);
+
+//   return () => clearInterval(interval);
+// }, []);
+
+// useEffect(() => {
+//   const interval = setInterval(async () => {
+//     try {
+//       const { data, error } = await supabase.auth.getUser();
+//       const userId = data?.user?.id;
+
+//       // Stop if not logged in or there is an auth error
+//       if (!userId || error) return;
+
+//       // Check if the user exists in removed_users table
+//       const { data: removed, error: removedError } = await supabase
+//         .from("removed_users")
+//         .select("id")
+//         .eq("user_id", userId)
+//         .single();
+
+//       if (removedError) {
+//         if (removedError.code !== "PGRST116") { // No rows found is fine
+//           console.error("Error checking removed users:", removedError);
+//         }
+//         return;
+//       }
+
+//       if (removed) {
+//         toast.error("You have been removed from the dashboard");
+//         await supabase.auth.signOut();
+//         clearInterval(interval);
+//         setTimeout(() => router.replace("/auth/signin"), 3000);
+//       }
+//     } catch (err) {
+//       console.error("Unexpected error in removal check:", err);
+//     }
+//   }, 300000); // 5 minutes, change to 10000 (10s) for testing
+
+//   return () => clearInterval(interval);
+// }, [router]);
+
+
+
+useEffect(() => {
+  
+  const checkUserRemoval = async () => {
+    try {
       const { data, error } = await supabase.auth.getUser();
-      if (!data?.user || error) {
-        toast.error("You have been removed from the dashboard");
+      const currentUserId = data?.user?.id;
 
+      if (!currentUserId || error) return;
+
+      // Check if current user exists in removed_users table
+      const { data: removedUser, error: removedError } = await supabase
+        .from("removed_users")
+        .select("id")
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+
+      if (removedError && removedError.code !== "PGRST116") {
+        console.error("Error checking removed users:", removedError);
+        return;
+      }
+
+      if (removedUser) {
+        toast.error("You have been removed from the dashboard", {
+          description: "You will be redirected to sign in page.",
+          duration: 5000
+        });
+        
         await supabase.auth.signOut();
-
-        clearInterval(interval);
         setTimeout(() => {
           router.replace("/auth/signin");
-        }, 3000); // after 3 seconds
+        }, 3000);
       }
-    }, 300000); // Every 5 minutes (300000 ms)
-    return () => clearInterval(interval);
-  }, []);
+    } catch (err) {
+      console.error("Unexpected error in removal check:", err);
+    }
+  };
+
+  // Check immediately
+  checkUserRemoval();
+
+  // Then check every 30 seconds
+  const interval = setInterval(checkUserRemoval, 60000);
+  return () => clearInterval(interval);
+}, [router]);
+
 
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -283,57 +399,199 @@ export default function TeamPage() {
     }
   };
 
-  const handleDeleteMember = async (memberId: string) => {
-    if (!org?.id) return;
+  
 
+  // const handleDeleteMember = async (memberId: string) => {
+  //   if (!org?.id) return;
+
+  //   try {
+  //     const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
+  //     if (fetchError || !orgUser) throw fetchError || new Error("User not found");
+
+  //     const userId = orgUser.user_id;
+
+  //     const { data: profile, error: profileError } = await profiles.getById(userId);
+  //     if (profileError || !profile) throw profileError || new Error("Profile not found");
+
+  //     const insertResult = await RemovedUsers.create({
+  //       user_id: userId,
+  //       email: profile.email,
+  //       full_name: profile.full_name,
+  //       created_at: profile.created_at,
+  //       removable_at: new Date(),
+
+  //     });
+  //     if (insertResult.error) throw insertResult.error;
+
+  //     const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
+  //     if (orgUserDeleteError) throw orgUserDeleteError;
+
+  //     const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
+  //     if (profileDeleteError) throw profileDeleteError;
+
+  //     // Delete the actual user account via API
+  //     const response = await fetch('/api/delete-auth-user', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({ userId }),
+  //     });
+
+  //     if (!response.ok) {
+  //       const errorData = await response.json();
+  //       throw new Error(errorData.error || 'Failed to delete user account');
+  //     }
+
+  //     setMembers((prev) => prev.filter((m) => m.id !== memberId));
+  //     toast.success("Member deleted successfully");
+  //   } catch (error: any) {
+  //     console.error("Error deleting member:", error);
+  //     toast.error("Failed to delete member", {
+  //       description: error.message || "Please try again",
+  //     });
+  //   }
+  // };
+
+
+//   const handleDeleteMember = async (memberId: string) => {
+//   if (!org?.id) return;
+
+//   try {
+//     // 1. Get organization member record
+//     const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
+//     if (fetchError || !orgUser) throw fetchError || new Error("User not found");
+
+//     const userId = orgUser.user_id;
+
+//     // 2. Get user profile
+//     const { data: profile, error: profileError } = await profiles.getById(userId);
+//     if (profileError || !profile) throw profileError || new Error("Profile not found");
+
+//     // 3. Add user to RemovedUsers table FIRST (before any deletions)
+//     const insertResult = await RemovedUsers.create({
+//       user_id: userId,
+//       email: profile.email,
+//       full_name: profile.full_name,
+//       created_at: profile.created_at,
+//       removable_at: new Date(),
+//     });
+//     if (insertResult.error) throw insertResult.error;
+
+//     // 4. Remove from organization members table (this removes the foreign key dependency)
+//     const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
+//     if (orgUserDeleteError) throw orgUserDeleteError;
+
+//     // 5. Remove from profiles table
+//     const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
+//     if (profileDeleteError) throw profileDeleteError;
+
+//     // 6. Finally, delete the user from Supabase Auth
+//     const response = await fetch('/api/delete-auth-user', {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({ userId }),
+//     });
+
+//     if (!response.ok) {
+//       const errorData = await response.json();
+//       console.warn("Failed to delete user from auth, but continuing:", errorData.error);
+//       // Don't throw here as the user is already removed from org and profiles
+//     }
+
+//     // 7. Update UI
+//     setMembers((prev) => prev.filter((m) => m.id !== memberId));
+//     toast.success("Member removed successfully", {
+//       description: "The user has been removed from your organization."
+//     });
+
+//   } catch (error: any) {
+//     console.error("Error deleting member:", error);
+//     toast.error("Failed to remove member", {
+//       description: error.message || "Please try again",
+//     });
+//   }
+// };
+
+const handleDeleteMember = async (memberId: string) => {
+  if (!org?.id) return;
+
+  try {
+    // 1. Get organization member record
+    const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
+    if (fetchError || !orgUser) throw fetchError || new Error("User not found");
+
+    const userId = orgUser.user_id;
+
+    // 2. Get user profile
+    const { data: profile, error: profileError } = await profiles.getById(userId);
+    if (profileError || !profile) throw profileError || new Error("Profile not found");
+
+    // 3. Add user to RemovedUsers table FIRST (before any deletions)
+    const insertResult = await RemovedUsers.create({
+      user_id: userId,
+      email: profile.email,
+      full_name: profile.full_name,
+      created_at: profile.created_at,
+      removable_at: new Date(),
+    });
+    if (insertResult.error) throw insertResult.error;
+
+    // 4. Delete user from Supabase Auth FIRST (to avoid auth conflicts)
     try {
-      const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
-      if (fetchError || !orgUser) throw fetchError || new Error("User not found");
-
-      const userId = orgUser.user_id;
-
-      const { data: profile, error: profileError } = await profiles.getById(userId);
-      if (profileError || !profile) throw profileError || new Error("Profile not found");
-
-      const insertResult = await RemovedUsers.create({
-        user_id: userId,
-        email: profile.email,
-        full_name: profile.full_name,
-        created_at: profile.created_at,
-        removable_at: new Date(),
-
-      });
-      if (insertResult.error) throw insertResult.error;
-
-      const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
-      if (orgUserDeleteError) throw orgUserDeleteError;
-
-      const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
-      if (profileDeleteError) throw profileDeleteError;
-
-      // Delete the actual user account via API
       const response = await fetch('/api/delete-auth-user', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete user account');
+        console.warn("Failed to delete user from auth:", errorData.error);
       }
+    } catch (authError) {
+      console.warn("Auth deletion failed, continuing with database cleanup:", authError);
+    }
 
+    // 5. Remove from organization members table
+    const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
+    if (orgUserDeleteError) {
+      console.log("Failed to delete from organization:", orgUserDeleteError);
+      throw orgUserDeleteError;
+    }
+
+    // 6. Remove from profiles table
+    const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
+    if (profileDeleteError) {
+      console.log("Failed to delete profile:", profileDeleteError);
+      // Don't throw here, as the user is already removed from org
+      console.warn("Profile deletion failed but user removed from organization");
+    }
+
+    // 7. Update UI immediately
+    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+    toast.success("Member removed successfully", {
+      description: "The user has been removed from your organization."
+    });
+
+  } catch (error: any) {
+    console.error("Error deleting member:", error);
+    
+    // Still update UI if the main organization deletion succeeded
+    if (error.message && !error.message.includes("organization")) {
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
-      toast.success("Member deleted successfully");
-    } catch (error: any) {
-      console.error("Error deleting member:", error);
-      toast.error("Failed to delete member", {
+      toast.warning("Member removed from dashboard", {
+        description: "There may have been issues with complete cleanup. Please refresh to verify."
+      });
+    } else {
+      toast.error("Failed to remove member", {
         description: error.message || "Please try again",
       });
     }
-  };
+  }
+};
+
+
   const confirmDeleteMember = (id: string) => {
     setMemberToDelete(id);
     setShowDeleteConfirm(true);
