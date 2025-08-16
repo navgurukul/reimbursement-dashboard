@@ -11,6 +11,18 @@ import { Spinner } from "@/components/ui/spinner";
 import { ArrowLeft, Download } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import supabase from "@/lib/supabase";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// Add type augmentation for jsPDF
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: typeof autoTable;
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
+}
 
 export default function VoucherViewPage() {
   const router = useRouter();
@@ -132,6 +144,121 @@ export default function VoucherViewPage() {
     );
   }
 
+  const convertImageUrlToBase64 = async (url: string): Promise<string> => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      // Create a new PDF document
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const lineHeight = 10;
+
+      // Add title and header styling
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(44, 62, 80);
+      doc.text('Expense Voucher', pageWidth / 2, margin, { align: 'center' });
+
+      // Add organization name with styling
+      if (organization?.name) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(14);
+        doc.setTextColor(52, 73, 94);
+        // doc.text(organization.name, pageWidth/2, margin + lineHeight, { align: 'center' });
+        doc.text(`Org Name: ${organization.name}`,pageWidth / 2, margin + lineHeight * 1, { align: 'center' });
+      }
+
+      // Add voucher details in enhanced table format
+      let yPos = margin + (lineHeight * 2);
+
+      // Define table data with better structure
+      const tableData = {
+        head: [['Details', 'Information']],
+        body: [
+          ['Name', voucher.your_name],
+          // ['Exp. Creator Email', expense.creator_email || '—'],
+          ['Amount', `INR ${voucher.amount.toFixed(2)}`],
+          ['Date', formatDate(expense.date)],
+          ['Credit Person', voucher.credit_person],
+          ['Approver', approverName || '—'],
+          ['Purpose', voucher.purpose],
+          ['Voucher ID', voucher.id],
+          ['Created At', formatDate(voucher.created_at)],
+          ['Signature', userSignatureUrl ? '(Digital signature attached below)' : '(No signature available)']
+        ]
+      };
+
+      // Enhanced table styling
+      autoTable(doc, {
+        startY: yPos,
+        head: tableData.head,
+        body: tableData.body,
+        margin: { left: margin, right: margin },
+        styles: {
+          fontSize: 11,
+          cellPadding: 4,
+          lineWidth: 0.1,
+          lineColor: [189, 195, 199]
+        },
+        headStyles: {
+          fillColor: [60, 60, 60],
+          textColor: 255,
+          fontSize: 12,
+          fontStyle: 'bold',
+          halign: 'left'
+        },
+        columnStyles: {
+          0: { cellWidth: 50, fontStyle: 'bold' },
+          1: { cellWidth: 120, cellPadding: { top: 4, bottom: 4, left: 6, right: 6 } }
+        },
+        alternateRowStyles: {
+          fillColor: [241, 245, 249]
+        },
+        // didDrawCell: function(data) {
+        //   // Add extra padding for Purpose row
+        //   if (data.row.cells[0].text[0] === 'Purpose') {
+        //     data.row.height = 20; // Reduced height for purpose
+        //   }
+        // }
+      });
+
+      // Get the final Y position after the table
+      yPos = (doc as any).lastAutoTable.finalY + (lineHeight * 1.5);
+
+      // Add signature image if available
+      if (userSignatureUrl) {
+        try {
+          const base64Image = await convertImageUrlToBase64(userSignatureUrl);
+          doc.addImage(base64Image, 'PNG', margin, yPos, 60, 30);
+        } catch (signatureError) {
+          console.error('Error adding signature to PDF:', signatureError);
+          doc.setFontSize(12);
+          doc.setTextColor(44, 62, 80);
+          doc.text('(Signature unavailable)', margin, yPos + lineHeight);
+        }
+      }
+
+      // Save the PDF with formatted name
+      doc.save(`voucher_${voucher.id}.pdf`);
+      // doc.save(`voucher_${expense.creator_email}.pdf`);
+
+      toast.success('PDF downloaded successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to download PDF');
+    }
+  };
+
   return (
     <div className="max-w-[800px] mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
@@ -144,7 +271,7 @@ export default function VoucherViewPage() {
           Back to Expenses
         </Button>
 
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleDownloadPDF} className="cursor-pointer">
           <Download className="mr-2 h-4 w-4" />
           Download PDF
         </Button>
