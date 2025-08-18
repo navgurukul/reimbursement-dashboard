@@ -112,7 +112,7 @@ export function AppSidebar() {
 
   function SidebarContent() {
     return (
-      <div className="flex h-full flex-col">
+      <div className="fixed left-0 top-0 h-screen flex flex-col w-64 border-r bg-muted/40">
         {/* Org name / logo */}
         <div className="flex h-14 items-center border-b px-4">
           <Link

@@ -50,6 +50,9 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
               <TableHead className="text-center py-3">Payment Status</TableHead>
+              <TableHead className="text-center py-3">UTR</TableHead>
+              <TableHead className="text-center py-3">Updated By</TableHead>
+
             </TableRow>
           </TableHeader>
 
@@ -77,6 +80,12 @@ export default function PaymentRecords() {
                     <Badge variant="success" className="text-xs">
                       {record.payment_status}
                     </Badge>
+                  </TableCell>
+                   <TableCell className="text-center py-2">
+                    {record.utr || "-"}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.updated_by || "-"}
                   </TableCell>
                 </TableRow>
               ))
