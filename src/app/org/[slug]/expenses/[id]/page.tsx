@@ -16,6 +16,8 @@ import {
   AlertCircle,
   Edit,
   Clock,
+  Copy,
+  Share2,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
@@ -110,6 +112,7 @@ export default function ViewExpensePage() {
     event_id: eventIdFromQuery || "",
   });
   const [customFields, setCustomFields] = useState<any[]>([]);
+  const [shareLink, setShareLink] = useState<string>("");
 
   // Load the user's saved signature if it exists
   useEffect(() => {
@@ -832,6 +835,22 @@ export default function ViewExpensePage() {
     return String(val);
   };
 
+  const handleShareReceipt = async () => {
+    if (expense.receipt?.path) {
+      try {
+        const { url, error } = await expenses.getReceiptUrl(expense.receipt.path);
+        if (error || !url) {
+          toast.error("Failed to generate shareable link");
+          return;
+        }
+        setShareLink(url); // input box me dikhane ke liye
+        toast.success("Receipt link generated");
+      } catch (err) {
+        console.error("Receipt share error:", err);
+        toast.error("Failed to generate shareable link");
+      }
+    }
+  };
 
   return (
     <div className="container mx-auto py-6">
@@ -1089,29 +1108,48 @@ export default function ViewExpensePage() {
                   Receipt/Voucher
                 </p>
                 {expense.receipt ? (
-                  <Button
-                    variant="outline"
-                    onClick={handleViewReceipt}
-                    className="flex items-center"
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    View Receipt ({expense.receipt.filename || "Document"})
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleViewReceipt}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      View Receipt ({expense.receipt.filename || "Document"})
+                    </Button>
+                    <Button variant="outline" onClick={handleShareReceipt} className="cursor-pointer">
+                      Share <Share2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 ) : hasVoucher ? (
-                  <Button
-                    variant="outline"
-                    className="flex items-center text-blue-600"
-                    onClick={() =>
-                      router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
-                    }
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    View Voucher
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      className="text-blue-600"
+                      variant="outline"
+                      onClick={() =>
+                        router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
+                      }
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      View Voucher
+                    </Button>
+                  </div>
                 ) : (
-                  <p className="text-muted-foreground">
-                    No receipt or voucher available
-                  </p>
+                  <p className="text-muted-foreground">No receipt or voucher available</p>
+                )}
+
+                {/* Input box + Copy icon will show only when Share button is clicked */}
+                {shareLink && (
+                  <div className="flex items-center space-x-2 mt-2">
+                    <Input value={shareLink} readOnly className="flex-1" />
+                    <Button
+                      className="cursor-pointer"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(shareLink);
+                        toast.success("Link copied to clipboard");
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
 
