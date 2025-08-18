@@ -172,105 +172,208 @@ export default function VoucherViewPage() {
 
   const handleDownloadPDF = async () => {
     try {
-      // Create a new PDF document
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 20;
-      const lineHeight = 10;
 
-      // Add title and header styling
+      const margin = 20;      // outer margin
+      const padding = 10;     // inner padding inside border
+
+      // ===== Outer rounded border (card) =====
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(
+        margin,
+        margin,
+        pageWidth - margin * 2,
+        pageHeight - margin * 2,
+        0,
+        0,
+      );
+
+      // ===== Header =====
+      let y = margin + padding;
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(22);
-      doc.setTextColor(44, 62, 80);
-      doc.text('Expense Voucher', pageWidth / 2, margin, { align: 'center' });
+      doc.setFontSize(18);
+      doc.setTextColor(0, 0, 0);
+      doc.text("EXPENSE VOUCHER", pageWidth / 2, y, { align: "center" });
 
-      // Add organization name with styling
-      if (organization?.name) {
-        doc.setFont("helvetica", "italic");
-        doc.setFontSize(14);
-        doc.setTextColor(52, 73, 94);
-        // doc.text(organization.name, pageWidth/2, margin + lineHeight, { align: 'center' });
-        doc.text(`Org Name: ${organization.name}`, pageWidth / 2, margin + lineHeight * 1, { align: 'center' });
-      }
+      y += 8;
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(15);
+      doc.setTextColor(80, 80, 80);
+      doc.text(
+        `Organization: ${organization?.name || "Navgurukul"}`,
+        pageWidth / 2,
+        y,
+        { align: "center" }
+      );
 
-      // Add voucher details in enhanced table format
-      let yPos = margin + (lineHeight * 2);
+      // Voucher ID (left) + Created At (right) in same row
+      y += 10;
+      doc.setFont("helvetica", "bolditalic");
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
 
-      // Define table data with better structure
-      const tableData = {
-        head: [['Details', 'Information']],
-        body: [
-          ['Name', voucher.your_name],
-          // ['Exp. Creator Email', expense.creator_email || '—'],
-          ['Amount', `INR ${voucher.amount.toFixed(2)}`],
-          ['Date', formatDate(expense.date)],
-          ['Credit Person', voucher.credit_person],
-          ['Approver', approverName || '—'],
-          ['Purpose', voucher.purpose],
-          ['Voucher ID', voucher.id],
-          ['Created At', formatDate(voucher.created_at)],
-          ['Signature', userSignatureUrl ? '(Digital signature attached below)' : '(No signature available)']
-        ]
-      };
+      // Left aligned (Voucher ID)
+      doc.text(`Voucher ID: ${voucher.id}`, margin + padding, y);
 
-      // Enhanced table styling
+      // Right aligned (Created At)
+      doc.text(
+        `Created At: ${formatDate(voucher.created_at)}`,
+        pageWidth - margin - padding,
+        y,
+        { align: "right" }
+      );
+
+      // Divider (full width black line)
+      y += 6;
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y, pageWidth - margin, y);
+
+      // ===== Table =====
+      const startY = y + 8;
+      const amountString = `INR ${Number(voucher.amount || 0).toFixed(2)}`;
+      const body = [
+        ["Name", voucher.your_name || "—"],
+        ["Amount", amountString],
+        ["Date", formatDate(expense.date)],
+        ["Credit Person", voucher.credit_person || "—"],
+        ["Approver", approverName || "—"],
+        ["Purpose", voucher.purpose || "—"],
+        [
+          "Signature",
+          userSignatureUrl
+            ? "Digital signature attached below"
+            : "Not available",
+        ],
+      ];
+
       autoTable(doc, {
-        startY: yPos,
-        head: tableData.head,
-        body: tableData.body,
-        margin: { left: margin, right: margin },
+        startY,
+        head: [["Details", "Information"]],
+        body,
+        margin: { left: margin + padding, right: margin + padding },
         styles: {
           fontSize: 11,
           cellPadding: 4,
-          lineWidth: 0.1,
-          lineColor: [189, 195, 199]
+          lineColor: [0, 0, 0],
+          lineWidth: 0.2,
+          textColor: [30, 30, 30],
         },
         headStyles: {
-          fillColor: [60, 60, 60],
+          fillColor: [45, 45, 45],
           textColor: 255,
-          fontSize: 12,
-          fontStyle: 'bold',
-          halign: 'left'
+          fontStyle: "bold",
+          halign: "left",
         },
+        alternateRowStyles: { fillColor: [246, 246, 246] },
         columnStyles: {
-          0: { cellWidth: 50, fontStyle: 'bold' },
-          1: { cellWidth: 120, cellPadding: { top: 4, bottom: 4, left: 6, right: 6 } }
+          0: { cellWidth: 60, fontStyle: "bold" },
+          1: { cellWidth: pageWidth - (margin + padding) * 2 - 60 },
         },
-        alternateRowStyles: {
-          fillColor: [241, 245, 249]
+        // Amount in green + bold
+        didParseCell: (d) => {
+          if (d.section === "body" && d.row.index === 1 && d.column.index === 1) {
+            d.cell.styles.textColor = [0, 0, 0];
+            d.cell.styles.fontStyle = "bold";
+          }
         },
-        // didDrawCell: function(data) {
-        //   // Add extra padding for Purpose row
-        //   if (data.row.cells[0].text[0] === 'Purpose') {
-        //     data.row.height = 20; // Reduced height for purpose
-        //   }
-        // }
       });
 
-      // Get the final Y position after the table
-      yPos = (doc as any).lastAutoTable.finalY + (lineHeight * 1.5);
+      y = (doc as any).lastAutoTable.finalY + 15;
 
-      // Add signature image if available
+      // ===== Signature Section =====
+      // Divider above DIGITAL SIGNATURE:
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.2);
+      doc.line(margin + padding, y, pageWidth - margin - padding, y);
+
+      y += 8;
+
+      // Section title
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+      doc.text("DIGITAL SIGNATURE:", margin + padding, y);
+
+      y += 6;
+
       if (userSignatureUrl) {
         try {
-          const base64Image = await convertImageUrlToBase64(userSignatureUrl);
-          doc.addImage(base64Image, 'PNG', margin, yPos, 60, 30);
-        } catch (signatureError) {
-          console.error('Error adding signature to PDF:', signatureError);
-          doc.setFontSize(12);
-          doc.setTextColor(44, 62, 80);
-          doc.text('(Signature unavailable)', margin, yPos + lineHeight);
+          const base64 = await convertImageUrlToBase64(userSignatureUrl);
+
+          // Desired max size
+          const maxW = 80; // signature max width
+          const maxH = 15; // signature max height
+
+          // Add image with preserved aspect ratio
+          doc.addImage(base64, "PNG", margin + padding + 4, y + 4, maxW, maxH);
+
+          // Dashed box that wraps the signature (just bigger than image)
+          const boxW = maxW + 8;
+          const boxH = maxH + 8;
+          doc.setLineWidth(0.3);
+          doc.setDrawColor(150);
+          (doc as any).setLineDash?.([2, 2], 0);
+          doc.rect(margin + padding, y, boxW, boxH);
+          (doc as any).setLineDash?.([]);
+        } catch {
+          // If image fails → show dashed placeholder with text
+          const boxW = 120;
+          const boxH = 30;
+          doc.setLineWidth(0.3);
+          doc.setDrawColor(150);
+          (doc as any).setLineDash?.([2, 2], 0);
+          doc.rect(margin + padding, y, boxW, boxH);
+          (doc as any).setLineDash?.([]);
+
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(10);
+          doc.setTextColor(150, 150, 150);
+          doc.text("Signature unavailable", margin + padding + 6, y + 15);
         }
+      } else {
+        // No signature at all → placeholder box with text
+        const boxW = 120;
+        const boxH = 30;
+        doc.setLineWidth(0.3);
+        doc.setDrawColor(150);
+        (doc as any).setLineDash?.([2, 2], 0);
+        doc.rect(margin + padding, y, boxW, boxH);
+        (doc as any).setLineDash?.([]);
+
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(10);
+        doc.setTextColor(150, 150, 150);
+        doc.text("Signature Not Available", margin + padding + 6, y + 15);
       }
 
-      // Save the PDF with formatted name
-      doc.save(`voucher_${voucher.id}.pdf`);
-      // doc.save(`voucher_${expense.creator_email}.pdf`);
+      // ===== Footer Note (always at bottom inside border) =====
+      const bottomFooterY = pageHeight - margin - 14;
+      // Divider line
+      doc.setDrawColor(120);
+      doc.setLineWidth(0.2);
+      doc.line(margin + padding, bottomFooterY, pageWidth - margin - padding, bottomFooterY);
 
-      toast.success('PDF downloaded successfully');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to download PDF');
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(12);
+      doc.setTextColor(100, 100, 100);
+
+      doc.text(
+        "This is a computer-generated voucher and is valid without physical signature.",
+        pageWidth / 2,
+        pageHeight - margin - 6,   // always just above bottom border
+        { align: "center" }
+      );
+
+      // Save file
+      doc.save(`voucher_${voucher.id}.pdf`);
+      toast.success("PDF downloaded successfully");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to download PDF");
     }
   };
 
