@@ -147,7 +147,12 @@ export default function ExpenseEventDetailPage() {
           await expenses.getByEventId(eventId);
         if (expensesError) throw expensesError;
 
-        setEventExpenses(expensesData || []);
+        setEventExpenses(
+          (expensesData || []).map((exp: any) => ({
+            ...exp,
+            approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+          })) as Expense[]
+        );
       } catch (error: any) {
         toast.error("Failed to load event details", {
           description: error.message,
@@ -256,7 +261,12 @@ export default function ExpenseEventDetailPage() {
 
       // Refresh expenses
       const { data: expensesData } = await expenses.getByEventId(event.id);
-      setEventExpenses(expensesData || []);
+      setEventExpenses(
+        (expensesData || []).map((exp: any) => ({
+          ...exp,
+          approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+        }))
+      );
     } catch (error: any) {
       toast.error("Failed to submit event", {
         description: error.message,
@@ -289,7 +299,12 @@ export default function ExpenseEventDetailPage() {
 
       // Refresh expenses
       const { data } = await expenses.getByEventId(eventId);
-      setEventExpenses(data || []);
+      setEventExpenses(
+        (data || []).map((exp: any) => ({
+          ...exp,
+          approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+        }))
+      );
 
       // Refresh event data (to update total)
       const { data: eventData } = await expenseEvents.getById(eventId);
