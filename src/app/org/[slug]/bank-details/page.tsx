@@ -10,10 +10,10 @@ import {
   DialogTrigger,
   DialogTitle,
   DialogDescription,
-    DialogHeader,
-    DialogFooter,
-    DialogClose,
-    DialogClose as DialogCloseButton,
+  DialogHeader,
+  DialogFooter,
+  DialogClose,
+  DialogClose as DialogCloseButton,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
@@ -37,6 +37,10 @@ export default function BankDetailsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [showVerifyDialog, setShowVerifyDialog] = useState(false);
+  const [password, setPassword] = useState("");
+  const [secret, setSecret] = useState("");
+
 
 
   const [form, setForm] = useState<Omit<BankDetail, "id">>({
@@ -53,15 +57,15 @@ export default function BankDetailsPage() {
     fetchBankDetails();
   }, [search, currentPage]);
 
-    async function fetchBankDetails() {
-        let query = supabase
-            .from("bank_details")
-            .select("*", { count: "exact" })
-            .order("id", { ascending: false });
+  async function fetchBankDetails() {
+    let query = supabase
+      .from("bank_details")
+      .select("*", { count: "exact" })
+      .order("id", { ascending: false });
 
-        if (search) {
-            query = query.or(`account_holder.ilike.%${search}%,email.ilike.%${search}%`);
-        }
+    if (search) {
+      query = query.or(`account_holder.ilike.%${search}%,email.ilike.%${search}%`);
+    }
 
     const from = (currentPage - 1) * PAGE_SIZE;
     const to = currentPage * PAGE_SIZE - 1;
@@ -247,31 +251,84 @@ export default function BankDetailsPage() {
                 )}
               </div>
             ))}
-            <Button type="submit">{editing ? "Update" : "Save"}</Button>
+            <Button
+              onClick={() => {
+                setShowConfirmDialog(false);
+                setShowVerifyDialog(true); // Step 2 open
+              }}
+            >
+              Yes, Update
+            </Button>
+
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Dialog */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}>
         <DialogContent className="max-w-xs mx-auto p-4 rounded shadow bg-white">
-          <DialogTitle className="text-lg font-semibold">
-            Confirm Update
-          </DialogTitle>
+          <DialogTitle className="text-lg font-semibold">Verify Identity</DialogTitle>
           <p className="text-sm text-gray-600 mt-2">
-            Are you sure you want to update this bank detail?
+            Enter your password and type <strong>CONFIRM UPDATE</strong> below to proceed.
           </p>
+
+          {/* Password */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <Input
+              type="password"
+              placeholder="Enter password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+
+          {/* Secret String */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700">Verification String</label>
+            <Input
+              type="text"
+              placeholder='Type "CONFIRM UPDATE"'
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+
           <div className="flex justify-end gap-2 mt-6">
-            <Button
-              variant="outline"
-              onClick={() => setShowConfirmDialog(false)}
-            >
+            <Button variant="outline" onClick={() => setShowVerifyDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={saveForm}>Yes, Update</Button>
+            <Button
+              onClick={async () => {
+                if (!password) {
+                  toast.error("Password is required.");
+                  return;
+                }
+                if (secret !== "CONFIRM UPDATE") {
+                  toast.error("Verification string must be CONFIRM UPDATE.");
+                  return;
+                }
+
+                await saveForm();
+
+                // ✅ Reset
+                setShowVerifyDialog(false);
+                setPassword("");
+                setSecret("");
+              }}
+            >
+              Verify & Update
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}> ... </Dialog>
+
+      {/* Step 2: Verification Dialog */}
+      <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}> ... </Dialog>
 
       {/* Search */}
       <Input
@@ -345,7 +402,7 @@ export default function BankDetailsPage() {
         <span>
           Page {currentPage} of {Math.ceil(totalCount / PAGE_SIZE)}
         </span>
-        <Button 
+        <Button
           onClick={() => setCurrentPage((p) => p + 1)}
           disabled={data.length < PAGE_SIZE}
         >
