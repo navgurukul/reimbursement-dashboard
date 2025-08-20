@@ -23,12 +23,14 @@ interface OrgState {
 export const useOrgStore = create(
   persist<OrgState>(
     (set) => ({
+      id: null,
+      org: null,
       organization: null,
       userRole: null,
 
       setOrganization: (org) => set({ organization: org }),
       setUserRole: (role) => set({ userRole: role }),
-      resetOrg: () => set({ organization: null, userRole: null }),
+      resetOrg: () => set({ id: null, org: null, organization: null, userRole: null }),
     }),
     {
       name: "org-storage",
