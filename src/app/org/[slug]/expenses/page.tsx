@@ -67,8 +67,10 @@ export default function ExpensesPage() {
   const [stats, setStats] = useState({
     total: 0,
     approved: 0,
+    finance_approved: 0,
     pending: 0,
     rejected: 0,
+    finance_rejected: 0,
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"my" | "pending" | "all">("my");
@@ -248,9 +250,12 @@ export default function ExpensesPage() {
       setStats({
         total: all.length,
         approved: all.filter((e) => e.status === "approved").length,
+        finance_approved: all.filter((e) => e.status === "finance_approved").length,
         pending: all.filter((e) => e.status === "submitted").length,
         rejected: all.filter((e) => e.status === "rejected").length,
+        finance_rejected: all.filter((e) => e.status === "finance_rejected").length,
       });
+
 
       setLoading(false);
     }
@@ -346,39 +351,56 @@ export default function ExpensesPage() {
         {tabs.map((t) => (
           <TabsContent key={t.value} value={t.value}>
             {/* stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Total</CardTitle>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Total</CardTitle>
                 </CardHeader>
-                <CardContent>{stats.total}</CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Approved</CardTitle>
-                </CardHeader>
-                <CardContent className="text-green-600">
-                  {stats.approved}
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.total}</div>
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Pending</CardTitle>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Approved</CardTitle>
                 </CardHeader>
-                <CardContent className="text-amber-600">
-                  {stats.pending}
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Rejected</CardTitle>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Finance Approved</CardTitle>
                 </CardHeader>
-                <CardContent className="text-red-600 ">
-                  {stats.rejected}
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">{stats.finance_approved}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Pending</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Finance Rejected</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-purple-600">{stats.finance_rejected}</div>
                 </CardContent>
               </Card>
             </div>
-
             {/* toolbar */}
             <div className="flex items-center justify-between mb-4">
               <Button onClick={handleNew}>

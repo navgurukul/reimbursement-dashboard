@@ -157,6 +157,7 @@ export default function NewExpensePage() {
       [newId]: {
         expense_type: "",
         amount: 0,
+        // date: new Date().toISOString().split("T")[0],
         date: new Date().toISOString().split("T")[0],
         description: "",
         ...customFieldValues, // ✅ Add label-based custom fields
