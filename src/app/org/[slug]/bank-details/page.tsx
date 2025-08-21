@@ -308,10 +308,10 @@ export default function BankDetailsPage() {
       </Dialog>
 
       {/* Confirmation Dialog */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}> ... </Dialog>
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}></Dialog>
 
       {/* Step 2: Verification Dialog */}
-      <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}> ... </Dialog>
+      <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}></Dialog>
 
       {/* Search */}
       <Input
