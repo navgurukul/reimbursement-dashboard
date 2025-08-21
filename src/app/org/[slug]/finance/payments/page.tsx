@@ -5,7 +5,7 @@ import { expenses } from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Eye, Download, Pencil, Save  } from "lucide-react";
+import { Eye, Download, Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 
@@ -44,7 +44,10 @@ export default function PaymentProcessingOnly() {
   const orgId = organization?.id;
   const [processingExpenses, setProcessingExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingFields, setEditingFields] = useState<Record<string, { remarks: boolean; debit: boolean }>>({});
+  // const [editingFields, setEditingFields] = useState<Record<string, { remarks: boolean; debit: boolean }>>({});
+  const [editingFields, setEditingFields] =
+    useState<Record<string, { utr?: boolean; debit?: boolean }>>({});
+
 
   const router = useRouter();
 
@@ -56,8 +59,17 @@ export default function PaymentProcessingOnly() {
     "Remarks", "Unique ID", "Status"
   ];
   const [selectedColumns, setSelectedColumns] = useState<string[]>([...allColumns]);
-  
- useEffect(() => {
+
+  const ADMIN_PASSWORD = "admin"; // your password
+
+  const [passwordModal, setPasswordModal] = useState({
+    open: false,
+    expenseId: null as null | string,
+  });
+  const [enteredPassword, setEnteredPassword] = useState("");
+
+
+  useEffect(() => {
     async function fetchExpensesAndBankDetails() {
       if (!orgId) return;
 
@@ -81,7 +93,7 @@ export default function PaymentProcessingOnly() {
             creator_name: exp.creator?.full_name || "—",
             approver_name: exp.approver?.full_name || "—",
             payment_type: exp.payment_type || "NEFT",
-            unique_id: exp.unique_id || "—", 
+            unique_id: exp.unique_id || "—",
 
           }));
 
@@ -95,8 +107,9 @@ export default function PaymentProcessingOnly() {
             beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "—",
             account_number: exp.account_number || matchedBank?.account_number || "—",
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "—",
-            debit_account: exp.debit_account || "32145624619", 
-            remarks: exp.remarks || "Pune campuses 2 Hariom",
+            debit_account: exp.debit_account || "32145624619",
+            utr: exp.utr || "",
+            // remarks: exp.remarks || "Pune campuses 2 Hariom",
             unique_id: matchedBank?.unique_id || "—",
           };
         });
@@ -136,7 +149,8 @@ export default function PaymentProcessingOnly() {
             break;
           case "Amount": row.push(exp.amount); break;
           case "Currency": row.push(exp.currency || "INR"); break;
-          case "Remarks": row.push(exp.remarks || "—"); break;
+          // case "Remarks": row.push(exp.remarks || "—"); break;
+          case "UTR": row.push(exp.utr || "—"); break;
           case "Unique ID": row.push(exp.unique_id || "—"); break;
           case "Status": row.push("Finance Approved"); break;
           default: row.push("—");
@@ -253,7 +267,8 @@ export default function PaymentProcessingOnly() {
               <TableHead className="px-4 py-3 text-center">Transaction Date</TableHead>
               <TableHead className="px-4 py-3 text-center">Amount</TableHead>
               <TableHead className="px-4 py-3 text-center">Currency</TableHead>
-              <TableHead className="px-4 py-3 text-center">Remarks</TableHead>
+              {/* <TableHead className="px-4 py-3 text-center">Remarks</TableHead> */}
+              <TableHead className="px-4 py-3 text-center">UTR</TableHead>
               <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
               <TableHead className="px-4 py-3 text-center">Status</TableHead>
               <TableHead className="px-4 py-3 text-center">Actions</TableHead>
@@ -300,7 +315,7 @@ export default function PaymentProcessingOnly() {
                       <option value="RTGS">RTGS - Inter-Bank(RTGS) Payment</option>
                     </select>
                   </TableCell>
-                  
+
                   <TableCell className="px-4 py-3 text-center">
                     {editingFields[expense.id]?.debit ? (
                       <div className="flex items-center space-x-2 w-40">
@@ -380,7 +395,7 @@ export default function PaymentProcessingOnly() {
                     {formatCurrency(expense.approved_amount)}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.currency || "INR"}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  {/* <TableCell className="px-4 py-3 text-center">
                     {editingFields[expense.id]?.remarks ? (
                       <div className="flex items-center space-x-2 w-40">
                         <input
@@ -432,7 +447,77 @@ export default function PaymentProcessingOnly() {
                         </div>
                       </div>
                     )}
+                  </TableCell> */}
+                  <TableCell className="px-4 py-3 text-center">
+                    {editingFields[expense.id]?.utr ? (
+                      <div className="flex items-center space-x-2 w-40">
+                        <input
+                          type="text"
+                          className="border px-2 py-1 rounded text-sm text-center w-full"
+                          value={expense.utr}
+                          onChange={(e) => {
+                            const updated = processingExpenses.map((exp) =>
+                              exp.id === expense.id ? { ...exp, utr: e.target.value } : exp
+                            );
+                            setProcessingExpenses(updated);
+                          }}
+                        />
+                        <div className="w-16">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-full px-1 text-sm"
+                            onClick={async () => {
+                              // Update UTR in Supabase when saving
+                              const { error } = await supabase
+                                .from("expenses")
+                                .update({ utr: expense.utr })
+                                .eq("id", expense.id);
+
+                              if (error) {
+                                toast.error("Failed to update UTR");
+                              } else {
+                                toast.success("UTR updated");
+                                setEditingFields((prev) => ({
+                                  ...prev,
+                                  [expense.id]: { ...prev[expense.id], utr: false },
+                                }));
+                              }
+                            }}
+                            title="Save"
+                          >
+                            <Save className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 w-40">
+                        <span className="truncate max-w-[100px] text-sm">{expense.utr || "—"}</span>
+                        <div className="w-16">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-full px-1 text-sm"
+                            onClick={() => {
+                              setPasswordModal({ open: true, expenseId: expense.id });
+                              setEnteredPassword("");
+                            }}
+
+                            // onClick={() =>
+                            //   setEditingFields((prev) => ({
+                            //     ...prev,
+                            //     [expense.id]: { ...(prev[expense.id] || {}), utr: true },
+                            //   }))
+                            // }
+                            title="Edit"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </TableCell>
+
                   <TableCell className="px-4 py-3 text-center">{expense.unique_id || "—"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <Badge className="bg-green-100 text-green-800 border border-green-300">
@@ -501,6 +586,41 @@ export default function PaymentProcessingOnly() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={passwordModal.open} onOpenChange={() => setPasswordModal({ open: false, expenseId: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter Password to Edit UTR</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              type="password"
+              className="w-full border px-3 py-2 rounded"
+              placeholder="Password"
+              value={enteredPassword}
+              onChange={(e) => setEnteredPassword(e.target.value)}
+            />
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              onClick={() => {
+                if (enteredPassword === ADMIN_PASSWORD && passwordModal.expenseId) {
+                  const id = passwordModal.expenseId;
+                  setEditingFields((prev) => ({
+                    ...prev,
+                    [id]: { ...(prev[id] || {}), utr: true },
+                  }));
+                  setPasswordModal({ open: false, expenseId: null });
+                } else {
+                  toast.error("Incorrect password");
+                }
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
