@@ -336,6 +336,17 @@ export default function ViewExpensePage() {
         throw error;
       }
 
+      // Save approver signature URL
+      const { data: profileData, error: profileError } = await profiles.getById(currentUserId);
+      if (!profileError && profileData?.signature_url) {
+        await supabase
+          .from("expenses")
+          .update({ approver_signature_url: profileData.signature_url })
+          .eq("id", expenseId)
+          .select()
+          .single();
+      }
+
       // Log the custom approval to history with improved username extraction
       try {
         const authRaw = localStorage.getItem("auth-storage");
