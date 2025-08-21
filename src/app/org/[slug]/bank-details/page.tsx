@@ -38,7 +38,7 @@ export default function BankDetailsPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [showVerifyDialog, setShowVerifyDialog] = useState(false);
-  const [password, setPassword] = useState("");
+  // const [password, setPassword] = useState("");
   const [secret, setSecret] = useState("");
 
 
@@ -270,19 +270,6 @@ export default function BankDetailsPage() {
           <p className="text-sm text-gray-600 mt-2">
             Enter your password and type <strong>CONFIRM UPDATE</strong> below to proceed.
           </p>
-
-          {/* Password */}
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">Password</label>
-            <Input
-              type="password"
-              placeholder="Enter password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-
           {/* Secret String */}
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700">Verification String</label>
@@ -301,10 +288,6 @@ export default function BankDetailsPage() {
             </Button>
             <Button
               onClick={async () => {
-                if (!password) {
-                  toast.error("Password is required.");
-                  return;
-                }
                 if (secret !== "CONFIRM UPDATE") {
                   toast.error("Verification string must be CONFIRM UPDATE.");
                   return;
@@ -314,12 +297,12 @@ export default function BankDetailsPage() {
 
                 // ✅ Reset
                 setShowVerifyDialog(false);
-                setPassword("");
                 setSecret("");
               }}
             >
               Verify & Update
             </Button>
+
           </div>
         </DialogContent>
       </Dialog>
