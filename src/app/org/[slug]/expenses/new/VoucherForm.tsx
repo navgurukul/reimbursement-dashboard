@@ -44,6 +44,14 @@ export default function VoucherForm({
   const { organization } = useOrgStore();
   const { user } = useAuthStore();
 
+  // inside VoucherForm
+  useEffect(() => {
+    if (!formData.date) {
+      const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+      onInputChange("date", today);
+    }
+  }, [formData.date, onInputChange]);
+
   // Use the saved signature if no voucher signature is set
   useEffect(() => {
     if (savedUserSignature && !formData.voucher_signature_data_url) {
