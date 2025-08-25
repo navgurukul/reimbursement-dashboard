@@ -357,7 +357,7 @@ export default function ExpensesPage() {
                   <CardTitle className="text-sm font-medium">Total</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.total}</div>
+                  <div className="text-2xl">{stats.total}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -365,7 +365,7 @@ export default function ExpensesPage() {
                   <CardTitle className="text-sm font-medium">Approved</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+                  <div className="text-2xl text-green-600">{stats.approved}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -373,7 +373,7 @@ export default function ExpensesPage() {
                   <CardTitle className="text-sm font-medium">Finance Approved</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-blue-600">{stats.finance_approved}</div>
+                  <div className="text-2xl text-green-600">{stats.finance_approved}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -381,7 +381,7 @@ export default function ExpensesPage() {
                   <CardTitle className="text-sm font-medium">Pending</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
+                  <div className="text-2xl  text-amber-600">{stats.pending}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -389,7 +389,7 @@ export default function ExpensesPage() {
                   <CardTitle className="text-sm font-medium">Rejected</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
+                  <div className="text-2xl text-red-600">{stats.rejected}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -397,7 +397,7 @@ export default function ExpensesPage() {
                   <CardTitle className="text-sm font-medium">Finance Rejected</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-purple-600">{stats.finance_rejected}</div>
+                  <div className="text-2xl text-red-600">{stats.finance_rejected}</div>
                 </CardContent>
               </Card>
             </div>
