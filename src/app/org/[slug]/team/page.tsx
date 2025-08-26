@@ -283,63 +283,131 @@ export default function TeamPage() {
     }
   };
 
+  // const handleDeleteMember = async (memberId: string) => {
+  //   if (!org?.id) return;
+
+  //   try {
+  //     const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
+  //     if (fetchError || !orgUser) throw fetchError || new Error("User not found");
+
+  //     const userId = orgUser.user_id;
+
+  //     const { data: profile, error: profileError } = await profiles.getById(userId);
+  //     if (profileError || !profile) throw profileError || new Error("Profile not found");
+
+  //     const insertResult = await RemovedUsers.create({
+  //       user_id: userId,
+  //       email: profile.email,
+  //       full_name: profile.full_name,
+  //       created_at: profile.created_at,
+  //       removable_at: new Date(),
+
+  //     });
+  //     if (insertResult.error) throw insertResult.error;
+
+  //     const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
+  //     if (orgUserDeleteError) throw orgUserDeleteError;
+
+  //     const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
+  //     if (profileDeleteError) throw profileDeleteError;
+
+  //     // Delete the actual user account via API
+  //     const response = await fetch('/api/delete-auth-user', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({ userId }),
+  //     });
+
+  //     if (!response.ok) {
+  //       const errorData = await response.json();
+  //       throw new Error(errorData.error || 'Failed to delete user account');
+  //     }
+
+  //     setMembers((prev) => prev.filter((m) => m.id !== memberId));
+  //     toast.success("Member deleted successfully");
+  //   } catch (error: any) {
+  //     console.error("Error deleting member:", error);
+  //     toast.error("Failed to delete member", {
+  //       description: error.message || "Please try again",
+  //     });
+  //   }
+  // };
+
   const handleDeleteMember = async (memberId: string) => {
-    if (!org?.id) return;
+  if (!org?.id) return;
 
-    try {
-      const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
-      if (fetchError || !orgUser) throw fetchError || new Error("User not found");
+  try {
+    // 1. Get the organization user
+    const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
+    if (fetchError || !orgUser) throw fetchError || new Error("User not found");
 
-      const userId = orgUser.user_id;
+    const userId = orgUser.user_id;
 
-      const { data: profile, error: profileError } = await profiles.getById(userId);
-      if (profileError || !profile) throw profileError || new Error("Profile not found");
+    // 2. Get user profile
+    const { data: profile, error: profileError } = await profiles.getById(userId);
+    if (profileError || !profile) throw profileError || new Error("Profile not found");
 
-      const insertResult = await RemovedUsers.create({
-        user_id: userId,
-        email: profile.email,
-        full_name: profile.full_name,
-        created_at: profile.created_at,
-        removable_at: new Date(),
+    // 3. Backup into RemovedUsers
+    const insertResult = await RemovedUsers.create({
+      user_id: userId,
+      email: profile.email,
+      full_name: profile.full_name,
+      created_at: profile.created_at,
+      removable_at: new Date(),
+    });
+    if (insertResult.error) throw insertResult.error;
 
-      });
-      if (insertResult.error) throw insertResult.error;
+    // 4. Remove from organization
+    const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
+    if (orgUserDeleteError) throw orgUserDeleteError;
 
-      const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
-      if (orgUserDeleteError) throw orgUserDeleteError;
+    // 5. Delete profile
+    const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
+    if (profileDeleteError) throw profileDeleteError;
 
-      const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
-      if (profileDeleteError) throw profileDeleteError;
+    // 6. Delete the auth user account via API
+    const response = await fetch("/api/delete-auth-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId }),
+    });
 
-      // Delete the actual user account via API
-      const response = await fetch('/api/delete-auth-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId }),
-      });
-
-      if (!response.ok) {
+    if (!response.ok) {
+      let errorMsg = "Failed to delete user account";
+      try {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete user account');
+        errorMsg = errorData.error || errorMsg;
+      } catch {
+        // ignore if response isn't JSON
       }
-
-      setMembers((prev) => prev.filter((m) => m.id !== memberId));
-      toast.success("Member deleted successfully");
-    } catch (error: any) {
-      console.error("Error deleting member:", error);
-      toast.error("Failed to delete member", {
-        description: error.message || "Please try again",
-      });
+      throw new Error(errorMsg);
     }
-  };
+
+    // 7. Update frontend state
+    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+
+    // 8. Success toast
+    toast.success("Member deleted successfully");
+  } catch (error: any) {
+    console.error("Error deleting member:", error);
+    toast.error("Failed to delete member", {
+      description: error.message || "Please try again",
+    });
+  }
+};
+
   const confirmDeleteMember = (id: string) => {
+    console.log("Id of the member to delete:", id);
     setMemberToDelete(id);
     setShowDeleteConfirm(true);
   };
 
   const executeDeleteMember = async () => {
+    console.log("Executing delete for member:", memberToDelete);
     if (!memberToDelete) return;
     await handleDeleteMember(memberToDelete);
     setShowDeleteConfirm(false);
