@@ -8,8 +8,10 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const userId = body.userId;
+    // const body = await req.json();
+    // const userId = body.userId;
+    // const email = body.email;
+    const { userId, email } = await req.json();
 
     if (!userId || typeof userId !== "string") {
       return NextResponse.json({ error: "Valid userId required" }, { status: 400 });
@@ -33,6 +35,38 @@ export async function POST(req: NextRequest) {
     if (inviteError) {
       console.error("Error deleting from invite_link_usage:", inviteError.message);
       return NextResponse.json({ error: inviteError.message }, { status: 500 });
+    }
+
+    // Delete from invites using email
+    if (email) {
+      const { error: inviteError } = await supabase
+        .from("invites")
+        .delete()
+        .eq("email", email.toLowerCase());
+
+      if (inviteError) {
+        console.error("Error deleting from invites:", inviteError);
+        return NextResponse.json(
+          { error: "Failed to delete user invites" },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Delete from vouchers using created_by (userId)
+    if (userId) {
+      const { error: voucherError } = await supabase
+        .from("vouchers")
+        .delete()
+        .eq("created_by", userId);
+
+      if (voucherError) {
+        console.error("Error deleting from vouchers:", voucherError);
+        return NextResponse.json(
+          { error: "Failed to delete user vouchers" },
+          { status: 500 }
+        );
+      }
     }
 
     // Delete from profiles
