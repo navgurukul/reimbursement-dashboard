@@ -139,23 +139,23 @@ export default function TeamPage() {
     fetchMembers();
   }, [org?.id]);
 
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (!data?.user || error) {
-        toast.error("You have been removed from the dashboard");
+  // useEffect(() => {
+  //   const interval = setInterval(async () => {
+  //     const { data, error } = await supabase.auth.getUser();
+  //     if (!data?.user || error) {
+  //       toast.error("You have been removed from the dashboard");
 
-        // await supabase.auth.signOut();
-        await logout();
+  //       // await supabase.auth.signOut();
+  //       await logout();
 
-        clearInterval(interval);
-        setTimeout(() => {
-          router.replace("/auth/signin");
-        }, 3000); // after 3 seconds
-      }
-    }, 60000); // Every 1 minutes
-    return () => clearInterval(interval);
-  }, []);
+  //       clearInterval(interval);
+  //       setTimeout(() => {
+  //         router.replace("/auth/signin");
+  //       }, 3000); // after 3 seconds
+  //     }
+  //   }, 60000); // Every 1 minutes
+  //   return () => clearInterval(interval);
+  // }, []);
 
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

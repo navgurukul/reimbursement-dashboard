@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import supabase from "@/lib/supabase";
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
@@ -33,11 +34,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { organization, userRole } = useOrgStore();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showRemovedModal, setShowRemovedModal] = useState(false); 
   const isAdmin = userRole === "owner" || userRole === "admin";
 
   const { profile, user, refreshProfile, logout } = useAuthStore();
@@ -45,6 +55,24 @@ export function AppSidebar() {
   // Get email from multiple possible sources
   const userEmail = profile?.email || user?.email || user?.user_metadata?.email || "";
   const userName = profile?.full_name || userEmail.split('@')[0] || "?";
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const { data, error } = await supabase.auth.getUser();
+
+      if (!data?.user || error) {
+        setShowRemovedModal(true); 
+        await logout();
+
+        clearInterval(interval);
+        setTimeout(() => {
+          router.replace("/auth/signin");
+        }, 5000);
+      }
+    }, 60000); // every 1 min
+
+    return () => clearInterval(interval);
+  }, [logout, router]);
 
   useEffect(() => {
     if (user && !profile) {
@@ -204,6 +232,18 @@ export function AppSidebar() {
       <div className="hidden border-r bg-muted/40 lg:block lg:w-64">
         <SidebarContent />
       </div>
+
+      {/* Removal Msg Modal */}
+      <Dialog open={showRemovedModal} onOpenChange={setShowRemovedModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>You have been removed</DialogTitle>
+            <DialogDescription>
+              You have been removed from the dashboard. Redirecting to sign-in…
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
