@@ -59,11 +59,17 @@ export function AppSidebar() {
   useEffect(() => {
     const interval = setInterval(async () => {
       const { data, error } = await supabase.auth.getUser();
-
-      if (!data?.user || error) {
-        setShowRemovedModal(true); 
+      if (error || !data?.user) return;
+      const currentUserId = data.user.id;
+      // Check in RemovedUsers table
+      const { data: removed, error: removedError } = await supabase
+        .from("removed_users")
+        .select("user_id")
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+      if (removed && removed.user_id) {
+        setShowRemovedModal(true);
         await logout();
-
         clearInterval(interval);
         setTimeout(() => {
           router.replace("/auth/signin");
@@ -140,7 +146,7 @@ export function AppSidebar() {
 
   function SidebarContent() {
     return (
-      <div className="flex h-full flex-col">
+      <div className="fixed left-0 top-0 h-screen flex flex-col w-64 border-r bg-muted/40">
         {/* Org name / logo */}
         <div className="flex h-14 items-center border-b px-4">
           <Link

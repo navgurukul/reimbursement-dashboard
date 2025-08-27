@@ -56,7 +56,7 @@ export default function PaymentProcessingOnly() {
   const allColumns = [
     "Created By", "Email", "Approved By", "Beneficiary Name", "Account Number", "IFSC",
     "Payment Type", "Debit Account", "Transaction Date", "Amount", "Currency",
-    "Remarks", "Unique ID", "Status"
+    "UTR", "Unique ID", "Status"
   ];
   const [selectedColumns, setSelectedColumns] = useState<string[]>([...allColumns]);
 
@@ -149,7 +149,6 @@ export default function PaymentProcessingOnly() {
             break;
           case "Amount": row.push(exp.amount); break;
           case "Currency": row.push(exp.currency || "INR"); break;
-          // case "Remarks": row.push(exp.remarks || "—"); break;
           case "UTR": row.push(exp.utr || "—"); break;
           case "Unique ID": row.push(exp.unique_id || "—"); break;
           case "Status": row.push("Finance Approved"); break;
@@ -267,7 +266,6 @@ export default function PaymentProcessingOnly() {
               <TableHead className="px-4 py-3 text-center">Transaction Date</TableHead>
               <TableHead className="px-4 py-3 text-center">Amount</TableHead>
               <TableHead className="px-4 py-3 text-center">Currency</TableHead>
-              {/* <TableHead className="px-4 py-3 text-center">Remarks</TableHead> */}
               <TableHead className="px-4 py-3 text-center">UTR</TableHead>
               <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
               <TableHead className="px-4 py-3 text-center">Status</TableHead>
@@ -395,59 +393,6 @@ export default function PaymentProcessingOnly() {
                     {formatCurrency(expense.approved_amount)}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.currency || "INR"}</TableCell>
-                  {/* <TableCell className="px-4 py-3 text-center">
-                    {editingFields[expense.id]?.remarks ? (
-                      <div className="flex items-center space-x-2 w-40">
-                        <input
-                          type="text"
-                          className="border px-2 py-1 rounded text-sm text-center w-full"
-                          value={expense.remarks}
-                          onChange={(e) => {
-                            const updated = processingExpenses.map((exp) =>
-                              exp.id === expense.id ? { ...exp, remarks: e.target.value } : exp
-                            );
-                            setProcessingExpenses(updated);
-                          }}
-                        />
-                        <div className="w-16">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-full px-1 text-sm"
-                            onClick={() =>
-                              setEditingFields((prev) => ({
-                                ...prev,
-                                [expense.id]: { ...prev[expense.id], remarks: false },
-                              }))
-                            }
-                            title="Save"
-                          >
-                            <Save className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2 w-40">
-                        <span className="truncate max-w-[100px] text-sm">{expense.remarks}</span>
-                        <div className="w-16">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-full px-1 text-sm"
-                            onClick={() =>
-                              setEditingFields((prev) => ({
-                                ...prev,
-                                [expense.id]: { ...(prev[expense.id] || {}), remarks: true },
-                              }))
-                            }
-                            title="Edit"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </TableCell> */}
                   <TableCell className="px-4 py-3 text-center">
                     {editingFields[expense.id]?.utr ? (
                       <div className="flex items-center space-x-2 w-40">
@@ -502,13 +447,6 @@ export default function PaymentProcessingOnly() {
                               setPasswordModal({ open: true, expenseId: expense.id });
                               setEnteredPassword("");
                             }}
-
-                            // onClick={() =>
-                            //   setEditingFields((prev) => ({
-                            //     ...prev,
-                            //     [expense.id]: { ...(prev[expense.id] || {}), utr: true },
-                            //   }))
-                            // }
                             title="Edit"
                           >
                             <Pencil className="w-4 h-4" />

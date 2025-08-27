@@ -139,24 +139,6 @@ export default function TeamPage() {
     fetchMembers();
   }, [org?.id]);
 
-  // useEffect(() => {
-  //   const interval = setInterval(async () => {
-  //     const { data, error } = await supabase.auth.getUser();
-  //     if (!data?.user || error) {
-  //       toast.error("You have been removed from the dashboard");
-
-  //       // await supabase.auth.signOut();
-  //       await logout();
-
-  //       clearInterval(interval);
-  //       setTimeout(() => {
-  //         router.replace("/auth/signin");
-  //       }, 3000); // after 3 seconds
-  //     }
-  //   }, 60000); // Every 1 minutes
-  //   return () => clearInterval(interval);
-  // }, []);
-
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -287,73 +269,21 @@ export default function TeamPage() {
     }
   };
 
-  // const handleDeleteMember = async (memberId: string) => {
-  //   if (!org?.id) return;
-
-  //   try {
-  //     const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
-  //     if (fetchError || !orgUser) throw fetchError || new Error("User not found");
-
-  //     const userId = orgUser.user_id;
-
-  //     const { data: profile, error: profileError } = await profiles.getById(userId);
-  //     if (profileError || !profile) throw profileError || new Error("Profile not found");
-
-  //     const insertResult = await RemovedUsers.create({
-  //       user_id: userId,
-  //       email: profile.email,
-  //       full_name: profile.full_name,
-  //       created_at: profile.created_at,
-  //       removable_at: new Date(),
-
-  //     });
-  //     if (insertResult.error) throw insertResult.error;
-
-  //     const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
-  //     if (orgUserDeleteError) throw orgUserDeleteError;
-
-  //     const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
-  //     if (profileDeleteError) throw profileDeleteError;
-
-  //     // Delete the actual user account via API
-  //     const response = await fetch('/api/delete-auth-user', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({ userId }),
-  //     });
-
-  //     if (!response.ok) {
-  //       const errorData = await response.json();
-  //       throw new Error(errorData.error || 'Failed to delete user account');
-  //     }
-
-  //     setMembers((prev) => prev.filter((m) => m.id !== memberId));
-  //     toast.success("Member deleted successfully");
-  //   } catch (error: any) {
-  //     console.error("Error deleting member:", error);
-  //     toast.error("Failed to delete member", {
-  //       description: error.message || "Please try again",
-  //     });
-  //   }
-  // };
-
   const handleDeleteMember = async (memberId: string) => {
     if (!org?.id) return;
 
     try {
-      // 1. Get the organization user
+      //  Get the organization user
       const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
       if (fetchError || !orgUser) throw fetchError || new Error("User not found");
 
       const userId = orgUser.user_id;
 
-      // 2. Get user profile
+      //  Get user profile
       const { data: profile, error: profileError } = await profiles.getById(userId);
       if (profileError || !profile) throw profileError || new Error("Profile not found");
 
-      // 3. Backup into RemovedUsers
+      //  Backup into RemovedUsers
       const insertResult = await RemovedUsers.create({
         user_id: userId,
         email: profile.email,
@@ -363,15 +293,7 @@ export default function TeamPage() {
       });
       if (insertResult.error) throw insertResult.error;
 
-      // 4. Remove from organization
-      // const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
-      // if (orgUserDeleteError) throw orgUserDeleteError;
-
-      // 5. Delete profile
-      // const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
-      // if (profileDeleteError) throw profileDeleteError;
-
-      // 6. Delete the auth user account via API
+      // Delete the auth user account via API
       const response = await fetch("/api/delete-auth-user", {
         method: "POST",
         headers: {
@@ -391,10 +313,10 @@ export default function TeamPage() {
         throw new Error(errorMsg);
       }
 
-      // 7. Update frontend state
+      //  Update frontend state
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
 
-      // 8. Success toast
+      //  Success toast
       toast.success("Member deleted successfully");
     } catch (error: any) {
       console.error("Error deleting member:", error);
@@ -686,16 +608,10 @@ export default function TeamPage() {
               >
                 Cancel
               </Button>
-              {/* <Button
-                variant="destructive"
-                onClick={executeDeleteMember}
-              >
-                Delete User
-              </Button> */}
               <Button
                 variant="destructive"
                 onClick={executeDeleteMember}
-                disabled={isDeleting}  // disable button while deleting
+                disabled={isDeleting}
               >
                 {isDeleting ? (
                   <>

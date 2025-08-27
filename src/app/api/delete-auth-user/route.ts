@@ -8,9 +8,6 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    // const body = await req.json();
-    // const userId = body.userId;
-    // const email = body.email;
     const { userId, email } = await req.json();
 
     if (!userId || typeof userId !== "string") {
