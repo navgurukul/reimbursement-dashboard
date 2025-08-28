@@ -32,7 +32,6 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes);
 
     // ✅ Unique file path inside "policies" folder in your bucket
-    // const fileName = `policies/${Date.now()}-${file.name}`;
     const fileName = `${Date.now()}-${file.name}`;
 
 

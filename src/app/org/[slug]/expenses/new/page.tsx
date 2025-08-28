@@ -7,7 +7,6 @@ import {
   orgSettings,
   expenses,
   ReceiptInfo,
-  vouchers,
   ExpenseEvent,
   expenseEvents,
   profiles,
@@ -24,8 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CalendarIcon, Save, Upload, Trash } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -108,9 +105,6 @@ export default function NewExpensePage() {
 
   // Separate signature states for expense and voucher
   const [expenseSignature, setExpenseSignature] = useState<string | undefined>(
-    undefined
-  );
-  const [voucherSignature, setVoucherSignature] = useState<string | undefined>(
     undefined
   );
 
@@ -788,7 +782,7 @@ export default function NewExpensePage() {
         custom_fields: custom_fields,
         event_id: formData.event_id || null,
         approver_id,
-        signature_url: signature_url_to_use || undefined,
+        signature_url: signature_url_to_use ?? undefined,
         receipt: null,
         creator_email: user.email,
         approver_email: approverEmail,
@@ -901,7 +895,7 @@ export default function NewExpensePage() {
             custom_fields: itemCustomFields,
             event_id: formData.event_id || null,
             approver_id: formData.approver || null,
-            signature_url: isVoucher ? voucher_signature_url ?? undefined : expense_signature_url ?? undefined,
+            signature_url: isVoucher ? (signature_url_to_use ?? undefined) : (expense_signature_url ?? undefined),
             receipt: null,
             creator_email: user.email,
             approver_email: approverEmail,
@@ -926,7 +920,9 @@ export default function NewExpensePage() {
               amount: item.amount,
               purpose: itemVoucherData.purpose || formData.purpose || "Cash Voucher",
               credit_person: itemVoucherData.voucherCreditPerson || formData.voucherCreditPerson || null,
-              signature_url: itemVoucherData.voucher_signature_url || voucher_signature_url || null,
+              signature_url: itemVoucherData.voucher_signature_url
+                ? itemVoucherData.voucher_signature_url
+                : (signature_url_to_use ?? expense_signature_url ?? undefined),
               manager_signature_url: itemVoucherData.manager_signature_url || manager_signature_url || null,
               created_by: user.id,
               org_id: organization.id,
