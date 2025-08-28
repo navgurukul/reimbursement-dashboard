@@ -56,20 +56,14 @@ export function AppSidebar() {
   const userEmail = profile?.email || user?.email || user?.user_metadata?.email || "";
   const userName = profile?.full_name || userEmail.split('@')[0] || "?";
 
-  useEffect(() => {
+    useEffect(() => {
     const interval = setInterval(async () => {
       const { data, error } = await supabase.auth.getUser();
-      if (error || !data?.user) return;
-      const currentUserId = data.user.id;
-      // Check in RemovedUsers table
-      const { data: removed, error: removedError } = await supabase
-        .from("removed_users")
-        .select("user_id")
-        .eq("user_id", currentUserId)
-        .maybeSingle();
-      if (removed && removed.user_id) {
+
+      if (!data?.user || error) {
         setShowRemovedModal(true);
         await logout();
+
         clearInterval(interval);
         setTimeout(() => {
           router.replace("/auth/signin");
