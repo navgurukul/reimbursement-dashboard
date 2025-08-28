@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -82,6 +83,8 @@ export default function TeamPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
   const router = useRouter();
+  const { logout } = useAuthStore();
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch organization members
   useEffect(() => {
@@ -135,23 +138,6 @@ export default function TeamPage() {
 
     fetchMembers();
   }, [org?.id]);
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (!data?.user || error) {
-        toast.error("You have been removed from the dashboard");
-
-        await supabase.auth.signOut();
-
-        clearInterval(interval);
-        setTimeout(() => {
-          router.replace("/auth/signin");
-        }, 3000); // after 3 seconds
-      }
-    }, 300000); // Every 5 minutes (300000 ms)
-    return () => clearInterval(interval);
-  }, []);
 
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -287,45 +273,50 @@ export default function TeamPage() {
     if (!org?.id) return;
 
     try {
+      //  Get the organization user
       const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
       if (fetchError || !orgUser) throw fetchError || new Error("User not found");
 
       const userId = orgUser.user_id;
 
+      //  Get user profile
       const { data: profile, error: profileError } = await profiles.getById(userId);
       if (profileError || !profile) throw profileError || new Error("Profile not found");
 
+      //  Backup into RemovedUsers
       const insertResult = await RemovedUsers.create({
         user_id: userId,
         email: profile.email,
         full_name: profile.full_name,
         created_at: profile.created_at,
         removable_at: new Date(),
-
       });
       if (insertResult.error) throw insertResult.error;
 
-      const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
-      if (orgUserDeleteError) throw orgUserDeleteError;
-
-      const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
-      if (profileDeleteError) throw profileDeleteError;
-
-      // Delete the actual user account via API
-      const response = await fetch('/api/delete-auth-user', {
-        method: 'POST',
+      // Delete the auth user account via API
+      const response = await fetch("/api/delete-auth-user", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, email: profile.email }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete user account');
+        let errorMsg = "Failed to delete user account";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch {
+          // ignore if response isn't JSON
+        }
+        throw new Error(errorMsg);
       }
 
+      //  Update frontend state
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
+
+      //  Success toast
       toast.success("Member deleted successfully");
     } catch (error: any) {
       console.error("Error deleting member:", error);
@@ -334,14 +325,19 @@ export default function TeamPage() {
       });
     }
   };
+
   const confirmDeleteMember = (id: string) => {
+    console.log("Id of the member to delete:", id);
     setMemberToDelete(id);
     setShowDeleteConfirm(true);
   };
 
   const executeDeleteMember = async () => {
+    console.log("Executing delete for member:", memberToDelete);
     if (!memberToDelete) return;
+    setIsDeleting(true); // Start loader
     await handleDeleteMember(memberToDelete);
+    setIsDeleting(false); // Stop loader
     setShowDeleteConfirm(false);
     setMemberToDelete(null);
   };
@@ -615,8 +611,16 @@ export default function TeamPage() {
               <Button
                 variant="destructive"
                 onClick={executeDeleteMember}
+                disabled={isDeleting}
               >
-                Delete User
+                {isDeleting ? (
+                  <>
+                    <Spinner className="mr-2 h-4 w-4" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete User"
+                )}
               </Button>
             </div>
           </DialogContent>

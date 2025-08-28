@@ -131,7 +131,7 @@ export type ExpenseStatus =
   | "approved_as_per_policy"
   | "rejected"
   // | "finance_approved";
-  |"ready_for_payment";
+  | "ready_for_payment";
 
 export type ValidationStatus = "valid" | "warning" | "violation";
 
@@ -997,8 +997,8 @@ export const expenses = {
   /**
    
    */ /**
-   * Get expenses by event ID
-   */
+ * Get expenses by event ID
+ */
   getByEventId: async (eventId: string) => {
     // Get expenses with creator
     const { data: expenses, error } = await supabase
@@ -1428,62 +1428,62 @@ export const expenses = {
    * Update an expense by finance
    */
 
-updateByFinance: async (id: string, approved: boolean, comment: string) => {
-  try {
-    const status = approved ? "finance_approved" : "finance_rejected";
-    // const status = approved ? "approved" : "rejected";
+  updateByFinance: async (id: string, approved: boolean, comment: string) => {
+    try {
+      const status = approved ? "finance_approved" : "finance_rejected";
+      // const status = approved ? "approved" : "rejected";
 
-    const updates = {
-      status,
-      finance_comment: comment,
-      finance_decision_at: new Date().toISOString(),
-      payment_status: approved ? "pending" : null,
-    };
+      const updates = {
+        status,
+        finance_comment: comment,
+        finance_decision_at: new Date().toISOString(),
+        payment_status: approved ? "pending" : null,
+      };
 
-    // Step 1: Update the expense record
-    const { data, error } = await supabase
-      .from("expenses")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
+      // Step 1: Update the expense record
+      const { data, error } = await supabase
+        .from("expenses")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
 
-    if (error) {
-      console.error("❌ Expense update error:", error);
-      return { data: null, error };
+      if (error) {
+        console.error("❌ Expense update error:", error);
+        return { data: null, error };
+      }
+
+      // Step 2: Insert into expense_history
+      // const { error: historyError } = await supabase.from("expense_history").insert({
+      //   expense_id: id,
+      //   action: status,
+      //   actor_type: "finance",
+      //   comment,
+      //   changed_fields: updates, // Make sure 'changed_fields' is a JSONB column in Supabase
+      //   created_at: new Date().toISOString(), // Optional: if you have this field
+      // });
+
+      // if (historyError) {
+      //   console.warn("⚠️ Expense history insert failed:", historyError);
+      //   // Not returning error here to prevent blocking the flow
+      // }
+
+      return { data, error: null };
+
+    } catch (err: any) {
+      console.error(" Unhandled error in updateByFinance:", err);
+
+      return {
+        data: null,
+        error: {
+          message: err.message || "Unexpected error",
+          code: "UNHANDLED_EXCEPTION",
+          details: "",
+          hint: "Check column existence and JSON formats",
+        },
+      };
     }
-
-    // Step 2: Insert into expense_history
-    // const { error: historyError } = await supabase.from("expense_history").insert({
-    //   expense_id: id,
-    //   action: status,
-    //   actor_type: "finance",
-    //   comment,
-    //   changed_fields: updates, // Make sure 'changed_fields' is a JSONB column in Supabase
-    //   created_at: new Date().toISOString(), // Optional: if you have this field
-    // });
-
-    // if (historyError) {
-    //   console.warn("⚠️ Expense history insert failed:", historyError);
-    //   // Not returning error here to prevent blocking the flow
-    // }
-
-    return { data, error: null };
-
-  } catch (err: any) {
-    console.error(" Unhandled error in updateByFinance:", err);
-
-    return {
-      data: null,
-      error: {
-        message: err.message || "Unexpected error",
-        code: "UNHANDLED_EXCEPTION",
-        details: "",
-        hint: "Check column existence and JSON formats",
-      },
-    };
-  }
-},
+  },
 
   /**
    * Update an expense
@@ -1615,16 +1615,16 @@ updateByFinance: async (id: string, approved: boolean, comment: string) => {
   /**
    * Delete an expense by ID
    */
-delete: async (id: string) => {
-  // Delete related records first
-  await supabase.from("vouchers").delete().eq("expense_id", id);
-  await supabase.from("expense_history").delete().eq("expense_id", id);
-  await supabase.from("expense_comments").delete().eq("expense_id", id);
-  
-  // Delete the expense
-  const { error } = await supabase.from("expenses").delete().eq("id", id);
-  return { data: null, error };
-},
+  delete: async (id: string) => {
+    // Delete related records first
+    await supabase.from("vouchers").delete().eq("expense_id", id);
+    await supabase.from("expense_history").delete().eq("expense_id", id);
+    await supabase.from("expense_comments").delete().eq("expense_id", id);
+
+    // Delete the expense
+    const { error } = await supabase.from("expenses").delete().eq("id", id);
+    return { data: null, error };
+  },
 
 
 };
@@ -1820,7 +1820,7 @@ export const vouchers = {
         path: "",
         error: new StorageApiError(
           "Failed to upload signature: " +
-            (error instanceof Error ? error.message : String(error)),
+          (error instanceof Error ? error.message : String(error)),
           500
         ),
       };
@@ -1835,6 +1835,54 @@ export const vouchers = {
   ): Promise<{ url: string; error: StorageError | null }> => {
     const { data, error } = await supabase.storage
       .from("user-signatures")
+      .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+    if (error) {
+      return { url: "", error: error };
+    }
+
+    return {
+      url: data.signedUrl,
+      error: null,
+    };
+  },
+};
+
+// Voucher attachment helper for bucket "voucher-ss-payment"
+export const voucherAttachments = {
+  // Upload file to "voucher-ss-payment" bucket
+  upload: async (
+    file: File,
+    userId: string,
+    orgId: string
+  ): Promise<{ path: string | null; error: any }> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("voucher-ss-payment")
+        .upload(`${userId}/${orgId}/${Date.now()}_${file.name}`, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (error) {
+        return { path: null, error: error };
+      }
+
+      return {
+        path: data.path,
+        error: null,
+      };
+    } catch (err) {
+      return { path: null, error: err };
+    }
+  },
+
+  // Get signed URL for a file in "voucher-ss-payment"
+  getUrl: async (
+    path: string
+  ): Promise<{ url: string; error: any }> => {
+    const { data, error } = await supabase.storage
+      .from("voucher-ss-payment")
       .createSignedUrl(path, 3600); // URL valid for 1 hour
 
     if (error) {

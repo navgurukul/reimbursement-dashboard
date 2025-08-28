@@ -336,6 +336,31 @@ export default function ViewExpensePage() {
         throw error;
       }
 
+      // Save approver signature URL
+      const { data: profileData, error: profileError } = await profiles.getById(currentUserId);
+      if (!profileError && profileData?.signature_url) {
+        await supabase
+          .from("expenses")
+          .update({ approver_signature_url: profileData.signature_url })
+          .eq("id", expenseId)
+          .select()
+          .single();
+      }
+
+      // Save approver signature to vouchers table
+      const { data: voucher } = await supabase
+        .from("vouchers")
+        .select("id")
+        .eq("expense_id", expenseId)
+        .maybeSingle();
+
+      if (voucher) {
+        await supabase
+          .from("vouchers")
+          .update({ manager_signature_url: profileData.signature_url })
+          .eq("id", voucher.id);
+      }
+
       // Log the custom approval to history with improved username extraction
       try {
         const authRaw = localStorage.getItem("auth-storage");
@@ -480,6 +505,20 @@ export default function ViewExpensePage() {
             .from("expenses")
             .update({ approver_signature_url: profileData.signature_url })
             .eq("id", expenseId).select().single();
+        }
+
+        // Save approver signature to vouchers table
+        const { data: voucher } = await supabase
+          .from("vouchers")
+          .select("id")
+          .eq("expense_id", expenseId)
+          .maybeSingle();
+
+        if (voucher) {
+          await supabase
+            .from("vouchers")
+            .update({ manager_signature_url: profileData.signature_url })
+            .eq("id", voucher.id);
         }
       }
 

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate the invite URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
     const inviteUrl = `${baseUrl}/invite/${inviteLink.id}`;
 
     return NextResponse.json({
