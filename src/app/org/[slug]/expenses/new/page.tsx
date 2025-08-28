@@ -7,7 +7,6 @@ import {
   orgSettings,
   expenses,
   ReceiptInfo,
-  vouchers,
   ExpenseEvent,
   expenseEvents,
   profiles,
@@ -24,8 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CalendarIcon, Save, Upload, Trash } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -41,7 +38,6 @@ import {
   saveUserSignature,
   uploadSignature,
 } from "@/lib/utils";
-import { sign } from "crypto";
 
 interface Column {
   key: string;
@@ -109,9 +105,6 @@ export default function NewExpensePage() {
 
   // Separate signature states for expense and voucher
   const [expenseSignature, setExpenseSignature] = useState<string | undefined>(
-    undefined
-  );
-  const [voucherSignature, setVoucherSignature] = useState<string | undefined>(
     undefined
   );
 
@@ -927,7 +920,6 @@ export default function NewExpensePage() {
               amount: item.amount,
               purpose: itemVoucherData.purpose || formData.purpose || "Cash Voucher",
               credit_person: itemVoucherData.voucherCreditPerson || formData.voucherCreditPerson || null,
-              // signature_url: itemVoucherData.voucher_signature_url || voucher_signature_url || null,
               signature_url: itemVoucherData.voucher_signature_url
                 ? itemVoucherData.voucher_signature_url
                 : (signature_url_to_use ?? expense_signature_url ?? undefined),
