@@ -54,7 +54,6 @@ export default function VoucherForm({
   }, [savedUserSignature, formData.voucher_signature_data_url, onInputChange]);
 
   // Handle voucher signature save independently from expense signature
-  // Handle voucher signature save independently from expense signature
   const handleVoucherSignatureSave = async (dataUrl: string) => {
     if (!dataUrl) {
       console.error("Empty signature data URL in voucher form");
@@ -221,6 +220,28 @@ export default function VoucherForm({
           <p className="text-sm text-gray-500">
             This should be the person to whom the payment is being made
           </p>
+        </div>
+
+        {/* Payment Screenshot Upload */}
+        <div className="mt-4">
+          <Label htmlFor="attachment" className="text-sm font-medium">
+            Attachment (Optional)
+          </Label>
+          <Input
+            id="attachment"
+            name="attachment"
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={(e) => onInputChange("attachment", e.target.files?.[0] || null)}
+          />
+          <p className="text-sm text-gray-500">
+            Upload proof of payment (JPG, PNG, or PDF)
+          </p>
+          {formData.attachment && (
+            <p className="text-xs text-gray-500 mt-1">
+              Selected: {formData.attachment.name}
+            </p>
+          )}
         </div>
 
         {/* Voucher signature section */}
