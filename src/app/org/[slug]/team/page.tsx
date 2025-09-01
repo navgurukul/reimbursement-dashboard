@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { organizations, profiles, RemovedUsers } from "@/lib/db";
+import { organizations, profiles, RemovedUsers, authUsers } from "@/lib/db";
 import {
   Card,
   CardContent,
@@ -294,23 +294,30 @@ export default function TeamPage() {
       if (insertResult.error) throw insertResult.error;
 
       // Delete the auth user account via API
-      const response = await fetch("/api/delete-auth-user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId, email: profile.email }),
-      });
+      // const response = await fetch("/api/delete-auth-user", {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //   },
+      //   body: JSON.stringify({ userId, email: profile.email }),
+      // });
 
-      if (!response.ok) {
-        let errorMsg = "Failed to delete user account";
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch {
-          // ignore if response isn't JSON
-        }
-        throw new Error(errorMsg);
+      // if (!response.ok) {
+      //   let errorMsg = "Failed to delete user account";
+      //   try {
+      //     const errorData = await response.json();
+      //     errorMsg = errorData.error || errorMsg;
+      //   } catch {
+      //     // ignore if response isn't JSON
+      //   }
+      //   throw new Error(errorMsg);
+      // }
+
+      // inside handleDeleteMember
+      const deleteResult = await authUsers.deleteUserCompletely(userId, profile.email);
+
+      if (!deleteResult.success) {
+        throw new Error(deleteResult.errors?.[0] || "Failed to delete user account");
       }
 
       //  Update frontend state
