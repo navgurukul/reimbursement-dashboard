@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { organizations, profiles, RemovedUsers } from "@/lib/db";
+import { organizations, profiles, RemovedUsers, authUsers } from "@/lib/db";
+import {deleteUserAction} from "@/app/actions/deleteUser";
 import {
   Card,
   CardContent,
@@ -292,25 +293,13 @@ export default function TeamPage() {
         removable_at: new Date(),
       });
       if (insertResult.error) throw insertResult.error;
+      console.log("Deleting user:", userId);
+      console.log("With email:", profile.email);
 
-      // Delete the auth user account via API
-      const response = await fetch("/api/delete-auth-user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId, email: profile.email }),
-      });
+       const result = await deleteUserAction(memberId, org.id);
 
-      if (!response.ok) {
-        let errorMsg = "Failed to delete user account";
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch {
-          // ignore if response isn't JSON
-        }
-        throw new Error(errorMsg);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to delete member");
       }
 
       //  Update frontend state
