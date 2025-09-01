@@ -212,7 +212,8 @@ export default function PoliciesPage() {
           method: "POST",
           body: formData,
         });
-
+        
+        console.log("File upload response:", response);
         console.log("Response status:", response.status);
         console.log("Response ok:", response.ok);
 
