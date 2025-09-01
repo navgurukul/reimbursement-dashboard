@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
 import { organizations, profiles, RemovedUsers, authUsers } from "@/lib/db";
-import {deleteUserAction} from "@/app/actions/deleteUser";
+import { deleteUserAction } from "@/app/actions/deleteUser";
 import {
   Card,
   CardContent,
@@ -296,10 +296,13 @@ export default function TeamPage() {
       console.log("Deleting user:", userId);
       console.log("With email:", profile.email);
 
-       const result = await deleteUserAction(memberId, org.id);
+      const result = await deleteUserAction(memberId, org.id);
 
       if (!result.success) {
-        throw new Error(result.error || "Failed to delete member");
+        toast.error("Failed to delete member", {
+          description: result.error || "Please try again",
+        });
+        return;
       }
 
       //  Update frontend state
