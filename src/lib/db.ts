@@ -839,6 +839,42 @@ export const policies = {
   },
 };
 
+export const policyFiles = {
+  upload: async (file: File, orgId: string) => {
+    try {
+      // Validate PDF
+      if (!file.type.includes("pdf")) {
+        throw new Error("Only PDF files are allowed");
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("File size must be under 5MB");
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${file.name}`;
+
+      // Upload to Supabase Storage
+      const { error } = await supabase.storage
+        .from("policies-bucket")
+        .upload(fileName, file, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data } = supabase.storage
+        .from("policies-bucket")
+        .getPublicUrl(fileName);
+
+      return { success: true, url: data.publicUrl };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Upload failed" };
+    }
+  },
+};
+
 // Organization Settings functions
 export const orgSettings = {
   getByOrgId: async (orgId: string) => {
