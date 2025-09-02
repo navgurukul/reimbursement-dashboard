@@ -1,6 +1,4 @@
 import supabase from "./supabase";
-import supabaseAdmin from "./supabaseAdmin";
-import { createClient } from "@supabase/supabase-js";
 import { StorageError } from "@supabase/storage-js";
 import { StorageApiError } from "@supabase/storage-js";
 import { getProfileSignatureUrl } from "./utils";
@@ -2269,6 +2267,10 @@ export const authUsers = {
       if (!userId || typeof userId !== "string") {
         return { success: false, errors: ["Valid userId required"] };
       }
+
+      // Dynamically import the server-only admin client to avoid bundling in the browser
+      const { getSupabaseAdmin } = await import("./supabaseAdmin");
+      const supabaseAdmin = getSupabaseAdmin();
 
       // 1. Delete from organization_users
       const { error: orgUserError } = await supabaseAdmin
