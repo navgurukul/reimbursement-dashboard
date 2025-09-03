@@ -889,7 +889,7 @@ const handleShareVoucher = async () => {
           // Prefer immediate signed URL if present
           if (json.url) {
             setShareLink(json.url);
-            toast.success("Voucher link generated");
+            toast.success("Voucher link generated. Copy the link below and share it.");
             return;
           }
           pdfPath = json.path;
@@ -916,7 +916,7 @@ const handleShareVoucher = async () => {
     }
 
     setShareLink(url);
-    toast.success("Voucher link generated");
+    toast.success("Voucher link generated. Copy the link below and share it.");
   } catch (err) {
     console.error("Voucher share error:", err);
     toast.error("Something went wrong while sharing voucher");

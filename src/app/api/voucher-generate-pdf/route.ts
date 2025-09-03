@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { vouchers } from "@/lib/db";
 
 // Server-side Supabase client using service role for storage upload
 const supabase = createClient(
@@ -179,9 +178,8 @@ export async function POST(req: Request) {
 
       if (signatureBase64) {
         try {
-          // Desired max size
-          const maxW = 80; // signature max width
-          const maxH = 15; // signature max height
+          const maxW = 80; 
+          const maxH = 15;
 
           // Add image with preserved aspect ratio
           doc.addImage(signatureBase64, "PNG", margin + padding + 4, y + 4, maxW, maxH);
@@ -253,8 +251,6 @@ export async function POST(req: Request) {
     if (uploadError) {
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
-
-    // Do not archive user's signature into voucher-pdfs; use only vouchers.signature_url
 
     // Save path to voucher (ignore if column doesn't exist yet)
     const { error: upErr } = await supabase
