@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenses, expenseHistory, profiles, vouchers } from "@/lib/db";
+import { expenses, expenseHistory, profiles } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,8 +16,6 @@ import {
   AlertCircle,
   Edit,
   Clock,
-  Copy,
-  Share2,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
@@ -112,9 +110,6 @@ export default function ViewExpensePage() {
     event_id: eventIdFromQuery || "",
   });
   const [customFields, setCustomFields] = useState<any[]>([]);
-  const [shareLink, setShareLink] = useState<string>("");
-  const [sharingReceipt, setSharingReceipt] = useState(false);
-  const [sharingVoucher, setSharingVoucher] = useState(false);
 
   // Load the user's saved signature if it exists
   useEffect(() => {
@@ -876,93 +871,6 @@ export default function ViewExpensePage() {
     return String(val);
   };
 
-  // Receipt share function
-  const handleShareReceipt = async () => {
-    setShareLink("");
-    setSharingReceipt(true);
-    if (expense.receipt?.path) {
-      try {
-        const { url, error } = await expenses.getReceiptUrl(expense.receipt.path);
-        if (error || !url) {
-          toast.error("Failed to generate shareable link");
-          return;
-        }
-        setShareLink(url); // input box me dikhane ke liye
-        toast.success("Receipt link generated");
-      } catch (err) {
-        console.error("Receipt share error:", err);
-        toast.error("Failed to generate shareable link");
-      } finally {
-        setSharingReceipt(false);
-      }
-    }
-  };
-
-// Voucher share function
-const handleShareVoucher = async () => {
-  setShareLink("");
-  setSharingVoucher(true);
-  try {
-    // 1) Get voucher for this expense to find stored pdf_path
-    const { data: voucherRow, error: voucherErr } = await vouchers.getByExpenseId(
-      expense.id
-    );
-
-    if (voucherErr || !voucherRow) {
-      toast.error("Voucher not found for this expense");
-      return;
-    }
-
-    let pdfPath = voucherRow.pdf_path as string | null | undefined;
-
-    // 2) If PDF not generated yet, trigger server to generate and return signed URL
-    if (!pdfPath) {
-      try {
-        const resp = await fetch("/api/voucher-generate-pdf", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ voucherId: voucherRow.id }),
-        });
-        const json = await resp.json();
-        if (resp.ok) {
-          // Prefer immediate signed URL if present
-          if (json.url) {
-            setShareLink(json.url);
-            toast.success("Voucher link generated. Copy the link below and share it.");
-            return;
-          }
-          pdfPath = json.path;
-        } else {
-          throw new Error(json?.error || "Failed to generate voucher PDF");
-        }
-      } catch (e) {
-        console.error("Generate PDF error:", e);
-        toast.error("Failed to generate voucher PDF");
-        return;
-      }
-    }
-
-    if (!pdfPath) {
-      toast.error("Voucher PDF path not available");
-      return;
-    }
-
-    // 3) Create a signed URL from voucher-pdfs bucket
-    const { url, error: urlErr } = await vouchers.getPdfUrl(pdfPath);
-    if (urlErr || !url) {
-      toast.error("Failed to create voucher share link");
-      return;
-    }
-
-    setShareLink(url);
-    toast.success("Voucher link generated. Copy the link below and share it.");
-  } catch (err) {
-    console.error("Voucher share error:", err);
-    toast.error("Something went wrong while sharing voucher");
-  } finally {
-    setSharingVoucher(false);
-  }
-};
 
   return (
     <div className="container mx-auto py-6">
@@ -1220,69 +1128,29 @@ const handleShareVoucher = async () => {
                   Receipt/Voucher
                 </p>
                 {expense.receipt ? (
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleViewReceipt}>
-                      <FileText className="mr-2 h-4 w-4" />
-                      View Receipt ({expense.receipt.filename || "Document"})
-                    </Button>
-                    <Button variant="outline" onClick={handleShareReceipt} className="cursor-pointer" disabled={sharingReceipt}>
-                      {sharingReceipt ? (
-                        <>
-                          <Spinner size="sm" className="mr-2" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          Share <Share2 className="h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleViewReceipt}
+                    className="flex items-center"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Receipt ({expense.receipt.filename || "Document"})
+                  </Button>
                 ) : hasVoucher ? (
-                  <div className="flex gap-2">
-                    <Button
-                      className="text-blue-600"
-                      variant="outline"
-                      onClick={() =>
-                        router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
-                      }
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      View Voucher
-                    </Button>
-                    <Button variant="outline" onClick={handleShareVoucher} className="cursor-pointer" disabled={sharingVoucher}>
-                      {sharingVoucher ? (
-                        <>
-                          <Spinner size="sm" className="mr-2" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          Share <Share2 className="h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    className="flex items-center text-blue-600"
+                    onClick={() =>
+                      router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
+                    }
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Voucher
+                  </Button>
                 ) : (
-                  <p className="text-muted-foreground">No receipt or voucher available</p>
-                )}
-
-                {/* Input box + Copy icon will show only when Share button is clicked */}
-                {shareLink && (
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Input value={shareLink} readOnly className="flex-1" />
-                    <Button
-                      className="cursor-pointer"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        navigator.clipboard.writeText(shareLink);
-                        toast.success("Link copied to clipboard");
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <p className="text-muted-foreground">
+                    No receipt or voucher available
+                  </p>
                 )}
               </div>
 

@@ -205,7 +205,6 @@ export interface Voucher {
   manager_signature_url?: string;
   approver_id?: string; // Added approver_id field
   updated_at: string;
-  pdf_path?: string | null;
 }
 
 export interface ExpenseHistoryEntry {
@@ -1883,14 +1882,6 @@ export const vouchers = {
       url: data.signedUrl,
       error: null,
     };
-  },
-
-  getPdfUrl: async (path: string) => {
-    const { data, error } = await supabase.storage
-      .from("voucher-pdfs")
-      .createSignedUrl(path, 3600);
-    if (error) return { url: "", error };
-    return { url: data.signedUrl, error: null };
   },
 };
 
