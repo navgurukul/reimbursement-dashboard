@@ -888,7 +888,7 @@ export default function ViewExpensePage() {
           return;
         }
         setShareLink(url); // input box me dikhane ke liye
-        toast.success("Receipt link generated");
+        toast.success("Receipt link generated. Copy the link below and share it.");
       } catch (err) {
         console.error("Receipt share error:", err);
         toast.error("Failed to generate shareable link");
