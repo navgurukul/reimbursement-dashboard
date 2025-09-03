@@ -211,8 +211,8 @@ export default function VoucherViewPage() {
 
       // Voucher ID (left) + Created At (right) in same row
       y += 10;
-      doc.setFont("helvetica", "bolditalic");
-      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
       doc.setTextColor(0, 0, 0);
 
       // Left aligned (Voucher ID)
@@ -396,7 +396,7 @@ export default function VoucherViewPage() {
       </div>
 
       <Card className="shadow-sm mb-6">
-        <CardHeader className="bg-gray-50 border-b">
+        <CardHeader className="border-b">
           <div className="flex justify-between items-center">
             <CardTitle className="text-xl font-medium">Voucher</CardTitle>
             <div className="py-1 px-3 rounded-full text-xs bg-amber-100 text-amber-800">
