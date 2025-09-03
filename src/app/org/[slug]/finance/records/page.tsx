@@ -49,6 +49,7 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
+              <TableHead className="text-center py-3">UTR</TableHead>
               <TableHead className="text-center py-3">Payment Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -73,6 +74,7 @@ export default function PaymentRecords() {
                     {new Date(record.date).toLocaleDateString("en-IN")}
                   </TableCell>
                   <TableCell className="text-center py-2">{record.status}</TableCell>
+                  <TableCell className="text-center py-2">{record.utr}</TableCell>
                   <TableCell className="text-center py-2">
                     <Badge variant="success" className="text-xs">
                       {record.payment_status}

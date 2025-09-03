@@ -1,9 +1,10 @@
 import supabase from "./supabase";
-import { createClient } from "@supabase/supabase-js";
 import { StorageError } from "@supabase/storage-js";
 import { StorageApiError } from "@supabase/storage-js";
 import { getProfileSignatureUrl } from "./utils";
+import { log } from "node:console";
 // Types
+
 
 
 export interface Organization {
@@ -840,6 +841,42 @@ export const policies = {
   },
 };
 
+export const policyFiles = {
+  upload: async (file: File, orgId: string) => {
+    try {
+      // Validate PDF
+      if (!file.type.includes("pdf")) {
+        throw new Error("Only PDF files are allowed");
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("File size must be under 5MB");
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${file.name}`;
+
+      // Upload to Supabase Storage
+      const { error } = await supabase.storage
+        .from("policies-bucket")
+        .upload(fileName, file, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data } = supabase.storage
+        .from("policies-bucket")
+        .getPublicUrl(fileName);
+
+      return { success: true, url: data.publicUrl };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Upload failed" };
+    }
+  },
+};
+
 // Organization Settings functions
 export const orgSettings = {
   getByOrgId: async (orgId: string) => {
@@ -998,8 +1035,8 @@ export const expenses = {
   /**
    
    */ /**
- * Get expenses by event ID
- */
+* Get expenses by event ID
+*/
   getByEventId: async (eventId: string) => {
     // Get expenses with creator
     const { data: expenses, error } = await supabase
@@ -2225,6 +2262,101 @@ export const expenseComments = {
           hint: "An error occurred while retrieving replies",
           code: "UNKNOWN_ERROR",
         },
+      };
+    }
+  },
+};
+
+export const authUsers = {
+  deleteUserCompletely: async (userId: string, email?: string) => {
+    const successes: string[] = [];
+    const errors: string[] = [];
+
+    try {
+      if (!userId || typeof userId !== "string") {
+        return { success: false, errors: ["Valid userId required"] };
+      }
+
+      // Dynamically import the server-only admin client to avoid bundling in the browser
+      const { getSupabaseAdmin } = await import("./supabaseAdmin");
+      const supabaseAdmin = getSupabaseAdmin();
+
+      // 1. Delete from organization_users
+      const { error: orgUserError } = await supabaseAdmin
+        .from("organization_users")
+        .delete()
+        .eq("user_id", userId);
+      if (orgUserError) {
+        errors.push(`organization_users: ${orgUserError.message}`);
+      } else {
+        successes.push("Deleted from organization_users");
+      }
+
+      // 2. Delete from invite_link_usage
+      const { error: inviteLinkError } = await supabaseAdmin
+        .from("invite_link_usage")
+        .delete()
+        .eq("user_id", userId);
+      if (inviteLinkError) {
+        errors.push(`invite_link_usage: ${inviteLinkError.message}`);
+      } else {
+        successes.push("Deleted from invite_link_usage");
+      }
+
+      // 3. Delete from invites
+      if (email) {
+        const { error: invitesError } = await supabaseAdmin
+          .from("invites")
+          .delete()
+          .eq("email", email.toLowerCase());
+        if (invitesError) {
+          errors.push(`invites: ${invitesError.message}`);
+        } else {
+          successes.push("Deleted from invites");
+        }
+      }
+
+      // 4. Delete from vouchers
+      const { error: vouchersError } = await supabaseAdmin
+        .from("vouchers")
+        .delete()
+        .eq("created_by", userId);
+      if (vouchersError) {
+        errors.push(`vouchers: ${vouchersError.message}`);
+      } else {
+        successes.push("Deleted from vouchers");
+      }
+
+      // 5. Delete from profiles
+      const { error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .delete()
+        .eq("user_id", userId);
+      if (profileError) {
+        errors.push(`profiles: ${profileError.message}`);
+      } else {
+        successes.push("Deleted from profiles");
+      }
+
+      // 6. Delete auth user
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      if (authError) {
+        errors.push(`auth: ${authError.message}`);
+      } else {
+        successes.push("Deleted from auth users");
+      }
+
+      return {
+        success: errors.length === 0,
+        successes,
+        errors,
+      };
+    } catch (err: any) {
+      console.error("Unexpected error in deleteUserCompletely:", err);
+      return {
+        success: false,
+        successes,
+        errors: [...errors, err.message || "Unexpected internal server error"],
       };
     }
   },

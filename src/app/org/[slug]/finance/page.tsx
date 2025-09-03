@@ -18,7 +18,7 @@ export default function FinancePage() {
       </TabsList>
 
       <TabsContent value="approvals">
-        <FinanceReview onApproved={() => setActiveTab("payments")} />
+        <FinanceReview />
       </TabsContent>
 
       <TabsContent value="payments">

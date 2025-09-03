@@ -31,7 +31,7 @@ const formatCurrency = (amount: number) =>
     currency: "INR",
   }).format(amount);
 
-export default function FinanceReview({ onApproved }: { onApproved?: () => void }) {
+export default function FinanceReview() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
   const router = useRouter();
@@ -99,7 +99,6 @@ export default function FinanceReview({ onApproved }: { onApproved?: () => void 
     }
 
     setExpenseList([]);
-    onApproved?.();
   } catch (err: any) {
     toast.error("Approval failed", { description: err.message });
   } finally {

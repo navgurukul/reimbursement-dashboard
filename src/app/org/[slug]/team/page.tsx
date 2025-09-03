@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { organizations, profiles, RemovedUsers } from "@/lib/db";
+import { organizations, profiles, RemovedUsers, authUsers } from "@/lib/db";
+import { deleteUserAction } from "@/app/actions/deleteUser";
 import {
   Card,
   CardContent,
@@ -20,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -82,6 +84,8 @@ export default function TeamPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
   const router = useRouter();
+  const { logout } = useAuthStore();
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch organization members
   useEffect(() => {
@@ -135,23 +139,6 @@ export default function TeamPage() {
 
     fetchMembers();
   }, [org?.id]);
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (!data?.user || error) {
-        toast.error("You have been removed from the dashboard");
-
-        await supabase.auth.signOut();
-
-        clearInterval(interval);
-        setTimeout(() => {
-          router.replace("/auth/signin");
-        }, 3000); // after 3 seconds
-      }
-    }, 300000); // Every 5 minutes (300000 ms)
-    return () => clearInterval(interval);
-  }, []);
 
   // Handle invite form submission with AWS SES email
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -283,65 +270,79 @@ export default function TeamPage() {
     }
   };
 
-  const handleDeleteMember = async (memberId: string) => {
-    if (!org?.id) return;
+const handleDeleteMember = async (memberId: string) => {
+  if (!org?.id) return;
 
-    try {
-      const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
-      if (fetchError || !orgUser) throw fetchError || new Error("User not found");
-
-      const userId = orgUser.user_id;
-
-      const { data: profile, error: profileError } = await profiles.getById(userId);
-      if (profileError || !profile) throw profileError || new Error("Profile not found");
-
-      const insertResult = await RemovedUsers.create({
-        user_id: userId,
-        email: profile.email,
-        full_name: profile.full_name,
-        created_at: profile.created_at,
-        removable_at: new Date(),
-
-      });
-      if (insertResult.error) throw insertResult.error;
-
-      const { error: orgUserDeleteError } = await organizations.deleteOrganizationMember(org.id, memberId);
-      if (orgUserDeleteError) throw orgUserDeleteError;
-
-      const { error: profileDeleteError } = await profiles.deleteByUserId(userId);
-      if (profileDeleteError) throw profileDeleteError;
-
-      // Delete the actual user account via API
-      const response = await fetch('/api/delete-auth-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete user account');
-      }
-
-      setMembers((prev) => prev.filter((m) => m.id !== memberId));
-      toast.success("Member deleted successfully");
-    } catch (error: any) {
-      console.error("Error deleting member:", error);
-      toast.error("Failed to delete member", {
-        description: error.message || "Please try again",
-      });
+  try {
+    // Get the organization user
+    const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
+    if (fetchError || !orgUser) {
+      toast.error("User not found");
+      return;
     }
-  };
+
+    const userId = orgUser.user_id;
+
+    // Get user profile
+    const { data: profile, error: profileError } = await profiles.getById(userId);
+    if (profileError || !profile) {
+      toast.error("Profile not found");
+      return;
+    }
+
+    // Backup into RemovedUsers
+    const insertResult = await RemovedUsers.create({
+      user_id: userId,
+      email: profile.email,
+      full_name: profile.full_name,
+      created_at: profile.created_at,
+      removable_at: new Date(),
+    });
+    if (insertResult.error) {
+      toast.error("Failed to backup user", {
+        description: insertResult.error.message,
+      });
+      return;
+    }
+
+    console.log("Deleting user:", userId, "email:", profile.email);
+
+    // Call server action
+    const result = await deleteUserAction(memberId, org.id);
+
+    if (!result.success) {
+      toast.error("Failed to delete member", {
+        description: result.error || "Please try again",
+      });
+      return;
+    }
+
+    // Update frontend state
+    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+
+    // Success toast
+    toast.success("Member deleted successfully");
+  } catch (error: any) {
+    console.error("Error deleting member:", error);
+    toast.error("Unexpected error", {
+      description: error.message || "Please try again",
+    });
+  }
+};
+
+
   const confirmDeleteMember = (id: string) => {
+    console.log("Id of the member to delete:", id);
     setMemberToDelete(id);
     setShowDeleteConfirm(true);
   };
 
   const executeDeleteMember = async () => {
+    console.log("Executing delete for member:", memberToDelete);
     if (!memberToDelete) return;
+    setIsDeleting(true); // Start loader
     await handleDeleteMember(memberToDelete);
+    setIsDeleting(false); // Stop loader
     setShowDeleteConfirm(false);
     setMemberToDelete(null);
   };
@@ -615,8 +616,16 @@ export default function TeamPage() {
               <Button
                 variant="destructive"
                 onClick={executeDeleteMember}
+                disabled={isDeleting}
               >
-                Delete User
+                {isDeleting ? (
+                  <>
+                    <Spinner className="mr-2 h-4 w-4" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete User"
+                )}
               </Button>
             </div>
           </DialogContent>
