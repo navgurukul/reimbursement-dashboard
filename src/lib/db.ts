@@ -1940,6 +1940,14 @@ export const voucherAttachments = {
       error: null,
     };
   },
+
+  getPdfUrl: async (path: string) => {
+    const { data, error } = await supabase.storage
+      .from("voucher-pdfs")
+      .createSignedUrl(path, 3600);
+    if (error) return { url: "", error };
+    return { url: data.signedUrl, error: null };
+  },
 };
 
 // Update the ExpenseHistoryEntry interface to match the simpler structure
