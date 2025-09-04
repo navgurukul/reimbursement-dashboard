@@ -152,6 +152,7 @@ export default function NewExpensePage() {
       [newId]: {
         expense_type: "",
         amount: 0,
+        // date: new Date().toISOString().split("T")[0],
         date: new Date().toISOString().split("T")[0],
         description: "",
         ...customFieldValues, // ✅ Add label-based custom fields
@@ -167,7 +168,7 @@ export default function NewExpensePage() {
       return newData
     })
     // Clean up voucher modal state
-    setVoucherModalOpenMap((prev) => {
+    setVoucherModalOpenMap((prev) => { 
       const newMap = { ...prev }
       delete newMap[id]
       return newMap
@@ -193,24 +194,31 @@ export default function NewExpensePage() {
         ...prev[itemId],
         [key]: value,
       },
-    }))
-  }
+     }));
 
-  // Get expense item value
-  const getExpenseItemValue = (itemId: number, key: keyof ExpenseItemData): string | number | string[] => {
-    // return expenseItemsData[itemId]?.[key] || (key === 'amount' || key === 'date' ? 0 : "")
-
-    const value = expenseItemsData[itemId]?.[key];
-    if (
-      value === undefined ||
-      value === null ||
-      (key === "amount" && (value === 0 || isNaN(Number(value))))
-    ) {
-      return "";
+    // If "date" field is changed, also update voucherDataMap
+    if (key === "date") {
+      setVoucherDataMap((prev) => ({
+        ...prev,
+        [itemId]: {
+          ...prev[itemId],
+          date: value,
+        },
+      }));
     }
-    return value;
-  }
+  };
 
+  const getExpenseItemValue = (itemId: number, key: keyof ExpenseItemData): string | number | string[] => {
+  const value = expenseItemsData[itemId]?.[key];
+  if (
+    value === undefined ||
+    value === null ||
+    (key === "amount" && (value === 0 || isNaN(Number(value))))
+  ) {
+    return "";
+  }
+  return value;
+}
   // Add these utility functions for error handling and UX improvements
   const scrollToFirstError = (errors: Record<string, string>) => {
     const firstErrorField = Object.keys(errors)[0];
@@ -500,6 +508,17 @@ export default function NewExpensePage() {
     key: string,
     value: string | number | boolean | string[]
   ) => {
+      const newErrors: Record<string, string> = {};
+     // Validate date against selected event
+    if (selectedEvent && formData.date) {
+      const selectedDate = new Date(formData.date);
+      const startDate = new Date(selectedEvent.start_date);
+      const endDate = new Date(selectedEvent.end_date);
+      
+      if (selectedDate < startDate || selectedDate > endDate) {
+        newErrors["date"] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
+      }
+    }
     // Clear error if value is now filled
     if (errors[key] && value !== "") {
       setErrors((prevErrors) => {
@@ -580,7 +599,18 @@ export default function NewExpensePage() {
       const item = expenseItemsData[itemId];
       if (!item.expense_type) newErrors[`expense_type-${itemId}`] = "Expense Type is required";
       if (!item.amount || isNaN(item.amount)) newErrors[`amount-${itemId}`] = "Amount is required";
-      if (!item.date) newErrors[`date-${itemId}`] = "Date is required";
+      // if (!item.date) newErrors[`date-${itemId}`] = "Date is required";
+
+      if (!item.date) {
+        newErrors[`date-${itemId}`] = "Date is required";
+      } else if (selectedEvent && item.date) {
+        const itemDate = new Date(item.date);
+        const startDate = new Date(selectedEvent.start_date);
+        const endDate = new Date(selectedEvent.end_date);
+        if (itemDate < startDate || itemDate > endDate) {
+          newErrors[`date-${itemId}`] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
+        }
+      }
 
       // Validate custom fields for expense items
       customFields.forEach((col) => {
@@ -592,6 +622,7 @@ export default function NewExpensePage() {
       if (voucherModalOpenMap[itemId]) {
         const voucherData = voucherDataMap[itemId] || {};
         if (!voucherData.yourName) newErrors[`yourName-${itemId}`] = "Your Name is required";
+        
         if (!voucherData.voucherAmount) newErrors[`voucherAmount-${itemId}`] = "Amount is required";
         if (!voucherData.purpose) newErrors[`purpose-${itemId}`] = "Purpose is required";
         if (!voucherData.voucherCreditPerson) newErrors[`voucherCreditPerson-${itemId}`] = "Credit Person is required";
@@ -1184,6 +1215,8 @@ export default function NewExpensePage() {
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : ""
                               }`}
+                            min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
+                            max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
                           />
                           {errors[col.key] && (
                             <p
@@ -1627,6 +1660,7 @@ export default function NewExpensePage() {
                   onInputChange={handleInputChange}
                   userRole={userRole}
                   savedUserSignature={savedUserSignature}
+                  selectedEvent={selectedEvent ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date } : undefined}
                   errors={errors}
                 />
               )}
@@ -1715,25 +1749,27 @@ export default function NewExpensePage() {
                               </>
                             )}
 
-                            {/* Date */}
-                            {col.type === "date" && (
-                              <>
-                                <Input
-                                  id={col.key}
-                                  name={col.key}
-                                  type="date"
-                                  value={getExpenseItemValue(id, "date")}
-                                  onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
-                                  className={`w-full ${errors[col.key]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
-                                    }`}
-                                />
-                                {errors[col.key] && (
-                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                                )}
-                              </>
-                            )}
+                              {/* Date */}
+                              {col.type === "date" && (
+                                <>
+                                  <Input
+                                    id={col.key}
+                                    name={col.key}
+                                    type="date"
+                                    value={getExpenseItemValue(id, "date")}
+                                    onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
+                                    className={`w-full ${errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                      }`}
+                                    min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
+                                    max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
+                                  />
+                                  {errors[col.key] && (
+                                    <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                  )}
+                                </>
+                              )}
 
                             {/* Number */}
                             {col.type === "number" && (
@@ -2094,23 +2130,38 @@ export default function NewExpensePage() {
                         )}
                       </div>
 
-                      {voucherModalOpenMap[id] && (
-                        <VoucherForm
-                          formData={voucherDataMap[id] || {}}
-                          onInputChange={(key, value) => {
-                            setVoucherDataMap((prev) => ({
-                              ...prev,
-                              [id]: {
-                                ...prev[id],
-                                [key]: value,
-                              },
-                            }));
-                          }}
-                          userRole={userRole}
-                          savedUserSignature={savedUserSignature}
-                          errors={errors}
-                        />
-                      )}
+                        {voucherModalOpenMap[id] && (
+                          <VoucherForm
+                            formData={voucherDataMap[id] || {}}
+                            onInputChange={(key, value) => {
+                              setVoucherDataMap((prev) => ({
+                                ...prev,
+                                [id]: {
+                                  ...prev[id],
+                                  [key]: value,
+                                },
+                              }));
+                                // Sync back to expense item if voucher date changes
+                              if (key === "date") {
+                                setExpenseItemsData((prev) => ({
+                                  ...prev,
+                                  [id]: {
+                                    ...prev[id],
+                                    date: value,
+                                  },
+                                }));
+                              }
+                            }}
+                            userRole={userRole}
+                            savedUserSignature={savedUserSignature}
+                             selectedEvent={
+                              selectedEvent
+                                ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date }
+                                : undefined
+                            }
+                            errors={errors}
+                          />
+                        )}
 
                     </div>
                   </div>
