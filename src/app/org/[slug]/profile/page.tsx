@@ -37,7 +37,7 @@ export default function ProfilePage() {
     const { user } = useAuthStore();
 
     const searchParams = useSearchParams();
-    const eventIdFromQuery = searchParams.get("eventId");
+    const eventIdFromQuery = searchParams?.get("eventId");
     const [loadingSignature, setLoadingSignature] = useState(true);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [formData, setFormData] = useState<Record<string, any>>({

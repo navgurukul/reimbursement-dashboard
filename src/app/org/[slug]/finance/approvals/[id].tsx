@@ -23,7 +23,8 @@ const formatCurrency = (amount: number) =>
 
 export default function FinanceExpenseDetail() {
   const router = useRouter();
-  const { id, slug } = useParams();
+  const params = useParams() as { id: string; slug: string };
+  const { id, slug } = params;
   const [expense, setExpense] = useState<any>(null);
   const [comment, setComment] = useState("");
   const [showCommentBox, setShowCommentBox] = useState(false);
