@@ -43,7 +43,7 @@ export default function ExpenseEventsPage() {
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
   const orgId = organization?.id;
-  const slug = params.slug as string;
+  const slug = params?.slug as string;
 
   const [events, setEvents] = useState<ExpenseEvent[]>([]);
   const [loading, setLoading] = useState(true);

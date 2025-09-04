@@ -21,10 +21,10 @@ import {
 import { Button } from "@/components/ui/button";
 
 export default function PaymentProcessingDetails() {
-    const { expenseId } = useParams();
-    const router = useRouter();
     const params = useParams();
-    const slug = params.slug as string;
+    const expenseId = params?.expenseId as string | undefined;
+    const router = useRouter();
+    const slug = params?.slug as string;
 
     const [expense, setExpense] = useState<any>(null);
     const [loading, setLoading] = useState(true);

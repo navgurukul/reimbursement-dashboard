@@ -74,12 +74,12 @@ export default function NewExpensePage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const eventIdFromQuery = searchParams.get("eventId");
+  const eventIdFromQuery = searchParams?.get("eventId");
 
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
   const orgId = organization?.id!;
-  const slug = params.slug as string;
+  const slug = params?.slug as string;
 
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);

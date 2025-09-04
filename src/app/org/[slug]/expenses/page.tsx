@@ -54,7 +54,7 @@ const formatCurrency = (amount: number) =>
 
 export default function ExpensesPage() {
   const router = useRouter();
-  const { slug } = useParams();
+  const { slug } = useParams() as { slug: string };
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
 
