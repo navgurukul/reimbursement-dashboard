@@ -317,7 +317,7 @@ const handleDeleteMember = async (memberId: string) => {
     //   return;
     // }
 
-    const response = await fetch('/api/delete-auth-user', {
+    const response = await fetch('/api/delete-user', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
