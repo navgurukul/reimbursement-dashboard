@@ -2,100 +2,115 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: NextRequest) {
+  const logs: string[] = [];
+  const addLog = (msg: string) => {
+    console.log(msg); // still log to server
+    logs.push(msg);   // also store for response
+  };
+
   try {
-    console.log("🔹 Incoming request to /api/delete-auth-user");
+    addLog("🔹 [START] /api/delete-auth-user request");
 
     const { userId, email } = await req.json();
-    console.log("➡️ Parsed request body:", { userId, email });
+    addLog(`➡️ Parsed body: ${JSON.stringify({ userId, email })}`);
 
     if (!userId || typeof userId !== "string") {
-      console.warn("⚠️ Invalid userId provided:", userId);
-      return NextResponse.json({ error: "Valid userId required" }, { status: 400 });
+      addLog(`⚠️ Invalid userId received: ${userId}`);
+      return NextResponse.json(
+        { error: "Valid userId required", logs },
+        { status: 400 }
+      );
     }
 
     // 1. Delete from organization_users
-    console.log("🗑️ Deleting from organization_users for userId:", userId);
-    const { error: orgUserError } = await getSupabaseAdmin()
+    addLog(`🗑️ Deleting from organization_users for userId: ${userId}`);
+    const { data: orgUsers, error: orgUserError } = await getSupabaseAdmin()
       .from("organization_users")
       .delete()
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select();
     if (orgUserError) {
-      console.error("❌ Error deleting from organization_users:", orgUserError.message);
-      return NextResponse.json({ error: orgUserError.message }, { status: 500 });
+      addLog(`❌ organization_users error: ${orgUserError.message}`);
+      return NextResponse.json({ error: orgUserError.message, logs }, { status: 500 });
     }
-    console.log("✅ Deleted organization_users records");
+    addLog(`✅ organization_users deleted: ${orgUsers.length}`);
 
     // 2. Delete from invite_link_usage
-    console.log("🗑️ Deleting from invite_link_usage for userId:", userId);
-    const { error: inviteUsageError } = await getSupabaseAdmin()
+    addLog(`🗑️ Deleting from invite_link_usage for userId: ${userId}`);
+    const { data: inviteUsage, error: inviteUsageError } = await getSupabaseAdmin()
       .from("invite_link_usage")
       .delete()
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select();
     if (inviteUsageError) {
-      console.error("❌ Error deleting from invite_link_usage:", inviteUsageError.message);
-      return NextResponse.json({ error: inviteUsageError.message }, { status: 500 });
+      addLog(`❌ invite_link_usage error: ${inviteUsageError.message}`);
+      return NextResponse.json({ error: inviteUsageError.message, logs }, { status: 500 });
     }
-    console.log("✅ Deleted invite_link_usage records");
+    addLog(`✅ invite_link_usage deleted: ${inviteUsage.length}`);
 
-    // 3. Delete from invites (if email exists)
+    // 3. Delete from invites
     if (email) {
-      console.log("🗑️ Deleting from invites for email:", email.toLowerCase());
-      const { error: inviteError } = await getSupabaseAdmin()
+      addLog(`🗑️ Deleting from invites for email: ${email.toLowerCase()}`);
+      const { data: invites, error: inviteError } = await getSupabaseAdmin()
         .from("invites")
         .delete()
-        .eq("email", email.toLowerCase());
+        .eq("email", email.toLowerCase())
+        .select();
 
       if (inviteError) {
-        console.error("❌ Error deleting from invites:", inviteError.message);
+        addLog(`❌ invites error: ${inviteError.message}`);
         return NextResponse.json(
-          { error: "Failed to delete user invites" },
+          { error: "Failed to delete user invites", logs },
           { status: 500 }
         );
       }
-      console.log("✅ Deleted invites records");
+      addLog(`✅ invites deleted: ${invites.length}`);
     }
 
     // 4. Delete from vouchers
-    console.log("🗑️ Deleting from vouchers created by userId:", userId);
-    const { error: voucherError } = await getSupabaseAdmin()
+    addLog(`🗑️ Deleting from vouchers created_by: ${userId}`);
+    const { data: vouchers, error: voucherError } = await getSupabaseAdmin()
       .from("vouchers")
       .delete()
-      .eq("created_by", userId);
+      .eq("created_by", userId)
+      .select();
     if (voucherError) {
-      console.error("❌ Error deleting from vouchers:", voucherError.message);
+      addLog(`❌ vouchers error: ${voucherError.message}`);
       return NextResponse.json(
-        { error: "Failed to delete user vouchers" },
+        { error: "Failed to delete user vouchers", logs },
         { status: 500 }
       );
     }
-    console.log("✅ Deleted vouchers records");
+    addLog(`✅ vouchers deleted: ${vouchers.length}`);
 
     // 5. Delete from profiles
-    console.log("🗑️ Deleting from profiles for userId:", userId);
-    const { error: profileError } = await getSupabaseAdmin()
+    addLog(`🗑️ Deleting from profiles for userId: ${userId}`);
+    const { data: profiles, error: profileError } = await getSupabaseAdmin()
       .from("profiles")
       .delete()
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select();
     if (profileError) {
-      console.error("❌ Error deleting from profiles:", profileError.message);
-      return NextResponse.json({ error: profileError.message }, { status: 500 });
+      addLog(`❌ profiles error: ${profileError.message}`);
+      return NextResponse.json({ error: profileError.message, logs }, { status: 500 });
     }
-    console.log("✅ Deleted profile record");
+    addLog(`✅ profiles deleted: ${profiles.length}`);
 
     // 6. Delete Supabase auth user
-    console.log("🗑️ Deleting Supabase auth user:", userId);
+    addLog(`🗑️ Deleting Supabase auth user: ${userId}`);
     const { error: authError } = await getSupabaseAdmin().auth.admin.deleteUser(userId);
     if (authError) {
-      console.error("❌ Supabase auth error:", authError.message);
-      return NextResponse.json({ error: authError.message }, { status: 500 });
+      addLog(`❌ Supabase auth error: ${authError.message}`);
+      return NextResponse.json({ error: authError.message, logs }, { status: 500 });
     }
-    console.log("✅ Deleted Supabase auth user");
+    addLog("✅ Supabase auth user deleted");
 
-    console.log("🎉 User deletion completed successfully for userId:", userId);
-    return NextResponse.json({ success: true }, { status: 200 });
+    addLog(`🎉 [SUCCESS] User deletion flow completed for userId: ${userId}`);
+    return NextResponse.json({ success: true, logs }, { status: 200 });
 
   } catch (err: any) {
-    console.error("💥 Unexpected error in /api/delete-auth-user:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const msg = `💥 [FATAL] Unexpected error: ${err?.message || err}`;
+    addLog(msg);
+    return NextResponse.json({ error: "Internal server error", logs }, { status: 500 });
   }
 }
