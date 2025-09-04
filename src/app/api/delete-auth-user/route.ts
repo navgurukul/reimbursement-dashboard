@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     // First, delete from organization_users
-    const { error: orgUserError } = await supabase
+    const { error: orgUserError } = await getSupabaseAdmin()
       .from("organization_users")
       .delete()
       .eq("user_id", userId);
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Delete from invite_link_usage first
-    const { error: inviteError } = await supabase
+    const { error: inviteError } = await getSupabaseAdmin()
       .from("invite_link_usage")
       .delete()
       .eq("user_id", userId);
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     // Delete from invites using email
     if (email) {
-      const { error: inviteError } = await supabase
+      const { error: inviteError } = await getSupabaseAdmin()
         .from("invites")
         .delete()
         .eq("email", email.toLowerCase());
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     // Delete from vouchers using created_by (userId)
     if (userId) {
-      const { error: voucherError } = await supabase
+      const { error: voucherError } = await getSupabaseAdmin()
         .from("vouchers")
         .delete()
         .eq("created_by", userId);
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Delete from profiles
-    const { error: profileError } = await supabase
+    const { error: profileError } = await getSupabaseAdmin()
       .from("profiles")
       .delete()
       .eq("user_id", userId);
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Finally, delete the auth user
-    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+    const { error: authError } = await getSupabaseAdmin().auth.admin.deleteUser(userId);
     if (authError) {
       console.error("Supabase auth error:", authError.message);
       return NextResponse.json({ error: authError.message }, { status: 500 });
