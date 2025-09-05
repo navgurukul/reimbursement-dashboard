@@ -307,15 +307,26 @@ const handleDeleteMember = async (memberId: string) => {
 
     console.log("Deleting user:", userId, "email:", profile.email);
 
-    // Call server action
-    const result = await deleteUserAction(memberId, org.id);
+    // // Call server action
+    // const result = await deleteUserAction(memberId, org.id);
 
-    if (!result.success) {
-      toast.error("Failed to delete member", {
-        description: result.error || "Please try again",
-      });
-      return;
-    }
+    // if (!result.success) {
+    //   toast.error("Failed to delete member", {
+    //     description: result.error || "Please try again",
+    //   });
+    //   return;
+    // }
+
+    const response = await fetch('/api/delete-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        email: profile.email,
+      }),
+    });
 
     // Update frontend state
     setMembers((prev) => prev.filter((m) => m.id !== memberId));

@@ -32,7 +32,7 @@ interface InviteLink {
 export default function InvitePage() {
   const params = useParams();
   const router = useRouter();
-  const token = params.token as string;
+  const token = params?.token as string;
 
   const [inviteLink, setInviteLink] = useState<InviteLink | null>(null);
   const [loading, setLoading] = useState(true);

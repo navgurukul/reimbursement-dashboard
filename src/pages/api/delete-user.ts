@@ -1,25 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
+// File: src/pages/api/delete-user.ts
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
-export async function POST(req: NextRequest) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const logs: string[] = [];
   const addLog = (msg: string) => {
     console.log(msg); // still log to server
     logs.push(msg);   // also store for response
   };
 
-  try {
-    addLog("🔹 [START] /api/delete-auth-user request");
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-    const { userId, email } = await req.json();
+  try {
+    addLog("🔹 [START] /api/delete-user request");
+
+    const { userId, email } = req.body;
     addLog(`➡️ Parsed body: ${JSON.stringify({ userId, email })}`);
 
     if (!userId || typeof userId !== "string") {
       addLog(`⚠️ Invalid userId received: ${userId}`);
-      return NextResponse.json(
-        { error: "Valid userId required", logs },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: "Valid userId required", logs });
     }
 
     // 1. Delete from organization_users
@@ -31,7 +33,7 @@ export async function POST(req: NextRequest) {
       .select();
     if (orgUserError) {
       addLog(`❌ organization_users error: ${orgUserError.message}`);
-      return NextResponse.json({ error: orgUserError.message, logs }, { status: 500 });
+      return res.status(500).json({ error: orgUserError.message, logs });
     }
     addLog(`✅ organization_users deleted: ${orgUsers.length}`);
 
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
       .select();
     if (inviteUsageError) {
       addLog(`❌ invite_link_usage error: ${inviteUsageError.message}`);
-      return NextResponse.json({ error: inviteUsageError.message, logs }, { status: 500 });
+      return res.status(500).json({ error: inviteUsageError.message, logs });
     }
     addLog(`✅ invite_link_usage deleted: ${inviteUsage.length}`);
 
@@ -56,13 +58,9 @@ export async function POST(req: NextRequest) {
         .delete()
         .eq("email", email.toLowerCase())
         .select();
-
       if (inviteError) {
         addLog(`❌ invites error: ${inviteError.message}`);
-        return NextResponse.json(
-          { error: "Failed to delete user invites", logs },
-          { status: 500 }
-        );
+        return res.status(500).json({ error: inviteError.message, logs });
       }
       addLog(`✅ invites deleted: ${invites.length}`);
     }
@@ -76,10 +74,7 @@ export async function POST(req: NextRequest) {
       .select();
     if (voucherError) {
       addLog(`❌ vouchers error: ${voucherError.message}`);
-      return NextResponse.json(
-        { error: "Failed to delete user vouchers", logs },
-        { status: 500 }
-      );
+      return res.status(500).json({ error: voucherError.message, logs });
     }
     addLog(`✅ vouchers deleted: ${vouchers.length}`);
 
@@ -92,7 +87,7 @@ export async function POST(req: NextRequest) {
       .select();
     if (profileError) {
       addLog(`❌ profiles error: ${profileError.message}`);
-      return NextResponse.json({ error: profileError.message, logs }, { status: 500 });
+      return res.status(500).json({ error: profileError.message, logs });
     }
     addLog(`✅ profiles deleted: ${profiles.length}`);
 
@@ -101,16 +96,15 @@ export async function POST(req: NextRequest) {
     const { error: authError } = await getSupabaseAdmin().auth.admin.deleteUser(userId);
     if (authError) {
       addLog(`❌ Supabase auth error: ${authError.message}`);
-      return NextResponse.json({ error: authError.message, logs }, { status: 500 });
+      return res.status(500).json({ error: authError.message, logs });
     }
     addLog("✅ Supabase auth user deleted");
 
     addLog(`🎉 [SUCCESS] User deletion flow completed for userId: ${userId}`);
-    return NextResponse.json({ success: true, logs }, { status: 200 });
-
+    return res.status(200).json({ success: true, logs });
   } catch (err: any) {
     const msg = `💥 [FATAL] Unexpected error: ${err?.message || err}`;
     addLog(msg);
-    return NextResponse.json({ error: "Internal server error", logs }, { status: 500 });
+    return res.status(500).json({ error: "Internal server error", logs });
   }
 }

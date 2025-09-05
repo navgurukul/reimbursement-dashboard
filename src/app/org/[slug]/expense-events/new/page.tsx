@@ -20,7 +20,7 @@ export default function CreateExpenseEventPage() {
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
   const orgId = organization?.id;
-  const slug = params.slug as string;
+  const slug = params?.slug as string;
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
