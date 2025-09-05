@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useOrgStore } from "@/store/useOrgStore";
+import { useOrgInitialization } from "@/hooks/useOrgInitialization";
 import { organizations } from "@/lib/db";
 import { toast } from "sonner";
 import {
@@ -18,6 +19,9 @@ import { BarChart, DollarSign, Users } from "lucide-react";
 
 export default function OrgDashboard() {
   const { organization } = useOrgStore();
+  
+  // Initialize organization data from cache
+  useOrgInitialization();
 
   return (
     <div className="space-y-6">

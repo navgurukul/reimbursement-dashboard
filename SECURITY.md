@@ -17,10 +17,13 @@ This document outlines the security measures implemented to prevent client-side 
 
 ## New Security Architecture
 
-### 1. Secure Stores
-- **`useAuthStore`**: No longer persists user data to localStorage
-- **`useOrgStore`**: No longer persists sensitive data like `userRole` to localStorage
-- All sensitive data is fetched fresh from the server on each session
+### 1. Secure Stores with Smart Caching
+- **`useAuthStore`**: Persists only non-sensitive cached user data (userId, email, timestamp)
+- **`useOrgStore`**: Persists organization and role data with manual localStorage caching
+- **Cache Expiration**: All cached data expires after 5 minutes
+- **Server Validation**: Cached data is always validated against the server
+- **Optimistic UI**: Shows cached data immediately while fetching fresh data in background
+- **Organization Persistence**: Organization data persists on page refresh for better UX
 
 ### 2. Server-Side Authorization
 - **`useAuthorization` hook**: Validates user permissions against the database
@@ -31,10 +34,11 @@ This document outlines the security measures implemented to prevent client-side 
 ### 3. Permission Validation Flow
 ```
 1. User requests protected resource
-2. Client checks local state (non-sensitive)
-3. Server validates user permissions from database
-4. Server returns permission status
-5. Client renders content based on server response
+2. Client checks cached data (if valid and not expired)
+3. Shows cached data immediately (optimistic UI)
+4. Server validates user permissions from database in background
+5. Updates UI with fresh data if different from cache
+6. Client renders content based on server-validated permissions
 ```
 
 ## Components
@@ -74,20 +78,23 @@ if (hasPermission("admin")) {
 
 1. **No Client-Side Trust**: All permission decisions made server-side
 2. **Real-Time Validation**: Permissions checked against live database
-3. **Session Security**: No sensitive data stored in localStorage
-4. **Access Control**: Middleware prevents unauthorized organization access
-5. **Audit Trail**: All permission checks logged server-side
+3. **Smart Caching**: Non-sensitive data cached with expiration and validation
+4. **Optimistic UI**: Fast user experience with background validation
+5. **Access Control**: Middleware prevents unauthorized organization access
+6. **Audit Trail**: All permission checks logged server-side
+7. **Cache Security**: Cached data includes timestamps and user validation
 
 ## Implementation Notes
 
 ### Breaking Changes
-- `useAuthStore` no longer persists data between sessions
-- `useOrgStore` no longer persists `userRole` or `organization`
-- Users must re-authenticate on page refresh
+- `useAuthStore` now persists only non-sensitive cached data
+- `useOrgStore` now persists only non-sensitive cached role data
+- Users get immediate UI response with cached data, validated in background
 
 ### Performance Considerations
-- Permission checks happen on each route change
-- Consider implementing permission caching for frequently accessed routes
+- Permission checks use cached data for immediate UI response
+- Background server validation ensures data freshness
+- Cache expires after 5 minutes to balance performance and security
 - Database queries optimized for permission checks
 
 ### Future Enhancements

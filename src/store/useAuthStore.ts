@@ -1,19 +1,28 @@
 // src/store/useAuthStore.ts
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { User } from "@supabase/supabase-js";
 import { auth } from "@/lib/db";
 import { profiles, Profile } from "@/lib/db";
 import { useOrgStore } from "./useOrgStore";
+
+interface CachedUserData {
+  userId: string;
+  email: string;
+  timestamp: number;
+}
 
 interface AuthState {
   user: User | null;
   profile: Profile | null;
   isLoading: boolean;
   error: string | null;
+  cachedUserData: CachedUserData | null;
 
   // Actions
   setUser: (user: User | null) => void;
   setProfile: (profile: Profile | null) => void;
+  setCachedUserData: (userData: CachedUserData | null) => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -24,15 +33,20 @@ interface AuthState {
 
 const { resetOrg } = useOrgStore.getState();
 
-export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  profile: null,
-  isLoading: false,
-  error: null,
+export const useAuthStore = create(
+  persist<AuthState>(
+    (set, get) => ({
+      user: null,
+      profile: null,
+      isLoading: false,
+      error: null,
+      cachedUserData: null,
 
-  setUser: (user) => set({ user }),
+      setUser: (user) => set({ user }),
 
-  setProfile: (profile) => set({ profile }),
+      setProfile: (profile) => set({ profile }),
+
+      setCachedUserData: (userData) => set({ cachedUserData: userData }),
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });
@@ -52,6 +66,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             profile: profileData as Profile,
             isLoading: false,
           });
+          
+          // Cache user data
+          if (data.user) {
+            set({ cachedUserData: {
+              userId: data.user.id,
+              email: data.user.email || "",
+              timestamp: Date.now(),
+            }});
+          }
         } catch (profileErr) {
           // If profile fetch fails, still set the user
           set({
@@ -100,7 +123,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { error } = await auth.signOut();
       if (error) throw error;
-      set({ user: null, profile: null, isLoading: false });
+      set({ user: null, profile: null, isLoading: false, cachedUserData: null });
       resetOrg();
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
@@ -182,4 +205,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: err.message });
     }
   },
-}));
+    }),
+    {
+      name: "auth-storage",
+      partialize: (state) => ({
+        // Only persist non-sensitive cached user data
+        cachedUserData: state.cachedUserData,
+      }),
+    }
+  )
+);

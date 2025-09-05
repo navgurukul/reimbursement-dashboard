@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
+import { useOrgInitialization } from "@/hooks/useOrgInitialization";
 import { orgSettings, expenses } from "@/lib/db";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -57,6 +58,9 @@ export default function ExpensesPage() {
   const { slug } = useParams() as { slug: string };
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
+  
+  // Initialize organization data from cache
+  useOrgInitialization();
 
   const orgId = organization?.id!;
 

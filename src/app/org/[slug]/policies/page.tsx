@@ -3,6 +3,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
+import { useOrgInitialization } from "@/hooks/useOrgInitialization";
 import { policies, Policy, orgSettings, policyFiles } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,9 @@ const defaultPolicy: Omit<
 export default function PoliciesPage() {
   const { organization, userRole } = useOrgStore();
   const [policyList, setPolicyList] = useState<Policy[]>([]);
+  
+  // Initialize organization data from cache
+  useOrgInitialization();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);

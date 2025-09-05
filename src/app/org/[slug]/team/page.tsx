@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
+import { useOrgInitialization } from "@/hooks/useOrgInitialization";
 import { toast } from "sonner";
 import { organizations, profiles, RemovedUsers, authUsers } from "@/lib/db";
 import { deleteUserAction } from "@/app/actions/deleteUser";
@@ -68,6 +69,9 @@ export default function TeamPage() {
   const org = useOrgStore((s) => s.organization);
   const userRole = useOrgStore((s) => s.userRole);
   const [members, setMembers] = useState<Member[]>([]);
+  
+  // Initialize organization data from cache
+  useOrgInitialization();
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"member" | "manager" | "admin">(
     "member"
