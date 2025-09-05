@@ -35,7 +35,6 @@ export default function BankDetailsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [editing, setEditing] = useState<BankDetail | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [showVerifyDialog, setShowVerifyDialog] = useState(false);
   // const [password, setPassword] = useState("");
@@ -161,7 +160,7 @@ export default function BankDetailsPage() {
     if (Object.keys(newErrors).length > 0) return;
 
     if (editing) {
-      setShowConfirmDialog(true);
+      setShowVerifyDialog(true);
     } else {
       await saveForm();
     }
@@ -196,7 +195,6 @@ export default function BankDetailsPage() {
     setErrors({});
     fetchBankDetails();
     setDialogOpen(false);
-    setShowConfirmDialog(false);
   };
 
   return (
@@ -251,24 +249,24 @@ export default function BankDetailsPage() {
                 )}
               </div>
             ))}
-            <Button
-              onClick={() => {
-                setShowConfirmDialog(false);
-                setShowVerifyDialog(true); // Step 2 open
-              }}
-            >
-              Yes, Update
-            </Button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {editing ? "Update" : "Save"}
+              </Button>
+            </div>
 
           </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}>
-        <DialogContent className="max-w-xs mx-auto p-4 rounded shadow bg-white">
+        <DialogContent className="w-full max-w-xs sm:max-w-xs mx-auto p-4 rounded shadow bg-white">
           <DialogTitle className="text-lg font-semibold">Verify Identity</DialogTitle>
           <p className="text-sm text-gray-600 mt-2">
-            Enter your password and type <strong>CONFIRM UPDATE</strong> below to proceed.
+            Type <strong>CONFIRM UPDATE</strong> below to proceed.
           </p>
           {/* Secret String */}
           <div className="mt-4">
@@ -307,11 +305,6 @@ export default function BankDetailsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Dialog */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}></Dialog>
-
-      {/* Step 2: Verification Dialog */}
-      <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}></Dialog>
 
       {/* Search */}
       <Input
