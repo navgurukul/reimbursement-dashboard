@@ -275,64 +275,6 @@ export default function PoliciesPage() {
       let pdfUrl = currentPolicy.policy_url;
       console.log("Current PDF URL:", pdfUrl);
 
-      // Only upload if new file was selected
-      // if (pdfFile) {
-      //   console.log("Starting file upload...", {
-      //     fileName: pdfFile.name,
-      //     fileSize: pdfFile.size,
-      //     fileType: pdfFile.type
-      //   });
-
-      //   const formData = new FormData();
-      //   formData.append("file", pdfFile);
-
-      //   const response = await fetch("/api/upload-policy-pdf", {
-      //     method: "POST",
-      //     body: formData,
-      //   });
-
-      //   console.log("File upload response:", response);
-      //   console.log("Response status:", response.status);
-      //   console.log("Response ok:", response.ok);
-
-      //   // Get response text first to see what we're actually getting
-      //   const responseText = await response.text();
-      //   console.log("Raw response:", responseText);
-
-      //   if (!response.ok) {
-      //     console.error("Response not ok:", response.status, responseText);
-
-      //     // Try to parse as JSON, fallback to text
-      //     let errorData;
-      //     try {
-      //       errorData = JSON.parse(responseText);
-      //     } catch {
-      //       errorData = { error: responseText };
-      //     }
-
-      //     throw new Error(errorData.error || `HTTP ${response.status}: ${responseText}`);
-      //   }
-
-      //   // Parse the JSON response
-      //   const result = JSON.parse(responseText);
-      //   console.log("Parsed upload response:", result);
-
-      //   // Check if upload was successful
-      //   if (!result.success) {
-      //     throw new Error(result.error || "Upload failed - success false");
-      //   }
-
-      //   // Extract the URL from the response
-      //   pdfUrl = result.url;
-
-      //   // Verify we got a valid URL
-      //   if (!pdfUrl) {
-      //     throw new Error("No URL returned from upload");
-      //   }
-
-      //   console.log("PDF URL set to:", pdfUrl);
-      // }
-
       // ✅ Upload directly using db.ts helper (no API call)
       if (pdfFile) {
         const uploadResult = await policyFiles.upload(pdfFile, organization.id);
