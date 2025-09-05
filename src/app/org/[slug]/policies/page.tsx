@@ -66,6 +66,7 @@ export default function PoliciesPage() {
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string>("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
 
   useEffect(() => {
@@ -131,6 +132,8 @@ export default function PoliciesPage() {
       setIsEditing(false);
     }
     setPdfFile(null);
+    setSelectedFileName("");
+    setErrors({});
     setIsDialogOpen(true);
   };
 
@@ -142,6 +145,14 @@ export default function PoliciesPage() {
       ...prev,
       [name]: value === "" ? null : value,
     }));
+
+    if (errors[name] && String(value).trim() !== "") {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[name];
+        return updated;
+      });
+    }
   };
 
   const handleSelectChange = (name: string, value: string) => {
@@ -149,6 +160,14 @@ export default function PoliciesPage() {
       ...prev,
       [name]: value,
     }));
+
+    if (errors[name] && String(value).trim() !== "") {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[name];
+        return updated;
+      });
+    }
   };
 
   const handleNumberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,6 +176,14 @@ export default function PoliciesPage() {
       ...prev,
       [name]: value === "" ? null : Number(value),
     }));
+
+    if (errors[name] && String(value).trim() !== "") {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[name];
+        return updated;
+      });
+    }
   };
 
 
@@ -168,17 +195,25 @@ export default function PoliciesPage() {
       // Validate file type
       if (!file.type.includes('pdf')) {
         toast.error('Only PDF files are allowed');
+        setErrors((prev) => ({ ...prev, fileUpload: 'Only PDF files are allowed' }));
         return;
       }
 
       // Validate file size (5MB limit)
       if (file.size > 5 * 1024 * 1024) {
         toast.error('File size must be under 5MB');
+        setErrors((prev) => ({ ...prev, fileUpload: 'File size must be under 5MB' }));
         return;
       }
 
       setPdfFile(file);
       setSelectedFileName(file.name);
+      // Clear upload-related error once a valid file is selected
+      setErrors((prev) => {
+        const updated = { ...prev } as Record<string, string>;
+        delete updated.fileUpload;
+        return updated;
+      });
       toast.success('PDF selected successfully');
     } catch (error) {
       toast.error('Failed to select file');
@@ -189,7 +224,50 @@ export default function PoliciesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!organization?.id || !isAdminOrOwner) return;
+    // Validate fields first
+    const newErrors: Record<string, string> = {};
+    if (!currentPolicy.expense_type) newErrors["expense_type"] = "Expense type is required.";
+    if (
+      currentPolicy.per_unit_cost === null ||
+      currentPolicy.per_unit_cost === undefined ||
+      String(currentPolicy.per_unit_cost).trim() === ""
+    ) {
+      newErrors["per_unit_cost"] = "Per unit cost is required.";
+    }
+    if (
+      currentPolicy.upper_limit === null ||
+      currentPolicy.upper_limit === undefined ||
+      String(currentPolicy.upper_limit).trim() === ""
+    ) {
+      newErrors["upper_limit"] = "Upper limit is required.";
+    }
+    if (
+      currentPolicy.upper_limit !== null &&
+      typeof currentPolicy.upper_limit === "number" &&
+      currentPolicy.upper_limit < 0
+    ) {
+      newErrors["upper_limit"] = "Upper limit cannot be negative.";
+    }
+    if (!currentPolicy.eligibility || String(currentPolicy.eligibility).trim() === "") {
+      newErrors["eligibility"] = "Eligibility is required.";
+    }
+    if (!currentPolicy.conditions || String(currentPolicy.conditions).trim() === "") {
+      newErrors["conditions"] = "Conditions are required.";
+    }
+    // Require a PDF on create; allow existing URL during edit
+    if (!isEditing) {
+      const hasPdf = !!pdfFile;
+      if (!hasPdf) {
+        newErrors["fileUpload"] = "Policy PDF is required.";
+      }
+    }
 
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
     setIsSubmitting(true);
     const toastId = toast.loading(isEditing ? "Updating policy..." : "Adding policy...");
 
@@ -294,6 +372,7 @@ export default function PoliciesPage() {
       // Close dialog and reset state
       setIsDialogOpen(false);
       setPdfFile(null);
+      setSelectedFileName("");
       setCurrentPolicy(defaultPolicy);
       toast.success(isEditing ? "Policy updated!" : "Policy created!");
 
@@ -351,7 +430,7 @@ export default function PoliciesPage() {
                       value={currentPolicy.expense_type || ""}
                       onValueChange={(value) => handleSelectChange("expense_type", value)}
                     >
-                      <SelectTrigger id="expense_type" className="w-full">
+                      <SelectTrigger id="expense_type" className={`w-full ${errors["expense_type"] ? "border-red-500" : ""}`}>
                         <SelectValue placeholder="Select expense type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -362,60 +441,84 @@ export default function PoliciesPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {errors["expense_type"] && (
+                      <p className="text-red-500 text-sm">{errors["expense_type"]}</p>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="per_unit_cost" className="text-right">
                     Per Unit Cost
                   </Label>
-                  <Input
-                    id="per_unit_cost"
-                    name="per_unit_cost"
-                    value={currentPolicy.per_unit_cost || ""}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    placeholder="e.g., 3/km, 200/meal"
-                  />
+                  <div className="col-span-3">
+                    <Input
+                      id="per_unit_cost"
+                      name="per_unit_cost"
+                      type="number"
+                      value={currentPolicy.per_unit_cost || ""}
+                      onChange={handleInputChange}
+                      className={`${errors["per_unit_cost"] ? "border-red-500" : ""}`}
+                      placeholder="e.g., 3/km, 200/meal"
+                    />
+                    {errors["per_unit_cost"] && (
+                      <p className="text-red-500 text-sm">{errors["per_unit_cost"]}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="upper_limit">
                     Upper Limit (₹)
                   </Label>
-                  <Input
-                    id="upper_limit"
-                    name="upper_limit"
-                    type="number"
-                    value={currentPolicy.upper_limit || ""}
-                    onChange={handleNumberInputChange}
-                    className="col-span-3"
-                    placeholder="e.g., 5000"
-                  />
+                  <div className="col-span-3">
+                    <Input
+                      id="upper_limit"
+                      name="upper_limit"
+                      type="number"
+                      value={currentPolicy.upper_limit || ""}
+                      onChange={handleNumberInputChange}
+                      className={`${errors["upper_limit"] ? "border-red-500" : ""}`}
+                      placeholder="e.g., 5000"
+                    />
+                    {errors["upper_limit"] && (
+                      <p className="text-red-500 text-sm">{errors["upper_limit"]}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4 mt-6">
+                <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="eligibility" className="text-right">
                     Eligibility
                   </Label>
-                  <Input
-                    id="eligibility"
-                    name="eligibility"
-                    value={currentPolicy.eligibility || ""}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    placeholder="e.g., All Team Members"
-                  />
+                  <div className="col-span-3">
+                    <Input
+                      id="eligibility"
+                      name="eligibility"
+                      value={currentPolicy.eligibility || ""}
+                      onChange={handleInputChange}
+                      className={`${errors["eligibility"] ? "border-red-500" : ""}`}
+                      placeholder="e.g., All Team Members"
+                    />
+                    {errors["eligibility"] && (
+                      <p className="text-red-500 text-sm">{errors["eligibility"]}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="conditions" className="text-right">
                     Conditions
                   </Label>
-                  <Textarea
-                    id="conditions"
-                    name="conditions"
-                    value={currentPolicy.conditions || ""}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    placeholder="Enter any specific conditions..."
-                  />
+                  <div className="col-span-3">
+                    <Textarea
+                      id="conditions"
+                      name="conditions"
+                      value={currentPolicy.conditions || ""}
+                      onChange={handleInputChange}
+                      className={`${errors["conditions"] ? "border-red-500" : ""}`}
+                      placeholder="Enter any specific conditions..."
+                    />
+                    {errors["conditions"] && (
+                      <p className="text-red-500 text-sm">{errors["conditions"]}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="fileUpload" className="text-right">
@@ -443,6 +546,9 @@ export default function PoliciesPage() {
                         Selected file: {selectedFileName}
                       </p>
                     )}
+                    {errors["fileUpload"] && (
+                      <p className="text-red-500 text-sm">{errors["fileUpload"]}</p>
+                    )}
                   </div>
                 </div>
                 <DialogFooter>
@@ -452,7 +558,9 @@ export default function PoliciesPage() {
                     className="cursor-pointer"
                   >
                     {isSubmitting ? (
-                      <Spinner size="sm" />
+                      <>
+                        <Spinner size="sm" /> Adding Policy...
+                      </>
                     ) : isEditing ? (
                       "Save Changes"
                     ) : (
