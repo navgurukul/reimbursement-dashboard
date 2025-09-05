@@ -74,6 +74,44 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // Additional security: Check if user is trying to access org routes
+  if (pathname.startsWith("/org/") && user) {
+    // Extract org slug from pathname
+    const orgMatch = pathname.match(/^\/org\/([^\/]+)/);
+    if (orgMatch) {
+      const orgSlug = orgMatch[1];
+      
+      // Check if user has access to this organization
+      try {
+        const { data: orgData } = await supabase
+          .from("organizations")
+          .select("id")
+          .eq("slug", orgSlug)
+          .single();
+
+        if (orgData?.id) {
+          const { data: membershipData } = await supabase
+            .from("organization_users")
+            .select("role")
+            .eq("org_id", orgData.id)
+            .eq("user_id", user.id)
+            .single();
+
+          // If user is not a member of this organization, redirect to unauthorized
+          if (!membershipData) {
+            const unauthorizedUrl = new URL("/unauthorized", request.url);
+            return NextResponse.redirect(unauthorizedUrl);
+          }
+        }
+      } catch (error) {
+        // If there's an error checking membership, redirect to unauthorized
+        console.error("Error checking organization membership:", error);
+        const unauthorizedUrl = new URL("/unauthorized", request.url);
+        return NextResponse.redirect(unauthorizedUrl);
+      }
+    }
+  }
+
   return supabaseResponse;
 }
 

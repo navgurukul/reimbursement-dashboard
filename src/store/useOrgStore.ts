@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 export type Role = "owner" | "admin" | "member";
 
@@ -14,26 +13,29 @@ interface OrgState {
   org: any;
   organization: Organization | null;
   userRole: Role | null;
+  selectedOrgId: string | null;
 
   setOrganization: (org: Organization | null) => void;
   setUserRole: (role: Role | null) => void;
+  setSelectedOrgId: (orgId: string | null) => void;
   resetOrg: () => void;
 }
 
-export const useOrgStore = create(
-  persist<OrgState>(
-    (set) => ({
-      id: null,
-      org: null,
-      organization: null,
-      userRole: null,
+export const useOrgStore = create<OrgState>((set) => ({
+  id: null,
+  org: null,
+  organization: null,
+  userRole: null,
+  selectedOrgId: null,
 
-      setOrganization: (org) => set({ organization: org }),
-      setUserRole: (role) => set({ userRole: role }),
-      resetOrg: () => set({ id: null, org: null, organization: null, userRole: null }),
-    }),
-    {
-      name: "org-storage",
-    }
-  )
-);
+  setOrganization: (org) => set({ organization: org }),
+  setUserRole: (role) => set({ userRole: role }),
+  setSelectedOrgId: (orgId) => set({ selectedOrgId: orgId }),
+  resetOrg: () => set({ 
+    id: null, 
+    org: null, 
+    organization: null, 
+    userRole: null,
+    selectedOrgId: null 
+  }),
+}));
