@@ -976,11 +976,8 @@ export default function ViewExpensePage() {
         toast.error("Voucher not found for this expense");
         return;
       }
-      console.log('voucherRow : ------', voucherRow);
 
       let pdfPath = voucherRow.pdf_path as string | null | undefined;
-      
-      console.log('Initial pdfPath : ', pdfPath);
 
       // 2) If PDF not generated yet, trigger server
       if (!pdfPath) {
@@ -991,12 +988,13 @@ export default function ViewExpensePage() {
             body: JSON.stringify({ voucherId: voucherRow.id }),
           });
 
+          // Read body ONCE, then try to parse JSON
+          const rawText = await resp.text();
           let json: any;
           try {
-            json = await resp.json();
+            json = rawText ? JSON.parse(rawText) : {};
           } catch (err) {
-            const text = await resp.text();
-            console.error("Non-JSON response from server:", text);
+            console.error("Non-JSON response from server:", rawText);
             throw new Error("Server returned invalid response (not JSON)");
           }
 
