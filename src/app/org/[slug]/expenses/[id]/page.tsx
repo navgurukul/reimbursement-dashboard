@@ -899,14 +899,78 @@ export default function ViewExpensePage() {
   };
 
   // Voucher share function
+  // const handleShareVoucher = async () => {
+  //   setShareLink("");
+  //   setSharingVoucher(true);
+  //   try {
+  //     // 1) Get voucher for this expense to find stored pdf_path
+  //     const { data: voucherRow, error: voucherErr } = await vouchers.getByExpenseId(
+  //       expense.id
+  //     );
+
+  //     if (voucherErr || !voucherRow) {
+  //       toast.error("Voucher not found for this expense");
+  //       return;
+  //     }
+
+  //     let pdfPath = voucherRow.pdf_path as string | null | undefined;
+
+  //     // 2) If PDF not generated yet, trigger server to generate and return signed URL
+  //     if (!pdfPath) {
+  //       try {
+  //         const resp = await fetch("/api/voucher-generate-pdf", {
+  //           method: "POST",
+  //           headers: { "Content-Type": "application/json" },
+  //           body: JSON.stringify({ voucherId: voucherRow.id }),
+  //         });
+  //         const json = await resp.json();
+  //         if (resp.ok) {
+  //           // Prefer immediate signed URL if present
+  //           if (json.url) {
+  //             setShareLink(json.url);
+  //             toast.success("Voucher link generated. Copy the link below and share it.");
+  //             return;
+  //           }
+  //           pdfPath = json.path;
+  //         } else {
+  //           throw new Error(json?.error || "Failed to generate voucher PDF");
+  //         }
+  //       } catch (e) {
+  //         console.error("Generate PDF error:", e);
+  //         toast.error("Failed to generate voucher PDF");
+  //         return;
+  //       }
+  //     }
+
+  //     if (!pdfPath) {
+  //       toast.error("Voucher PDF path not available");
+  //       return;
+  //     }
+
+  //     // 3) Create a signed URL from voucher-pdfs bucket
+  //     const { url, error: urlErr } = await vouchers.getPdfUrl(pdfPath);
+  //     if (urlErr || !url) {
+  //       toast.error("Failed to create voucher share link");
+  //       return;
+  //     }
+
+  //     setShareLink(url);
+  //     toast.success("Voucher link generated. Copy the link below and share it.");
+  //   } catch (err) {
+  //     console.error("Voucher share error:", err);
+  //     toast.error("Something went wrong while sharing voucher");
+  //   } finally {
+  //     setSharingVoucher(false);
+  //   }
+  // };
+
+  // Voucher share function
   const handleShareVoucher = async () => {
     setShareLink("");
     setSharingVoucher(true);
     try {
-      // 1) Get voucher for this expense to find stored pdf_path
-      const { data: voucherRow, error: voucherErr } = await vouchers.getByExpenseId(
-        expense.id
-      );
+      // 1) Get voucher for this expense
+      const { data: voucherRow, error: voucherErr } = await vouchers.getByExpenseId(expense.id);
 
       if (voucherErr || !voucherRow) {
         toast.error("Voucher not found for this expense");
@@ -915,7 +979,7 @@ export default function ViewExpensePage() {
 
       let pdfPath = voucherRow.pdf_path as string | null | undefined;
 
-      // 2) If PDF not generated yet, trigger server to generate and return signed URL
+      // 2) If PDF not generated yet, trigger server
       if (!pdfPath) {
         try {
           const resp = await fetch("/api/voucher-generate-pdf", {
@@ -923,9 +987,17 @@ export default function ViewExpensePage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ voucherId: voucherRow.id }),
           });
-          const json = await resp.json();
+
+          let json: any;
+          try {
+            json = await resp.json();
+          } catch (err) {
+            const text = await resp.text();
+            console.error("Non-JSON response from server:", text);
+            throw new Error("Server returned invalid response (not JSON)");
+          }
+
           if (resp.ok) {
-            // Prefer immediate signed URL if present
             if (json.url) {
               setShareLink(json.url);
               toast.success("Voucher link generated. Copy the link below and share it.");
