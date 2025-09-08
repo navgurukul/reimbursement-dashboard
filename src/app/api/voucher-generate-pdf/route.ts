@@ -14,6 +14,9 @@ type GenerateVoucherPdfBody = {
 };
 
 export async function POST(req: Request) {
+  const url = new URL(req.url);
+  const includeDebug = url.searchParams.get("debug") === "1";
+  const debug: Array<{ step: string; details?: any }> = [];
   let signaturePath: string | null = null;
   let signatureBase64: string | null = null;
   let signatureSource: "user-signatures" | "external" | null = null;
@@ -21,7 +24,7 @@ export async function POST(req: Request) {
   try {
     const { voucherId } = (await req.json()) as GenerateVoucherPdfBody;
     if (!voucherId) {
-      return NextResponse.json({ error: "voucherId is required" }, { status: 400 });
+      return NextResponse.json({ error: "voucherId is required", ...(includeDebug ? { debug } : {}) }, { status: 400 });
     }
 
     // Load voucher
@@ -31,6 +34,8 @@ export async function POST(req: Request) {
       .eq("id", voucherId)
       .single();
 
+    debug.push({ step: "voucher.fetch", details: { voucherId, error: vErr?.message } });
+
     // Fetch signature only from vouchers.signature_url
     if (voucher?.signature_url) {
       signaturePath = voucher.signature_url;
@@ -38,7 +43,7 @@ export async function POST(req: Request) {
     }
 
     if (vErr || !voucher) {
-      return NextResponse.json({ error: vErr?.message || "Voucher not found" }, { status: 404 });
+      return NextResponse.json({ error: vErr?.message || "Voucher not found", ...(includeDebug ? { debug } : {}) }, { status: 404 });
     }
 
     // Load expense
@@ -48,8 +53,10 @@ export async function POST(req: Request) {
       .eq("id", voucher.expense_id)
       .single();
 
+    debug.push({ step: "expense.fetch", details: { expenseId: voucher.expense_id, error: eErr?.message } });
+
     if (eErr || !expense) {
-      return NextResponse.json({ error: eErr?.message || "Expense not found" }, { status: 404 });
+      return NextResponse.json({ error: eErr?.message || "Expense not found", ...(includeDebug ? { debug } : {}) }, { status: 404 });
     }
 
     // Get organization for name
@@ -61,6 +68,7 @@ export async function POST(req: Request) {
         .eq("id", expense.org_id)
         .single();
       if (org?.name) orgName = org.name;
+      debug.push({ step: "organization.fetch", details: { orgId: expense.org_id, orgName } });
     }
 
     // Optionally fetch approver name
@@ -72,6 +80,7 @@ export async function POST(req: Request) {
         .eq("user_id", expense.approver_id)
         .single();
       approverName = approver?.full_name || null;
+      debug.push({ step: "approver.fetch", details: { approverId: expense.approver_id, approverName } });
     }
 
     const formatDate = (iso: string) => new Date(iso).toLocaleDateString();
@@ -129,7 +138,10 @@ export async function POST(req: Request) {
             signatureBase64 = `data:image/png;base64,${buf.toString("base64")}`;
           }
         }
-      } catch {}
+        debug.push({ step: "signature.resolve", details: { source: signatureSource, ok: Boolean(signatureBase64) } });
+      } catch {
+        debug.push({ step: "signature.resolve.error" });
+      }
     }
 
     const startY = y + 8;
@@ -248,8 +260,12 @@ export async function POST(req: Request) {
       .from("voucher-pdfs")
       .upload(key, arrayBuffer, { contentType: "application/pdf", upsert: true });
 
+    console.log("Uploaded voucher PDF to storage", { key, uploadError, uploadData });
+
+    debug.push({ step: "storage.upload", details: { key, error: uploadError?.message, path: uploadData?.path } });
+
     if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+      return NextResponse.json({ error: uploadError.message, ...(includeDebug ? { debug } : {}) }, { status: 500 });
     }
 
     // Save path to voucher (ignore if column doesn't exist yet)
@@ -258,9 +274,11 @@ export async function POST(req: Request) {
       .update({ pdf_path: uploadData?.path || key } as any)
       .eq("id", voucherId);
 
+    debug.push({ step: "voucher.update", details: { voucherId, pdf_path: uploadData?.path || key, error: upErr?.message } });
+
     // If the column is missing (migration not applied), continue without failing
     if (upErr && !(typeof upErr.message === "string" && upErr.message.toLowerCase().includes("column") && upErr.message.toLowerCase().includes("pdf_path"))) {
-      return NextResponse.json({ error: upErr.message }, { status: 500 });
+      return NextResponse.json({ error: upErr.message, ...(includeDebug ? { debug } : {}) }, { status: 500 });
     }
 
     // Return signed URL
@@ -268,12 +286,15 @@ export async function POST(req: Request) {
       .from("voucher-pdfs")
       .createSignedUrl(uploadData?.path || key, 3600);
 
+    debug.push({ step: "storage.signedUrl", details: { path: uploadData?.path || key, error: urlErr?.message, ok: Boolean(!urlErr) } });
+
     if (urlErr) {
-      return NextResponse.json({ success: true, path: uploadData?.path || key }, { status: 200 });
+      return NextResponse.json({ success: true, path: uploadData?.path || key, ...(includeDebug ? { debug } : {}) }, { status: 200 });
     }
 
-    return NextResponse.json({ success: true, path: uploadData?.path || key, url: signed.signedUrl });
+    return NextResponse.json({ success: true, path: uploadData?.path || key, url: signed.signedUrl, ...(includeDebug ? { debug } : {}) });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Unexpected error" }, { status: 500 });
+    debug.push({ step: "unexpected.error", details: { message: e?.message } });
+    return NextResponse.json({ error: e?.message || "Unexpected error", ...(includeDebug ? { debug } : {}) }, { status: 500 });
   }
 }

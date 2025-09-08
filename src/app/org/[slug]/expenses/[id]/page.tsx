@@ -976,8 +976,11 @@ export default function ViewExpensePage() {
         toast.error("Voucher not found for this expense");
         return;
       }
+      console.log('voucherRow : ------', voucherRow);
 
       let pdfPath = voucherRow.pdf_path as string | null | undefined;
+      
+      console.log('Initial pdfPath : ', pdfPath);
 
       // 2) If PDF not generated yet, trigger server
       if (!pdfPath) {
