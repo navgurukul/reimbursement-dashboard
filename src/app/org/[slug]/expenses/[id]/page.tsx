@@ -28,6 +28,7 @@ import ExpenseHistory from "./history/expense-history";
 import { ExpenseComments } from "./history/expense-comments";
 import SignaturePad from "@/components/SignatureCanvas";
 import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
+import { generateVoucherPdf } from "@/app/actions/generateVoucherPdf";
 import { useAuthStore } from "@/store/useAuthStore";
 
 
@@ -979,35 +980,19 @@ export default function ViewExpensePage() {
 
       let pdfPath = voucherRow.pdf_path as string | null | undefined;
 
-      // 2) If PDF not generated yet, trigger server
+      // 2) If PDF not generated yet, trigger server action
       if (!pdfPath) {
         try {
-          const resp = await fetch("/api/voucher-generate-pdf", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ voucherId: voucherRow.id }),
-          });
-
-          // Read body ONCE, then try to parse JSON
-          const rawText = await resp.text();
-          let json: any;
-          try {
-            json = rawText ? JSON.parse(rawText) : {};
-          } catch (err) {
-            console.error("Non-JSON response from server:", rawText);
-            throw new Error("Server returned invalid response (not JSON)");
+          const result = await generateVoucherPdf(voucherRow.id);
+          if (!result.success) {
+            throw new Error(result.error || "Failed to generate voucher PDF");
           }
-
-          if (resp.ok) {
-            if (json.url) {
-              setShareLink(json.url);
-              toast.success("Voucher link generated. Copy the link below and share it.");
-              return;
-            }
-            pdfPath = json.path;
-          } else {
-            throw new Error(json?.error || "Failed to generate voucher PDF");
+          if (result.url) {
+            setShareLink(result.url);
+            toast.success("Voucher link generated. Copy the link below and share it.");
+            return;
           }
+          pdfPath = result.path;
         } catch (e) {
           console.error("Generate PDF error:", e);
           toast.error("Failed to generate voucher PDF");
