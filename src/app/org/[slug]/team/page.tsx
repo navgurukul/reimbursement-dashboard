@@ -273,6 +273,9 @@ export default function TeamPage() {
 const handleDeleteMember = async (memberId: string) => {
   if (!org?.id) return;
 
+  console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('SERVICE ROLE KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Available' : 'Missing');
+
   try {
     // Get the organization user
     const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);

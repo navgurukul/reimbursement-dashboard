@@ -3,6 +3,9 @@
 import { authUsers, RemovedUsers, organizations, profiles  } from "@/lib/db";
 
 export async function deleteUserAction(memberId: string, orgId: string) {
+
+  console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('SERVICE ROLE KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Available' : 'Missing');
   try {
     // 1. Get the organization user
     const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
