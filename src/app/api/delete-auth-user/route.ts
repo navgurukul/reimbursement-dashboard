@@ -1,69 +1,112 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// Initialize Supabase admin client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: NextRequest) {
+  console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('SERVICE ROLE KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Available' : 'Missing');
+
   try {
     const { userId, email } = await req.json();
 
     if (!userId || typeof userId !== "string") {
-      return NextResponse.json({ error: "Valid userId required" }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Valid userId required",
+          debug: {
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+            serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          }
+        }, 
+        { status: 400 }
+      );
     }
 
-    // First, delete from organization_users
+    // Delete from organization_users
     const { error: orgUserError } = await supabase
       .from("organization_users")
       .delete()
       .eq("user_id", userId);
+
     if (orgUserError) {
       console.error("Error deleting from organization_users:", orgUserError.message);
-      return NextResponse.json({ error: orgUserError.message }, { status: 500 });
+      return NextResponse.json(
+        { 
+          error: orgUserError.message,
+          debug: {
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+            serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          }
+        }, 
+        { status: 500 }
+      );
     }
 
-    // Delete from invite_link_usage first
+    // Delete from invite_link_usage
     const { error: inviteError } = await supabase
       .from("invite_link_usage")
       .delete()
       .eq("user_id", userId);
+
     if (inviteError) {
       console.error("Error deleting from invite_link_usage:", inviteError.message);
-      return NextResponse.json({ error: inviteError.message }, { status: 500 });
+      return NextResponse.json(
+        { 
+          error: inviteError.message,
+          debug: {
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+            serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          }
+        }, 
+        { status: 500 }
+      );
     }
 
-    // Delete from invites using email
+    // Delete from invites
     if (email) {
-      const { error: inviteError } = await supabase
+      const { error: invitesError } = await supabase
         .from("invites")
         .delete()
         .eq("email", email.toLowerCase());
 
-      if (inviteError) {
-        console.error("Error deleting from invites:", inviteError);
+      if (invitesError) {
+        console.error("Error deleting from invites:", invitesError);
         return NextResponse.json(
-          { error: "Failed to delete user invites" },
+          { 
+            error: "Failed to delete user invites",
+            debug: {
+              supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+              serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+            }
+          }, 
           { status: 500 }
         );
       }
     }
 
-    // Delete from vouchers using created_by (userId)
-    if (userId) {
-      const { error: voucherError } = await supabase
-        .from("vouchers")
-        .delete()
-        .eq("created_by", userId);
+    // Delete from vouchers
+    const { error: voucherError } = await supabase
+      .from("vouchers")
+      .delete()
+      .eq("created_by", userId);
 
-      if (voucherError) {
-        console.error("Error deleting from vouchers:", voucherError);
-        return NextResponse.json(
-          { error: "Failed to delete user vouchers" },
-          { status: 500 }
-        );
-      }
+    if (voucherError) {
+      console.error("Error deleting from vouchers:", voucherError);
+      return NextResponse.json(
+        { 
+          error: "Failed to delete user vouchers",
+          debug: {
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+            serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          }
+        }, 
+        { status: 500 }
+      );
     }
 
     // Delete from profiles
@@ -71,21 +114,58 @@ export async function POST(req: NextRequest) {
       .from("profiles")
       .delete()
       .eq("user_id", userId);
+
     if (profileError) {
       console.error("Error deleting from profiles:", profileError.message);
-      return NextResponse.json({ error: profileError.message }, { status: 500 });
+      return NextResponse.json(
+        { 
+          error: profileError.message,
+          debug: {
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+            serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          }
+        }, 
+        { status: 500 }
+      );
     }
 
-    // Finally, delete the auth user
+    // Delete auth user
     const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+
     if (authError) {
       console.error("Supabase auth error:", authError.message);
-      return NextResponse.json({ error: authError.message }, { status: 500 });
+      return NextResponse.json(
+        { 
+          error: authError.message,
+          debug: {
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+            serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          }
+        }, 
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ success: true }, { status: 200 });
+    // ✅ Success with debug info included
+    return NextResponse.json({
+      success: true,
+      debug: {
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+        serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      }
+    }, { status: 200 });
+
   } catch (err: any) {
     console.error("Unexpected error in /api/delete-auth-user:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        debug: {
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+          serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        }
+      },
+      { status: 500 }
+    );
   }
-}
+};
