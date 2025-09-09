@@ -86,6 +86,7 @@ export default function TeamPage() {
   const router = useRouter();
   const { logout } = useAuthStore();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   // Fetch organization members
   useEffect(() => {
@@ -418,6 +419,48 @@ export default function TeamPage() {
     setMemberToDelete(null);
   };
 
+  const handleChangeMemberRole = async (
+    memberId: string,
+    newRole: "member" | "manager" | "admin"
+  ) => {
+    if (!org?.id) return;
+
+    // Find member and prevent owner changes on UI side as well
+    const target = members.find((m) => m.id === memberId);
+    if (!target) return;
+    if (target.role === "owner") {
+      toast.error("Owner role cannot be changed");
+      return;
+    }
+
+    const prevRole = target.role;
+    setUpdatingRoleId(memberId);
+
+    // Optimistic update
+    setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m)));
+
+    try {
+      const res = await fetch("/api/update-member-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: org.id, memberId, newRole }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to update role");
+      }
+      toast.success("Role updated");
+    } catch (err: any) {
+      // Revert on failure
+      setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role: prevRole } : m)));
+      toast.error("Could not update role", {
+        description: err?.message || "Please try again",
+      });
+    } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -478,6 +521,40 @@ export default function TeamPage() {
                   <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 font-medium">
                     Active
                   </span>
+
+                  {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
+                    <Select
+                      value={m.role as any}
+                      onValueChange={(v: any) => handleChangeMemberRole(m.id, v)}
+                      disabled={updatingRoleId === m.id}
+                    >
+                      <SelectTrigger className="w-[140px] border-gray-300">
+                        <SelectValue placeholder="Change role" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white">
+                        <SelectGroup>
+                          <SelectItem value="member">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4" />
+                              <span>Member</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="manager">
+                            <div className="flex items-center gap-2">
+                              <Settings className="w-4 h-4" />
+                              <span>Manager</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="admin">
+                            <div className="flex items-center gap-2">
+                              <Shield className="w-4 h-4" />
+                              <span>Admin</span>
+                            </div>
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  )}
 
                   {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
                     <Trash
