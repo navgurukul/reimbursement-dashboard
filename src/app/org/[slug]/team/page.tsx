@@ -506,18 +506,20 @@ export default function TeamPage() {
                 </div>
 
                 <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
-                      ? "bg-yellow-100 text-yellow-800"
-                      : m.role === "admin"
-                        ? "bg-red-100 text-red-800"
-                        : m.role === "manager"
-                          ? "bg-indigo-100 text-indigo-800"
-                          : "bg-green-100 text-green-800"
-                      }`}
-                  >
-                    {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
-                  </span>
+                  {(userRole !== "admin" && userRole !== "owner") && (
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : m.role === "admin"
+                          ? "bg-red-100 text-red-800"
+                          : m.role === "manager"
+                            ? "bg-indigo-100 text-indigo-800"
+                            : "bg-green-100 text-green-800"
+                        }`}
+                    >
+                      {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
+                    </span>
+                  )}
                   {(userRole === "owner" || userRole === "admin") && (
                     <Select
                       value={m.role as any}
