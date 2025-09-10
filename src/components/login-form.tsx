@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 
 import { useAuthStore } from "@/store/useAuthStore";
 import { Role, useOrgStore } from "@/store/useOrgStore";
@@ -16,6 +15,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export function LoginForm({
   className,
@@ -31,13 +38,27 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Dialog state to replace toast notifications
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogState, setDialogState] = useState<{
+    status: "loading" | "success" | "error";
+    title: string;
+    description?: string;
+    nextHref?: string;
+  }>({ status: "loading", title: "" });
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     resetOrg();
 
     try {
-      const loadingToast = toast.loading("Signing you in…");
+      setIsDialogOpen(true);
+      setDialogState({
+        status: "loading",
+        title: "Signing you in…",
+        description: "Please wait while we authenticate your account.",
+      });
       // 1️⃣ Authenticate
       await login(email, password);
 
@@ -54,7 +75,6 @@ export function LoginForm({
       const { data: membership, error: membershipError } =
         await organizations.getUserOrganizations(userId);
 
-      toast.dismiss(loadingToast);
       if (membershipError) throw membershipError;
 
       // 4️⃣ Store in Zustand
@@ -66,24 +86,43 @@ export function LoginForm({
       // 5️⃣ Redirect logic
       const redirectTo = searchParams.get("redirectTo");
       if (redirectTo) {
-        toast.success("Login successful! Redirecting…");
+        setDialogState({
+          status: "success",
+          title: "Login successful",
+          description: "Redirecting to your destination…",
+          nextHref: redirectTo,
+        });
         router.push(redirectTo);
         return;
       }
 
       if (membership?.organizations?.slug) {
-        toast.success("Welcome back!");
-        router.push(`/org/${membership.organizations.slug}`);
+        const next = `/org/${membership.organizations.slug}`;
+        setDialogState({
+          status: "success",
+          title: "Welcome back",
+          description: "Taking you to your organization dashboard…",
+          nextHref: next,
+        });
+        router.push(next);
       } else {
-        toast.success("Login successful!");
-        router.push("/create-organization");
+        const next = "/create-organization";
+        setDialogState({
+          status: "success",
+          title: "Login successful",
+          description: "Let’s set up your organization.",
+          nextHref: next,
+        });
+        router.push(next);
       }
     } catch (err: any) {
-      toast.dismiss();
       setError(err.message || "Login failed");
-      toast.error("Login failed", {
+      setDialogState({
+        status: "error",
+        title: "Login failed",
         description: err.message || "Please try again.",
       });
+      setIsDialogOpen(true);
     }
   };
 
@@ -166,6 +205,18 @@ export function LoginForm({
         </a>
         .
       </p>
+
+      {/* Login feedback modal (no action button; redirects automatically) */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dialogState.title}</DialogTitle>
+            {dialogState.description && (
+              <DialogDescription>{dialogState.description}</DialogDescription>
+            )}
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
