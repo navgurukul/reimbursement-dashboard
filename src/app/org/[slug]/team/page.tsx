@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Trash, Copy, Link2, Users, User, Shield, Settings } from "lucide-react";
+import { Trash, Copy, Link2, Users, User, Shield, Settings, Crown } from "lucide-react";
 import supabase from "@/lib/supabase"; // Add this import
 import { useRouter } from "next/navigation";
 import {
@@ -498,14 +498,14 @@ export default function TeamPage() {
             members.map((m) => (
               <div
                 key={m.id}
-                className="flex items-center justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
               >
                 <div>
                   <div className="font-medium">{m.fullName || "—"}</div>
                   <div className="text-sm text-muted-foreground">{m.email}</div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
                   <span
                     className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
                       ? "bg-yellow-100 text-yellow-800"
@@ -518,21 +518,30 @@ export default function TeamPage() {
                   >
                     {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
                   </span>
-                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 font-medium">
-                    Active
-                  </span>
-
-                  {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
+                  {(userRole === "owner" || userRole === "admin") && (
                     <Select
                       value={m.role as any}
                       onValueChange={(v: any) => handleChangeMemberRole(m.id, v)}
-                      disabled={updatingRoleId === m.id}
+                      disabled={updatingRoleId === m.id || (m.role === "owner" && userRole !== "owner")}
                     >
-                      <SelectTrigger className="w-[140px] border-gray-300">
+                      <SelectTrigger className={`w-[120px] text-xs h-7 rounded-full px-2 py-1 ${m.role === "owner"
+                        ? "bg-yellow-100 text-yellow-900"
+                        : m.role === "admin"
+                          ? "bg-red-100 text-red-900"
+                          : m.role === "manager"
+                            ? "bg-indigo-100 text-indigo-900"
+                            : "bg-green-100 text-green-900"
+                        }`}>
                         <SelectValue placeholder="Change role" />
                       </SelectTrigger>
                       <SelectContent className="bg-white">
                         <SelectGroup>
+                          <SelectItem value="owner" disabled={userRole !== "owner"}>
+                            <div className="flex items-center gap-2">
+                              <Crown className="w-4 h-4" />
+                              <span>Owner</span>
+                            </div>
+                          </SelectItem>
                           <SelectItem value="member">
                             <div className="flex items-center gap-2">
                               <User className="w-4 h-4" />
@@ -555,6 +564,10 @@ export default function TeamPage() {
                       </SelectContent>
                     </Select>
                   )}
+                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 font-medium">
+                    Active
+                  </span>
+
 
                   {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
                     <Trash
