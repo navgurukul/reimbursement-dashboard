@@ -49,6 +49,7 @@ interface Member {
   role: string;
   fullName?: string;
   avatarUrl?: string;
+  userId: string;
 }
 
 interface InviteFormData {
@@ -87,9 +88,16 @@ export default function TeamPage() {
   const { logout } = useAuthStore();
   const [isDeleting, setIsDeleting] = useState(false);
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Fetch organization members
   useEffect(() => {
+    // Fetch current user id for self-change restriction
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      setCurrentUserId(data?.user?.id ?? null);
+    })();
+
     async function fetchMembers() {
       if (!org?.id) return;
 
@@ -122,6 +130,7 @@ export default function TeamPage() {
               role: orgUser.role,
               fullName: profile?.full_name,
               avatarUrl: profile?.avatar_url,
+              userId: orgUser.user_id,
             };
           });
 
@@ -428,8 +437,9 @@ export default function TeamPage() {
     // Find member and prevent owner changes on UI side as well
     const target = members.find((m) => m.id === memberId);
     if (!target) return;
-    if (target.role === "owner") {
-      toast.error("Owner role cannot be changed");
+    // Block changing own role from UI as an extra safeguard
+    if (currentUserId && target.userId === currentUserId) {
+      toast.error("You cannot change your own role");
       return;
     }
 

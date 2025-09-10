@@ -40,10 +40,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    // Fetch target member row to ensure it belongs to same org and to prevent editing owners
+    // Fetch target member row to ensure it belongs to same org and to apply role-change rules
     const { data: targetRow, error: fetchErr } = await supabaseClient
       .from("organization_users")
-      .select("id, org_id, role")
+      .select("id, org_id, role, user_id")
       .eq("id", memberId)
       .single();
 
@@ -51,8 +51,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Member not found in organization" }, { status: 404 });
     }
 
-    if (targetRow.role === "owner") {
-      return NextResponse.json({ error: "Cannot change role of owner" }, { status: 403 });
+    // Prevent users (including owners) from changing their own role
+    if (targetRow.user_id === currentUserId) {
+      return NextResponse.json({ error: "Cannot change your own role" }, { status: 403 });
+    }
+
+    // Only an owner can change another owner's role. Admins/managers/members cannot.
+    if (targetRow.role === "owner" && currentRole !== "owner") {
+      return NextResponse.json({ error: "Only owner can change another owner's role" }, { status: 403 });
     }
 
     // If current user is admin (not owner), restrict promoting to admin only; cannot set owner here
