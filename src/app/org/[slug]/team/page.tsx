@@ -432,13 +432,13 @@ export default function TeamPage() {
     memberId: string,
     newRole: "member" | "manager" | "admin"
   ) => {
-    if (!org?.id) return;
+    if (!org?.id || !currentUserId) return;
 
     // Find member and prevent owner changes on UI side as well
     const target = members.find((m) => m.id === memberId);
     if (!target) return;
     // Block changing own role from UI as an extra safeguard
-    if (currentUserId && target.userId === currentUserId) {
+    if (target.userId === currentUserId) {
       toast.error("You cannot change your own role");
       return;
     }
@@ -450,14 +450,15 @@ export default function TeamPage() {
     setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m)));
 
     try {
-      const res = await fetch("/api/update-member-role", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: org.id, memberId, newRole }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || "Failed to update role");
+      const result = await organizations.updateMemberRole(
+        org.id,
+        memberId,
+        newRole,
+        currentUserId
+      );
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update role");
       }
       toast.success("Role updated");
     } catch (err: any) {

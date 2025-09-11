@@ -385,6 +385,96 @@ export const organizations = {
 
     return { error };
   },
+
+  updateMemberRole: async (
+    orgId: string,
+    memberId: string,
+    newRole: "member" | "manager" | "admin" | "owner",
+    currentUserId: string
+  ) => {
+    try {
+      // Ensure current user has admin/owner role in this org
+      const { data: currentRoleRow, error: roleErr } = await supabase
+        .from("organization_users")
+        .select("role")
+        .eq("org_id", orgId)
+        .eq("user_id", currentUserId)
+        .single();
+
+      if (roleErr || !currentRoleRow) {
+        return { 
+          success: false, 
+          error: "Membership not found" 
+        };
+      }
+
+      const currentRole = currentRoleRow.role as string;
+      if (!(currentRole === "owner" || currentRole === "admin")) {
+        return { 
+          success: false, 
+          error: "Insufficient permissions" 
+        };
+      }
+
+      // Fetch target member row to ensure it belongs to same org and to apply role-change rules
+      const { data: targetRow, error: fetchErr } = await supabase
+        .from("organization_users")
+        .select("id, org_id, role, user_id")
+        .eq("id", memberId)
+        .single();
+
+      if (fetchErr || !targetRow || targetRow.org_id !== orgId) {
+        return { 
+          success: false, 
+          error: "Member not found in organization" 
+        };
+      }
+
+      // Prevent users (including owners) from changing their own role
+      if (targetRow.user_id === currentUserId) {
+        return { 
+          success: false, 
+          error: "Cannot change your own role" 
+        };
+      }
+
+      // Only an owner can change another owner's role. Admins/managers/members cannot.
+      if (targetRow.role === "owner" && currentRole !== "owner") {
+        return { 
+          success: false, 
+          error: "Only owner can change another owner's role" 
+        };
+      }
+
+      // If current user is admin (not owner), restrict promoting to admin only; cannot set owner here
+      if (currentRole === "admin" && newRole === "owner") {
+        return { 
+          success: false, 
+          error: "Only owner can assign owner role" 
+        };
+      }
+
+      // Update role
+      const { error: updateErr } = await supabase
+        .from("organization_users")
+        .update({ role: newRole })
+        .eq("id", memberId);
+
+      if (updateErr) {
+        return { 
+          success: false, 
+          error: updateErr.message 
+        };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { 
+        success: false, 
+        error: err?.message || "Unexpected error" 
+      };
+    }
+  },
 };
 
 // Add this entire object to your db.ts file with other database functions
