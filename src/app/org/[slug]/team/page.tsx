@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Trash, Copy, Link2, Users, User, Shield, Settings } from "lucide-react";
+import { Trash, Copy, Link2, Users, User, Shield, Settings, Crown } from "lucide-react";
 import supabase from "@/lib/supabase"; // Add this import
 import { useRouter } from "next/navigation";
 import {
@@ -49,6 +49,7 @@ interface Member {
   role: string;
   fullName?: string;
   avatarUrl?: string;
+  userId: string;
 }
 
 interface InviteFormData {
@@ -86,9 +87,17 @@ export default function TeamPage() {
   const router = useRouter();
   const { logout } = useAuthStore();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Fetch organization members
   useEffect(() => {
+    // Fetch current user id for self-change restriction
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      setCurrentUserId(data?.user?.id ?? null);
+    })();
+
     async function fetchMembers() {
       if (!org?.id) return;
 
@@ -121,6 +130,7 @@ export default function TeamPage() {
               role: orgUser.role,
               fullName: profile?.full_name,
               avatarUrl: profile?.avatar_url,
+              userId: orgUser.user_id,
             };
           });
 
@@ -418,6 +428,50 @@ export default function TeamPage() {
     setMemberToDelete(null);
   };
 
+  const handleChangeMemberRole = async (
+    memberId: string,
+    newRole: "member" | "manager" | "admin"
+  ) => {
+    if (!org?.id || !currentUserId) return;
+
+    // Find member and prevent owner changes on UI side as well
+    const target = members.find((m) => m.id === memberId);
+    if (!target) return;
+    // Block changing own role from UI as an extra safeguard
+    if (target.userId === currentUserId) {
+      toast.error("You cannot change your own role");
+      return;
+    }
+
+    const prevRole = target.role;
+    setUpdatingRoleId(memberId);
+
+    // Optimistic update
+    setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m)));
+
+    try {
+      const result = await organizations.updateMemberRole(
+        org.id,
+        memberId,
+        newRole,
+        currentUserId
+      );
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update role");
+      }
+      toast.success("Role updated");
+    } catch (err: any) {
+      // Revert on failure
+      setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role: prevRole } : m)));
+      toast.error("Could not update role", {
+        description: err?.message || "Please try again",
+      });
+    } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -455,26 +509,83 @@ export default function TeamPage() {
             members.map((m) => (
               <div
                 key={m.id}
-                className="flex items-center justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
               >
                 <div>
                   <div className="font-medium">{m.fullName || "—"}</div>
                   <div className="text-sm text-muted-foreground">{m.email}</div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
-                      ? "bg-yellow-100 text-yellow-800"
-                      : m.role === "admin"
-                        ? "bg-red-100 text-red-800"
-                        : m.role === "manager"
-                          ? "bg-indigo-100 text-indigo-800"
-                          : "bg-green-100 text-green-800"
-                      }`}
-                  >
-                    {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
-                  </span>
+                <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
+                  {(userRole !== "admin" && userRole !== "owner") && (
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : m.role === "admin"
+                          ? "bg-red-100 text-red-800"
+                          : m.role === "manager"
+                            ? "bg-indigo-100 text-indigo-800"
+                            : "bg-green-100 text-green-800"
+                        }`}
+                    >
+                      {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
+                    </span>
+                  )}
+                  {(userRole === "owner" || userRole === "admin") && (
+                    m.role === "owner" ? (
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : m.role === "admin"
+                            ? "bg-red-100 text-red-800"
+                            : m.role === "manager"
+                              ? "bg-indigo-100 text-indigo-800"
+                              : "bg-green-100 text-green-800"
+                          }`}
+                      >
+                        {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
+                      </span>
+                    ) : (
+                      <Select
+                        value={m.role as any}
+                        onValueChange={(v: any) => handleChangeMemberRole(m.id, v)}
+                        disabled={updatingRoleId === m.id}
+                      >
+                        <SelectTrigger className={`w-[120px] text-xs h-7 rounded-full px-2 py-1 ${m.role === "owner"
+                          ? "bg-yellow-100 text-yellow-900"
+                          : m.role === "admin"
+                            ? "bg-red-100 text-red-900"
+                            : m.role === "manager"
+                              ? "bg-indigo-100 text-indigo-900"
+                              : "bg-green-100 text-green-900"
+                          }`}>
+                          <SelectValue placeholder="Change role" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white">
+                          <SelectGroup>
+                            <SelectItem value="member">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4" />
+                                <span>Member</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="manager">
+                              <div className="flex items-center gap-2">
+                                <Settings className="w-4 h-4" />
+                                <span>Manager</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="admin">
+                              <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4" />
+                                <span>Admin</span>
+                              </div>
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    )
+                  )}
                   <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 font-medium">
                     Active
                   </span>

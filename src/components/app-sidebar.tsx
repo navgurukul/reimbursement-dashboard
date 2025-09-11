@@ -41,10 +41,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { organizations } from "@/lib/db";
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { organization, userRole } = useOrgStore();
+  const { organization, userRole, setUserRole } = useOrgStore();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showRemovedModal, setShowRemovedModal] = useState(false); 
@@ -79,6 +80,23 @@ export function AppSidebar() {
       refreshProfile();
     }
   }, [user, profile, refreshProfile]);
+
+  // Refresh role from DB so newly assigned Admins get access without re-login
+  useEffect(() => {
+    const ensureLatestRole = async () => {
+      try {
+        if (!organization?.id || !user?.id) return;
+        const { data, error } = await organizations.getUserRole(
+          organization.id as unknown as string,
+          user.id
+        );
+        if (!error && data?.role) {
+          setUserRole(data.role as any);
+        }
+      } catch (_) {}
+    };
+    ensureLatestRole();
+  }, [organization?.id, user?.id, setUserRole]);
 
   const handleSignOut = async () => {
     try {
