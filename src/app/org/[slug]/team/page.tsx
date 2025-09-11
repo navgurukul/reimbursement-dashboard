@@ -274,7 +274,7 @@ export default function TeamPage() {
   //   if (!org?.id) return;
 
   //   console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-  //   console.log('SERVICE ROLE KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Available' : 'Missing');
+  //   console.log('SERVICE ROLE KEY:', process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ? 'Available' : 'Missing');
 
   //   try {
   //     // Get the organization user
