@@ -3,14 +3,14 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
   console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-  console.log('SERVICE ROLE KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Available' : 'Missing');
+  console.log('SERVICE ROLE KEY:', process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ? 'Available' : 'Missing');
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json({
-      error: "SUPABASE_SERVICE_ROLE_KEY or URL missing",
+      error: "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY or URL missing",
       debug: {
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
-        serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        serviceRoleKeyAvailable: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
       }
     }, { status: 500 });
   }
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   // Initialize Supabase Admin Client at runtime
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
   );
 
   try {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
           error: "Valid userId required",
           debug: {
             supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-            serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+            serviceRoleKeyAvailable: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
           }
         },
         { status: 400 }
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
       success: true,
       debug: {
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        serviceRoleKeyAvailable: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
       }
     }, { status: 200 });
 
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       error: "Internal server error",
       debug: {
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        serviceRoleKeyAvailable: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        serviceRoleKeyAvailable: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
       }
     }, { status: 500 });
   }
