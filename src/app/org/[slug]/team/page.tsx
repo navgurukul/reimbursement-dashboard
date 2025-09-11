@@ -532,50 +532,59 @@ export default function TeamPage() {
                     </span>
                   )}
                   {(userRole === "owner" || userRole === "admin") && (
-                    <Select
-                      value={m.role as any}
-                      onValueChange={(v: any) => handleChangeMemberRole(m.id, v)}
-                      disabled={updatingRoleId === m.id || (m.role === "owner" && userRole !== "owner")}
-                    >
-                      <SelectTrigger className={`w-[120px] text-xs h-7 rounded-full px-2 py-1 ${m.role === "owner"
-                        ? "bg-yellow-100 text-yellow-900"
-                        : m.role === "admin"
-                          ? "bg-red-100 text-red-900"
-                          : m.role === "manager"
-                            ? "bg-indigo-100 text-indigo-900"
-                            : "bg-green-100 text-green-900"
-                        }`}>
-                        <SelectValue placeholder="Change role" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white">
-                        <SelectGroup>
-                          <SelectItem value="owner" disabled={userRole !== "owner"}>
-                            <div className="flex items-center gap-2">
-                              <Crown className="w-4 h-4" />
-                              <span>Owner</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="member">
-                            <div className="flex items-center gap-2">
-                              <User className="w-4 h-4" />
-                              <span>Member</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="manager">
-                            <div className="flex items-center gap-2">
-                              <Settings className="w-4 h-4" />
-                              <span>Manager</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="admin">
-                            <div className="flex items-center gap-2">
-                              <Shield className="w-4 h-4" />
-                              <span>Admin</span>
-                            </div>
-                          </SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+                    m.role === "owner" ? (
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : m.role === "admin"
+                            ? "bg-red-100 text-red-800"
+                            : m.role === "manager"
+                              ? "bg-indigo-100 text-indigo-800"
+                              : "bg-green-100 text-green-800"
+                          }`}
+                      >
+                        {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
+                      </span>
+                    ) : (
+                      <Select
+                        value={m.role as any}
+                        onValueChange={(v: any) => handleChangeMemberRole(m.id, v)}
+                        disabled={updatingRoleId === m.id}
+                      >
+                        <SelectTrigger className={`w-[120px] text-xs h-7 rounded-full px-2 py-1 ${m.role === "owner"
+                          ? "bg-yellow-100 text-yellow-900"
+                          : m.role === "admin"
+                            ? "bg-red-100 text-red-900"
+                            : m.role === "manager"
+                              ? "bg-indigo-100 text-indigo-900"
+                              : "bg-green-100 text-green-900"
+                          }`}>
+                          <SelectValue placeholder="Change role" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white">
+                          <SelectGroup>
+                            <SelectItem value="member">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4" />
+                                <span>Member</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="manager">
+                              <div className="flex items-center gap-2">
+                                <Settings className="w-4 h-4" />
+                                <span>Manager</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="admin">
+                              <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4" />
+                                <span>Admin</span>
+                              </div>
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    )
                   )}
                   <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 font-medium">
                     Active
