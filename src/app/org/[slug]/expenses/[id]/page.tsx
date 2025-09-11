@@ -86,10 +86,10 @@ export default function ViewExpensePage() {
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
   const orgId = organization?.id!;
-  const expenseId = params.id as string;
-  const slug = params.slug as string;
+  const expenseId = params?.id as string;
+  const slug = params?.slug as string;
   const searchParams = useSearchParams();
-  const eventIdFromQuery = searchParams.get("eventId");
+  const eventIdFromQuery = searchParams?.get("eventId");
 
   const [loading, setLoading] = useState(true);
   const [updateLoading, setUpdateLoading] = useState(false);

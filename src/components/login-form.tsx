@@ -64,7 +64,7 @@ export function LoginForm({
       }
 
       // 5️⃣ Redirect logic
-      const redirectTo = searchParams.get("redirectTo");
+      const redirectTo = searchParams?.get("redirectTo");
       if (redirectTo) {
         toast.success("Login successful! Redirecting…");
         router.push(redirectTo);

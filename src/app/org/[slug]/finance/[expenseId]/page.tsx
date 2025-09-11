@@ -22,9 +22,9 @@ import supabase from "@/lib/supabase"; // Make sure this is correctly imported
 
 export default function FinanceExpenseDetails() {
   const params = useParams();
-  const { expenseId } = useParams();
+  const expenseId = params?.expenseId as string;
 
-  const slug = params.slug as string;
+  const slug = params?.slug as string;
   const router = useRouter();
 
   const [expense, setExpense] = useState<any>(null);

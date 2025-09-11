@@ -28,8 +28,8 @@ declare module 'jspdf' {
 export default function VoucherViewPage() {
   const router = useRouter();
   const params = useParams();
-  const expenseId = params.id as string;
-  const slug = params.slug as string;
+  const expenseId = params?.id as string;
+  const slug = params?.slug as string;
   const { organization } = useOrgStore();
 
   const [expense, setExpense] = useState<any>(null);

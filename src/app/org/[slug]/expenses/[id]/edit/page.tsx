@@ -26,8 +26,8 @@ export default function EditExpensePage() {
   const params = useParams();
   const { organization, userRole } = useOrgStore();
   const orgId = organization?.id!;
-  const expenseId = params.id as string;
-  const slug = params.slug as string;
+  const expenseId = params?.id as string;
+  const slug = params?.slug as string;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

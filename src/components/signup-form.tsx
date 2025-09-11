@@ -44,8 +44,8 @@ export function SignupForm({
 }: React.ComponentProps<"div">) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-  const emailParam = searchParams.get("email"); // For new invite links
+  const token = searchParams?.get("token");
+  const emailParam = searchParams?.get("email"); // For new invite links
 
   const { signup, error: authError, isLoading } = useAuthStore();
 
