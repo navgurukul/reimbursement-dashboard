@@ -516,127 +516,135 @@ export default function PoliciesPage() {
         )}
       </div>
 
-      <div className="rounded-md border">
-        <Table className="table-fixed w-full">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Expense Type</TableHead>
-              <TableHead>Per Unit Cost</TableHead>
-              <TableHead>Upper Limit</TableHead>
-              <TableHead>Eligibility</TableHead>
-              <TableHead>Conditions</TableHead>
-              <TableHead>Policies</TableHead>
-              {isAdminOrOwner && (
-                <TableHead className="w-1/6 px-4 text-center">Actions</TableHead>
-              )}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {policyList.length === 0 ? (
+      <div className="rounded-md border overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table className="w-full min-w-[800px]">
+            <TableHeader>
               <TableRow>
-                <TableCell
-                  colSpan={isAdminOrOwner ? 7 : 6}
-                  className="h-24 text-center"
-                >
-                  No policies defined yet.
-                </TableCell>
+                <TableHead className="w-[120px]">Expense Type</TableHead>
+                <TableHead className="w-[120px]">Per Unit Cost</TableHead>
+                <TableHead className="w-[120px]">Upper Limit</TableHead> 
+                <TableHead className="w-[120px]">Eligibility</TableHead> 
+                <TableHead className="w-[120px]">Conditions</TableHead>
+                <TableHead className="w-[120px]">Policies</TableHead>
+                {isAdminOrOwner && (
+                  <TableHead className="w-[100px] text-center">Action</TableHead>
+                )}
               </TableRow>
-            ) : (
-              policyList.map((policy) => (
-                <TableRow key={policy.id}>
-                  <TableCell className="w-1/6 px-4">
-                    {policy.expense_type}
+            </TableHeader>
+            <TableBody>
+              {policyList.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={isAdminOrOwner ? 7 : 6}
+                    className="h-24 text-center"
+                  >
+                    No policies defined yet.
                   </TableCell>
-                  <TableCell className="w-1/6 px-4">{policy.per_unit_cost || "N/A"}</TableCell>
-                  <TableCell className="w-1/6 px-4">
-                    {policy.upper_limit ? `₹${policy.upper_limit}` : "N/A"}
-                  </TableCell>
-                  <TableCell className="whitespace-pre-wrap break-words max-w-xs">{policy.eligibility || "N/A"}</TableCell>
-                  <TableCell className="whitespace-pre-wrap break-words max-w-xs">
-                    {policy.conditions || "N/A"}
-                  </TableCell>
-
-
-                  <TableCell>
-                    {policy.policy_url ? (
-                      <a
-                        href={policy.policy_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-black-600"
-                      >
-                        View Policy
-                      </a>
-                    ) : (
-                      <span className="text-gray-500 italic">No PDF</span>
-                    )}
-                  </TableCell>
-                  {isAdminOrOwner && (
-                    <TableCell className="w-1/6 px-4">
-                      <div className="flex justify-center items-center space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleOpenDialog(policy)}
-                          className="mr-2"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeletePolicyId(policy.id)} // Open modal
-                          className="h-8 w-8"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
-                        </Button>
-                      </div>
-                      {/* Delete Confirmation Dialog */}
-                      <Dialog open={!!deletePolicyId} onOpenChange={() => setDeletePolicyId(null)}>
-                        <DialogContent className="!bg-white !text-black">
-                          <DialogHeader>
-                            <DialogTitle>Delete Policy</DialogTitle>
-                            <DialogDescription>
-                              Are you sure you want to delete this policy?
-                            </DialogDescription>
-                          </DialogHeader>
-                          <DialogFooter>
-                            <Button variant="secondary" onClick={() => setDeletePolicyId(null)}>
-                              Cancel
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              onClick={async () => {
-                                const toastId = toast.loading("Deleting policy...");
-                                try {
-                                  const { error } = await policies.deletePolicy(deletePolicyId!);
-                                  if (error) throw error;
-                                  setPolicyList((prev) => prev.filter((p) => p.id !== deletePolicyId));
-                                  toast.success("Policy deleted successfully!");
-                                } catch (error: any) {
-                                  toast.error("Failed to delete policy", {
-                                    description: error.message || "Please try again.",
-                                  });
-                                } finally {
-                                  toast.dismiss(toastId);
-                                  setDeletePolicyId(null);
-                                }
-                              }}
-                            >
-                              Yes, Delete
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-
-                    </TableCell>
-                  )}
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                policyList.map((policy) => (
+                  <TableRow key={policy.id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">
+                      {policy.expense_type}
+                    </TableCell>
+                    <TableCell>
+                      {policy.per_unit_cost || "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      {policy.upper_limit ? `₹${policy.upper_limit}` : "N/A"}
+                    </TableCell>
+                    <TableCell className="max-w-[200px]">
+                      <div className="truncate" title={policy.eligibility || "N/A"}>
+                        {policy.eligibility || "N/A"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="max-w-[200px]">
+                      <div className="truncate" title={policy.conditions || "N/A"}>
+                        {policy.conditions || "N/A"}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {policy.policy_url ? (
+                        <a
+                          href={policy.policy_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-black hover:text-blue-800 hover:button"
+                        >
+                          View Policy
+                        </a>
+                      ) : (
+                        <span className="text-gray-500 italic">No PDF</span>
+                      )}
+                    </TableCell>
+                    {isAdminOrOwner && (
+                      <TableCell className="text-center">
+                        <div className="flex justify-center items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenDialog(policy)}
+                            className="h-8 w-8 p-0 cursor-pointer"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeletePolicyId(policy.id)}
+                            className="h-8 w-8 p-0 cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
+
+      {/* Delete Confirmation Dialog - moved outside table */}
+      <Dialog open={!!deletePolicyId} onOpenChange={() => setDeletePolicyId(null)}>
+        <DialogContent className="!bg-white !text-black">
+          <DialogHeader>
+            <DialogTitle>Delete Policy</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this policy?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDeletePolicyId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const toastId = toast.loading("Deleting policy...");
+                try {
+                  const { error } = await policies.deletePolicy(deletePolicyId!);
+                  if (error) throw error;
+                  setPolicyList((prev) => prev.filter((p) => p.id !== deletePolicyId));
+                  toast.success("Policy deleted successfully!");
+                } catch (error: any) {
+                  toast.error("Failed to delete policy", {
+                    description: error.message || "Please try again.",
+                  });
+                } finally {
+                  toast.dismiss(toastId);
+                  setDeletePolicyId(null);
+                }
+              }}
+            >
+              Yes, Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

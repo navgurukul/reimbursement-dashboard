@@ -10,8 +10,15 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations, invites, InviteRow } from "@/lib/db";
 import supabase from "@/lib/supabase";
-import { toast } from "sonner";
 import { Check } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 import Link from "next/link";
 
@@ -37,8 +44,8 @@ export function SignupForm({
 }: React.ComponentProps<"div">) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-  const emailParam = searchParams.get("email"); // For new invite links
+  const token = searchParams?.get("token");
+  const emailParam = searchParams?.get("email"); // For new invite links
 
   const { signup, error: authError, isLoading } = useAuthStore();
 
@@ -57,6 +64,15 @@ export function SignupForm({
   const [inviteType, setInviteType] = useState<InviteType>(null);
 
   const { syncExternalAuth } = useAuthStore.getState();
+
+  // Dialog state for replacing toast notifications
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogState, setDialogState] = useState<{
+    status: "loading" | "success" | "error";
+    title: string;
+    description?: string;
+    nextHref?: string;
+  }>({ status: "loading", title: "" });
 
   // Load invite if present (support both old and new systems)
   useEffect(() => {
@@ -140,9 +156,12 @@ export function SignupForm({
     setError(null);
 
     const isInviteSignup = inviteType === "old" || inviteType === "new";
-    const toastId = toast.loading(
-      isInviteSignup ? "Joining organization…" : "Creating account…"
-    );
+    setIsDialogOpen(true);
+    setDialogState({
+      status: "loading",
+      title: isInviteSignup ? "Joining organization…" : "Creating account…",
+      description: "Please wait while we complete your signup.",
+    });
 
     try {
       let userId: string;
@@ -184,9 +203,12 @@ export function SignupForm({
         );
         if (orgError || !orgData) throw orgError;
 
-        toast.dismiss(toastId);
-        toast.success("Please check your email to confirm your signup.");
-        router.push(`/org/${orgData.slug}`);
+        setDialogState({
+          status: "success",
+          title: "Account created",
+          description: "Please check your email to confirm your signup.",
+          nextHref: `/org/${orgData.slug}`,
+        });
       } else if (inviteType === "new" && inviteLink && token) {
         // New invite link system logic
 
@@ -206,35 +228,34 @@ export function SignupForm({
           throw new Error(data.error || "Failed to join organization");
         }
 
-        toast.dismiss(toastId);
-        toast.success("Please check your email to confirm your signup.");
-        router.push(`/org/${inviteLink.organization.slug}`);
+        setDialogState({
+          status: "success",
+          title: "Account created",
+          description: "Please check your email to confirm your signup.",
+          nextHref: `/org/${inviteLink.organization.slug}`,
+        });
 
       } else {
         // Regular signup (no invite)
-        toast.dismiss(toastId);
-        toast.custom(() => (
-          <div className="flex items-center space-x-2 rounded-lg border-l-4 border-green-500 bg-[#f0fff4] p-3 shadow">
-            {/* Circle icon */}
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500">
-              <Check className="h-4 w-4 text-white" />
-            </div>
-            {/* Text */}
-            <span className="text-sm font-normal text-black-800">
-              Account created! Check your email.
-            </span>
-          </div>
-        ));
-        router.push("/auth/signin");
+        setDialogState({
+          status: "success",
+          title: "Account created",
+          description: "Check your email to verify your account.",
+          nextHref: "/auth/signin",
+        });
       }
 
 
       await syncExternalAuth(userId);
     } catch (err: any) {
-      toast.dismiss(toastId);
       console.error("Signup error details:", err);
       setError(err.message || "Something went wrong.");
-      toast.error("Signup failed", { description: err.message });
+      setDialogState({
+        status: "error",
+        title: "Signup failed",
+        description: err.message || "Something went wrong.",
+      });
+      setIsDialogOpen(true);
     }
   };
 
@@ -332,6 +353,18 @@ export function SignupForm({
           </p>
         </CardContent>
       </Card>
+
+      {/* Signup feedback modal */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dialogState.title}</DialogTitle>
+            {dialogState.description && (
+              <DialogDescription>{dialogState.description}</DialogDescription>
+            )}
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

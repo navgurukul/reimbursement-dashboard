@@ -41,13 +41,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { organizations } from "@/lib/db";
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { organization, userRole } = useOrgStore();
+  const { organization, userRole, setUserRole } = useOrgStore();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [showRemovedModal, setShowRemovedModal] = useState(false); 
+  const [showRemovedModal, setShowRemovedModal] = useState(false);
   const isAdmin = userRole === "owner" || userRole === "admin";
 
   const { profile, user, refreshProfile, logout } = useAuthStore();
@@ -56,7 +57,7 @@ export function AppSidebar() {
   const userEmail = profile?.email || user?.email || user?.user_metadata?.email || "";
   const userName = profile?.full_name || userEmail.split('@')[0] || "?";
 
-    useEffect(() => {
+  useEffect(() => {
     const interval = setInterval(async () => {
       const { data, error } = await supabase.auth.getUser();
 
@@ -79,6 +80,76 @@ export function AppSidebar() {
       refreshProfile();
     }
   }, [user, profile, refreshProfile]);
+
+  // if this user's membership is deleted or added to removed_users, show removal modal only for them
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`member-removal-${user.id}`)
+      // Listen for deletion from organization_users for this user
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'organization_users',
+          filter: `user_id=eq.${user.id}`,
+        },
+        async () => {
+          setShowRemovedModal(true);
+          try {
+            await logout();
+          } catch (_) { }
+          setTimeout(() => {
+            router.replace('/auth/signin');
+          }, 5000);
+        }
+      )
+      // Also listen for backup insert into removed_users for this user
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'removed_users',
+          filter: `user_id=eq.${user.id}`,
+        },
+        async () => {
+          setShowRemovedModal(true);
+          try {
+            await logout();
+          } catch (_) { }
+          setTimeout(() => {
+            router.replace('/auth/signin');
+          }, 5000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch (_) { }
+    };
+  }, [user?.id, logout, router]);
+
+  // Refresh role from DB so newly assigned Admins get access without re-login
+  useEffect(() => {
+    const ensureLatestRole = async () => {
+      try {
+        if (!organization?.id || !user?.id) return;
+        const { data, error } = await organizations.getUserRole(
+          organization.id as unknown as string,
+          user.id
+        );
+        if (!error && data?.role) {
+          setUserRole(data.role as any);
+        }
+      } catch (_) { }
+    };
+    ensureLatestRole();
+  }, [organization?.id, user?.id, setUserRole]);
 
   const handleSignOut = async () => {
     try {
