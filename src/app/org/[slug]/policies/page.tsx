@@ -273,7 +273,6 @@ export default function PoliciesPage() {
 
     try {
       let pdfUrl = currentPolicy.policy_url;
-      console.log("Current PDF URL:", pdfUrl);
 
       // ✅ Upload directly using db.ts helper (no API call)
       if (pdfFile) {
@@ -293,21 +292,18 @@ export default function PoliciesPage() {
         policy_url: pdfUrl,
       };
 
-      console.log("Policy payload being saved:", policyPayload);
 
       if (isEditing && "id" in currentPolicy) {
         // Update existing policy
         const { data, error } = await policies.updatePolicy(currentPolicy.id, policyPayload);
         if (error) throw error;
 
-        console.log("Updated policy data:", data);
         setPolicyList(prev => prev.map(p => p.id === currentPolicy.id ? data as Policy : p));
       } else {
         // Create new policy
         const { data, error } = await policies.createPolicy(policyPayload);
         if (error) throw error;
 
-        console.log("Created policy data:", data);
         setPolicyList(prev => [...prev, data as Policy]);
       }
 

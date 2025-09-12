@@ -260,7 +260,6 @@ export async function POST(req: Request) {
       .from("voucher-pdfs")
       .upload(key, arrayBuffer, { contentType: "application/pdf", upsert: true });
 
-    console.log("Uploaded voucher PDF to storage", { key, uploadError, uploadData });
 
     debug.push({ step: "storage.upload", details: { key, error: uploadError?.message, path: uploadData?.path } });
 

@@ -80,7 +80,6 @@ export default function FinanceExpenseDetails() {
       }
 
       setExpense(expenseData);
-      console.log("HHHHH",expenseData);
       setLoading(false);
     };
 

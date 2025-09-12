@@ -27,14 +27,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Log SMTP configuration for debugging
-    console.log("SMTP Configuration:", {
-      host: process.env.NEXT_PUBLIC_SMTP_HOST || "(not set)",
-      port: process.env.NEXT_PUBLIC_SMTP_PORT || "(not set)",
-      secure: process.env.NEXT_PUBLIC_SMTP_SECURE || "(not set)",
-      user: process.env.NEXT_PUBLIC_SMTP_USER ? "(set)" : "(not set)",
-      pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD ? "(set)" : "(not set)",
-      from: process.env.NEXT_PUBLIC_SMTP_FROM || "(not set)",
-    });
+    // console.log("SMTP Configuration:", {
+    //   host: process.env.NEXT_PUBLIC_SMTP_HOST || "(not set)",
+    //   port: process.env.NEXT_PUBLIC_SMTP_PORT || "(not set)",
+    //   secure: process.env.NEXT_PUBLIC_SMTP_SECURE || "(not set)",
+    //   user: process.env.NEXT_PUBLIC_SMTP_USER ? "(set)" : "(not set)",
+    //   pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD ? "(set)" : "(not set)",
+    //   from: process.env.NEXT_PUBLIC_SMTP_FROM || "(not set)",
+    // });
 
     // Create the invite in the database
     const { data: inviteRow, error: inviteError } = await invites.create(
@@ -151,7 +151,6 @@ export async function POST(req: NextRequest) {
     try {
       // Send the email using Nodemailer
       const info = await transporter.sendMail(mailOptions);
-      console.log("Email sent:", info.messageId);
 
       return NextResponse.json({
         success: true,

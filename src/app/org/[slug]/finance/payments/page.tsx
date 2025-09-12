@@ -78,8 +78,6 @@ export default function PaymentProcessingOnly() {
 
         const { data: expenseData, error: expenseError } = await expenses.getByOrg(orgId);
         if (expenseError) throw expenseError;
-        // console.log("Fetched Expenses:", expenseData);
-
 
         const filteredExpenses = (expenseData || [])
           // .filter((exp: any) => exp.status === "finance_approved")

@@ -61,7 +61,6 @@ export default function ExpenseEventsPage() {
           user.id,
           userRole || "member"
         );
-        console.log("Fetched Events:", data); // ← ADD THIS HERE ✅
 
         if (error) throw error;
         setEvents(data || []);

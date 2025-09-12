@@ -49,8 +49,6 @@ interface Policy {
 async function getSignatureUrl(path: string): Promise<string | null> {
   if (!path) return null;
 
-  // console.log("Getting signature URL for path:", path);
-
   // Try voucher-signatures bucket first
   try {
     const { data, error } = await supabase.storage
@@ -206,11 +204,6 @@ export default function ViewExpensePage() {
 
     getCurrentUser();
   }, []);
-
-  useEffect(() => {
-    console.log('get signatureUrl : ', signatureUrl);
-  }, [signatureUrl])
-
 
   useEffect(() => {
     async function fetchExpense() {
@@ -370,7 +363,6 @@ export default function ViewExpensePage() {
       // Log the custom approval to history with improved username extraction
       try {
         const authRaw = localStorage.getItem("auth-storage");
-        console.log("Auth raw:", authRaw);
         const authStorage = JSON.parse(authRaw || "{}");
 
         // Try multiple paths and nested data
@@ -388,8 +380,6 @@ export default function ViewExpensePage() {
             userName = match[1];
           }
         }
-
-        console.log("Final username to be used:", userName);
 
         await expenseHistory.addEntry(
           expenseId,
@@ -532,14 +522,14 @@ export default function ViewExpensePage() {
       // Log the approval to history with improved username extraction
       try {
         const authRaw = localStorage.getItem("auth-storage");
-        console.log("Auth raw:", authRaw);
+        // console.log("Auth raw:", authRaw);
         const authStorage = JSON.parse(authRaw || "{}");
 
         // Log all possible paths to help debug
-        console.log("Full auth storage object:", authStorage);
-        console.log("State:", authStorage.state);
-        console.log("User:", authStorage.state?.user);
-        console.log("Profile direct:", authStorage.state?.user?.profile);
+        // console.log("Full auth storage object:", authStorage);
+        // console.log("State:", authStorage.state);
+        // console.log("User:", authStorage.state?.user);
+        // console.log("Profile direct:", authStorage.state?.user?.profile);
 
         // Try multiple paths and nested data
         let userName = "Unknown User";
@@ -556,8 +546,6 @@ export default function ViewExpensePage() {
             userName = match[1];
           }
         }
-
-        console.log("Final username to be used:", userName);
 
         const noteText =
           approvalType === "policy"
@@ -658,14 +646,7 @@ export default function ViewExpensePage() {
       // Log the rejection to history with improved username extraction
       try {
         const authRaw = localStorage.getItem("auth-storage");
-        console.log("Auth raw:", authRaw);
         const authStorage = JSON.parse(authRaw || "{}");
-
-        // Log all possible paths to help debug
-        console.log("Full auth storage object:", authStorage);
-        console.log("State:", authStorage.state);
-        console.log("User:", authStorage.state?.user);
-        console.log("Profile direct:", authStorage.state?.user?.profile);
 
         // Try multiple paths and nested data
         let userName = "Unknown User";
@@ -682,8 +663,6 @@ export default function ViewExpensePage() {
             userName = match[1];
           }
         }
-
-        console.log("Final username to be used:", userName);
 
         await expenseHistory.addEntry(
           expenseId,

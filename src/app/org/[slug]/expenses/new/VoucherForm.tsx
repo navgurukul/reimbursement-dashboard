@@ -83,8 +83,6 @@ export default function VoucherForm({
     // Only save to profile if this is a new signature (not the saved one)
     if (dataUrl !== savedUserSignature && user?.id && organization?.id) {
       try {
-        console.log("Saving new signature to user profile");
-
         // Use the comprehensive function that handles both upload and profile update
         const { success, path, error } = await saveUserSignature(
           dataUrl,
@@ -98,7 +96,6 @@ export default function VoucherForm({
           return;
         }
 
-        console.log("Signature saved successfully to:", path);
         toast.success("Your signature has been saved for future use");
       } catch (error) {
         console.error("Unexpected error saving signature:", error);

@@ -2,19 +2,15 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Use Service Role key (ONLY on server, NEVER in client)
-console.log("Initializing Supabase client...");
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(request: Request) {
-  console.log("POST handler triggered");
   try {
-    console.log("Parsing formData...");
     const formData = await request.formData();
 
-    console.log("Extracting file from formData...");
     const file = formData.get("file") as File | null;
 
     if (!file) {
@@ -24,7 +20,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    console.log("File received:", file.name, "Type:", file.type, "Size:", file.size);
 
     // Check type
     if (file.type !== "application/pdf") {
@@ -35,16 +30,12 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log("Converting file to buffer...");
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    console.log("Buffer created, size:", buffer.length);
 
     //Unique file path inside "policies" folder in your bucket
     const fileName = `${Date.now()}-${file.name}`;
-    console.log("Generated file name:", fileName);
 
-    console.log("Uploading file to Supabase Storage...");
     const { error: uploadError } = await supabase.storage
       .from("policies-bucket")
       .upload(fileName, buffer, {
@@ -64,12 +55,10 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log("Fetching public URL for uploaded file...");
     const { data: { publicUrl } } = supabase.storage
       .from("policies-bucket")
       .getPublicUrl(fileName);
 
-    console.log("File uploaded successfully:", publicUrl);
 
     return NextResponse.json({
       success: true,

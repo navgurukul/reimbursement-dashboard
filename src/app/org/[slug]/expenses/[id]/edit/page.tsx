@@ -103,7 +103,6 @@ export default function EditExpensePage() {
       // Get username for history entries using improved extraction
       try {
         const authRaw = localStorage.getItem('auth-storage');
-        console.log('Auth raw:', authRaw);
         const authStorage = JSON.parse(authRaw || '{}');
         
         // Try multiple paths and nested data
@@ -118,9 +117,7 @@ export default function EditExpensePage() {
             userName = match[1];
           }
         }
-        
-        console.log('Final username to be used:', userName);
-        
+                
         // Check what fields have changed
         if (expense.expense_type !== formData.expense_type) {
           // Log expense type change

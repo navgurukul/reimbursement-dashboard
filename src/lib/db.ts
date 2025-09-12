@@ -294,8 +294,6 @@ export const organizations = {
   },
 
   create: async (name: string, slug: string) => {
-    console.log("Creating organization:", name, slug);
-
     try {
       const { data, error } = await supabase.rpc(
         "create_organization_properly",
@@ -714,8 +712,6 @@ export const profiles = {
       .returns<Profile>();
   },
   getByIds: async (userIds: string[]) => {
-    console.log("getByIds called with:", userIds);
-
     if (userIds.length === 0) {
       return { data: [], error: null };
     }
@@ -725,8 +721,6 @@ export const profiles = {
       .from("profiles")
       .select("*")
       .in("user_id", userIds);
-
-    console.log("Supabase returned profiles:", data?.length || 0);
 
     if (error) {
       console.error("Error fetching profiles:", error);
@@ -1511,9 +1505,6 @@ export const expenses = {
         delete expense.custom_fields.approver;
       }
 
-      // Log for debugging
-      console.log("Inserting expense with approver_id:", approver_id);
-
       // Create expense with receipt info, approver_id, and signature_url
       const { data, error } = await supabase
         .from("expenses")
@@ -1773,8 +1764,6 @@ export const vouchers = {
     org_id?: string;
   }) => {
     try {
-      console.log("Creating voucher with data:", data);
-
       // Explicitly define the payload with correct types
       const payload = {
         expense_id: data.expense_id,
@@ -1788,8 +1777,6 @@ export const vouchers = {
         approver_id: data.approver_id || null, // Include approver_id in payload
         org_id: data.org_id,
       };
-
-      console.log("Final voucher payload:", payload);
 
       const { data: response, error } = await supabase
         .from("vouchers")
@@ -1805,7 +1792,6 @@ export const vouchers = {
         };
       }
 
-      console.log("Voucher created successfully, response:", response);
       return {
         data: response,
         error: null,
@@ -1936,7 +1922,6 @@ export const vouchers = {
         return { path: "", error: error };
       }
 
-      console.log(`Signature uploaded successfully at path: ${filePath}`);
       return {
         path: filePath,
         error: null,

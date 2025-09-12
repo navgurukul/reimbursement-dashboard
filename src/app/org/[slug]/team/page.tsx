@@ -280,69 +280,6 @@ export default function TeamPage() {
     }
   };
 
-  // const handleDeleteMember = async (memberId: string) => {
-  //   if (!org?.id) return;
-
-  //   console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-  //   console.log('SERVICE ROLE KEY:', process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ? 'Available' : 'Missing');
-
-  //   try {
-  //     // Get the organization user
-  //     const { data: orgUser, error: fetchError } = await organizations.getMemberById(memberId);
-  //     if (fetchError || !orgUser) {
-  //       toast.error("User not found");
-  //       return;
-  //     }
-
-  //     const userId = orgUser.user_id;
-
-  //     // Get user profile
-  //     const { data: profile, error: profileError } = await profiles.getById(userId);
-  //     if (profileError || !profile) {
-  //       toast.error("Profile not found");
-  //       return;
-  //     }
-
-  //     // Backup into RemovedUsers
-  //     const insertResult = await RemovedUsers.create({
-  //       user_id: userId,
-  //       email: profile.email,
-  //       full_name: profile.full_name,
-  //       created_at: profile.created_at,
-  //       removable_at: new Date(),
-  //     });
-  //     if (insertResult.error) {
-  //       toast.error("Failed to backup user", {
-  //         description: insertResult.error.message,
-  //       });
-  //       return;
-  //     }
-
-  //     console.log("Deleting user:", userId, "email:", profile.email);
-
-  //     // Call server action
-  //     const result = await deleteUserAction(memberId, org.id);
-
-  //     if (!result.success) {
-  //       toast.error("Failed to delete member", {
-  //         description: result.error || "Please try again",
-  //       });
-  //       return;
-  //     }
-
-  //     // Update frontend state
-  //     setMembers((prev) => prev.filter((m) => m.id !== memberId));
-
-  //     // Success toast
-  //     toast.success("Member deleted successfully");
-  //   } catch (error: any) {
-  //     console.error("Error deleting member:", error);
-  //     toast.error("Unexpected error", {
-  //       description: error.message || "Please try again",
-  //     });
-  //   }
-  // };
-
   const handleDeleteMember = async (memberId: string) => {
     if (!org?.id) return;
 
@@ -378,9 +315,7 @@ export default function TeamPage() {
         return;
       }
 
-      console.log("Deleting user:", userId, "email:", profile.email);
-
-      // ✅ Call the secure server-side API route instead of accessing env vars directly
+      // Call the secure server-side API route instead of accessing env vars directly
       const response = await fetch('/api/delete-auth-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -413,13 +348,11 @@ export default function TeamPage() {
   };
 
   const confirmDeleteMember = (id: string) => {
-    console.log("Id of the member to delete:", id);
     setMemberToDelete(id);
     setShowDeleteConfirm(true);
   };
 
   const executeDeleteMember = async () => {
-    console.log("Executing delete for member:", memberToDelete);
     if (!memberToDelete) return;
     setIsDeleting(true); // Start loader
     await handleDeleteMember(memberToDelete);

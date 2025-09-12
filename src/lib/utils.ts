@@ -83,8 +83,6 @@ export async function uploadSignature(
     const randomString = Math.random().toString(36).substring(2, 10);
     const filePath = `${userId}.png`;
 
-    console.log(`Uploading ${type} signature to ${filePath}`);
-
     // Upload to Supabase
     const { error } = await supabase.storage
       .from("user-signatures")
@@ -99,7 +97,6 @@ export async function uploadSignature(
       return { path: "", error: new Error(error.message) };
     }
 
-    console.log(`${type} signature uploaded successfully to ${filePath}`);
     return { path: filePath, error: null };
   } catch (error) {
     console.error(`Error processing ${type} signature:`, error);
@@ -136,8 +133,6 @@ export async function uploadProfileSignature(
     // Important: Create directories for organization and user if they don't exist
     const filePath = `${userId}.png`;
 
-    console.log(`Uploading profile signature to ${filePath}`);
-
     // Upload to Supabase - using user-signatures bucket
     const { data, error } = await supabase.storage
       .from("user-signatures")
@@ -153,7 +148,6 @@ export async function uploadProfileSignature(
       return { path: "", error: new Error(error.message) };
     }
 
-    console.log(`Profile signature uploaded successfully to ${filePath}`);
     return { path: filePath, error: null };
   } catch (error) {
     console.error(`Error processing profile signature:`, error);
@@ -224,8 +218,6 @@ export async function saveUserSignature(
   orgId: string
 ): Promise<{ success: boolean; path: string; error: Error | null }> {
   try {
-    console.log('Starting signature save process...');
-
     if (!dataURL || !dataURL.startsWith("data:image/")) {
       console.error("Invalid signature data URL");
       return { success: false, path: "", error: new Error("Invalid signature data") };
@@ -244,7 +236,6 @@ export async function saveUserSignature(
 
     // Store in userId.png format
     const filePath = `${userId}.png`;
-    console.log(`Uploading signature to path: ${filePath}`);
 
     // Step 3: Upload the signature to storage
     const { error: uploadError } = await supabase.storage
@@ -263,8 +254,6 @@ export async function saveUserSignature(
       };
     }
 
-    console.log("Signature file uploaded successfully");
-
     // Step 4: Update the user's profile with the signature path
     const { error: updateError } = await supabase
       .from("profiles")
@@ -280,7 +269,6 @@ export async function saveUserSignature(
       };
     }
 
-    console.log("Profile updated successfully with signature path");
     return { success: true, path: filePath, error: null };
   } catch (error) {
     console.error("Unexpected error in saveUserSignature:", error);
@@ -299,8 +287,6 @@ export async function getUserSignatureUrl(
   userId: string
 ): Promise<{ url: string | null; error: Error | null }> {
   try {
-    console.log("Fetching signature for user:", userId);
-
     // Step 1: Get the signature path from the user's profile
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -314,11 +300,8 @@ export async function getUserSignatureUrl(
     }
 
     if (!profile || !profile.signature_url) {
-      console.log("No signature found in profile");
       return { url: null, error: null };
     }
-
-    console.log("Found signature path:", profile.signature_url);
 
     // Step 2: Get a download URL for the signature
     const { data: urlData, error: urlError } = await supabase.storage
@@ -331,11 +314,9 @@ export async function getUserSignatureUrl(
     }
 
     if (!urlData || !urlData.signedUrl) {
-      console.log("No signed URL returned");
       return { url: null, error: new Error("No URL returned from storage") };
     }
 
-    console.log("Successfully retrieved signature URL");
     return { url: urlData.signedUrl, error: null };
   } catch (error) {
     console.error("Unexpected error in getUserSignatureUrl:", error);

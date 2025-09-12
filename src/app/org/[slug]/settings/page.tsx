@@ -278,8 +278,6 @@ export default function SettingsPage() {
 
   const handleSaveColumns = async () => {
     const toastId = toast.loading("Saving columns…");
-    console.log("Columns before saving:", columns);
-
     try {
       // Make a deep copy of columns to avoid reference issues
       const columnsToSave = JSON.parse(JSON.stringify(columns));
@@ -326,8 +324,6 @@ export default function SettingsPage() {
           return col;
         })
       );
-
-      console.log("Processed columns to save:", processedColumns);
 
       const { error } = await orgSettings.updateExpenseColumns(
         orgId,

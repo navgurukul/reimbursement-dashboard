@@ -16,7 +16,6 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
   useEffect(() => {
     async function loadHistory() {
       try {
-        console.log('Fetching history for expense ID:', expenseId);
         const { data, error } = await expenseHistory.getByExpenseId(expenseId);
         
         if (error) {
@@ -24,7 +23,6 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
           return;
         }
         
-        console.log('History data received:', data);
         setHistory(data || []);
       } catch (error) {
         console.error("Failed to load expense history:", error);

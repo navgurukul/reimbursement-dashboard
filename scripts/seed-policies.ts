@@ -115,14 +115,11 @@ const defaultPolicies: PolicyInput[] = [
 ];
 
 export async function seedPolicies(orgId: string) {
-  console.log(`🌱 Seeding policies for organization ${orgId}...`);
-
   try {
     // First, check if policies already exist
     const { data: existingPolicies } = await policies.getPoliciesByOrgId(orgId);
 
     if (existingPolicies && existingPolicies.length > 0) {
-      console.log("⚠️ Organization already has policies. Skipping seed.");
       return;
     }
 
@@ -138,7 +135,6 @@ export async function seedPolicies(orgId: string) {
       }
     }
 
-    console.log("✅ Successfully seeded policies!");
   } catch (error: any) {
     console.error("❌ Error seeding policies:", error.message);
     throw error;
