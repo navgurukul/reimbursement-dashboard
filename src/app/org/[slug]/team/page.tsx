@@ -89,6 +89,41 @@ export default function TeamPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputId = "invite-emails-file-input";
+  const [mappingOpen, setMappingOpen] = useState(false);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<string[][]>([]);
+  const [selectedEmailColumn, setSelectedEmailColumn] = useState<number | null>(null);
+
+  const detectDelimiter = (line: string) => {
+    const candidates = [',', '\t', ';'];
+    let best = ',';
+    let bestCount = -1;
+    for (const d of candidates) {
+      const c = (line.match(new RegExp(d === '\\t' ? '\\t' : d, 'g')) || []).length;
+      if (c > bestCount) {
+        best = d;
+        bestCount = c;
+      }
+    }
+    return best;
+  };
+
+  const parseCsv = (text: string): { headers: string[]; rows: string[][] } => {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length === 0) return { headers: [], rows: [] };
+    const delimiter = detectDelimiter(lines[0]);
+    const splitLine = (l: string) => l.split(delimiter).map((s) => s.trim().replace(/^"|"$/g, ""));
+    const first = splitLine(lines[0]);
+    const second = lines[1] ? splitLine(lines[1]) : [];
+    const emailLike = /@/;
+    const looksLikeHeader = first.some((h) => !emailLike.test(h)) && (second.length === first.length ? second.some((v) => emailLike.test(v)) : true);
+    const headers = looksLikeHeader ? first : first.map((_, i) => `Column ${i + 1}`);
+    const startIdx = looksLikeHeader ? 1 : 0;
+    const rows = lines.slice(startIdx).map(splitLine);
+    return { headers, rows };
+  };
 
   // Fetch organization members
   useEffect(() => {
@@ -575,8 +610,63 @@ export default function TeamPage() {
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Enter one email address per line. You can invite multiple people at once.
+                  You can invite multiple people at once, Enter one email address per line or import via csv.
                 </p>
+                <div className="mt-2">
+                  <input
+                    id={fileInputId}
+                    type="file"
+                    accept=".csv,.txt"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const inputEl = e.currentTarget as HTMLInputElement | null;
+                      const file = e.target.files && e.target.files[0];
+                      if (!file) return;
+                      setIsImporting(true);
+                      try {
+                        const text = await file.text();
+                        const { headers, rows } = parseCsv(text);
+                        const multiColumn = headers.length > 1 || (rows[0]?.length || 0) > 1;
+                        if (multiColumn) {
+                          setCsvHeaders(headers);
+                          setCsvRows(rows);
+                          setSelectedEmailColumn(null);
+                          setMappingOpen(true);
+                        } else {
+                          const tokens = text
+                            .split(/[\,\n;\t\r]+/)
+                            .map((s) => s.trim())
+                            .filter(Boolean);
+                          const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+                          const emails = Array.from(new Set(tokens.map((t) => (t.match(emailRegex)?.[0] || "").toLowerCase()).filter(Boolean)));
+                          if (emails.length === 0) {
+                            toast.error("No valid emails found in file");
+                          } else {
+                            const current = inviteEmail.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+                            const merged = Array.from(new Set([...current, ...emails]));
+                            setInviteEmail(merged.join("\n"));
+                            toast.success(`Imported ${emails.length} email${emails.length > 1 ? "s" : ""}`);
+                          }
+                        }
+                      } catch (err: any) {
+                        console.error(err);
+                        toast.error("Failed to read file", { description: err?.message });
+                      } finally {
+                        setIsImporting(false);
+                        if (inputEl) inputEl.value = "";
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                    onClick={() => document.getElementById(fileInputId)?.click()}
+                    disabled={isImporting}
+                  >
+                    {isImporting ? (<><Spinner className="mr-2 h-4 w-4" />Importing...</>) : "Import CSV"}
+                  </Button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Default Role</label>
@@ -708,6 +798,95 @@ export default function TeamPage() {
           )}
         </DialogContent>
       </Dialog>
+      {/* CSV Mapping Dialog */}
+      {mappingOpen && (
+        <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
+          <DialogContent className="max-w-[480px] bg-white text-gray-900">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold">Map CSV columns</DialogTitle>
+              <DialogDescription className="text-gray-600 text-sm">
+                Select which column contains the email addresses.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email column</label>
+                <Select value={selectedEmailColumn !== null ? String(selectedEmailColumn) : undefined} onValueChange={(v: any) => setSelectedEmailColumn(parseInt(v, 10))}>
+                  <SelectTrigger className="w-full border-gray-300">
+                    <SelectValue placeholder="Choose a column" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectGroup>
+                      {csvHeaders.map((h, i) => (
+                        <SelectItem key={i} value={String(i)}>
+                          {h || `Column ${i + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-xs text-gray-500">
+                Preview first 3 rows:
+                <div className="mt-2 border rounded overflow-auto max-h-40 max-w-full">
+                  {selectedEmailColumn === null ? (
+                    <div className="px-2 py-3 text-[11px] text-gray-500">Select a column to preview</div>
+                  ) : (
+                    (() => {
+                      const previewRows = csvRows.slice(0, 3);
+                      const colIndex = selectedEmailColumn as number;
+                      const header = csvHeaders[colIndex] || `Column ${colIndex + 1}`;
+                      return (
+                        <table className="min-w-full table-fixed">
+                          <thead>
+                            <tr>
+                              <th className="px-2 py-1 text-[11px] font-medium bg-gray-50 border-b text-left whitespace-nowrap">{header}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewRows.map((row, ri) => (
+                              <tr key={ri}>
+                                <td className="px-2 py-1 text-[11px] border-b align-top break-words whitespace-normal">{row[colIndex] ?? ""}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" className="border-gray-300" onClick={() => setMappingOpen(false)}>Cancel</Button>
+              <Button
+                className="bg-black text-white hover:bg-gray-800"
+                disabled={selectedEmailColumn === null}
+                onClick={() => {
+                  if (selectedEmailColumn === null) return;
+                  const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+                  const extracted = csvRows
+                    .map((row) => (row[selectedEmailColumn!] || "").toString())
+                    .map((v) => (v.match(emailRegex)?.[0] || "").toLowerCase())
+                    .filter(Boolean);
+                  const unique = Array.from(new Set(extracted));
+                  if (unique.length === 0) {
+                    toast.error("Selected column does not contain valid emails");
+                    return;
+                  }
+                  const current = inviteEmail.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+                  const merged = Array.from(new Set([...current, ...unique]));
+                  setInviteEmail(merged.join("\n"));
+                  setMappingOpen(false);
+                  toast.success(`Imported ${unique.length} email${unique.length > 1 ? 's' : ''}`);
+                }}
+              >
+                Import
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
