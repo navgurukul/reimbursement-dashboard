@@ -2,6 +2,7 @@
 
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
+import supabase from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -49,7 +50,7 @@ export default function FinanceReview() {
         const { data, error } = await expenses.getByOrg(orgId);
         if (error) throw error;
 
-        const managerApprovedExpenses = (data || [])
+        let managerApprovedExpenses = (data || [])
           .filter((exp: any) => exp.status === "approved")
           .map((exp: any) => ({
             ...exp,
@@ -57,6 +58,42 @@ export default function FinanceReview() {
             approver_name: exp.approver?.full_name || "—",
             creator_name: exp.creator?.full_name || "—",
           }));
+
+        // Bulk fetch event titles
+        const eventIds = [
+          ...new Set(
+            managerApprovedExpenses
+              .map((e: any) => e.event_id)
+              .filter((id: any) => typeof id === "string" && id.length > 0)
+          ),
+        ];
+
+        if (eventIds.length > 0) {
+          const { data: eventsData, error: evErr } = await supabase
+            .from("expense_events")
+            .select("id,title")
+            .in("id", eventIds);
+          if (!evErr && eventsData) {
+            const titleMap: Record<string, string> = {};
+            eventsData.forEach((ev: { id: string; title: string }) => {
+              titleMap[ev.id] = ev.title;
+            });
+            managerApprovedExpenses = managerApprovedExpenses.map((e: any) => ({
+              ...e,
+              event_title: e.event_id ? titleMap[e.event_id] || "N/A" : "N/A",
+            }));
+          } else {
+            managerApprovedExpenses = managerApprovedExpenses.map((e: any) => ({
+              ...e,
+              event_title: "N/A",
+            }));
+          }
+        } else {
+          managerApprovedExpenses = managerApprovedExpenses.map((e: any) => ({
+            ...e,
+            event_title: "N/A",
+          }));
+        }
 
         setExpenseList(managerApprovedExpenses);
       } catch (error: any) {
@@ -114,7 +151,7 @@ export default function FinanceReview() {
         <h2 className="text-xl font-semibold text-gray-800">Finance Review</h2>
         <Button
           onClick={() => setConfirmApproveAllOpen(true)}
-          className="bg-gray-600 hover:bg-gray-700 text-white"
+          className="bg-gray-600 hover:bg-gray-700 text-white cursor-pointer"
           disabled={expenseList.length === 0 || loading}
         >
           Approve All
@@ -127,6 +164,7 @@ export default function FinanceReview() {
           <TableHeader className="bg-gray-50">
             <TableRow>
               <TableHead className="text-center py-3">Expense Type</TableHead>
+              <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Submitted By</TableHead>
@@ -138,13 +176,13 @@ export default function FinanceReview() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6">
+                <TableCell colSpan={8} className="text-center py-6">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : expenseList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-6 text-gray-500">
                   No expenses pending finance review
                 </TableCell>
               </TableRow>
@@ -155,6 +193,7 @@ export default function FinanceReview() {
                   className="hover:bg-gray-50 transition-all py-3"
                 >
                   <TableCell className="text-center py-3">{expense.expense_type}</TableCell>
+                  <TableCell className="text-center py-3">{expense.event_title || "N/A"}</TableCell>
                   <TableCell className="text-center py-3 font-medium text-green-700">
                     {formatCurrency(expense.amount)}
                   </TableCell>
@@ -174,7 +213,7 @@ export default function FinanceReview() {
                     <button
                       onClick={() => handleViewClick(expense)}
                       title="View Expense"
-                      className="p-2 hover:text-black text-gray-700 transition-colors"
+                      className="p-2 hover:text-black text-gray-700 transition-colors cursor-pointer"
                     >
                       <Eye className="w-4 h-4" />
                     </button>

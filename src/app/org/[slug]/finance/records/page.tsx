@@ -23,7 +23,37 @@ export default function PaymentRecords() {
           .order("updated_at", { ascending: false });
 
         if (error) throw error;
-        setRecords(data || []);
+
+        const rows = data || [];
+
+        // Bulk fetch event titles
+        const eventIds = [
+          ...new Set(
+            rows
+              .map((r: any) => r.event_id)
+              .filter((id: any) => typeof id === "string" && id.length > 0)
+          ),
+        ];
+
+        let eventTitleMap: Record<string, string> = {};
+        if (eventIds.length > 0) {
+          const { data: eventsData, error: evErr } = await supabase
+            .from("expense_events")
+            .select("id,title")
+            .in("id", eventIds);
+          if (!evErr && eventsData) {
+            eventsData.forEach((ev: { id: string; title: string }) => {
+              eventTitleMap[ev.id] = ev.title;
+            });
+          }
+        }
+
+        const withTitles = rows.map((r: any) => ({
+          ...r,
+          event_title: r.event_id ? eventTitleMap[r.event_id] || "N/A" : "N/A",
+        }));
+
+        setRecords(withTitles);
       } catch (err: any) {
         toast.error("Failed to load records", { description: err.message });
       } finally {
@@ -46,6 +76,7 @@ export default function PaymentRecords() {
           <TableHeader className="bg-gray-50">
             <TableRow>
               <TableHead className="text-center py-3">Email</TableHead>
+              <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
@@ -57,11 +88,11 @@ export default function PaymentRecords() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-6">Loading...</TableCell>
+                <TableCell colSpan={7} className="text-center py-6">Loading...</TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-6 text-gray-500">
                   No payment records found.
                 </TableCell>
               </TableRow>
@@ -69,6 +100,7 @@ export default function PaymentRecords() {
               records.map((record) => (
                 <TableRow key={record.id}>
                   <TableCell className="text-center py-2">{record.creator_email}</TableCell>
+                  <TableCell className="text-center py-2">{record.event_title || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">₹{record.approved_amount}</TableCell>
                   <TableCell className="text-center py-2">
                     {new Date(record.date).toLocaleDateString("en-IN")}

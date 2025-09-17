@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenses, expenseHistory, profiles, vouchers } from "@/lib/db";
+import { expenses, expenseHistory, profiles, vouchers, expenseEvents } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,6 +107,7 @@ export default function ViewExpensePage() {
   const [expenseSignature, setExpenseSignature] = useState<string | undefined>(
     undefined
   );
+  const [eventTitle, setEventTitle] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
   });
@@ -219,6 +220,20 @@ export default function ViewExpensePage() {
         }
 
         setExpense(data);
+
+        // Fetch related event title if linked
+        if (data.event_id) {
+          try {
+            const { data: eventData } = await expenseEvents.getById(data.event_id);
+            if (eventData?.title) {
+              setEventTitle(eventData.title);
+            }
+          } catch (e) {
+            console.warn("Failed to fetch event for expense", e);
+          }
+        } else {
+          setEventTitle(null);
+        }
 
         // Fetch approver signature URL if approver_id exists
         if (data.approver_id) {
@@ -1161,6 +1176,10 @@ export default function ViewExpensePage() {
                     Expense Type
                   </p>
                   <p>{expense.expense_type}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Event Name</p>
+                  <p>{eventTitle || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">

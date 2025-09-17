@@ -39,6 +39,7 @@ import supabase from "@/lib/supabase";
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
   { key: "category", label: "Category", visible: true },
+  { key: "event_title", label: "Event", visible: true },
   { key: "amount", label: "Amount", visible: true },
   { key: "creator_name", label: "Created By", visible: true },
   { key: "receipt", label: "Receipt", visible: true },
@@ -117,6 +118,19 @@ export default function ExpensesPage() {
           });
         }
 
+        // Ensure event_title column exists
+        if (!expenseColumns.some((c) => c.key === "event_title")) {
+          // Place Event after Category if present, else near the start
+          const categoryIdx = expenseColumns.findIndex((c) => c.key === "category");
+          const insertIdx = categoryIdx >= 0 ? categoryIdx + 1 : 1;
+          expenseColumns.splice(insertIdx, 0, {
+            key: "event_title",
+            label: "Event Name",
+            visible: true,
+            type: "text",
+          });
+        }
+
         setColumns(expenseColumns);
       }
 
@@ -181,6 +195,15 @@ export default function ExpensesPage() {
             // Get expense IDs
             const expenseIds = processedExpenses.map((exp) => exp.id);
 
+            // Collect unique event ids
+            const eventIds = [
+              ...new Set(
+                processedExpenses
+                  .map((exp) => exp.event_id)
+                  .filter((id) => typeof id === "string" && id.length > 0)
+              ),
+            ];
+
             // Fetch vouchers
             const { data: allVouchers, error: voucherError } = await supabase
               .from("vouchers")
@@ -204,6 +227,20 @@ export default function ExpensesPage() {
               expenseIds
             );
 
+            // Fetch event titles in bulk
+            const eventTitleMap: Record<string, string> = {};
+            if (eventIds.length > 0) {
+              const { data: eventsData, error: eventsErr } = await supabase
+                .from("expense_events")
+                .select("id,title")
+                .in("id", eventIds);
+              if (!eventsErr && eventsData) {
+                eventsData.forEach((ev: { id: string; title: string }) => {
+                  eventTitleMap[ev.id] = ev.title;
+                });
+              }
+            }
+
             // Process each expense
             for (const expense of processedExpenses) {
               try {
@@ -223,6 +260,13 @@ export default function ExpensesPage() {
                   full_name: approverName,
                   user_id: expense.approver_id || voucher?.approver_id,
                 };
+
+                // Set event title if available
+                if (expense.event_id) {
+                  expense.event_title = eventTitleMap[expense.event_id] || "N/A";
+                } else {
+                  expense.event_title = "N/A";
+                }
               } catch (error) {
                 console.error(`Error processing expense ${expense.id}:`, error);
               }
@@ -515,6 +559,8 @@ export default function ExpensesPage() {
                                   exp.approver?.full_name || "—"
                                 ) : c.key === "category" ? (
                                   getExpenseValue(exp, "category")
+                                ) : c.key === "event_title" ? (
+                                  exp.event_title || "N/A"
                                 ) : typeof exp[c.key] === "object" && exp[c.key] !== null ? (
                                   JSON.stringify(exp[c.key])
                                 ) : (
