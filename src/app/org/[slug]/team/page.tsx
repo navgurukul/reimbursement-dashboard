@@ -193,45 +193,70 @@ export default function TeamPage() {
       return;
     }
 
+    // Parse multiple emails from textarea: split by newline/commas/semicolons/tabs
+    const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+    const parsedEmails = Array.from(
+      new Set(
+        inviteEmail
+          .split(/[\n,;\t]+/)
+          .map((s) => (s.match(emailRegex)?.[0] || "").toLowerCase().trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (parsedEmails.length === 0) {
+      toast.error("Please enter at least one valid email");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch("/api/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: inviteEmail,
-          role: inviteRole,
-          orgId: org.id,
-          orgName: org.name || "Our Organization",
-        }),
-      });
+      const results = await Promise.all(
+        parsedEmails.map(async (email) => {
+          try {
+            const response = await fetch("/api/invite", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email,
+                role: inviteRole,
+                orgId: org.id,
+                orgName: org.name || "Our Organization",
+              }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+              return { email, ok: false, error: data.error || "Unknown error" };
+            }
+            return { email, ok: true };
+          } catch (err: any) {
+            return { email, ok: false, error: err?.message || "Network error" };
+          }
+        })
+      );
 
-      const data = await response.json();
+      const succeeded = results.filter((r) => r.ok).map((r) => r.email);
+      const failed = results.filter((r) => !r.ok) as { email: string; ok: false; error?: string }[];
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to send invitation");
+      if (succeeded.length > 0) {
+        toast.success(`Invites sent: ${succeeded.length}`);
       }
-
-      // If we have an invite URL, copy it and show it to the user
-      if (data.inviteUrl) {
-        await navigator.clipboard.writeText(data.inviteUrl);
-        toast.success("Invitation Sent successfully!", {
-          description: "Share this link with the invited user.",
-          duration: 5000,
+      if (failed.length > 0) {
+        toast.error(`Failed: ${failed.length}`, {
+          description: failed.slice(0, 3).map((f) => `${f.email}: ${f.error || "Error"}`).join("\n") + (failed.length > 3 ? `\n+${failed.length - 3} more...` : ""),
         });
+        // Keep failed emails in textarea for correction/resend
+        setInviteEmail(failed.map((f) => f.email).join("\n"));
       } else {
-        toast.success("Invitation created successfully!", {
-          description: `An invite has been created for ${inviteEmail} to join as a ${inviteRole}.`,
-        });
+        // Clear form on full success
+        setInviteEmail("");
       }
 
-      // Clear form after successful submission
-      setInviteEmail("");
       setInviteRole("member");
     } catch (error: any) {
-      console.error("Error sending invitation:", error);
-      toast.error("Failed to send invitation", {
+      console.error("Error sending invitations:", error);
+      toast.error("Failed to send invitations", {
         description: error.message || "Please try again",
       });
     } finally {
@@ -605,7 +630,7 @@ export default function TeamPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Addresses</label>
                 <textarea
                   className="w-full p-2 border border-gray-300 rounded text-sm h-15"
-                  placeholder="john@example.com&#10;sarah@example.com&#10;mike@example.com"
+                  placeholder={"john@example.com\nsarah@example.com"}
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
