@@ -1215,12 +1215,12 @@ export default function ViewExpensePage() {
                   Receipt/Voucher
                 </p>
                 {expense.receipt ? (
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleViewReceipt}>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button variant="outline" onClick={handleViewReceipt} className="w-full sm:w-auto">
                       <FileText className="mr-2 h-4 w-4" />
                       View Receipt ({expense.receipt.filename || "Document"})
                     </Button>
-                    <Button variant="outline" onClick={handleShareReceipt} className="cursor-pointer" disabled={sharingReceipt}>
+                    <Button variant="outline" onClick={handleShareReceipt} className="cursor-pointer w-full sm:w-auto" disabled={sharingReceipt}>
                       {sharingReceipt ? (
                         <>
                           <Spinner size="sm" className="mr-2" />
@@ -1234,9 +1234,9 @@ export default function ViewExpensePage() {
                     </Button>
                   </div>
                 ) : hasVoucher ? (
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button
-                      className="text-blue-600"
+                      className="text-blue-600 w-full sm:w-auto"
                       variant="outline"
                       onClick={() =>
                         router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
@@ -1245,7 +1245,7 @@ export default function ViewExpensePage() {
                       <FileText className="mr-2 h-4 w-4" />
                       View Voucher
                     </Button>
-                    <Button variant="outline" onClick={handleShareVoucher} className="cursor-pointer" disabled={sharingVoucher}>
+                    <Button variant="outline" onClick={handleShareVoucher} className="cursor-pointer w-full sm:w-auto" disabled={sharingVoucher}>
                       {sharingVoucher ? (
                         <>
                           <Spinner size="sm" className="mr-2" />
