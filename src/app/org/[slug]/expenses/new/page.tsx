@@ -67,6 +67,7 @@ interface ExpenseItemData {
   amount: number
   date: string
   description: string
+  location?: string;   // ✅ new
   [key: string]: string | number | string[] | undefined;
 }
 
@@ -155,6 +156,7 @@ export default function NewExpensePage() {
         // date: new Date().toISOString().split("T")[0],
         date: new Date().toISOString().split("T")[0],
         description: "",
+        location: "", // ✅ add location
         ...customFieldValues, // ✅ Add label-based custom fields
       },
     }));
@@ -168,7 +170,7 @@ export default function NewExpensePage() {
       return newData
     })
     // Clean up voucher modal state
-    setVoucherModalOpenMap((prev) => { 
+    setVoucherModalOpenMap((prev) => {
       const newMap = { ...prev }
       delete newMap[id]
       return newMap
@@ -194,7 +196,7 @@ export default function NewExpensePage() {
         ...prev[itemId],
         [key]: value,
       },
-     }));
+    }));
 
     // If "date" field is changed, also update voucherDataMap
     if (key === "date") {
@@ -209,16 +211,16 @@ export default function NewExpensePage() {
   };
 
   const getExpenseItemValue = (itemId: number, key: keyof ExpenseItemData): string | number | string[] => {
-  const value = expenseItemsData[itemId]?.[key];
-  if (
-    value === undefined ||
-    value === null ||
-    (key === "amount" && (value === 0 || isNaN(Number(value))))
-  ) {
-    return "";
+    const value = expenseItemsData[itemId]?.[key];
+    if (
+      value === undefined ||
+      value === null ||
+      (key === "amount" && (value === 0 || isNaN(Number(value))))
+    ) {
+      return "";
+    }
+    return value;
   }
-  return value;
-}
   // Add these utility functions for error handling and UX improvements
   const scrollToFirstError = (errors: Record<string, string>) => {
     const firstErrorField = Object.keys(errors)[0];
@@ -508,13 +510,13 @@ export default function NewExpensePage() {
     key: string,
     value: string | number | boolean | string[]
   ) => {
-      const newErrors: Record<string, string> = {};
-     // Validate date against selected event
+    const newErrors: Record<string, string> = {};
+    // Validate date against selected event
     if (selectedEvent && formData.date) {
       const selectedDate = new Date(formData.date);
       const startDate = new Date(selectedEvent.start_date);
       const endDate = new Date(selectedEvent.end_date);
-      
+
       if (selectedDate < startDate || selectedDate > endDate) {
         newErrors["date"] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
       }
@@ -600,6 +602,8 @@ export default function NewExpensePage() {
       if (!item.expense_type) newErrors[`expense_type-${itemId}`] = "Expense Type is required";
       if (!item.amount || isNaN(item.amount)) newErrors[`amount-${itemId}`] = "Amount is required";
       // if (!item.date) newErrors[`date-${itemId}`] = "Date is required";
+      if (!item.location) newErrors[`location-${itemId}`] = "Location is required";  // ✅ ADD HERE
+
 
       if (!item.date) {
         newErrors[`date-${itemId}`] = "Date is required";
@@ -622,7 +626,7 @@ export default function NewExpensePage() {
       if (voucherModalOpenMap[itemId]) {
         const voucherData = voucherDataMap[itemId] || {};
         if (!voucherData.yourName) newErrors[`yourName-${itemId}`] = "Your Name is required";
-        
+
         if (!voucherData.voucherAmount) newErrors[`voucherAmount-${itemId}`] = "Amount is required";
         if (!voucherData.purpose) newErrors[`purpose-${itemId}`] = "Purpose is required";
         if (!voucherData.voucherCreditPerson) newErrors[`voucherCreditPerson-${itemId}`] = "Credit Person is required";
@@ -638,6 +642,12 @@ export default function NewExpensePage() {
         newErrors[col.key] = `${col.label} is required`;
       }
     }
+
+    // ✅ Validate single Location
+    if (!formData.location) {
+      newErrors["location"] = "Location is required";
+    }
+
 
     // Receipt required for main expense if not in voucher mode
     if (!voucherModalOpen && !receiptFile) {
@@ -815,6 +825,7 @@ export default function NewExpensePage() {
         receipt: null,
         creator_email: user.email,
         approver_email: approverEmail,
+        location: formData.location || null,
       };
 
       const { data: baseData, error: baseError } = await expenses.create(
@@ -949,6 +960,7 @@ export default function NewExpensePage() {
             receipt: null,
             creator_email: user.email,
             approver_email: approverEmail,
+            location: item.location || null,
           };
 
           const { data: itemData, error: itemError } = await expenses.create(
@@ -1078,6 +1090,20 @@ export default function NewExpensePage() {
       col.visible &&
       !defaultSystemFields.includes(col.key)
   );
+
+  const campusOptions = [
+    "Himachal",
+    "Kishanganj",
+    "Udaipur",
+    "Dantewada",
+    "Raipur",
+    "Jashpur",
+    "Dharmshala",
+    "Sarjapur",
+    "Pune",
+    "Remote",
+  ];
+
 
 
   return (
@@ -1560,6 +1586,31 @@ export default function NewExpensePage() {
                 return null;
               })}
             </div>
+            {/* Location of Expenses */}
+            <div className="space-y-2">
+              <Label htmlFor="location" className="text-sm font-medium text-gray-700">
+                Location of Expense <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={formData.location || ""}
+                onValueChange={(value: string) => handleInputChange("location", value)}
+              >
+                <SelectTrigger id="location" className="w-full">
+                  <SelectValue placeholder="Select Location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {campusOptions.map((campus) => (
+                    <SelectItem key={campus} value={campus}>
+                      {campus}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors["location"] && (
+                <p className="text-red-500 text-sm mt-1">{errors["location"]}</p>
+              )}
+            </div>
+
 
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
@@ -1749,27 +1800,27 @@ export default function NewExpensePage() {
                               </>
                             )}
 
-                              {/* Date */}
-                              {col.type === "date" && (
-                                <>
-                                  <Input
-                                    id={col.key}
-                                    name={col.key}
-                                    type="date"
-                                    value={getExpenseItemValue(id, "date")}
-                                    onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
-                                    className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                      }`}
-                                    min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
-                                    max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
-                                  />
-                                  {errors[col.key] && (
-                                    <p className="text-red-500 text-sm">{errors[col.key]}</p>
-                                  )}
-                                </>
-                              )}
+                            {/* Date */}
+                            {col.type === "date" && (
+                              <>
+                                <Input
+                                  id={col.key}
+                                  name={col.key}
+                                  type="date"
+                                  value={getExpenseItemValue(id, "date")}
+                                  onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
+                                  className={`w-full ${errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                    }`}
+                                  min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
+                                  max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
+                                />
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                )}
+                              </>
+                            )}
 
                             {/* Number */}
                             {col.type === "number" && (
@@ -1795,6 +1846,36 @@ export default function NewExpensePage() {
                         );
                       })}
                     </div>
+
+                    {/* Location of Expense */}
+                    <div className="space-y-2 mt-4">
+                      <Label htmlFor={`location-${id}`} className="text-sm font-medium text-gray-700">
+                        Location of Expense <span className="text-red-500">*</span>
+                      </Label>
+                      <Select
+                        value={String(getExpenseItemValue(id, "location") || "")}
+                        onValueChange={(value: string) =>
+                          handleExpenseItemChange(id, "location", value)
+                        }
+                      >
+                        <SelectTrigger id={`location-${id}`} className="w-full">
+                          <SelectValue placeholder="Select Location" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {campusOptions.map((campus) => (
+                            <SelectItem key={campus} value={campus}>
+                              {campus}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors[`location-${id}`] && (
+                        <p className="text-red-500 text-sm mt-1">
+                          {errors[`location-${id}`]}
+                        </p>
+                      )}
+                    </div>
+
 
                     {/* Description (full width) */}
                     {columns.map((col) => {
@@ -1925,35 +2006,7 @@ export default function NewExpensePage() {
                               </Select>
                             </>
                           )}
-                          {/* {col.type === "radio" && col.options && (
-                              <div className="space-y-1">
-                                {col.options.map((option: any) => {
-                                  const value = typeof option === "string" ? option : option.value;
-                                  const label = typeof option === "string" ? option : option.label;
-                                  const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
-                                  const selectedRadioValue =
-                                    typeof currentValue === "string" || typeof currentValue === "number"
-                                      ? String(currentValue)
-                                      : "";
-                                  return (
-                                    <div key={value} className="flex items-center space-x-2">
-                                      <input
-                                        type="radio"
-                                        id={`${col.key}-${value}`}
-                                        name={col.key}
-                                        value={value}
-                                        checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
-                                        onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
-                                        className="h-4 w-4 text-blue-600 border-gray-300"
-                                      />
-                                      <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
-                                        {label}
-                                      </label>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )} */}
+                        
                           {col.type === "radio" && col.options && (
                             <div className="space-y-1">
                               {col.options.map((option: any) => {
@@ -2130,38 +2183,38 @@ export default function NewExpensePage() {
                         )}
                       </div>
 
-                        {voucherModalOpenMap[id] && (
-                          <VoucherForm
-                            formData={voucherDataMap[id] || {}}
-                            onInputChange={(key, value) => {
-                              setVoucherDataMap((prev) => ({
+                      {voucherModalOpenMap[id] && (
+                        <VoucherForm
+                          formData={voucherDataMap[id] || {}}
+                          onInputChange={(key, value) => {
+                            setVoucherDataMap((prev) => ({
+                              ...prev,
+                              [id]: {
+                                ...prev[id],
+                                [key]: value,
+                              },
+                            }));
+                            // Sync back to expense item if voucher date changes
+                            if (key === "date") {
+                              setExpenseItemsData((prev) => ({
                                 ...prev,
                                 [id]: {
                                   ...prev[id],
-                                  [key]: value,
+                                  date: value,
                                 },
                               }));
-                                // Sync back to expense item if voucher date changes
-                              if (key === "date") {
-                                setExpenseItemsData((prev) => ({
-                                  ...prev,
-                                  [id]: {
-                                    ...prev[id],
-                                    date: value,
-                                  },
-                                }));
-                              }
-                            }}
-                            userRole={userRole}
-                            savedUserSignature={savedUserSignature}
-                             selectedEvent={
-                              selectedEvent
-                                ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date }
-                                : undefined
                             }
-                            errors={errors}
-                          />
-                        )}
+                          }}
+                          userRole={userRole}
+                          savedUserSignature={savedUserSignature}
+                          selectedEvent={
+                            selectedEvent
+                              ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date }
+                              : undefined
+                          }
+                          errors={errors}
+                        />
+                      )}
 
                     </div>
                   </div>

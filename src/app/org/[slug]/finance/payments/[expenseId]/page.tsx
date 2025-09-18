@@ -3,7 +3,7 @@
 import supabase from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { expenses } from "@/lib/db";
+import { expenses, expenseEvents } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Clock } from "lucide-react";
@@ -29,6 +29,7 @@ export default function PaymentProcessingDetails() {
     const [expense, setExpense] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [hasVoucher, setHasVoucher] = useState(false);
+    const [eventTitle, setEventTitle] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchExpense = async () => {
@@ -36,6 +37,18 @@ export default function PaymentProcessingDetails() {
             const { data, error } = await expenses.getById(expenseId as string);
             if (error) toast.error("Failed to load expense details");
             else setExpense(data);
+
+            // Fetch related event title if present
+            if (data?.event_id) {
+                try {
+                    const { data: ev } = await expenseEvents.getById(data.event_id);
+                    setEventTitle(ev?.title || null);
+                } catch (e) {
+                    setEventTitle(null);
+                }
+            } else {
+                setEventTitle(null);
+            }
             // Check if this expense has a voucher
             const { data: voucherData, error: voucherError } = await supabase
                 .from("vouchers")
@@ -120,6 +133,14 @@ export default function PaymentProcessingDetails() {
                         <Table>
                             <TableBody>
                                 <TableRow>
+                                    <TableHead>Location</TableHead>
+                                    <TableCell>{expense.location || "N/A"}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableHead>Event Name</TableHead>
+                                    <TableCell>{eventTitle || "N/A"}</TableCell>
+                                </TableRow>
+                                <TableRow>
                                     <TableHead>Expense Type</TableHead>
                                     <TableCell>{expense.expense_type || "Not Provided"}</TableCell>
                                 </TableRow>
@@ -150,21 +171,6 @@ export default function PaymentProcessingDetails() {
                                 <TableRow>
                                     <TableHead>Receipt/Voucher</TableHead>
                                     <TableCell>
-                                        {/* {expense.voucherId ? (
-                                            <Button
-                                                size="sm"
-                                                variant="link"
-                                                onClick={() =>
-                                                    router.push(
-                                                        `/org/${expense.org_id}/expenses/${expense.id}/voucher`
-                                                    )
-                                                }
-                                            >
-                                                View Receipt ({expense.voucher_filename || "Voucher"})
-                                            </Button>
-                                        ) : (
-                                            "No Voucher"
-                                        )} */}
                                         {expense.receipt ? (
                                             <Button
                                                 variant="outline"

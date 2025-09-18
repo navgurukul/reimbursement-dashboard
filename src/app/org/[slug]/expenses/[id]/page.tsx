@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenses, expenseHistory, profiles, vouchers } from "@/lib/db";
+import { expenses, expenseHistory, profiles, vouchers, expenseEvents } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,6 +107,7 @@ export default function ViewExpensePage() {
   const [expenseSignature, setExpenseSignature] = useState<string | undefined>(
     undefined
   );
+  const [eventTitle, setEventTitle] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
   });
@@ -219,6 +220,20 @@ export default function ViewExpensePage() {
         }
 
         setExpense(data);
+
+        // Fetch related event title if linked
+        if (data.event_id) {
+          try {
+            const { data: eventData } = await expenseEvents.getById(data.event_id);
+            if (eventData?.title) {
+              setEventTitle(eventData.title);
+            }
+          } catch (e) {
+            console.warn("Failed to fetch event for expense", e);
+          }
+        } else {
+          setEventTitle(null);
+        }
 
         // Fetch approver signature URL if approver_id exists
         if (data.approver_id) {
@@ -879,72 +894,6 @@ export default function ViewExpensePage() {
   };
 
   // Voucher share function
-  // const handleShareVoucher = async () => {
-  //   setShareLink("");
-  //   setSharingVoucher(true);
-  //   try {
-  //     // 1) Get voucher for this expense to find stored pdf_path
-  //     const { data: voucherRow, error: voucherErr } = await vouchers.getByExpenseId(
-  //       expense.id
-  //     );
-
-  //     if (voucherErr || !voucherRow) {
-  //       toast.error("Voucher not found for this expense");
-  //       return;
-  //     }
-
-  //     let pdfPath = voucherRow.pdf_path as string | null | undefined;
-
-  //     // 2) If PDF not generated yet, trigger server to generate and return signed URL
-  //     if (!pdfPath) {
-  //       try {
-  //         const resp = await fetch("/api/voucher-generate-pdf", {
-  //           method: "POST",
-  //           headers: { "Content-Type": "application/json" },
-  //           body: JSON.stringify({ voucherId: voucherRow.id }),
-  //         });
-  //         const json = await resp.json();
-  //         if (resp.ok) {
-  //           // Prefer immediate signed URL if present
-  //           if (json.url) {
-  //             setShareLink(json.url);
-  //             toast.success("Voucher link generated. Copy the link below and share it.");
-  //             return;
-  //           }
-  //           pdfPath = json.path;
-  //         } else {
-  //           throw new Error(json?.error || "Failed to generate voucher PDF");
-  //         }
-  //       } catch (e) {
-  //         console.error("Generate PDF error:", e);
-  //         toast.error("Failed to generate voucher PDF");
-  //         return;
-  //       }
-  //     }
-
-  //     if (!pdfPath) {
-  //       toast.error("Voucher PDF path not available");
-  //       return;
-  //     }
-
-  //     // 3) Create a signed URL from voucher-pdfs bucket
-  //     const { url, error: urlErr } = await vouchers.getPdfUrl(pdfPath);
-  //     if (urlErr || !url) {
-  //       toast.error("Failed to create voucher share link");
-  //       return;
-  //     }
-
-  //     setShareLink(url);
-  //     toast.success("Voucher link generated. Copy the link below and share it.");
-  //   } catch (err) {
-  //     console.error("Voucher share error:", err);
-  //     toast.error("Something went wrong while sharing voucher");
-  //   } finally {
-  //     setSharingVoucher(false);
-  //   }
-  // };
-
-  // Voucher share function
   const handleShareVoucher = async () => {
     setShareLink("");
     setSharingVoucher(true);
@@ -1161,6 +1110,15 @@ export default function ViewExpensePage() {
                     Expense Type
                   </p>
                   <p>{expense.expense_type}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Event Name</p>
+                  <p>{eventTitle || "N/A"}</p>
+                </div>
+                {/* ✅ Add this block to show Location */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Location</p>
+                  <p>{expense.location || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">

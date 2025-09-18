@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { expenses } from "@/lib/db";
+import { expenses, expenseEvents } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ export default function FinanceExpenseDetails() {
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
+  const [eventTitle, setEventTitle] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchExpense = async () => {
@@ -45,6 +46,18 @@ export default function FinanceExpenseDetails() {
       }
 
       const expenseData = { ...data };
+
+      // Fetch related event title if any
+      if (expenseData.event_id) {
+        try {
+          const { data: ev } = await expenseEvents.getById(expenseData.event_id);
+          setEventTitle(ev?.title || null);
+        } catch (e) {
+          setEventTitle(null);
+        }
+      } else {
+        setEventTitle(null);
+      }
 
       // Resolve creator signature
       const signaturePath = expenseData.signature_url;
@@ -182,6 +195,14 @@ export default function FinanceExpenseDetails() {
             <h2 className="text-lg font-semibold mb-4">Expense Details</h2>
             <Table>
               <TableBody>
+                 <TableRow>
+                  <TableHead>Location</TableHead>
+                  <TableCell>{expense.location || "N/A"}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableHead>Event Name</TableHead>
+                  <TableCell>{eventTitle || "N/A"}</TableCell>
+                </TableRow>
                 <TableRow>
                   <TableHead>Expense Type</TableHead>
                   <TableCell>{expense.expense_type || "Not Provided"}</TableCell>

@@ -80,7 +80,7 @@ export default function PaymentProcessingOnly() {
         const { data: expenseData, error: expenseError } = await expenses.getByOrg(orgId);
         if (expenseError) throw expenseError;
 
-        const filteredExpenses = (expenseData || [])
+        let filteredExpenses = (expenseData || [])
           // .filter((exp: any) => exp.status === "finance_approved")
           .filter((exp: any) =>
             exp.status === "finance_approved" &&
@@ -95,6 +95,37 @@ export default function PaymentProcessingOnly() {
             unique_id: exp.unique_id || "—",
 
           }));
+
+        // Bulk fetch event titles for displayed expenses
+        const eventIds = [
+          ...new Set(
+            filteredExpenses
+              .map((e: any) => e.event_id)
+              .filter((id: any) => typeof id === "string" && id.length > 0)
+          ),
+        ];
+
+        if (eventIds.length > 0) {
+          const { data: eventsData, error: evErr } = await supabase
+            .from("expense_events")
+            .select("id,title")
+            .in("id", eventIds);
+          const titleMap: Record<string, string> = {};
+          if (!evErr && eventsData) {
+            eventsData.forEach((ev: { id: string; title: string }) => {
+              titleMap[ev.id] = ev.title;
+            });
+          }
+          filteredExpenses = filteredExpenses.map((e: any) => ({
+            ...e,
+            event_title: e.event_id ? titleMap[e.event_id] || "N/A" : "N/A",
+          }));
+        } else {
+          filteredExpenses = filteredExpenses.map((e: any) => ({
+            ...e,
+            event_title: "N/A",
+          }));
+        }
 
         const { data: bankData, error: bankError } = await supabase.from("bank_details").select("*");
         if (bankError) throw bankError;
@@ -235,13 +266,13 @@ export default function PaymentProcessingOnly() {
         <div className="flex gap-2">
           <Button
             onClick={handleMarkAsPaid}
-            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white"
+            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white cursor-pointer"
           >
             Mark all as Paid
           </Button>
           <Button
             onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 cursor-pointer"
             variant="outline"
           >
             <Download className="w-4 h-4" />
@@ -254,8 +285,11 @@ export default function PaymentProcessingOnly() {
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-50">
             <TableRow>
+              <TableHead className="px-4 py-3 text-center">Expense Type</TableHead>
               <TableHead className="px-4 py-3 text-center">Created By</TableHead>
               <TableHead className="px-4 py-3 text-center">Email</TableHead>
+              <TableHead className="px-4 py-3 text-center">Event Name</TableHead>
+              <TableHead className="px-4 py-3 text-center">Location</TableHead>
               <TableHead className="px-4 py-3 text-center">Approved By</TableHead>
               <TableHead className="px-4 py-3 text-center">Beneficiary Name</TableHead>
               <TableHead className="px-4 py-3 text-center">Account Number</TableHead>
@@ -314,21 +348,24 @@ export default function PaymentProcessingOnly() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={15} className="text-center py-6">
+                <TableCell colSpan={16} className="text-center py-6">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : processingExpenses.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={15} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={16} className="text-center py-6 text-gray-500">
                   No expenses in payment processing.
                 </TableCell>
               </TableRow>
             ) : (
               processingExpenses.map((expense) => (
                 <TableRow key={expense.id} className="hover:bg-gray-50 transition py-3">
+                  <TableCell className="px-4 py-3 text-center">{expense.expense_type || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.creator_name}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.email}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.event_title || "N/A"}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.location || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.approver_name}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.beneficiary_name}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.account_number}</TableCell>
@@ -522,7 +559,7 @@ export default function PaymentProcessingOnly() {
 
                   <TableCell className="px-4 py-3 text-center">{expense.unique_id || "—"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    <Badge className="bg-green-100 text-green-800 border border-green-300">
+                    <Badge className="bg-green-100 hover:bg-green-200 text-green-800 border border-green-300">
                       Finance Approved
                     </Badge>
                   </TableCell>
@@ -532,13 +569,14 @@ export default function PaymentProcessingOnly() {
                         router.push(`/org/${orgId}/finance/payments/${expense.id}`)
                       }
                       title="View Expense"
+                      className="cursor-pointer"
                     >
                       <Eye className="w-4 h-4 text-gray-700" />
                     </button>
                     <button
                       title="Mark as Paid"
                       onClick={() => handleMarkAsPaidIndividual(expense.id)}
-                      className="text-green-600 hover:text-green-800 transition-transform hover:scale-110"
+                      className="text-green-600 hover:text-green-800 transition-transform hover:scale-110 cursor-pointer"
                     >
                       <CheckCircle className="w-5 h-5 " />
                     </button>
