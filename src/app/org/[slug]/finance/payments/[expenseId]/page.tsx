@@ -133,6 +133,10 @@ export default function PaymentProcessingDetails() {
                         <Table>
                             <TableBody>
                                 <TableRow>
+                                    <TableHead>Location</TableHead>
+                                    <TableCell>{expense.location || "N/A"}</TableCell>
+                                </TableRow>
+                                <TableRow>
                                     <TableHead>Event Name</TableHead>
                                     <TableCell>{eventTitle || "N/A"}</TableCell>
                                 </TableRow>

@@ -1181,6 +1181,11 @@ export default function ViewExpensePage() {
                   <p className="text-sm font-medium text-muted-foreground">Event Name</p>
                   <p>{eventTitle || "N/A"}</p>
                 </div>
+                {/* ✅ Add this block to show Location */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Location</p>
+                  <p>{expense.location || "N/A"}</p>
+                </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
                     Amount

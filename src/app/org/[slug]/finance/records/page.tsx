@@ -77,6 +77,7 @@ export default function PaymentRecords() {
             <TableRow>
               <TableHead className="text-center py-3">Email</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
+              <TableHead className="text-center py-3">Location</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
@@ -101,6 +102,7 @@ export default function PaymentRecords() {
                 <TableRow key={record.id}>
                   <TableCell className="text-center py-2">{record.creator_email}</TableCell>
                   <TableCell className="text-center py-2">{record.event_title || "N/A"}</TableCell>
+                  <TableCell className="text-center py-2">{record.location || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">₹{record.approved_amount}</TableCell>
                   <TableCell className="text-center py-2">
                     {new Date(record.date).toLocaleDateString("en-IN")}

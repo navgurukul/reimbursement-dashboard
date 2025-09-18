@@ -284,9 +284,11 @@ export default function PaymentProcessingOnly() {
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-50">
             <TableRow>
+              <TableHead className="px-4 py-3 text-center">Expense Type</TableHead>
               <TableHead className="px-4 py-3 text-center">Created By</TableHead>
               <TableHead className="px-4 py-3 text-center">Email</TableHead>
               <TableHead className="px-4 py-3 text-center">Event Name</TableHead>
+              <TableHead className="px-4 py-3 text-center">Location</TableHead>
               <TableHead className="px-4 py-3 text-center">Approved By</TableHead>
               <TableHead className="px-4 py-3 text-center">Beneficiary Name</TableHead>
               <TableHead className="px-4 py-3 text-center">Account Number</TableHead>
@@ -319,9 +321,11 @@ export default function PaymentProcessingOnly() {
             ) : (
               processingExpenses.map((expense) => (
                 <TableRow key={expense.id} className="hover:bg-gray-50 transition py-3">
+                  <TableCell className="px-4 py-3 text-center">{expense.expense_type || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.creator_name}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.email}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.event_title || "N/A"}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.location || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.approver_name}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.beneficiary_name}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.account_number}</TableCell>

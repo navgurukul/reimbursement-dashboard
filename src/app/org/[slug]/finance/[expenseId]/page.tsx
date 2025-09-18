@@ -195,6 +195,10 @@ export default function FinanceExpenseDetails() {
             <h2 className="text-lg font-semibold mb-4">Expense Details</h2>
             <Table>
               <TableBody>
+                 <TableRow>
+                  <TableHead>Location</TableHead>
+                  <TableCell>{expense.location || "N/A"}</TableCell>
+                </TableRow>
                 <TableRow>
                   <TableHead>Event Name</TableHead>
                   <TableCell>{eventTitle || "N/A"}</TableCell>

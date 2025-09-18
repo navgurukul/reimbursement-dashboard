@@ -165,6 +165,7 @@ export default function FinanceReview() {
             <TableRow>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
+              <TableHead className="text-center py-3">Location</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Submitted By</TableHead>
@@ -194,6 +195,7 @@ export default function FinanceReview() {
                 >
                   <TableCell className="text-center py-3">{expense.expense_type}</TableCell>
                   <TableCell className="text-center py-3">{expense.event_title || "N/A"}</TableCell>
+                  <TableCell className="text-center py-3">{expense.location || "N/A"}</TableCell>
                   <TableCell className="text-center py-3 font-medium text-green-700">
                     {formatCurrency(expense.amount)}
                   </TableCell>
