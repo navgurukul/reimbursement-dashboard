@@ -67,6 +67,7 @@ export default function PaymentProcessingOnly() {
     expenseId: null as null | string,
   });
   const [enteredPassword, setEnteredPassword] = useState("");
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
 
 
   useEffect(() => {
@@ -264,7 +265,46 @@ export default function PaymentProcessingOnly() {
               <TableHead className="px-4 py-3 text-center">Transaction Date</TableHead>
               <TableHead className="px-4 py-3 text-center">Amount</TableHead>
               <TableHead className="px-4 py-3 text-center">Currency</TableHead>
-              <TableHead className="px-4 py-3 text-center">UTR</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                <div className="flex items-center justify-center gap-2">
+                  <span>UTR</span>
+                  {!isPasswordVerified ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        setPasswordModal({ open: true, expenseId: "unlock" });
+                        setEnteredPassword("");
+                      }}
+                    >
+                      Unlock
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-xs text-red-600 border-red-300 hover:bg-red-50"
+                      onClick={() => {
+                        setIsPasswordVerified(false);
+                        // Close any open UTR editing fields
+                        setEditingFields((prev) => {
+                          const updated = { ...prev };
+                          Object.keys(updated).forEach(key => {
+                            if (updated[key].utr) {
+                              updated[key] = { ...updated[key], utr: false };
+                            }
+                          });
+                          return updated;
+                        });
+                        toast.success("UTR editing locked");
+                      }}
+                    >
+                      Lock
+                    </Button>
+                  )}
+                </div>
+              </TableHead>
               <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
               <TableHead className="px-4 py-3 text-center">Status</TableHead>
               <TableHead className="px-4 py-3 text-center">Actions</TableHead>
@@ -404,6 +444,25 @@ export default function PaymentProcessingOnly() {
                             );
                             setProcessingExpenses(updated);
                           }}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter') {
+                              // Save UTR when Enter is pressed
+                              const { error } = await supabase
+                                .from("expenses")
+                                .update({ utr: expense.utr })
+                                .eq("id", expense.id);
+
+                              if (error) {
+                                toast.error("Failed to update UTR");
+                              } else {
+                                toast.success("UTR updated");
+                                setEditingFields((prev) => ({
+                                  ...prev,
+                                  [expense.id]: { ...prev[expense.id], utr: false },
+                                }));
+                              }
+                            }
+                          }}
                         />
                         <div className="w-16">
                           <Button
@@ -442,8 +501,15 @@ export default function PaymentProcessingOnly() {
                             variant="outline"
                             className="h-7 w-full px-1 text-sm"
                             onClick={() => {
-                              setPasswordModal({ open: true, expenseId: expense.id });
-                              setEnteredPassword("");
+                              if (isPasswordVerified) {
+                                setEditingFields((prev) => ({
+                                  ...prev,
+                                  [expense.id]: { ...(prev[expense.id] || {}), utr: true },
+                                }));
+                              } else {
+                                setPasswordModal({ open: true, expenseId: expense.id });
+                                setEnteredPassword("");
+                              }
                             }}
                             title="Edit"
                           >
@@ -525,7 +591,7 @@ export default function PaymentProcessingOnly() {
       <Dialog open={passwordModal.open} onOpenChange={() => setPasswordModal({ open: false, expenseId: null })}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enter Password to Edit UTR</DialogTitle>
+            <DialogTitle>Enter Password to Unlock UTR Editing</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <input
@@ -534,18 +600,40 @@ export default function PaymentProcessingOnly() {
               placeholder="Password"
               value={enteredPassword}
               onChange={(e) => setEnteredPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (enteredPassword === ADMIN_PASSWORD) {
+                    setIsPasswordVerified(true);
+                    if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+                      const id = passwordModal.expenseId;
+                      setEditingFields((prev) => ({
+                        ...prev,
+                        [id]: { ...(prev[id] || {}), utr: true },
+                      }));
+                    }
+                    setPasswordModal({ open: false, expenseId: null });
+                    toast.success("UTR editing unlocked");
+                  } else {
+                    toast.error("Incorrect password");
+                  }
+                }
+              }}
             />
           </div>
           <DialogFooter className="mt-4">
             <Button
               onClick={() => {
-                if (enteredPassword === ADMIN_PASSWORD && passwordModal.expenseId) {
-                  const id = passwordModal.expenseId;
-                  setEditingFields((prev) => ({
-                    ...prev,
-                    [id]: { ...(prev[id] || {}), utr: true },
-                  }));
+                if (enteredPassword === ADMIN_PASSWORD) {
+                  setIsPasswordVerified(true);
+                  if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+                    const id = passwordModal.expenseId;
+                    setEditingFields((prev) => ({
+                      ...prev,
+                      [id]: { ...(prev[id] || {}), utr: true },
+                    }));
+                  }
                   setPasswordModal({ open: false, expenseId: null });
+                  toast.success("UTR editing unlocked");
                 } else {
                   toast.error("Incorrect password");
                 }
