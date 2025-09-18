@@ -47,6 +47,7 @@ export default function PaymentProcessingOnly() {
   // const [editingFields, setEditingFields] = useState<Record<string, { remarks: boolean; debit: boolean }>>({});
   const [editingFields, setEditingFields] =
     useState<Record<string, { utr?: boolean; debit?: boolean }>>({});
+  const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
 
 
   const router = useRouter();
@@ -265,7 +266,7 @@ export default function PaymentProcessingOnly() {
         <h3 className="text-lg font-medium text-gray-800">Payment Processing</h3>
         <div className="flex gap-2">
           <Button
-            onClick={handleMarkAsPaid}
+            onClick={() => setShowConfirmAllPaid(true)}
             className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white cursor-pointer"
           >
             Mark all as Paid
@@ -622,6 +623,31 @@ export default function PaymentProcessingOnly() {
               disabled={selectedColumns.length === 0}
             >
               Download CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Confirm Mark All as Paid */}
+      <Dialog open={showConfirmAllPaid} onOpenChange={setShowConfirmAllPaid}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark all as Paid?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            This will mark all expenses in the list as paid. This action cannot be undone.
+          </p>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowConfirmAllPaid(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                await handleMarkAsPaid();
+                setShowConfirmAllPaid(false);
+              }}
+              className="bg-gray-800 text-white"
+            >
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
