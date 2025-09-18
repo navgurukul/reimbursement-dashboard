@@ -2006,35 +2006,7 @@ export default function NewExpensePage() {
                               </Select>
                             </>
                           )}
-                          {/* {col.type === "radio" && col.options && (
-                              <div className="space-y-1">
-                                {col.options.map((option: any) => {
-                                  const value = typeof option === "string" ? option : option.value;
-                                  const label = typeof option === "string" ? option : option.label;
-                                  const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
-                                  const selectedRadioValue =
-                                    typeof currentValue === "string" || typeof currentValue === "number"
-                                      ? String(currentValue)
-                                      : "";
-                                  return (
-                                    <div key={value} className="flex items-center space-x-2">
-                                      <input
-                                        type="radio"
-                                        id={`${col.key}-${value}`}
-                                        name={col.key}
-                                        value={value}
-                                        checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
-                                        onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
-                                        className="h-4 w-4 text-blue-600 border-gray-300"
-                                      />
-                                      <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
-                                        {label}
-                                      </label>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )} */}
+                        
                           {col.type === "radio" && col.options && (
                             <div className="space-y-1">
                               {col.options.map((option: any) => {

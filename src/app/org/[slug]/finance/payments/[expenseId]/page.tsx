@@ -171,21 +171,6 @@ export default function PaymentProcessingDetails() {
                                 <TableRow>
                                     <TableHead>Receipt/Voucher</TableHead>
                                     <TableCell>
-                                        {/* {expense.voucherId ? (
-                                            <Button
-                                                size="sm"
-                                                variant="link"
-                                                onClick={() =>
-                                                    router.push(
-                                                        `/org/${expense.org_id}/expenses/${expense.id}/voucher`
-                                                    )
-                                                }
-                                            >
-                                                View Receipt ({expense.voucher_filename || "Voucher"})
-                                            </Button>
-                                        ) : (
-                                            "No Voucher"
-                                        )} */}
                                         {expense.receipt ? (
                                             <Button
                                                 variant="outline"
