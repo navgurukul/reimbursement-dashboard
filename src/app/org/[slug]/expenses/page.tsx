@@ -681,7 +681,7 @@ export default function ExpensesPage() {
                         <span className="font-bold text-gray-700 text-base">₹{currentMinAmount.toLocaleString("en-IN")}</span>
                         <span className="font-bold text-gray-700 text-base">₹{currentMaxAmount.toLocaleString("en-IN")}</span>
                       </div>
-                      <div className="relative h-4 bg-gray-300 rounded-md">
+                      {/* <div className="relative h-4 bg-gray-300 rounded-md">
                         <input
                           type="range"
                           min={amountBounds.min}
@@ -703,6 +703,51 @@ export default function ExpensesPage() {
                           onChange={(e) => {
                             const val = Math.max(Number(e.target.value), currentMinAmount);
                             setFilters({ ...filters, amountMax: String(val) });
+                          }}
+                          className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
+                        />
+                      </div> */}
+                      <div className="relative h-4">
+                        {/* Track with highlight */}
+                        <div className="absolute top-1/2 left-0 w-full h-1 rounded bg-gray-300 -translate-y-1/2" />
+                        <div
+                          className="absolute top-1/2 h-1 bg-black -translate-y-1/2 rounded"
+                          style={{
+                            left: `${((currentMinAmount - amountBounds.min) / (amountBounds.max - amountBounds.min)) * 100}%`,
+                            right: `${100 - ((currentMaxAmount - amountBounds.min) / (amountBounds.max - amountBounds.min)) * 100}%`,
+                          }}
+                        />
+
+                        {/* Min Slider */}
+                        <input
+                          type="range"
+                          min={amountBounds.min}
+                          max={amountBounds.max}
+                          step={amountStep}
+                          value={currentMinAmount}
+                          onChange={(e) => {
+                            let val = Number(e.target.value);
+                            if (val >= currentMaxAmount) {
+                              val = currentMaxAmount - amountStep; // prevent overlap
+                            }
+                            setFilters((prev) => ({ ...prev, amountMin: String(val) }));
+                          }}
+                          className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
+                        />
+
+                        {/* Max Slider */}
+                        <input
+                          type="range"
+                          min={amountBounds.min}
+                          max={amountBounds.max}
+                          step={amountStep}
+                          value={currentMaxAmount}
+                          onChange={(e) => {
+                            let val = Number(e.target.value);
+                            if (val <= currentMinAmount) {
+                              val = currentMinAmount + amountStep; // prevent overlap
+                            }
+                            setFilters((prev) => ({ ...prev, amountMax: String(val) }));
                           }}
                           className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
                         />
@@ -760,7 +805,7 @@ export default function ExpensesPage() {
                         </>
                       )}
                     </div>
-                    
+
                     <div className="space-y-1">
                       <Label>Created By</Label>
                       <Select
