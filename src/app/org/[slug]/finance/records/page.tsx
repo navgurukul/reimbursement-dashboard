@@ -76,6 +76,7 @@ export default function PaymentRecords() {
           <TableHeader className="bg-gray-50">
             <TableRow>
               <TableHead className="text-center py-3">Email</TableHead>
+              <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Location</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
@@ -101,6 +102,7 @@ export default function PaymentRecords() {
               records.map((record) => (
                 <TableRow key={record.id}>
                   <TableCell className="text-center py-2">{record.creator_email}</TableCell>
+                  <TableCell className="text-center py-2">{record.expense_type}</TableCell>
                   <TableCell className="text-center py-2">{record.event_title || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">{record.location || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">₹{record.approved_amount}</TableCell>
