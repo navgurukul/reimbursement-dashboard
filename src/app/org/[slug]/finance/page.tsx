@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import FinanceReview from "./approvals/page"; 
-import PaymentProcessing from "./payments/page"; 
-import Records from "./records/page"; 
+import FinanceReview from "./approvals/page";
+import PaymentProcessing from "./payments/page";
+import Records from "./records/page";
+import { useOrgStore } from "@/store/useOrgStore";
+import supabase from "@/lib/supabase";
+import { Spinner } from "@/components/ui/spinner";
+import { notFound, useRouter } from "next/navigation";
 
 export default function FinancePage() {
+  const { userRole } = useOrgStore();
+  if (userRole !== "owner" && userRole !== "admin") {
+    notFound();
+  }
   const [activeTab, setActiveTab] = useState("approvals");
 
   return (

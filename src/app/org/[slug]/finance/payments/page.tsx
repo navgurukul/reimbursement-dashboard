@@ -135,13 +135,13 @@ export default function PaymentProcessingOnly() {
           const matchedBank = bankData?.find((bank) => bank.email === exp.email);
           return {
             ...exp,
-            beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "—",
-            account_number: exp.account_number || matchedBank?.account_number || "—",
-            ifsc: exp.ifsc || matchedBank?.ifsc_code || "—",
+            beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "N/A",
+            account_number: exp.account_number || matchedBank?.account_number || "N/A",
+            ifsc: exp.ifsc || matchedBank?.ifsc_code || "N/A",
             debit_account: exp.debit_account || "32145624619",
-            utr: exp.utr || "",
+            utr: exp.utr || "N/A",
             // remarks: exp.remarks || "Pune campuses 2 Hariom",
-            unique_id: matchedBank?.unique_id || "—",
+            unique_id: matchedBank?.unique_id || "N/A",
           };
         });
 

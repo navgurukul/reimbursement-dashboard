@@ -16,6 +16,8 @@ import {
   DialogClose as DialogCloseButton,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useOrgStore } from "@/store/useOrgStore";
+import { notFound, useRouter } from "next/navigation";
 
 type BankDetail = {
   id: number;
@@ -30,6 +32,10 @@ type BankDetail = {
 const PAGE_SIZE = 10;
 
 export default function BankDetailsPage() {
+  const { userRole } = useOrgStore();
+  if (userRole !== "owner" && userRole !== "admin") {
+    notFound();
+  }
   const [data, setData] = useState<BankDetail[]>([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);

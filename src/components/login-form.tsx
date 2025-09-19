@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 
 export function LoginForm({
   className,
@@ -88,7 +89,15 @@ export function LoginForm({
   };
 
   return (
-    <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
+    <div className={cn("w-full max-w-md mx-auto relative", className)} {...props}>
+      {isLoading && (
+        <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-center justify-center rounded-lg">
+          <div className="flex items-center gap-2 text-gray-700">
+            <Spinner className="w-5 h-5" />
+            <span className="text-sm">Signing you in…</span>
+          </div>
+        </div>
+      )}
       <Card className="shadow-md border">
         <CardContent className="p-6 space-y-6">
           <div className="text-center space-y-1">
@@ -108,6 +117,7 @@ export function LoginForm({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
 
@@ -128,6 +138,7 @@ export function LoginForm({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
 
@@ -140,7 +151,14 @@ export function LoginForm({
               disabled={isLoading}
               className="w-full cursor-pointer"
             >
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="w-4 h-4" />
+                  Signing in...
+                </span>
+              ) : (
+                "Sign In"
+              )}
             </Button>
           </form>
           <p className="text-center text-sm">
