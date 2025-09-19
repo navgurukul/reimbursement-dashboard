@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings, expenses } from "@/lib/db";
@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableHeader,
@@ -75,6 +78,66 @@ export default function ExpensesPage() {
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"my" | "pending" | "all">("my");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    expenseType: "",
+    eventName: "",
+    amountMin: "",
+    amountMax: "",
+    dateFrom: "",
+    dateTo: "",
+    dateMode: "ALL",
+    createdBy: "",
+    approver: "",
+    status: "",
+  });
+
+  const OPTION_ALL = "ALL";
+
+  const allDataCombined = useMemo(() => {
+    return [...expensesData, ...pendingApprovals, ...allExpenses];
+  }, [expensesData, pendingApprovals, allExpenses]);
+
+  const unique = (values: any[]) =>
+    Array.from(new Set(values.filter((v) => v !== undefined && v !== null && String(v).trim() !== "")));
+
+  const expenseTypeOptions = useMemo(
+    () =>
+      unique(
+        allDataCombined.map(
+          (e: any) => e.expense_type || e.category || e.custom_fields?.category
+        )
+      ),
+    [allDataCombined]
+  );
+
+  const eventNameOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.event_title)),
+    [allDataCombined]
+  );
+
+  const creatorOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.creator?.full_name || e.creator_name)),
+    [allDataCombined]
+  );
+
+  const approverOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.approver?.full_name)),
+    [allDataCombined]
+  );
+
+  const statusOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.status)),
+    [allDataCombined]
+  );
+
+  // Amount presets for filters
+  const amountOptions = useMemo(
+    () => [
+      0, 100, 200, 500, 1000, 2000, 5000, 10000, 15000, 20000, 30000, 50000,
+    ],
+    []
+  );
 
   // Determine tabs based on role
   const tabs =
@@ -312,6 +375,68 @@ export default function ExpensesPage() {
     return allExpenses;
   };
 
+  const toNumber = (val: string) => {
+    const n = parseFloat(val);
+    return isNaN(n) ? undefined : n;
+  };
+
+  const filteredCurrent = () => {
+    const data = getCurrent();
+    if (!data || data.length === 0) return [] as any[];
+
+    const minAmt = toNumber(filters.amountMin);
+    const maxAmt = toNumber(filters.amountMax);
+    let fromDate: Date | undefined;
+    let toDate: Date | undefined;
+
+    if (filters.dateMode === "CUSTOM") {
+      fromDate = filters.dateFrom ? new Date(filters.dateFrom) : undefined;
+      toDate = filters.dateTo ? new Date(filters.dateTo) : undefined;
+    } else if (filters.dateMode === "SINGLE") {
+      if (filters.dateFrom) {
+        const day = new Date(filters.dateFrom);
+        fromDate = new Date(day);
+        toDate = new Date(day);
+      }
+    }
+
+    const ciIncludes = (a?: string, b?: string) =>
+      (a || "").toString().toLowerCase().includes((b || "").toString().toLowerCase());
+
+    return data.filter((e: any) => {
+      const expenseType = e.expense_type || e.category || e.custom_fields?.category;
+      if (filters.expenseType && expenseType !== filters.expenseType) return false;
+
+      if (filters.eventName && e.event_title !== filters.eventName) return false;
+
+      if (minAmt !== undefined && Number(e.amount) < minAmt) return false;
+      if (maxAmt !== undefined && Number(e.amount) > maxAmt) return false;
+
+      if (fromDate || toDate) {
+        const d = e.date ? new Date(e.date) : undefined;
+        if (!d) return false;
+        if (fromDate && d < fromDate) return false;
+        if (toDate) {
+          const end = new Date(toDate);
+          end.setHours(23, 59, 59, 999);
+          if (d > end) return false;
+        }
+      }
+
+      const creatorName = e.creator?.full_name || e.creator_name;
+      if (filters.createdBy && creatorName !== filters.createdBy) return false;
+
+      const approverName = e.approver?.full_name;
+      if (filters.approver && approverName !== filters.approver) return false;
+
+      if (filters.status && e.status !== filters.status) return false;
+
+      return true;
+    });
+  };
+  
+  const filteredData = useMemo(() => filteredCurrent(), [filters, expensesData, pendingApprovals, allExpenses, activeTab]);
+
   const handleNew = () => {
     router.push(`/org/${slug}/expenses/new`);
   };
@@ -452,16 +577,247 @@ export default function ExpensesPage() {
                 New Expense
               </Button>
               <div className="flex space-x-2">
-                <Button variant="outline">
+                <Button variant="outline" onClick={() => setShowFilters((s) => !s)} className="cursor-pointer">
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                 </Button>
-                <Button variant="outline">
+                <Button variant="outline" className="cursor-pointer">
                   <Download className="mr-2 h-4 w-4" />
                   Export
                 </Button>
               </div>
             </div>
+
+            {showFilters && (
+              <Card className="mb-4">
+                <CardContent className="pt-4 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className={`space-y-1`}>
+                      <Label>Expense Type</Label>
+                      <Select
+                      value={filters.expenseType || OPTION_ALL}
+                      onValueChange={(v) =>
+                        setFilters({ ...filters, expenseType: v === OPTION_ALL ? "" : v })
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Expense Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={OPTION_ALL}>All Expense Types</SelectItem>
+                        {expenseTypeOptions.map((opt: string) => (
+                          <SelectItem key={opt} value={opt}>
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Event</Label>
+                      <Select
+                      value={filters.eventName || OPTION_ALL}
+                      onValueChange={(v) =>
+                        setFilters({ ...filters, eventName: v === OPTION_ALL ? "" : v })
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Event Name" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={OPTION_ALL}>All Event Names</SelectItem>
+                        {eventNameOptions.map((opt: string) => (
+                          <SelectItem key={opt} value={opt}>
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Status</Label>
+                      <Select
+                        value={filters.status || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({ ...filters, status: v === OPTION_ALL ? "" : v })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>All Statuses</SelectItem>
+                          {statusOptions.map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Amount</Label>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={filters.amountMin || "MIN"}
+                          onValueChange={(v) =>
+                            setFilters({ ...filters, amountMin: v === "MIN" ? "" : v })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Min" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MIN">Min</SelectItem>
+                            {amountOptions.map((amt) => (
+                              <SelectItem key={`min-${amt}`} value={String(amt)}>
+                                ₹{amt.toLocaleString("en-IN")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-sm text-muted-foreground">to</span>
+                        <Select
+                          value={filters.amountMax || "MAX"}
+                          onValueChange={(v) =>
+                            setFilters({ ...filters, amountMax: v === "MAX" ? "" : v })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Max" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MAX">Max</SelectItem>
+                            {amountOptions.map((amt) => (
+                              <SelectItem key={`max-${amt}`} value={String(amt)}>
+                                ₹{amt.toLocaleString("en-IN")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                      <Label>Date</Label>
+                      <Select
+                        value={filters.dateMode || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({
+                            ...filters,
+                            dateMode: v,
+                            ...(v === OPTION_ALL
+                              ? { dateFrom: "", dateTo: "" }
+                              : v === "SINGLE"
+                                ? { dateTo: "" }
+                                : {}),
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Date Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>All Dates</SelectItem>
+                          <SelectItem value="SINGLE">Single Date</SelectItem>
+                          <SelectItem value="CUSTOM">Custom Date</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {filters.dateMode !== OPTION_ALL && (
+                        <>
+                          <Label>
+                            {filters.dateMode === "SINGLE" ? "On Date" : "From Date"}
+                          </Label>
+                          <Input
+                            type="date"
+                            placeholder={filters.dateMode === "SINGLE" ? "Date" : "From"}
+                            value={filters.dateFrom}
+                            onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                          />
+                          {filters.dateMode === "CUSTOM" && (
+                            <>
+                              <Label>To Date</Label>
+                              <Input
+                                type="date"
+                                placeholder="To"
+                                value={filters.dateTo}
+                                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                              />
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label>Created By</Label>
+                      <Select
+                        value={filters.createdBy || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({ ...filters, createdBy: v === OPTION_ALL ? "" : v })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Created By" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>All Created By</SelectItem>
+                          {creatorOptions.map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Approver</Label>
+                      <Select
+                        value={filters.approver || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({ ...filters, approver: v === OPTION_ALL ? "" : v })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Approver" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>All Approvers</SelectItem>
+                          {approverOptions.map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setFilters({
+                          expenseType: "",
+                          eventName: "",
+                          amountMin: "",
+                          amountMax: "",
+                          dateFrom: "",
+                          dateTo: "",
+                          dateMode: OPTION_ALL,
+                          createdBy: "",
+                          approver: "",
+                          status: "",
+                        })
+                      }
+                    >
+                      Clear
+                    </Button>
+                    <Button onClick={() => setShowFilters(false)}>Apply</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* table */}
             <Card>
@@ -497,8 +853,19 @@ export default function ExpensesPage() {
                           No expenses.
                         </TableCell>
                       </TableRow>
+                    ) : filteredData.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={columns.filter((c) => c.visible).length + 2}
+                          className="text-center py-4 text-muted-foreground"
+                        >
+                          {filters.amountMin || filters.amountMax
+                            ? "No expenses found in the selected amount range."
+                            : "No expenses match the selected filters."}
+                        </TableCell>
+                      </TableRow>
                     ) : (
-                      getCurrent().map((exp) => (
+                      filteredData.map((exp) => (
                         <TableRow key={exp.id}>
                           {columns
                             .filter((c) => c.visible)
