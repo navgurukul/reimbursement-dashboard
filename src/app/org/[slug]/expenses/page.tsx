@@ -131,12 +131,32 @@ export default function ExpensesPage() {
     [allDataCombined]
   );
 
-  // Amount presets for filters
-  const amountOptions = useMemo(
-    () => [
-      0, 100, 200, 500, 1000, 2000, 5000, 10000, 15000, 20000, 30000, 50000,
-    ],
-    []
+  // Amount slider from available data
+  const amountBounds = useMemo(() => {
+    const amounts = allDataCombined
+      .map((e: any) => Number(e.amount))
+      .filter((n) => !Number.isNaN(n));
+    if (amounts.length === 0) return { min: 0, max: 50000 };
+    const min = Math.floor(Math.min(...amounts));
+    const max = Math.ceil(Math.max(...amounts));
+    return { min: Math.max(0, min), max: Math.max(1, max) };
+  }, [allDataCombined]);
+
+  const amountStep = useMemo(() => {
+    const range = amountBounds.max - amountBounds.min;
+    if (range <= 1000) return 10;
+    if (range <= 10000) return 100;
+    if (range <= 100000) return 500;
+    return 1000;
+  }, [amountBounds]);
+
+  const currentMinAmount = useMemo(
+    () => (filters.amountMin ? Number(filters.amountMin) : amountBounds.min),
+    [filters.amountMin, amountBounds]
+  );
+  const currentMaxAmount = useMemo(
+    () => (filters.amountMax ? Number(filters.amountMax) : amountBounds.max),
+    [filters.amountMax, amountBounds]
   );
 
   // Determine tabs based on role
@@ -657,44 +677,35 @@ export default function ExpensesPage() {
                     </div>
                     <div className="space-y-1">
                       <Label>Amount</Label>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={filters.amountMin || "MIN"}
-                          onValueChange={(v) =>
-                            setFilters({ ...filters, amountMin: v === "MIN" ? "" : v })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Min" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="MIN">Min</SelectItem>
-                            {amountOptions.map((amt) => (
-                              <SelectItem key={`min-${amt}`} value={String(amt)}>
-                                ₹{amt.toLocaleString("en-IN")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <span className="text-sm text-muted-foreground">to</span>
-                        <Select
-                          value={filters.amountMax || "MAX"}
-                          onValueChange={(v) =>
-                            setFilters({ ...filters, amountMax: v === "MAX" ? "" : v })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Max" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="MAX">Max</SelectItem>
-                            {amountOptions.map((amt) => (
-                              <SelectItem key={`max-${amt}`} value={String(amt)}>
-                                ₹{amt.toLocaleString("en-IN")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="font-bold text-gray-700 text-base">₹{currentMinAmount.toLocaleString("en-IN")}</span>
+                        <span className="font-bold text-gray-700 text-base">₹{currentMaxAmount.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="relative h-4 bg-gray-300 rounded-md">
+                        <input
+                          type="range"
+                          min={amountBounds.min}
+                          max={amountBounds.max}
+                          step={amountStep}
+                          value={Math.min(currentMinAmount, currentMaxAmount)}
+                          onChange={(e) => {
+                            const val = Math.min(Number(e.target.value), currentMaxAmount);
+                            setFilters({ ...filters, amountMin: String(val) });
+                          }}
+                          className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
+                        />
+                        <input
+                          type="range"
+                          min={amountBounds.min}
+                          max={amountBounds.max}
+                          step={amountStep}
+                          value={Math.max(currentMaxAmount, currentMinAmount)}
+                          onChange={(e) => {
+                            const val = Math.max(Number(e.target.value), currentMinAmount);
+                            setFilters({ ...filters, amountMax: String(val) });
+                          }}
+                          className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
+                        />
                       </div>
                     </div>
                   </div>
