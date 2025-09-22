@@ -134,9 +134,9 @@ export default function ExpenseEventsPage() {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-lg"
         />
-        <Button type="submit" size="icon" variant="ghost">
+        {/* <Button type="submit" size="icon" variant="ghost">
           <Search className="h-4 w-4" />
-        </Button>
+        </Button> */}
       </div>
 
       {loading ? (
