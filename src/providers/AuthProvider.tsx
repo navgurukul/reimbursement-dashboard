@@ -21,6 +21,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session) {
           // If we have a session, update the auth store
           setUser(session.user);
+        } else {
+          // Ensure we clear any stale persisted user when there is no session
+          setUser(null);
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
