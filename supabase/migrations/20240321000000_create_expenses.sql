@@ -56,7 +56,7 @@ create type public.receipt_info as (
 );
 
 -- Create expenses table
-create table public.expenses (
+create table public.expense_new (
   id uuid default gen_random_uuid() primary key,
   org_id uuid not null references public.organizations(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -73,36 +73,36 @@ create table public.expenses (
 );
 
 -- Add RLS policies
-alter table public.expenses enable row level security;
+alter table public.expense_new enable row level security;
 
 -- Allow users to read their own expenses and org admins to read all expenses
 create policy "Users can read own expenses and admins can read all"
-  on public.expenses for select
+  on public.expense_new for select
   using (
     auth.uid() = user_id or
     auth.uid() in (
       select user_id 
       from public.organization_users 
-      where organization_users.org_id = expenses.org_id
+      where organization_users.org_id = expense_new.org_id
       and organization_users.role in ('owner', 'admin')
     )
   );
 
 -- Allow users to create their own expenses
 create policy "Users can create own expenses"
-  on public.expenses for insert
+  on public.expense_new for insert
   with check (
     auth.uid() = user_id and
     auth.uid() in (
       select user_id 
       from public.organization_users 
-      where organization_users.org_id = expenses.org_id
+      where organization_users.org_id = expense_new.org_id
     )
   );
 
 -- Allow users to update their own draft expenses
 create policy "Users can update own draft expenses"
-  on public.expenses for update
+  on public.expense_new for update
   using (
     auth.uid() = user_id and
     status = 'draft'
@@ -114,12 +114,12 @@ create policy "Users can update own draft expenses"
 
 -- Allow admins to update any expense status
 create policy "Admins can update any expense"
-  on public.expenses for update
+  on public.expense_new for update
   using (
     auth.uid() in (
       select user_id 
       from public.organization_users 
-      where organization_users.org_id = expenses.org_id
+      where organization_users.org_id = expense_new.org_id
       and organization_users.role in ('owner', 'admin')
     )
   )
@@ -127,14 +127,14 @@ create policy "Admins can update any expense"
     auth.uid() in (
       select user_id 
       from public.organization_users 
-      where organization_users.org_id = expenses.org_id
+      where organization_users.org_id = expense_new.org_id
       and organization_users.role in ('owner', 'admin')
     )
   );
 
 -- Create function to validate expense against policies
 create or replace function public.validate_expense_against_policies(
-  expense_row public.expenses
+  expense_row public.expense_new
 ) returns jsonb[]
 language plpgsql
 security definer
@@ -236,12 +236,12 @@ $$;
 
 -- Add trigger for expense validation
 create trigger validate_expense
-  before insert or update on public.expenses
+  before insert or update on public.expense_new
   for each row
   execute function public.handle_expense_validation();
 
 -- Add trigger for updated_at
 create trigger handle_updated_at
-  before update on public.expenses
+  before update on public.expense_new
   for each row
   execute function public.handle_updated_at(); 

@@ -306,9 +306,9 @@ export default function ExpensesPage() {
             }
 
             // Get all approver names at once using our new function
-            const approverNamesMap = await expenses.getApproverNames(
-              expenseIds
-            );
+            // const approverNamesMap = await expenses.getApproverNames(
+            //   expenseIds
+            // );
 
             // Fetch event titles in bulk
             const eventTitleMap: Record<string, string> = {};
@@ -335,8 +335,8 @@ export default function ExpensesPage() {
                 }
 
                 // Get approver name from our map
-                const approverName =
-                  approverNamesMap[expense.id] || "Unknown Approver";
+                const approverName = expense.approver.full_name || "—"
+                  // approverNamesMap[expense.id] || "Unknown Approver";
 
                 // Set approver info on the expense
                 expense.approver = {

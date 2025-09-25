@@ -42,7 +42,7 @@ export async function generateVoucherPdf(voucherId: string): Promise<GenerateVou
 
 		// Load expense
 		const { data: expense, error: eErr } = await supabase
-			.from("expenses")
+			.from("expense_new")
 			.select("id, date, org_id, approver_id")
 			.eq("id", voucher.expense_id)
 			.single();

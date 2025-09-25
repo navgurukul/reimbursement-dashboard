@@ -216,7 +216,7 @@ export default function PaymentProcessingOnly() {
 
       // Only update payment_status
       const { error } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .update({ payment_status: "paid" })
         .in("id", ids);
 
@@ -236,7 +236,7 @@ export default function PaymentProcessingOnly() {
       setLoading(true);
 
       const { error } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .update({ payment_status: "paid" })
         .eq("id", expenseId);
 
@@ -486,7 +486,7 @@ export default function PaymentProcessingOnly() {
                             if (e.key === 'Enter') {
                               // Save UTR when Enter is pressed
                               const { error } = await supabase
-                                .from("expenses")
+                                .from("expense_new")
                                 .update({ utr: expense.utr })
                                 .eq("id", expense.id);
 
@@ -510,7 +510,7 @@ export default function PaymentProcessingOnly() {
                             onClick={async () => {
                               // Update UTR in Supabase when saving
                               const { error } = await supabase
-                                .from("expenses")
+                                .from("expense_new")
                                 .update({ utr: expense.utr })
                                 .eq("id", expense.id);
 

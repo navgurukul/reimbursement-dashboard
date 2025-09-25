@@ -4,7 +4,7 @@ drop table if exists public.vouchers;
 -- Create vouchers table
 create table public.vouchers (
     id uuid default gen_random_uuid() primary key,
-    expense_id uuid references public.expenses(id) on delete cascade,
+    expense_id uuid references public.expense_new(id) on delete cascade,
     your_name text not null,
     voucher_date timestamp with time zone not null,
     amount numeric(10,2) not null,
@@ -24,14 +24,14 @@ create policy "Users can read own vouchers and admins can read all"
     on public.vouchers for select
     using (
         exists (
-            select 1 from public.expenses
-            where expenses.id = vouchers.expense_id
+            select 1 from public.expense_new
+            where expense_new.id = vouchers.expense_id
             and (
-                expenses.user_id = auth.uid()
+                expense_new.user_id = auth.uid()
                 or auth.uid() in (
                     select user_id 
                     from public.organization_users 
-                    where organization_users.org_id = expenses.org_id
+                    where organization_users.org_id = expense_new.org_id
                     and organization_users.role in ('owner', 'admin')
                 )
             )
@@ -43,9 +43,9 @@ create policy "Users can create vouchers for own expenses"
     on public.vouchers for insert
     with check (
         exists (
-            select 1 from public.expenses
-            where expenses.id = expense_id
-            and expenses.user_id = auth.uid()
+            select 1 from public.expense_new
+            where expense_new.id = expense_id
+            and expense_new.user_id = auth.uid()
         )
     );
 
@@ -54,16 +54,16 @@ create policy "Users can update own vouchers"
     on public.vouchers for update
     using (
         exists (
-            select 1 from public.expenses
-            where expenses.id = vouchers.expense_id
-            and expenses.user_id = auth.uid()
+            select 1 from public.expense_new
+            where expense_new.id = vouchers.expense_id
+            and expense_new.user_id = auth.uid()
         )
     )
     with check (
         exists (
-            select 1 from public.expenses
-            where expenses.id = vouchers.expense_id
-            and expenses.user_id = auth.uid()
+            select 1 from public.expense_new
+            where expense_new.id = vouchers.expense_id
+            and expense_new.user_id = auth.uid()
         )
     );
 
