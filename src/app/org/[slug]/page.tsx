@@ -41,7 +41,7 @@ export default function OrgDashboard() {
 
         // Fetch paid expenses for total reimbursements
         const { data: paidExpenses, error: expensesError } = await supabase
-          .from("expenses")
+          .from("expense_new")
           .select("approved_amount, payment_status, created_at")
           .eq("org_id", organization.id)
           .eq("payment_status", "paid");

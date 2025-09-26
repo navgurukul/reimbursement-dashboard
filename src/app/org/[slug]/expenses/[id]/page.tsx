@@ -339,7 +339,7 @@ export default function ViewExpensePage() {
 
       // Update with Supabase
       const { data, error } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .update(updateData)
         .eq("id", expenseId)
         .select()
@@ -354,7 +354,7 @@ export default function ViewExpensePage() {
       const { data: profileData, error: profileError } = await profiles.getById(currentUserId);
       if (!profileError && profileData?.signature_url) {
         await supabase
-          .from("expenses")
+          .from("expense_new")
           .update({ approver_signature_url: profileData.signature_url })
           .eq("id", expenseId)
           .select()
@@ -492,7 +492,7 @@ export default function ViewExpensePage() {
 
       // Update with Supabase
       const { data, error } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .update(updateData)
         .eq("id", expenseId)
         .select()
@@ -513,7 +513,7 @@ export default function ViewExpensePage() {
 
         if (!profileError && profileData?.signature_url) {
           await supabase
-            .from("expenses")
+            .from("expense_new")
             .update({ approver_signature_url: profileData.signature_url })
             .eq("id", expenseId).select().single();
         }
@@ -647,7 +647,7 @@ export default function ViewExpensePage() {
 
       // Directly update with Supabase to bypass any permission issues
       const { data, error } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .update(updateData)
         .eq("id", expenseId)
         .select()

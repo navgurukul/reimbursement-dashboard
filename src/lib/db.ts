@@ -1078,7 +1078,7 @@ export const expenses = {
   getById: async (id: string) => {
     // First get the expense with just the creator relationship
     const { data: expense, error } = await supabase
-      .from("expenses")
+      .from("expense_new")
       .select(
         `
       *,
@@ -1124,7 +1124,7 @@ export const expenses = {
   getByEventId: async (eventId: string) => {
     // Get expenses with creator
     const { data: expenses, error } = await supabase
-      .from("expenses")
+      .from("expense_new")
       .select(
         `
       *,
@@ -1192,7 +1192,7 @@ export const expenses = {
   getByOrgAndUser: async (orgId: string, userId: string) => {
     // Get expenses with creator
     const { data: expenses, error } = await supabase
-      .from("expenses")
+      .from("expense_new")
       .select(
         `
       *,
@@ -1261,7 +1261,7 @@ export const expenses = {
   getByOrg: async (orgId: string) => {
     // Get expenses with creator
     const { data: expenses, error } = await supabase
-      .from("expenses")
+      .from("expense_new")
       .select(
         `
       *,
@@ -1329,7 +1329,7 @@ export const expenses = {
   getPendingApprovals: async (orgId: string, userId: string) => {
     // Get expenses with creator
     const { data: expenses, error } = await supabase
-      .from("expenses")
+      .from("expense_new")
       .select(
         `
       *,
@@ -1507,7 +1507,7 @@ export const expenses = {
 
       // Create expense with receipt info, approver_id, and signature_url
       const { data, error } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .insert([
           {
             ...expense,
@@ -1561,7 +1561,7 @@ export const expenses = {
 
       // Step 1: Update the expense record
       const { data, error } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .update(updates)
         .eq("id", id)
         .select()
@@ -1617,7 +1617,7 @@ export const expenses = {
     try {
       // First check if expense exists
       const { data: existingExpense, error: fetchError } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .select("user_id, org_id")
         .eq("id", id)
         .single();
@@ -1681,7 +1681,7 @@ export const expenses = {
 
       // Update the expense
       const { data, error } = await supabase
-        .from("expenses")
+        .from("expense_new")
         .update({ ...updates, receipt })
         .eq("id", id)
         .select()
@@ -1741,7 +1741,7 @@ export const expenses = {
     await supabase.from("expense_comments").delete().eq("expense_id", id);
 
     // Delete the expense
-    const { error } = await supabase.from("expenses").delete().eq("id", id);
+    const { error } = await supabase.from("expense_new").delete().eq("id", id);
     return { data: null, error };
   },
 

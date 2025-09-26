@@ -919,7 +919,7 @@ export default function NewExpensePage() {
           console.error("Voucher creation error:", voucherError);
           toast.error(`Failed to create voucher: ${voucherError.message}`);
           try {
-            await supabase.from("expenses").delete().eq("id", baseData.id);
+            await supabase.from("expense_new").delete().eq("id", baseData.id);
           } catch (cleanupError) {
             console.error("Failed to clean up expense:", cleanupError);
           }
@@ -1017,7 +1017,7 @@ export default function NewExpensePage() {
               console.error("Voucher creation error:", voucherError);
               toast.error(`Failed to create voucher for item: ${voucherError.message}`);
               try {
-                await supabase.from("expenses").delete().eq("id", itemData.id);
+                await supabase.from("expense_new").delete().eq("id", itemData.id);
               } catch (cleanupError) {
                 console.error("Failed to clean up expense:", cleanupError);
               }

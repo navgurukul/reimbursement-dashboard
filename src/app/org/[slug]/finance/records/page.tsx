@@ -17,7 +17,7 @@ export default function PaymentRecords() {
         setLoading(true);
 
         const { data, error } = await supabase
-          .from("expenses")
+          .from("expense_new")
           .select("*")
           .eq("payment_status", "paid")
           .order("updated_at", { ascending: false });

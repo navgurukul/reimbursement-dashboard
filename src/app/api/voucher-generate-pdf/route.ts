@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
     // Load expense
     const { data: expense, error: eErr } = await supabase
-      .from("expenses")
+      .from("expense_new")
       .select("id, date, org_id, approver_id")
       .eq("id", voucher.expense_id)
       .single();
