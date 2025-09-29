@@ -55,7 +55,7 @@ export default function PaymentProcessingOnly() {
   const [showExportModal, setShowExportModal] = useState(false);
 
   const allColumns = [
-    "Created By", "Email", "Approved By", "Beneficiary Name", "Account Number", "IFSC",
+    "Expense Type", "Created By", "Email", "Event Name", "Location", "Approved By", "Beneficiary Name", "Account Number", "IFSC",
     "Payment Type", "Debit Account", "Transaction Date", "Amount", "Currency",
     "UTR", "Unique ID", "Status"
   ];
@@ -167,8 +167,11 @@ export default function PaymentProcessingOnly() {
 
       for (const col of headers) {
         switch (col) {
+          case "Expense Type": row.push(exp.expense_type || "N/A"); break;
           case "Created By": row.push(exp.creator_name); break;
           case "Email": row.push(exp.email); break;
+          case "Event Name": row.push(exp.event_title || "N/A"); break;
+          case "Location": row.push(exp.location || "N/A"); break;
           case "Approved By": row.push(exp.approver_name); break;
           case "Beneficiary Name": row.push(exp.beneficiary_name); break;
           case "Account Number": row.push(exp.account_number); break;
