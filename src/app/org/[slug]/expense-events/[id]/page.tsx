@@ -180,6 +180,11 @@ export default function ExpenseEventDetailPage() {
     )
     .reduce((sum, exp) => sum + (exp.approved_amount || 0), 0);
 
+  // Total of all created expenses linked to this event
+  const createdTotal = useMemo(() => {
+    return eventExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  }, [eventExpenses]);
+
   const handleInputChange = (field: string, value: string) => {
     setEditedEvent((prev) => ({
       ...prev,
@@ -467,7 +472,7 @@ export default function ExpenseEventDetailPage() {
             <div className="text-right">
               <p className="text-xl font-medium">Total Amount</p>
               <p className="text-xl font-bold">
-                {formatCurrency(event.total_amount)}
+                {formatCurrency(createdTotal)}
               </p>
               <p className="text-xl font-medium text-green-600 mt-2">Approved Amount</p>
               <p className="text-xl font-bold text-green-600">
