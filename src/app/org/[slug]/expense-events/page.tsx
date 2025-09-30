@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { expenseEvents } from "@/lib/db";
+import { expenseEvents, expenses } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,7 @@ export default function ExpenseEventsPage() {
   const [events, setEvents] = useState<ExpenseEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [eventTotals, setEventTotals] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!orgId || !user) return;
@@ -75,6 +76,26 @@ export default function ExpenseEventsPage() {
 
     fetchEvents();
   }, [orgId, user, userRole]);
+
+  // After events load, fetch totals for each event by summing its created expenses
+  useEffect(() => {
+    const fetchTotals = async () => {
+      try {
+        const entries = await Promise.all(
+          events.map(async (ev) => {
+            const { data } = await expenses.getByEventId(ev.id);
+            const total = (data || []).reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+            return [ev.id, total] as const;
+          })
+        );
+        setEventTotals(Object.fromEntries(entries));
+      } catch (e) {
+        // Non-blocking; totals remain 0 if fetch fails
+      }
+    };
+
+    if (events.length > 0) fetchTotals();
+  }, [events]);
 
   const filteredEvents = events.filter(
     (event) =>
@@ -205,7 +226,7 @@ export default function ExpenseEventsPage() {
                       })()}
                     </TableCell>
                   <TableCell>
-                    {formatCurrency(event.total_amount || 0)}
+                    {formatCurrency(eventTotals[event.id] || 0)}
                   </TableCell>
                   <TableCell>{formatDate(event.created_at)}</TableCell>
                 </TableRow>

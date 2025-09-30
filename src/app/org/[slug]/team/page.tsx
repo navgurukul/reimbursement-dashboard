@@ -919,7 +919,7 @@ export default function TeamPage() {
             <DialogHeader>
               <DialogTitle>Are you sure you want to delete this user?</DialogTitle>
               <DialogDescription>
-                This action cannot be undone. The user will be permanently removed from your organization.
+                This action cannot be undone. The user and their data will be permanently removed from your organization.						
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-4">
