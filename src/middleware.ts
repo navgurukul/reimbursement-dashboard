@@ -3,12 +3,12 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-  // If Supabase auth magic link lands anywhere with ?code=..., route to reset-password
+  // If Supabase auth magic link lands anywhere with ?code=..., route to create-password
   const incomingUrl = new URL(request.url);
   const hasSupabaseCode = incomingUrl.searchParams.has("code");
   const currentPath = incomingUrl.pathname;
-  if (hasSupabaseCode && currentPath !== "/auth/reset-password") {
-    const redirectUrl = new URL("/auth/reset-password", request.url);
+  if (hasSupabaseCode && currentPath !== "/auth/create-password") {
+    const redirectUrl = new URL("/auth/create-password", request.url);
     // Preserve all query params (code, type, etc.)
     incomingUrl.searchParams.forEach((value, key) => {
       redirectUrl.searchParams.set(key, value);
