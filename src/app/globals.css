@@ -119,3 +119,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+.toaster .toast [data-description],
+.toaster [data-sonner-toast] [data-description] {
+  color: var(--foreground) !important;
+  opacity: 1 !important;
+}
