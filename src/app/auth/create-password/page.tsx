@@ -83,10 +83,10 @@ export default function ResetPasswordPage() {
       setUpdating(true);
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      toast.success("Password updated successfully");
+      toast.success("Password created successfully");
       router.push("/auth/signin");
     } catch (err: any) {
-      toast.error("Failed to update password", { description: err.message });
+      toast.error("Failed to create password", { description: err.message });
     } finally {
       setUpdating(false);
     }
@@ -108,7 +108,7 @@ export default function ResetPasswordPage() {
       <Card className="w-full max-w-md">
         <CardContent className="p-6 space-y-6">
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold">Reset password</h1>
+            <h1 className="text-2xl font-bold">Create password</h1>
             <p className="text-muted-foreground text-sm">
               Enter a new password for your account
             </p>
@@ -143,20 +143,20 @@ export default function ResetPasswordPage() {
                 disabled={updating}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={updating}>
+            <Button type="submit" className="w-full cursor-pointer" disabled={updating}>
               {updating ? (
                 <div className="flex items-center gap-2">
                   <Spinner className="w-4 h-4" />
                   <span>Updating…</span>
                 </div>
               ) : (
-                "Update password"
+                "Create password"
               )}
             </Button>
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="w-full cursor-pointer"
               onClick={() => router.push("/auth/forgot-password")}
               disabled={updating}
             >

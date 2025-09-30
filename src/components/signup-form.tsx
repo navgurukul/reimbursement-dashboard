@@ -51,7 +51,7 @@ export function SignupForm({
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState(emailParam || "");
-  const [password, setPassword] = useState("");
+  // const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   // State for old invite system
@@ -64,6 +64,26 @@ export function SignupForm({
   const [inviteType, setInviteType] = useState<InviteType>(null);
 
   const { syncExternalAuth } = useAuthStore.getState();
+
+  // Generate a secure random password so users don't need to input one
+  const generateRandomPassword = (length: number = 20) => {
+    const charset =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{};:,.<>?";
+    const result: string[] = [];
+    if (typeof window !== "undefined" && window.crypto) {
+      const values = new Uint32Array(length);
+      window.crypto.getRandomValues(values);
+      for (let i = 0; i < length; i++) {
+        result.push(charset[values[i] % charset.length]);
+      }
+      return result.join("");
+    }
+    // Fallback (non-crypto) – should rarely be used
+    for (let i = 0; i < length; i++) {
+      result.push(charset[Math.floor(Math.random() * charset.length)]);
+    }
+    return result.join("");
+  };
 
   // Dialog state for replacing toast notifications
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -172,7 +192,8 @@ export function SignupForm({
 
       const result = await supabase.auth.signUp({
         email: signUpEmail,
-        password,
+        // password,
+        password: generateRandomPassword(),
         options: {
           data: {
             full_name: name, // Add metadata for the trigger
@@ -319,7 +340,7 @@ export function SignupForm({
               )}
             </div>
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label>Password</Label>
               <Input
                 type="password"
@@ -327,7 +348,7 @@ export function SignupForm({
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-            </div>
+            </div> */}
 
             {(error || authError) && (
               <p className="text-sm text-red-500">{error || authError}</p>

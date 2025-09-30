@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
     if (!email) return;
     try {
       setLoading(true);
-      const redirectTo = `${window.location.origin}/auth/reset-password`;
+      const redirectTo = `${window.location.origin}/auth/create-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
       });
@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
                 disabled={loading}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full cursor-pointer" disabled={loading}>
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Spinner className="w-4 h-4" />
@@ -71,7 +71,7 @@ export default function ForgotPasswordPage() {
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="w-full cursor-pointer"
               onClick={() => router.push("/auth/signin")}
               disabled={loading}
             >
