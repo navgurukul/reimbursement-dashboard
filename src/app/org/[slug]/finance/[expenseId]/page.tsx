@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { expenses, expenseEvents } from "@/lib/db";
+import { expenses, expenseEvents, expenseHistory, auth, profiles } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -108,6 +108,27 @@ export default function FinanceExpenseDetails() {
     );
     if (error) toast.error("Approval failed");
     else {
+      // Log history
+      try {
+        const { data: userData } = await auth.getUser();
+        const currentUserId = userData.user?.id || "";
+        let userName = userData.user?.email || "Unknown User";
+        if (currentUserId) {
+          const profRes = await profiles.getByUserId(currentUserId);
+          const fullName = (profRes as any)?.data?.full_name as string | undefined;
+          if (fullName) userName = fullName;
+        }
+        await expenseHistory.addEntry(
+          expenseId as string,
+          currentUserId,
+          userName,
+          "finance_approved",
+          null,
+          "Approved by Finance"
+        );
+      } catch (logErr) {
+        console.error("Failed to log finance_approved entry:", logErr);
+      }
       toast.success("Approved by Finance");
       router.push(`/org/${expense.org_id}/finance`);
     }
@@ -128,6 +149,27 @@ export default function FinanceExpenseDetails() {
     );
     if (error) toast.error("Rejection failed");
     else {
+      // Log history
+      try {
+        const { data: userData } = await auth.getUser();
+        const currentUserId = userData.user?.id || "";
+        let userName = userData.user?.email || "Unknown User";
+        if (currentUserId) {
+          const profRes = await profiles.getByUserId(currentUserId);
+          const fullName = (profRes as any)?.data?.full_name as string | undefined;
+          if (fullName) userName = fullName;
+        }
+        await expenseHistory.addEntry(
+          expenseId as string,
+          currentUserId,
+          userName,
+          "finance_rejected",
+          null,
+          comment || "Rejected by Finance"
+        );
+      } catch (logErr) {
+        console.error("Failed to log finance_rejected entry:", logErr);
+      }
       toast.success("Rejected by Finance");
       router.push(`/org/${expense.org_id}/finance`);
     }
