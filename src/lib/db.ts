@@ -488,7 +488,7 @@ export const expenseEvents = {
   async create(
     data: Omit<
       ExpenseEvent,
-      "id" | "created_at" | "updated_at" | "total_amount"
+      "id" | "created_at" | "updated_at" | "total_amount" | "user_id"
     >
   ): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
     try {
