@@ -41,6 +41,10 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
         return 'bg-green-500 text-white';
       case 'rejected':
         return 'bg-red-500 text-white';
+      case 'finance_approved':
+        return 'bg-emerald-600 text-white';
+      case 'finance_rejected':
+        return 'bg-rose-600 text-white';
       case 'updated':
         return 'bg-blue-500 text-white';
       case 'created':
@@ -57,6 +61,10 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
         return 'Approved';
       case 'rejected':
         return 'Rejected';
+      case 'finance_approved':
+        return 'Finance Approved';
+      case 'finance_rejected':
+        return 'Finance Rejected';
       case 'updated':
         return 'Updated';
       case 'created':
@@ -88,6 +96,10 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
         return 'Expense approved';
       case 'rejected':
         return 'Expense rejected';
+      case 'finance_approved':
+        return 'Approved by Finance';
+      case 'finance_rejected':
+        return 'Rejected by Finance';
       default:
         return `Action: ${actionType}`;
     }

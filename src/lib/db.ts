@@ -131,7 +131,8 @@ export type ExpenseStatus =
   | "approved"
   | "approved_as_per_policy"
   | "rejected"
-  // | "finance_approved";
+  | "finance_approved"
+  | "finance_rejected"
   | "ready_for_payment";
 
 export type ValidationStatus = "valid" | "warning" | "violation";
@@ -214,7 +215,13 @@ export interface ExpenseHistoryEntry {
   user_id: string;
   user_name: string;
   created_at: string;
-  action_type: "created" | "updated" | "approved" | "rejected";
+  action_type:
+    | "created"
+    | "updated"
+    | "approved"
+    | "rejected"
+    | "finance_approved"
+    | "finance_rejected"
   old_value: string | null;
   new_value: string;
 }
@@ -481,7 +488,7 @@ export const expenseEvents = {
   async create(
     data: Omit<
       ExpenseEvent,
-      "id" | "created_at" | "updated_at" | "total_amount"
+      "id" | "created_at" | "updated_at" | "total_amount" | "user_id"
     >
   ): Promise<{ data: ExpenseEvent | null; error: DatabaseError | null }> {
     try {
@@ -2036,7 +2043,13 @@ export const expenseHistory = {
     expenseId: string,
     userId: string,
     userName: string,
-    actionType: "created" | "updated" | "approved" | "rejected",
+    actionType:
+      | "created"
+      | "updated"
+      | "approved"
+      | "rejected"
+      | "finance_approved"
+      | "finance_rejected",
     oldValue: string | null,
     newValue: string
   ): Promise<{

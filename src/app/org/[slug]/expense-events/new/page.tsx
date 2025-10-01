@@ -92,7 +92,6 @@ export default function CreateExpenseEventPage() {
     try {
       const { data, error } = await expenseEvents.create({
         org_id: orgId,
-        user_id: user.id,
         title: formData.title,
         description: formData.description,
         start_date: formData.start_date,
