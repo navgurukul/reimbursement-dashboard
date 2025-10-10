@@ -105,6 +105,8 @@ export function LoginForm({
         try {
           window.localStorage.setItem("googleLogin", "true");
           window.localStorage.setItem("forgotPassword", "false");
+          // Hint middleware we're in OAuth (short-lived cookie)
+          document.cookie = `oauthFlow=1; Path=/; Max-Age=300; SameSite=Lax`;
         } catch { }
       }
       const redirectToParam = searchParams.get("redirectTo");

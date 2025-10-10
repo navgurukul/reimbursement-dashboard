@@ -172,6 +172,8 @@ export default function InvitePage() {
           if (email) {
             window.localStorage.setItem("inviteEmail", email);
           }
+          // Hint middleware we're in OAuth (short-lived cookie)
+          document.cookie = `oauthFlow=1; Path=/; Max-Age=300; SameSite=Lax`;
         } catch {}
       }
 

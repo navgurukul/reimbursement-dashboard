@@ -303,6 +303,8 @@ export function SignupForm({
               window.localStorage.setItem("inviteOldToken", token);
             }
           }
+          // Hint middleware we're in OAuth (short-lived cookie)
+          document.cookie = `oauthFlow=1; Path=/; Max-Age=300; SameSite=Lax`;
         } catch {}
       }
 
