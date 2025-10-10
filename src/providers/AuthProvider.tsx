@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (googleLogin && userId) {
         // Clear flag early to avoid repeated redirects
         ls.setItem("googleLogin", "false");
-        // Handle post-OAuth invite join if context exists
+        // Handle post-OAuth invite join if context exists, but DO NOT redirect.
         const inviteToken = ls.getItem("inviteLinkToken");
         const inviteEmail = ls.getItem("inviteEmail");
         const oldInviteToken = ls.getItem("inviteOldToken");
@@ -46,11 +46,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Clear invite context regardless of outcome to avoid loops
             ls.removeItem("inviteLinkToken");
             ls.removeItem("inviteEmail");
-            if (!resp.ok) {
-              // If join fails, fall back to create-organization
-            }
           } catch {
-            // Ignore network errors; fallback redirect happens below
+            // Ignore network errors; user stays on welcome page
           }
         } else if (inviteToken) {
           // If no inviteEmail saved, derive from the authenticated user
@@ -58,59 +55,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const { data: userData } = await supabase.auth.getUser();
             const derivedEmail = userData?.user?.email;
             if (derivedEmail) {
-              const resp = await fetch("/api/invite/use-link-signup", {
+              await fetch("/api/invite/use-link-signup", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ linkId: inviteToken, email: derivedEmail, userId }),
               });
-              // Clear invite context regardless of outcome
-              ls.removeItem("inviteLinkToken");
-              ls.removeItem("inviteEmail");
-              if (!resp.ok) {
-                // Non-blocking; continue to default redirect below
-              }
             }
           } catch {
-            // Ignore; proceed to default redirect
+            // Ignore; user stays on welcome page
+          } finally {
+            ls.removeItem("inviteLinkToken");
+            ls.removeItem("inviteEmail");
           }
         } else if (oldInviteToken) {
           // Handle old invite: add user to org and mark invite used
           try {
-            // Fetch invite row to get org and role
             const { data: inviteData, error: inviteErr } = await supabase
               .from("invites")
               .select("org_id, role, used")
               .eq("id", oldInviteToken)
               .single();
             if (!inviteErr && inviteData && !inviteData.used) {
-              // Add membership
               const { error: memberErr } = await supabase
                 .from("organization_users")
                 .insert({ org_id: inviteData.org_id, user_id: userId, role: inviteData.role });
               if (!memberErr) {
-                // Mark invite used
                 await supabase.from("invites").update({ used: true }).eq("id", oldInviteToken);
               }
             }
           } catch {
-            // Ignore failures; continue
+            // Ignore failures
           } finally {
             ls.removeItem("inviteOldToken");
           }
         }
-        try {
-          const { data: membership } = await organizations.getUserOrganizations(
-            userId
-          );
-          hasRedirectedRef.current = true;
-          if (membership?.organizations?.slug) {
-            router.push(`/org/${membership.organizations.slug}`);
-          } else {
-            router.push("/create-organization");
-          }
-        } catch {
-          // If anything fails, do not block the app
-        }
+        // Do not navigate; keep user on welcome page
+        hasRedirectedRef.current = true;
       }
     } catch {
       // Ignore storage access errors
