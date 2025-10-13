@@ -330,6 +330,13 @@ export default function ViewExpensePage() {
 
       const approvedAmount = parseFloat(customAmount);
 
+      // Only the selected approver can approve
+      if (expense?.approver_id && expense.approver_id !== currentUserId) {
+        toast.error("Only the selected approver can approve this expense.");
+        setUpdateLoading(false);
+        return;
+      }
+
       // Prepare update data
       const updateData = {
         status: "approved",
@@ -471,6 +478,13 @@ export default function ViewExpensePage() {
 
       if (!orgId) {
         toast.error("Organization ID is missing");
+        return;
+      }
+
+      // Only the selected approver can approve
+      if (expense?.approver_id && expense.approver_id !== currentUserId) {
+        toast.error("Only the selected approver can approve this expense.");
+        setUpdateLoading(false);
         return;
       }
 
@@ -635,6 +649,13 @@ export default function ViewExpensePage() {
 
       if (expense.user_id === currentUserId) {
         toast.error("You cannot reject your own expense.");
+        setUpdateLoading(false);
+        return;
+      }
+
+      // Only the selected approver can reject
+      if (expense?.approver_id && expense.approver_id !== currentUserId) {
+        toast.error("Only the selected approver can reject this expense.");
         setUpdateLoading(false);
         return;
       }
@@ -969,7 +990,7 @@ export default function ViewExpensePage() {
         </div>
       )}
 
-      {userRole !== "member" && expense.status === "submitted" && (
+      {userRole !== "member" && expense.status === "submitted" && currentUserId === expense.approver_id && (
         <div className="flex items-center space-x-2 mb-6">
           {showCustomAmountInput ? (
             <div className="flex items-center space-x-2">
