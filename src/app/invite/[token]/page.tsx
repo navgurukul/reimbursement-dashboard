@@ -39,6 +39,7 @@ export default function InvitePage() {
   const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Check if user is already authenticated
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -154,6 +155,53 @@ export default function InvitePage() {
     }
   };
 
+  const handleGoogleSignup = async () => {
+    try {
+      setGoogleLoading(true);
+      setError(null);
+      // Persist flags and invite context for post-OAuth processing
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem("googleLogin", "true");
+          window.localStorage.setItem("forgotPassword", "false");
+          // Always persist token so post-auth can process invite
+          if (token) {
+            window.localStorage.setItem("inviteLinkToken", token);
+          }
+          // Only persist email if user provided it
+          if (email) {
+            window.localStorage.setItem("inviteEmail", email);
+          }
+          // Hint middleware we're in OAuth (short-lived cookie)
+          document.cookie = `oauthFlow=1; Path=/; Max-Age=300; SameSite=Lax`;
+        } catch {}
+      }
+
+      const baseRedirect = typeof window !== "undefined" ? window.location.origin : "";
+      // Redirect to site root; AuthProvider will handle membership + redirect
+      const redirectTo = `${baseRedirect}/`;
+
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
+      });
+
+      if (oauthError) throw oauthError;
+      toast.loading("Redirecting to Google…");
+    } catch (err: any) {
+      setGoogleLoading(false);
+      toast.error("Google sign-up failed", {
+        description: err?.message || "Please try again.",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -249,9 +297,42 @@ export default function InvitePage() {
             </Button>
 
             {!currentUser && (
-              <p className="text-xs text-center text-muted-foreground">
-                You'll need to create an account to join this organization
-              </p>
+              <>
+                <div className="my-4 flex items-center gap-2">
+                  <div className="h-px bg-black flex-1" />
+                  <span className="text-xs text-muted-foreground">OR</span>
+                  <div className="h-px bg-black flex-1" />
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full cursor-pointer"
+                  onClick={handleGoogleSignup}
+                  disabled={submitting || googleLoading}
+                >
+                  {googleLoading ? (
+                    <>
+                      <Spinner className="w-4 h-4 mr-2" />
+                      Connecting to Google…
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-4 w-4 mr-2" aria-hidden>
+                        <path fill="#FFC107" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C32.9 6.1 28.7 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.9z" />
+                        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.8 16 19.1 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C32.9 6.1 28.7 4 24 4 16.3 4 9.6 8.5 6.3 14.7z" />
+                        <path fill="#4CAF50" d="M24 44c5.3 0 9.9-1.8 13.2-4.9l-6.1-5.1C28.8 35.4 26.5 36 24 36c-5.3 0-9.8-3.4-11.4-8.2l-6.4 5C9.4 39.5 16.1 44 24 44z" />
+                        <path fill="#1976D2" d="M43.6 20.5H24v8h11.3c-1 2.9-3 5.1-5.5 6.7l6.1 5.1C39.3 36.2 44 30.9 44 24c0-1.3-.1-2.7-.4-3.5z" />
+                      </svg>
+                      Continue with Google
+                    </>
+                  )}
+                </Button>
+
+                <p className="text-xs text-center text-muted-foreground">
+                  You'll need to create an account to join this organization
+                </p>
+              </>
             )}
 
             <div className="text-center">

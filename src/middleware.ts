@@ -3,11 +3,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-  // If Supabase auth magic link lands anywhere with ?code=..., route to create-password
+  // If Supabase auth magic link lands with ?code=..., normally we'd route to create-password.
+  // But for Google OAuth flows, we should NOT redirect; the client handles redirecting.
   const incomingUrl = new URL(request.url);
   const hasSupabaseCode = incomingUrl.searchParams.has("code");
   const currentPath = incomingUrl.pathname;
-  if (hasSupabaseCode && currentPath !== "/auth/create-password") {
+  const isOAuthFlow = request.cookies.get("oauthFlow")?.value === "1";
+  if (hasSupabaseCode && currentPath !== "/auth/create-password" && !isOAuthFlow) {
     const redirectUrl = new URL("/auth/create-password", request.url);
     // Preserve all query params (code, type, etc.)
     incomingUrl.searchParams.forEach((value, key) => {

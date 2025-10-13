@@ -20,6 +20,13 @@ export default function ForgotPasswordPage() {
     if (!email) return;
     try {
       setLoading(true);
+      // Mark forgot password flow in localStorage
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem("forgotPassword", "true");
+          window.localStorage.setItem("googleLogin", "false");
+        } catch {}
+      }
       const redirectTo = `${window.location.origin}/auth/create-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
