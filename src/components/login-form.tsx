@@ -89,9 +89,94 @@ export function LoginForm({
       }
     } catch (err: any) {
       toast.dismiss();
-      setError(err.message || "Login failed");
-      toast.error("Login failed", {
-        description: err.message || "Please try again.",
+      
+      // Handle specific error scenarios
+      let errorMessage = "Login failed";
+      let toastMessage = "Login failed";
+      let toastDescription = "Please try again.";
+
+      if (err.message) {
+        const errorMsg = err.message.toLowerCase();
+        
+        // Check for specific Supabase error messages
+        if (errorMsg.includes("invalid login credentials") || 
+            errorMsg.includes("invalid email or password")) {
+          // For invalid credentials, we need to determine the specific issue
+          try {
+            // First check if user exists in profiles table by email
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("email")
+              .eq("email", email.toLowerCase())
+              .single();
+            
+            if (profileData && !profileError) {
+              // User exists in profiles table, now check if they signed up with OAuth only
+              try {
+                // Check user's authentication providers via API
+                const response = await fetch("/api/check-user-providers", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: email.toLowerCase() }),
+                });
+
+                if (response.ok) {
+                  const { hasOAuthProvider, hasEmailProvider } = await response.json();
+                  
+                  if (hasOAuthProvider && !hasEmailProvider) {
+                    // User signed up with OAuth only, trying to login with email/password
+                    errorMessage = "Account created with Google";
+                    toastMessage = "Use Google to sign in";
+                    toastDescription = "This account was created using Google. Please use the 'Continue with Google' button to sign in.";
+                  } else {
+                    // User has email provider, so wrong password
+                    errorMessage = "Password is incorrect";
+                    toastMessage = "Incorrect password";
+                    toastDescription = "The password you entered is wrong. Please try again.";
+                  }
+                } else {
+                  // If API call fails, assume wrong password
+                  errorMessage = "Password is incorrect";
+                  toastMessage = "Incorrect password";
+                  toastDescription = "The password you entered is wrong. Please try again.";
+                }
+              } catch (authCheckErr) {
+                // If we can't check auth providers, assume wrong password
+                errorMessage = "Password is incorrect";
+                toastMessage = "Incorrect password";
+                toastDescription = "The password you entered is wrong. Please try again.";
+              }
+            } else {
+              // User doesn't exist in database
+              errorMessage = "User data not found";
+              toastMessage = "User data not found";
+              toastDescription = "No account found with this email address.";
+            }
+          } catch (profileErr) {
+            // If we can't check profile, assume user doesn't exist
+            errorMessage = "User data not found";
+            toastMessage = "User data not found";
+            toastDescription = "No account found with this email address.";
+          }
+        } else if (errorMsg.includes("email not confirmed")) {
+          errorMessage = "Email not confirmed";
+          toastMessage = "Email not confirmed";
+          toastDescription = "Please check your email and confirm your account.";
+        } else if (errorMsg.includes("too many requests")) {
+          errorMessage = "Too many login attempts";
+          toastMessage = "Too many attempts";
+          toastDescription = "Please wait a moment before trying again.";
+        } else {
+          // Generic error for other cases
+          errorMessage = err.message;
+          toastMessage = "Login failed";
+          toastDescription = err.message;
+        }
+      }
+
+      setError(errorMessage);
+      toast.error(toastMessage, {
+        description: toastDescription,
       });
     }
   };
@@ -119,8 +204,7 @@ export function LoginForm({
         options: {
           redirectTo,
           queryParams: {
-            access_type: "offline",
-            prompt: "consent",
+            prompt: "select_account",
           },
         },
       });
