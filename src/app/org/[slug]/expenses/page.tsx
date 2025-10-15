@@ -529,9 +529,13 @@ export default function ExpensesPage() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList>
-          {tabs.map((t) => (
-            <TabsTrigger key={t.value} value={t.value}>
+        <TabsList className="gap-2 w-full overflow-x-auto md:w-fit md:overflow-visible">
+          {tabs.map((t, idx) => (
+            <TabsTrigger
+              key={t.value}
+              value={t.value}
+              className={`${idx === 0 ? "ml-20 md:ml-0 " : ""}flex-none shrink-0 min-w-max md:flex-1`}
+            >
               {t.label}
             </TabsTrigger>
           ))}
