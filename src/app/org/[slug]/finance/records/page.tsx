@@ -2,14 +2,33 @@
 
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
-import { IndianRupee } from "lucide-react";
+import { IndianRupee, Pencil, Save } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // State for UTR editing functionality
+  const [editingFields, setEditingFields] = useState<Record<string, { utr?: boolean }>>({});
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const [passwordModal, setPasswordModal] = useState({
+    open: false,
+    expenseId: null as null | string,
+  });
+  const [enteredPassword, setEnteredPassword] = useState("");
+  
+  const ADMIN_PASSWORD = "admin"; // your password
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -82,7 +101,46 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
-              <TableHead className="text-center py-3">UTR</TableHead>
+              <TableHead className="text-center py-3">
+                <div className="flex items-center justify-center gap-2">
+                  <span>UTR</span>
+                  {!isPasswordVerified ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-xs cursor-pointer"
+                      onClick={() => {
+                        setPasswordModal({ open: true, expenseId: "unlock" });
+                        setEnteredPassword("");
+                      }}
+                    >
+                      Unlock
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-xs text-red-600 border-red-300 hover:bg-red-50 cursor-pointer"
+                      onClick={() => {
+                        setIsPasswordVerified(false);
+                        // Close any open UTR editing fields
+                        setEditingFields((prev) => {
+                          const updated = { ...prev };
+                          Object.keys(updated).forEach(key => {
+                            if (updated[key].utr) {
+                              updated[key] = { ...updated[key], utr: false };
+                            }
+                          });
+                          return updated;
+                        });
+                        toast.success("UTR editing locked");
+                      }}
+                    >
+                      Lock
+                    </Button>
+                  )}
+                </div>
+              </TableHead>
               <TableHead className="text-center py-3">Payment Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -110,7 +168,94 @@ export default function PaymentRecords() {
                     {new Date(record.date).toLocaleDateString("en-IN")}
                   </TableCell>
                   <TableCell className="text-center py-2">{record.status}</TableCell>
-                  <TableCell className="text-center py-2">{record.utr}</TableCell>
+                  <TableCell className="text-center py-2">
+                    {editingFields[record.id]?.utr ? (
+                      <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
+                        <input
+                          type="text"
+                          className="border px-2 py-1 rounded text-sm text-center w-full"
+                          value={record.utr || ""}
+                          onChange={(e) => {
+                            const updated = records.map((r) =>
+                              r.id === record.id ? { ...r, utr: e.target.value } : r
+                            );
+                            setRecords(updated);
+                          }}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter') {
+                              // Save UTR when Enter is pressed
+                              const { error } = await supabase
+                                .from("expense_new")
+                                .update({ utr: record.utr })
+                                .eq("id", record.id);
+
+                              if (error) {
+                                toast.error("Failed to update UTR");
+                              } else {
+                                toast.success("UTR updated");
+                                setEditingFields((prev) => ({
+                                  ...prev,
+                                  [record.id]: { ...prev[record.id], utr: false },
+                                }));
+                              }
+                            }
+                          }}
+                        />
+                        <div className="w-16">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-full px-1 text-sm"
+                            onClick={async () => {
+                              // Update UTR in Supabase when saving
+                              const { error } = await supabase
+                                .from("expense_new")
+                                .update({ utr: record.utr })
+                                .eq("id", record.id);
+
+                              if (error) {
+                                toast.error("Failed to update UTR");
+                              } else {
+                                toast.success("UTR updated");
+                                setEditingFields((prev) => ({
+                                  ...prev,
+                                  [record.id]: { ...prev[record.id], utr: false },
+                                }));
+                              }
+                            }}
+                            title="Save"
+                          >
+                            <Save className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
+                        <span className="truncate max-w-[100px] text-sm">{record.utr || "—"}</span>
+                        <div className="w-16">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-full px-1 text-sm cursor-pointer"
+                            onClick={() => {
+                              if (isPasswordVerified) {
+                                setEditingFields((prev) => ({
+                                  ...prev,
+                                  [record.id]: { ...(prev[record.id] || {}), utr: true },
+                                }));
+                              } else {
+                                setPasswordModal({ open: true, expenseId: record.id });
+                                setEnteredPassword("");
+                              }
+                            }}
+                            title="Edit"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-center py-2">
                     <Badge variant="success" className="text-xs">
                       {record.payment_status}
@@ -122,6 +267,65 @@ export default function PaymentRecords() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Password Modal for UTR Editing */}
+      <Dialog open={passwordModal.open} onOpenChange={() => setPasswordModal({ open: false, expenseId: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter Password to Unlock UTR Editing</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              type="password"
+              className="w-full border px-3 py-2 rounded mb-0"
+              placeholder="Password"
+              value={enteredPassword}
+              onChange={(e) => setEnteredPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (enteredPassword === ADMIN_PASSWORD) {
+                    setIsPasswordVerified(true);
+                    if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+                      const id = passwordModal.expenseId;
+                      setEditingFields((prev) => ({
+                        ...prev,
+                        [id]: { ...(prev[id] || {}), utr: true },
+                      }));
+                    }
+                    setPasswordModal({ open: false, expenseId: null });
+                    toast.success("UTR editing unlocked");
+                  } else {
+                    toast.error("Incorrect password");
+                  }
+                }
+              }}
+            />
+            <p className="text-sm text-gray-600">Reached out to admin for password to unlock UTR editing.</p>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              onClick={() => {
+                if (enteredPassword === ADMIN_PASSWORD) {
+                  setIsPasswordVerified(true);
+                  if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+                    const id = passwordModal.expenseId;
+                    setEditingFields((prev) => ({
+                      ...prev,
+                      [id]: { ...(prev[id] || {}), utr: true },
+                    }));
+                  }
+                  setPasswordModal({ open: false, expenseId: null });
+                  toast.success("UTR editing unlocked");
+                } else {
+                  toast.error("Incorrect password");
+                }
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
