@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { useOrgStore } from "@/store/useOrgStore";
 import { notFound, useRouter } from "next/navigation";
+import { Pencil } from "lucide-react";
 
 type BankDetail = {
   id: number;
@@ -363,8 +364,9 @@ export default function BankDetailsPage() {
                       setErrors({});
                       setDialogOpen(true);
                     }}
+                    className="cursor-pointer"
                   >
-                    Edit
+                    <Pencil className="w-4 h-4" />
                   </Button>
                 </td>
               </tr>
