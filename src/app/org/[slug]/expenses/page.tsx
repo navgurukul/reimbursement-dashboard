@@ -601,10 +601,10 @@ export default function ExpensesPage() {
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                 </Button>
-                <Button variant="outline" className="cursor-pointer">
+                {/* <Button variant="outline" className="cursor-pointer">
                   <Download className="mr-2 h-4 w-4" />
                   Export
-                </Button>
+                </Button> */}
               </div>
             </div>
 
