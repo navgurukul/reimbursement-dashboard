@@ -238,7 +238,7 @@ export default function FinanceExpenseDetails() {
             <Table>
               <TableBody>
                  <TableRow>
-                  <TableHead>Location</TableHead>
+                  <TableHead>Location of Expense</TableHead>
                   <TableCell>{expense.location || "N/A"}</TableCell>
                 </TableRow>
                 <TableRow>
