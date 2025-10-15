@@ -474,7 +474,7 @@ export default function PaymentProcessingOnly() {
                   <TableCell className="px-4 py-3 text-center">{expense.currency || "INR"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {editingFields[expense.id]?.utr ? (
-                      <div className="flex items-center space-x-2 w-40">
+                      <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
                         <input
                           type="text"
                           className="border px-2 py-1 rounded text-sm text-center w-full"
@@ -534,7 +534,7 @@ export default function PaymentProcessingOnly() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center space-x-2 w-40">
+                      <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
                         <span className="truncate max-w-[100px] text-sm">{expense.utr || "—"}</span>
                         <div className="w-16">
                           <Button
@@ -663,7 +663,7 @@ export default function PaymentProcessingOnly() {
           <div className="space-y-4">
             <input
               type="password"
-              className="w-full border px-3 py-2 rounded"
+              className="w-full border px-3 py-2 rounded mb-0"
               placeholder="Password"
               value={enteredPassword}
               onChange={(e) => setEnteredPassword(e.target.value)}
@@ -686,6 +686,7 @@ export default function PaymentProcessingOnly() {
                 }
               }}
             />
+            <p className="text-sm text-gray-600">Reached out to admin for password to unlock UTR editing.</p>
           </div>
           <DialogFooter className="mt-4">
             <Button
