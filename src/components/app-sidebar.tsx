@@ -259,7 +259,7 @@ export function AppSidebar() {
               <div className="flex-1 text-left">
                 <p className="text-sm font-medium leading-none">{userName}</p>
                 <p
-                  className="text-xs leading-none text-muted-foreground truncate max-w-[180px]"
+                  className="text-xs leading-none text-muted-foreground truncate max-w-[180px] pb-1"
                   title={userEmail}
                 >
                   {userEmail}
