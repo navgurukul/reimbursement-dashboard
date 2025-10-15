@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
-import { BadgeDollarSign } from "lucide-react";
+import { IndianRupee } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -66,8 +66,8 @@ export default function PaymentRecords() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <BadgeDollarSign className="h-5 w-5" />
+      <div className="flex items-center gap-1">
+        <IndianRupee className="h-5 w-5" />
         <h2 className="text-xl font-semibold">Payment Records</h2>
       </div>
 
