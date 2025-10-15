@@ -529,17 +529,15 @@ export default function ExpensesPage() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList className="gap-2 w-full overflow-x-auto md:w-fit md:overflow-visible">
-          {tabs.map((t, idx) => (
-            <TabsTrigger
-              key={t.value}
-              value={t.value}
-              className={`${idx === 0 ? "ml-20 md:ml-0 " : ""}flex-none shrink-0 min-w-max md:flex-1`}
-            >
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
+          <TabsList>
+            {tabs.map((t) => (
+              <TabsTrigger key={t.value} value={t.value}>
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         {tabs.map((t) => (
           <TabsContent key={t.value} value={t.value}>
@@ -619,44 +617,44 @@ export default function ExpensesPage() {
                     <div className={`space-y-1`}>
                       <Label>Expense Type</Label>
                       <Select
-                      value={filters.expenseType || OPTION_ALL}
-                      onValueChange={(v) =>
-                        setFilters({ ...filters, expenseType: v === OPTION_ALL ? "" : v })
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Expense Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={OPTION_ALL}>All Expense Types</SelectItem>
-                        {expenseTypeOptions.map((opt: string) => (
-                          <SelectItem key={opt} value={opt}>
-                            {opt}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        value={filters.expenseType || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({ ...filters, expenseType: v === OPTION_ALL ? "" : v })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Expense Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>All Expense Types</SelectItem>
+                          {expenseTypeOptions.map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <Label>Event</Label>
                       <Select
-                      value={filters.eventName || OPTION_ALL}
-                      onValueChange={(v) =>
-                        setFilters({ ...filters, eventName: v === OPTION_ALL ? "" : v })
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Event Name" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={OPTION_ALL}>All Event Names</SelectItem>
-                        {eventNameOptions.map((opt: string) => (
-                          <SelectItem key={opt} value={opt}>
-                            {opt}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        value={filters.eventName || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({ ...filters, eventName: v === OPTION_ALL ? "" : v })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Event Name" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>All Event Names</SelectItem>
+                          {eventNameOptions.map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <Label>Status</Label>
@@ -687,7 +685,7 @@ export default function ExpensesPage() {
                       </div>
                       <div className="relative h-4">
                         <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-200 rounded-full -translate-y-1/2"></div>
-                        <div 
+                        <div
                           className="absolute top-1/2 h-1 bg-black rounded-full -translate-y-1/2"
                           style={{
                             left: `${((currentMinAmount - amountBounds.min) / (amountBounds.max - amountBounds.min)) * 100}%`,
