@@ -300,7 +300,7 @@ export default function PaymentRecords() {
                 }
               }}
             />
-            <p className="text-sm text-gray-600">Reached out to admin for password to unlock UTR editing.</p>
+            <p className="text-sm text-gray-600">Reach out to admin for password to unlock UTR editing.</p>
           </div>
           <DialogFooter className="mt-4">
             <Button
