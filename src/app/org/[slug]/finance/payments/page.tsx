@@ -265,18 +265,18 @@ export default function PaymentProcessingOnly() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h3 className="text-lg font-medium text-gray-800">Payment Processing</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
             onClick={() => setShowConfirmAllPaid(true)}
-            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white cursor-pointer"
+            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white cursor-pointer text-sm sm:text-base"
           >
             Mark all as Paid
           </Button>
           <Button
             onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-2 cursor-pointer"
+            className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
             variant="outline"
           >
             <Download className="w-4 h-4" />
