@@ -55,9 +55,8 @@ export default function PaymentProcessingOnly() {
   const [showExportModal, setShowExportModal] = useState(false);
 
   const allColumns = [
-    "Expense Type", "Created By", "Email", "Event Name", "Location", "Approved By", "Beneficiary Name", "Account Number", "IFSC",
-    "Payment Type", "Debit Account", "Transaction Date", "Amount", "Currency",
-    "UTR", "Unique ID", "Status"
+    "Beneficiary Name", "Beneficiary Account Number", "IFSC",
+    "Transaction Type", "Debit Account No.", "Transaction Date", "Amount", "Currency", "Beneficiary Email ID", "Remark"
   ];
   const [selectedColumns, setSelectedColumns] = useState<string[]>([...allColumns]);
 
@@ -167,25 +166,38 @@ export default function PaymentProcessingOnly() {
 
       for (const col of headers) {
         switch (col) {
-          case "Expense Type": row.push(exp.expense_type || "N/A"); break;
-          case "Created By": row.push(exp.creator_name); break;
-          case "Email": row.push(exp.email); break;
-          case "Event Name": row.push(exp.event_title || "N/A"); break;
-          case "Location": row.push(exp.location || "N/A"); break;
-          case "Approved By": row.push(exp.approver_name); break;
-          case "Beneficiary Name": row.push(exp.beneficiary_name); break;
-          case "Account Number": row.push(exp.account_number); break;
-          case "IFSC": row.push(exp.ifsc); break;
-          case "Payment Type": row.push(exp.payment_type); break;
-          case "Debit Account": row.push(exp.debit_account || "—"); break;
-          case "Transaction Date":
-            row.push(exp.value_date ? new Date(exp.value_date).toLocaleDateString("en-IN") : "—");
+          case "Beneficiary Name":
+            row.push(exp.beneficiary_name || "N/A");
             break;
-          case "Amount": row.push(exp.amount); break;
-          case "Currency": row.push(exp.currency || "INR"); break;
-          case "UTR": row.push(exp.utr || "—"); break;
-          case "Unique ID": row.push(exp.unique_id || "—"); break;
-          case "Status": row.push("Finance Approved"); break;
+          case "Beneficiary Account Number":
+            row.push(exp.account_number || "N/A");
+            break;
+          case "IFSC":
+            row.push(exp.ifsc || "N/A");
+            break;
+          case "Transaction Type":
+            row.push(exp.payment_type || "N/A");
+            break;
+          case "Debit Account No.":
+            row.push(exp.debit_account || "—");
+            break;
+          case "Transaction Date":
+            row.push(
+              exp.value_date ? new Date(exp.value_date).toLocaleDateString("en-IN") : "—"
+            );
+            break;
+          case "Amount":
+            row.push(exp.approved_amount ?? exp.amount ?? "—");
+            break;
+          case "Currency":
+            row.push(exp.currency || "INR");
+            break;
+          case "Beneficiary Email ID":
+            row.push(exp.email || "—");
+            break;
+          case "Remark":
+            row.push(exp.remarks ?? exp.remark ?? "—");
+            break;
           default: row.push("—");
         }
       }
