@@ -196,7 +196,13 @@ export default function PaymentProcessingOnly() {
             row.push(exp.email || "—");
             break;
           case "Remark":
-            row.push(exp.remarks ?? exp.remark ?? "—");
+            {
+              const createdBy = exp.creator_name || exp.creator?.full_name || "—";
+              const approvedBy = exp.approver_name || exp.approver?.full_name || "—";
+              const location = exp.location || "—";
+              const remark = `${createdBy}, ${approvedBy}, ${location}`;
+              row.push(remark);
+            }
             break;
           default: row.push("—");
         }
