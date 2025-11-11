@@ -4,6 +4,7 @@ import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Eye, Download, Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -53,6 +54,7 @@ export default function PaymentProcessingOnly() {
   const router = useRouter();
 
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showFormatModal, setShowFormatModal] = useState(false);
 
   const allColumns = [
     "Beneficiary Name", "Beneficiary Account Number", "IFSC",
@@ -162,7 +164,7 @@ export default function PaymentProcessingOnly() {
     const headers = selectedColumns;
 
     const rows = processingExpenses.map((exp) => {
-      const row = [];
+      const row: any[] = [];
 
       for (const col of headers) {
         switch (col) {
@@ -196,7 +198,13 @@ export default function PaymentProcessingOnly() {
             row.push(exp.email || "—");
             break;
           case "Remark":
-            row.push(exp.remarks ?? exp.remark ?? "—");
+            {
+              const createdBy = exp.creator_name || exp.creator?.full_name || "—";
+              const approvedBy = exp.approver_name || exp.approver?.full_name || "—";
+              const location = exp.location || "—";
+              const remark = `${location}, ${createdBy}, ${approvedBy}`;
+              row.push(remark);
+            }
             break;
           default: row.push("—");
         }
@@ -215,6 +223,76 @@ export default function PaymentProcessingOnly() {
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", "payment_processing.csv");
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToXLSX = () => {
+    const headers = selectedColumns;
+
+    const rows = processingExpenses.map((exp) => {
+      const row: any[] = [];
+
+      for (const col of headers) {
+        switch (col) {
+          case "Beneficiary Name":
+            row.push(exp.beneficiary_name || "N/A");
+            break;
+          case "Beneficiary Account Number":
+            row.push(exp.account_number || "N/A");
+            break;
+          case "IFSC":
+            row.push(exp.ifsc || "N/A");
+            break;
+          case "Transaction Type":
+            row.push(exp.payment_type || "N/A");
+            break;
+          case "Debit Account No.":
+            row.push(exp.debit_account || "N/A");
+            break;
+          case "Transaction Date":
+            row.push(
+              exp.value_date ? new Date(exp.value_date).toLocaleDateString("en-IN") : "N/A"
+            );
+            break;
+          case "Amount":
+            row.push(exp.approved_amount ?? exp.amount ?? "N/A");
+            break;
+          case "Currency":
+            row.push(exp.currency || "INR");
+            break;
+          case "Beneficiary Email ID":
+            row.push(exp.email || "N/A");
+            break;
+          case "Remark":
+            {
+              const createdBy = exp.creator_name || exp.creator?.full_name || "—";
+              const approvedBy = exp.approver_name || exp.approver?.full_name || "—";
+              const location = exp.location || "—";
+              const remark = `${location}, ${createdBy}, ${approvedBy}`;
+              row.push(remark);
+            }
+            break;
+          default:
+            row.push("—");
+        }
+      }
+
+      return row;
+    });
+
+    const data = [headers, ...rows];
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Payments");
+
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "payment_processing.xlsx";
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -292,7 +370,7 @@ export default function PaymentProcessingOnly() {
             variant="outline"
           >
             <Download className="w-4 h-4" />
-            Export to CSV
+            Export csv or .xlsx
           </Button>
         </div>
       </div>
@@ -632,14 +710,50 @@ export default function PaymentProcessingOnly() {
           <DialogFooter className="mt-4">
             <Button
               onClick={() => {
-                exportToCSV();
+                // Close columns modal and open format chooser
                 setShowExportModal(false);
+                setShowFormatModal(true);
               }}
               disabled={selectedColumns.length === 0}
+              className="cursor-pointer"
             >
-              Download CSV
+              Download
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Format chooser modal: CSV or Excel */}
+      <Dialog open={showFormatModal} onOpenChange={setShowFormatModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choose export format</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Which format would you like to download?</p>
+            <div className="flex gap-2">
+               <Button
+                onClick={() => {
+                  exportToXLSX();
+                  setShowFormatModal(false);
+                }}
+                disabled={selectedColumns.length === 0}
+                className="cursor-pointer"
+              >
+                Microsoft Excel (.xlsx)
+              </Button>
+              <Button
+                onClick={() => {
+                  exportToCSV();
+                  setShowFormatModal(false);
+                }}
+                disabled={selectedColumns.length === 0}
+                className="cursor-pointer"
+              >
+                CSV
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
       {/* Confirm Mark All as Paid */}
