@@ -57,7 +57,7 @@ export default function PaymentProcessingOnly() {
   const [showFormatModal, setShowFormatModal] = useState(false);
 
   const allColumns = [
-    "Beneficiary Name", "Beneficiary Account Number", "IFSC",
+    "beneficiary name", "Beneficiary Account Number", "IFSC",
     "Transaction Type", "Debit Account No.", "Transaction Date", "Amount", "Currency", "Beneficiary Email ID", "Remark"
   ];
   const [selectedColumns, setSelectedColumns] = useState<string[]>([...allColumns]);
@@ -163,12 +163,26 @@ export default function PaymentProcessingOnly() {
   const exportToCSV = () => {
     const headers = selectedColumns;
 
+    // Descriptions for each column to match the provided Excel template
+    const descriptionsMap: Record<string, string> = {
+      "beneficiary name": "Enter Beneficiary name. MANDATORY",
+      "Beneficiary Account Number": "Enter Beneficiary account number. This can be IDFC FIRST Bank account or other Bank account. MANDATORY",
+      "IFSC": "Enter beneficiary bank IFSC code. Required only for Inter bank (NEFT/RTGS) payment.",
+      "Transaction Type": "Enter Payment type: IFT- Within Bank Payment, NEFT- Inter-Bank(NEFT) Payment, RTGS- Inter-Bank(RTGS) Payment. MANDATORY",
+      "Debit Account No.": "Enter Debit account number. This should be IDFC FIRST Bank account number only. User should have access to do transaction on this account. MANDATORY",
+      "Transaction Date": "Enter transaction value date. Should be today's date or future date. MANDATORY DD/MM/YYYY format",
+      "Amount": "Enter Payment amount. MANDATORY",
+      "Currency": "Enter transaction currency. Should be INR only. MANDATORY",
+      "Beneficiary Email ID": "Enter beneficiary email id. OPTIONAL",
+      "Remark": "Enter Remarks OPTIONAL",
+    };
+
     const rows = processingExpenses.map((exp) => {
       const row: any[] = [];
 
       for (const col of headers) {
         switch (col) {
-          case "Beneficiary Name":
+          case "beneficiary name":
             row.push(exp.beneficiary_name || "N/A");
             break;
           case "Beneficiary Account Number":
@@ -213,10 +227,12 @@ export default function PaymentProcessingOnly() {
       return row;
     });
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(","))
-    ].join("\n");
+    // Build CSV with header row + description row + data rows
+    const csvRows: string[] = [];
+    csvRows.push(headers.map((h) => `"${h}"`).join(","));
+    csvRows.push(headers.map((h) => `"${(descriptionsMap[h] || "").replace(/"/g, '""')}"`).join(","));
+    csvRows.push(...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")));
+    const csvContent = csvRows.join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -230,12 +246,25 @@ export default function PaymentProcessingOnly() {
   const exportToXLSX = () => {
     const headers = selectedColumns;
 
+    const descriptionsMap: Record<string, string> = {
+      "beneficiary name": "Enter Beneficiary name. MANDATORY",
+      "Beneficiary Account Number": "Enter Beneficiary account number. This can be IDFC FIRST Bank account or other Bank account. MANDATORY",
+      "IFSC": "Enter beneficiary bank IFSC code. Required only for Inter bank (NEFT/RTGS) payment.",
+      "Transaction Type": "Enter Payment type: IFT- Within Bank Payment, NEFT- Inter-Bank(NEFT) Payment, RTGS- Inter-Bank(RTGS) Payment. MANDATORY",
+      "Debit Account No.": "Enter Debit account number. This should be IDFC FIRST Bank account number only. User should have access to do transaction on this account. MANDATORY",
+      "Transaction Date": "Enter transaction value date. Should be today's date or future date. MANDATORY DD/MM/YYYY format",
+      "Amount": "Enter Payment amount. MANDATORY",
+      "Currency": "Enter transaction currency. Should be INR only. MANDATORY",
+      "Beneficiary Email ID": "Enter beneficiary email id. OPTIONAL",
+      "Remark": "Enter Remarks OPTIONAL",
+    };
+
     const rows = processingExpenses.map((exp) => {
       const row: any[] = [];
 
       for (const col of headers) {
         switch (col) {
-          case "Beneficiary Name":
+          case "beneficiary name":
             row.push(exp.beneficiary_name || "N/A");
             break;
           case "Beneficiary Account Number":
@@ -281,9 +310,15 @@ export default function PaymentProcessingOnly() {
       return row;
     });
 
-    const data = [headers, ...rows];
+    // Include a second row of descriptions so Excel shows the guidance below headers
+    const descRow = headers.map((h) => descriptionsMap[h] || "");
+    const data = [headers, descRow, ...rows];
 
     const ws = XLSX.utils.aoa_to_sheet(data);
+
+    // Optionally set column widths for better readability
+    ws["!cols"] = headers.map(() => ({ wch: 30 }));
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Payments");
 
@@ -758,7 +793,7 @@ export default function PaymentProcessingOnly() {
           <div className="space-y-4">
             <p className="text-sm text-gray-600">Which format would you like to download?</p>
             <div className="flex gap-2">
-               <Button
+              <Button
                 onClick={() => {
                   handleExportXLSX();
                 }}
