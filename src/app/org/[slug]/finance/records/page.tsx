@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
-import { IndianRupee, Pencil, Save } from "lucide-react";
+import { IndianRupee, Pencil, Save, Trash2 } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,10 @@ export default function PaymentRecords() {
     expenseId: null as null | string,
   });
   const [enteredPassword, setEnteredPassword] = useState("");
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string | null }>({
+    open: false,
+    id: null,
+  });
   
   const ADMIN_PASSWORD = "admin"; // your password
 
@@ -142,6 +146,7 @@ export default function PaymentRecords() {
                 </div>
               </TableHead>
               <TableHead className="text-center py-3">Payment Status</TableHead>
+              <TableHead className="text-center py-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -261,6 +266,18 @@ export default function PaymentRecords() {
                       {record.payment_status}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-center py-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDeleteModal({ open: true, id: record.id })}
+                        className="flex items-center gap-2 border border-red-300 hover:bg-red-50 text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -322,6 +339,54 @@ export default function PaymentRecords() {
               }}
             >
               Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation modal */}
+      <Dialog open={deleteModal.open} onOpenChange={() => setDeleteModal({ open: false, id: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Payment Record</DialogTitle>
+          </DialogHeader>
+          <div>
+            <p>Are you sure you want to delete this payment record? This action cannot be undone.</p>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteModal({ open: false, id: null })}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const id = deleteModal.id;
+                if (!id) return;
+                try {
+                  // Only remove from Payment Records by clearing payment_status
+                  const { error } = await supabase
+                    .from("expense_new")
+                    .update({ payment_status: null })
+                    .eq("id", id);
+
+                  if (error) throw error;
+
+                  // Remove from local UI list
+                  setRecords((prev) => prev.filter((r) => r.id !== id));
+                  toast.success("Record removed from Payment Records");
+                } catch (err: any) {
+                  toast.error("Failed to remove record", { description: err.message });
+                } finally {
+                  setDeleteModal({ open: false, id: null });
+                }
+              }}
+              className="cursor-pointer"
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
