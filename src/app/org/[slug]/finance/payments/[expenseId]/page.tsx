@@ -218,7 +218,7 @@ export default function PaymentProcessingDetails() {
     return (
         <div className="p-6 space-y-6">
             {/* Header */}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center">
                 <Button
                     variant="outline"
                     onClick={() => router.push(`/org/${expense.org_id}/finance`)}
@@ -226,50 +226,7 @@ export default function PaymentProcessingDetails() {
                 >
                     ← Back to Payment Processing
                 </Button>
-                <div className="flex gap-2">
-                    {/* <Button
-                        onClick={async () => {
-                            // Approve (mark as paid / finance approved)
-                            if (!expenseId) return;
-                            setProcessing(true);
-                            const { error } = await expenses.updateByFinance(
-                                expenseId as string,
-                                true,
-                                "Approved by Finance"
-                            );
-                            if (error) toast.error("Approval failed");
-                            else {
-                                // Log history
-                                try {
-                                    const { data: userData } = await auth.getUser();
-                                    const currentUserId = userData.user?.id || "";
-                                    let userName = userData.user?.email || "Unknown User";
-                                    if (currentUserId) {
-                                        const profRes = await profiles.getByUserId(currentUserId);
-                                        const fullName = (profRes as any)?.data?.full_name as string | undefined;
-                                        if (fullName) userName = fullName;
-                                    }
-                                    await expenseHistory.addEntry(
-                                        expenseId as string,
-                                        currentUserId,
-                                        userName,
-                                        "finance_approved",
-                                        null,
-                                        "Approved by Finance"
-                                    );
-                                } catch (logErr) {
-                                    console.error("Failed to log finance_approved entry:", logErr);
-                                }
-                                toast.success("Approved by Finance");
-                                router.push(`/org/${expense.org_id}/finance`);
-                            }
-                            setProcessing(false);
-                        }}
-                        disabled={processing}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                        Approve
-                    </Button> */}
+                <div className="flex gap-2 mt-2 md:mt-0">
                     <Button
                         onClick={handleFinanceApprove}
                         disabled={processing}
