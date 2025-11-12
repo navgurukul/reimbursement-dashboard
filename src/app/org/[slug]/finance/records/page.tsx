@@ -367,10 +367,10 @@ export default function PaymentRecords() {
                 const id = deleteModal.id;
                 if (!id) return;
                 try {
-                  // Only remove from Payment Records by clearing payment_status
+                  // Mark the record as removed so it doesn't reappear in Payment Processing
                   const { error } = await supabase
                     .from("expense_new")
-                    .update({ payment_status: null })
+                    .update({ payment_status: "removed" })
                     .eq("id", id);
 
                   if (error) throw error;
