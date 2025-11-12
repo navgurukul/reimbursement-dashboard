@@ -297,6 +297,32 @@ export default function PaymentProcessingOnly() {
     URL.revokeObjectURL(url);
   };
 
+  // Validate that if Transaction Date column is selected, all rows have a value_date
+  const validateTransactionDatesForExport = () => {
+    if (selectedColumns.includes("Transaction Date")) {
+      const missing = processingExpenses.filter((exp) => !exp.value_date || exp.value_date === "");
+      if (missing.length > 0) {
+        // Show a clear notification and prevent the export
+        toast.error("Please add Transaction Date for all expenses before exporting.", {
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleExportXLSX = () => {
+    if (!validateTransactionDatesForExport()) return;
+    exportToXLSX();
+    setShowFormatModal(false);
+  };
+
+  const handleExportCSV = () => {
+    if (!validateTransactionDatesForExport()) return;
+    exportToCSV();
+    setShowFormatModal(false);
+  };
+
   const handleMarkAsPaid = async () => {
     if (!orgId || processingExpenses.length === 0) {
       toast.warning("No expenses to mark as paid.");
@@ -734,8 +760,7 @@ export default function PaymentProcessingOnly() {
             <div className="flex gap-2">
                <Button
                 onClick={() => {
-                  exportToXLSX();
-                  setShowFormatModal(false);
+                  handleExportXLSX();
                 }}
                 disabled={selectedColumns.length === 0}
                 className="cursor-pointer"
@@ -744,8 +769,7 @@ export default function PaymentProcessingOnly() {
               </Button>
               <Button
                 onClick={() => {
-                  exportToCSV();
-                  setShowFormatModal(false);
+                  handleExportCSV();
                 }}
                 disabled={selectedColumns.length === 0}
                 className="cursor-pointer"
