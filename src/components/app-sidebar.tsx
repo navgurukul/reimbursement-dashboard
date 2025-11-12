@@ -13,7 +13,7 @@ import { FileText, Landmark } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   LayoutDashboard,
-  Receipt,
+  IndianRupee,
   Users,
   Calendar,
   Settings,
@@ -172,7 +172,7 @@ export function AppSidebar() {
     {
       title: "Expenses",
       href: `/org/${organization?.slug}/expenses`,
-      icon: Receipt,
+      icon: IndianRupee,
     },
     { title: "Team", href: `/org/${organization?.slug}/team`, icon: Users },
     {
@@ -195,7 +195,7 @@ export function AppSidebar() {
         {
           title: "Bank Details",
           href: `/org/${organization?.slug}/bank-details`,
-          icon: Receipt,
+          icon: IndianRupee,
         },
       ]
       : []),
