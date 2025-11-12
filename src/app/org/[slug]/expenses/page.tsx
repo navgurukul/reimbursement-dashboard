@@ -545,7 +545,7 @@ export default function ExpensesPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Total</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Expense </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl">{stats.total}</div>
@@ -553,7 +553,7 @@ export default function ExpensesPage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Approved</CardTitle>
+                  <CardTitle className="text-sm font-medium">Manager Approved</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl text-green-600">{stats.approved}</div>
@@ -569,7 +569,7 @@ export default function ExpensesPage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Pending</CardTitle>
+                  <CardTitle className="text-sm font-medium">Expense Pending</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl  text-amber-600">{stats.pending}</div>
@@ -577,7 +577,7 @@ export default function ExpensesPage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+                  <CardTitle className="text-sm font-medium">Manager Rejected</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl text-red-600">{stats.rejected}</div>
@@ -980,8 +980,12 @@ export default function ExpensesPage() {
                                       : "bg-gray-100 text-gray-800"
                                 }`}
                             >
-                              {exp.status.charAt(0).toUpperCase() +
-                                exp.status.slice(1)}
+                                {exp.status === "approved"
+                                  ? "Manager_Approved"
+                                  : (exp.status === "rejected" || exp.status === "manager_rejected")
+                                    ? "Manager_Reject"
+                                    : exp.status.charAt(0).toUpperCase() +
+                                      exp.status.slice(1)}
                             </span>
                           </TableCell>
                           <TableCell>

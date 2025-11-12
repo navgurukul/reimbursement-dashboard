@@ -3,14 +3,23 @@
 import supabase from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { expenses, expenseEvents } from "@/lib/db";
+import { expenses, expenseEvents, expenseHistory, auth, profiles } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Clock } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import ExpenseHistory from "../../../expenses/[id]/history/expense-history"
 
 
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Table,
     TableBody,
@@ -29,6 +38,9 @@ export default function PaymentProcessingDetails() {
     const [expense, setExpense] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [hasVoucher, setHasVoucher] = useState(false);
+    const [processing, setProcessing] = useState(false);
+    const [showCommentBox, setShowCommentBox] = useState(false);
+    const [comment, setComment] = useState("");
     const [eventTitle, setEventTitle] = useState<string | null>(null);
 
     useEffect(() => {
@@ -108,13 +120,105 @@ export default function PaymentProcessingDetails() {
         }
     };
 
+    const handleFinanceReject = async () => {
+        if (!comment.trim()) {
+            toast.error("Please add a comment for rejection.");
+            return;
+        }
+
+        setProcessing(true);
+        const { error } = await expenses.updateByFinance(
+            expenseId as string,
+            false,
+            comment
+        );
+        if (error) toast.error("Rejection failed");
+        else {
+            // Log history
+            try {
+                const { data: userData } = await auth.getUser();
+                const currentUserId = userData.user?.id || "";
+                let userName = userData.user?.email || "Unknown User";
+                if (currentUserId) {
+                    const profRes = await profiles.getByUserId(currentUserId);
+                    const fullName = (profRes as any)?.data?.full_name as string | undefined;
+                    if (fullName) userName = fullName;
+                }
+                await expenseHistory.addEntry(
+                    expenseId as string,
+                    currentUserId,
+                    userName,
+                    "finance_rejected",
+                    null,
+                    comment || "Rejected by Finance"
+                );
+            } catch (logErr) {
+                console.error("Failed to log finance_rejected entry:", logErr);
+            }
+            toast.success("Rejected by Finance");
+            router.push(`/org/${expense.org_id}/finance`);
+        }
+        setProcessing(false);
+    };
+
+    const handleFinanceApprove = async () => {
+        if (!expenseId) return;
+        setProcessing(true);
+        const { error } = await expenses.updateByFinance(
+            expenseId as string,
+            true,
+            "Approved by Finance"
+        );
+        if (error) {
+            toast.error("Approval failed");
+        } else {
+            // Log history
+            try {
+                const { data: userData } = await auth.getUser();
+                const currentUserId = userData.user?.id || "";
+                let userName = userData.user?.email || "Unknown User";
+                if (currentUserId) {
+                    const profRes = await profiles.getByUserId(currentUserId);
+                    const fullName = (profRes as any)?.data?.full_name as string | undefined;
+                    if (fullName) userName = fullName;
+                }
+                await expenseHistory.addEntry(
+                    expenseId as string,
+                    currentUserId,
+                    userName,
+                    "finance_approved",
+                    null,
+                    "Approved by Finance"
+                );
+            } catch (logErr) {
+                console.error("Failed to log finance_approved entry:", logErr);
+            }
+            // Also mark as paid so it appears in Payment Records
+            try {
+                const { error: payErr } = await supabase
+                    .from("expense_new")
+                    .update({ payment_status: "paid" })
+                    .eq("id", expenseId);
+
+                if (payErr) {
+                    console.error("Failed to mark expense as paid:", payErr);
+                }
+            } catch (err) {
+                console.error("Error updating payment_status:", err);
+            }
+            toast.success("Approved by Finance");
+            router.push(`/org/${expense.org_id}/finance`);
+        }
+        setProcessing(false);
+    };
+
     if (loading) return <div className="p-6 text-gray-600">Loading...</div>;
     if (!expense) return <div className="p-6 text-red-600">Expense not found</div>;
 
     return (
         <div className="p-6 space-y-6">
             {/* Header */}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center">
                 <Button
                     variant="outline"
                     onClick={() => router.push(`/org/${expense.org_id}/finance`)}
@@ -122,6 +226,23 @@ export default function PaymentProcessingDetails() {
                 >
                     ← Back to Payment Processing
                 </Button>
+                <div className="flex gap-2 mt-2 md:mt-0">
+                    <Button
+                        onClick={handleFinanceApprove}
+                        disabled={processing}
+                        className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
+                    >
+                        Approve
+                    </Button>
+                    <Button
+                        onClick={() => setShowCommentBox(true)}
+                        disabled={processing}
+                        variant="destructive"
+                        className="cursor-pointer"
+                    >
+                        Reject
+                    </Button>
+                </div>
             </div>
 
             {/* Grid Layout */}
@@ -251,6 +372,35 @@ export default function PaymentProcessingDetails() {
                         </Card>
                     </div>
                 </div>
+                <Dialog open={showCommentBox} onOpenChange={setShowCommentBox}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Rejection Comment</DialogTitle>
+                            <DialogDescription>
+                                Please provide a reason for rejecting this expense. This is required.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="mt-2 border border-red-300 rounded p-3 space-y-2">
+                            <Textarea
+                                id="comment"
+                                rows={6}
+                                value={comment}
+                                onChange={(e) => setComment(e.target.value)}
+                                placeholder="Please write reason for rejection..."
+                            />
+                        </div>
+
+                        <DialogFooter className="mt-4">
+                            <Button variant="outline" className="cursor-pointer" onClick={() => setShowCommentBox(false)}>
+                                Cancel
+                            </Button>
+                            <Button variant="destructive" className="cursor-pointer" onClick={handleFinanceReject}>
+                                Submit Rejection
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     );

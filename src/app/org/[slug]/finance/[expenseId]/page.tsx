@@ -16,6 +16,14 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Clock } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import ExpenseHistory from "../../expenses/[id]/history/expense-history"
 
 import supabase from "@/lib/supabase"; // Make sure this is correctly imported
@@ -215,7 +223,7 @@ export default function FinanceExpenseDetails() {
           <Button
             onClick={handleFinanceApprove}
             disabled={processing}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
           >
             Approve
           </Button>
@@ -223,6 +231,7 @@ export default function FinanceExpenseDetails() {
             onClick={() => setShowCommentBox(true)}
             disabled={processing}
             variant="destructive"
+            className="cursor-pointer"
           >
             Reject
           </Button>
@@ -353,34 +362,45 @@ export default function FinanceExpenseDetails() {
           </Card>
         </div>
       </div>
-      {/* Rejection comment box */}
 
-      {showCommentBox && (
-          <div className="w-full sm:max-w-[600px] md:max-w-[354px] lg:max-w-[374px] xl:max-w-[610px] 2xl:max-w-[847px] mt-2 space-y-4">
-          <div className="bg-red-50 border border-red-300 rounded p-3 space-y-2">
-            <label className="block font-medium text-red-800">
-              Rejection Reason <span className="text-red-600">*</span>
-            </label>
-            <Textarea
-              rows={3}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Enter rejection reason..."
-              className="w-full"
-            />
-            <div className="text-right">
-              <Button
-                variant="destructive"
-                onClick={handleFinanceReject}
-                disabled={processing}
-              >
-                Submit Rejection
-              </Button>
+      <Dialog open={showCommentBox} onOpenChange={setShowCommentBox}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejection Reason</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for rejecting this expense.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="w-full mt-2">
+            <div className="border border-red-300 rounded p-3 space-y-2">
+              <label className="block font-medium">
+              </label>
+              <Textarea
+                rows={4}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Enter rejection reason..."
+                className="w-full"
+              />
             </div>
           </div>
-        </div>
 
-      )}
+          <DialogFooter className="mt-4">
+            <Button variant="outline" className="cursor-pointer" onClick={() => setShowCommentBox(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleFinanceReject}
+              disabled={processing}
+              className="cursor-pointer"
+            >
+              Submit Rejection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
