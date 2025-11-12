@@ -139,7 +139,7 @@ export default function PaymentProcessingOnly() {
             beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "N/A",
             account_number: exp.account_number || matchedBank?.account_number || "N/A",
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "N/A",
-            debit_account: exp.debit_account || "32145624619",
+            debit_account: exp.debit_account || "10064244213",
             utr: exp.utr || "N/A",
             // remarks: exp.remarks || "Pune campuses 2 Hariom",
             unique_id: matchedBank?.unique_id || "N/A",
