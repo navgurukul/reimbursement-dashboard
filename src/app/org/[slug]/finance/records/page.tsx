@@ -76,7 +76,25 @@ export default function PaymentRecords() {
           event_title: r.event_id ? eventTitleMap[r.event_id] || "N/A" : "N/A",
         }));
 
-        setRecords(withTitles);
+        // Fetch bank details to enrich records with user's unique_id (if available)
+        try {
+          const { data: bankData, error: bankError } = await supabase.from("bank_details").select("*");
+          if (bankError) throw bankError;
+
+          const enriched = withTitles.map((r: any) => {
+            const matched = bankData?.find((b: any) => b.email === r.creator_email);
+            return {
+              ...r,
+              unique_id: r.unique_id || matched?.unique_id || "N/A",
+            };
+          });
+
+          setRecords(enriched);
+        } catch (bankErr) {
+          // If bank details fetch fails, fall back to existing titles and default Unique ID
+          const fallback = withTitles.map((r: any) => ({ ...r, unique_id: r.unique_id || "N/A" }));
+          setRecords(fallback);
+        }
       } catch (err: any) {
         toast.error("Failed to load records", { description: err.message });
       } finally {
@@ -100,6 +118,7 @@ export default function PaymentRecords() {
             <TableRow>
               <TableHead className="text-center py-3">S.No.</TableHead>
               <TableHead className="text-center py-3">Email</TableHead>
+              <TableHead className="text-center py-3">Unique ID</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Location</TableHead>
@@ -154,11 +173,11 @@ export default function PaymentRecords() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-6">Loading...</TableCell>
+                <TableCell colSpan={12} className="text-center py-6">Loading...</TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
                   No payment records found.
                 </TableCell>
               </TableRow>
@@ -167,6 +186,7 @@ export default function PaymentRecords() {
                 <TableRow key={record.id}>
                   <TableCell className="text-center py-2">{index + 1}</TableCell>
                   <TableCell className="text-center py-2">{record.creator_email}</TableCell>
+                  <TableCell className="text-center py-2">{record.unique_id || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">{record.expense_type}</TableCell>
                   <TableCell className="text-center py-2">{record.event_title || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">{record.location || "N/A"}</TableCell>
