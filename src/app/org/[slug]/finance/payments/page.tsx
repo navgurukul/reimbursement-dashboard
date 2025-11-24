@@ -2,6 +2,7 @@
 
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
+import { formatDateTime } from '@/lib/utils';
 import supabase from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
@@ -441,6 +442,7 @@ export default function PaymentProcessingOnly() {
           <TableHeader className="bg-gray-50">
             <TableRow>
               <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
+              <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
               <TableHead className="px-4 py-3 text-center">Expense Type</TableHead>
               <TableHead className="px-4 py-3 text-center">Created By</TableHead>
               <TableHead className="px-4 py-3 text-center">Email</TableHead>
@@ -518,6 +520,7 @@ export default function PaymentProcessingOnly() {
               processingExpenses.map((expense, index) => (
                 <TableRow key={expense.id} className="hover:bg-gray-50 transition py-3">
                   <TableCell className="px-4 py-3 text-center">{index + 1}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{formatDateTime(expense.created_at)}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.expense_type || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.creator_name}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.email}</TableCell>

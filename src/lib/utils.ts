@@ -16,6 +16,28 @@ export function formatDate(date: string | Date): string {
   });
 }
 
+export function formatDateTime(date: string | Date | undefined | null): string {
+  if (!date) return "—";
+  try {
+    const d = new Date(date as string);
+    const opts: Intl.DateTimeFormatOptions = {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata",
+    };
+    // Use en-IN locale so date/time order matches Indian format
+    const formatted = d.toLocaleString("en-IN", opts);
+    // Append IST label for clarity
+    return `${formatted}`;
+  } catch (e) {
+    return String(date);
+  }
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

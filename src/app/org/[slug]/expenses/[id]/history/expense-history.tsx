@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { expenseHistory } from '@/lib/db';
-import { format } from 'date-fns';
+import { formatDateTime } from '@/lib/utils';
 import { ClockIcon } from 'lucide-react';
 
 interface ExpenseHistoryProps {
@@ -144,7 +144,7 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
                 </span>
               </div>
               <p className="text-xs text-gray-500 mb-1">
-                {format(new Date(item.created_at), 'MMM dd, yyyy, h:mm a')}
+                {formatDateTime(item.created_at)}
               </p>
               <div className="text-sm text-gray-700">
                 <p>{getActivityMessage(item)}</p>

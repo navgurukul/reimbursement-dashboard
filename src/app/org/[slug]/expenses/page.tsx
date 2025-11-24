@@ -36,7 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 
 const defaultExpenseColumns = [
@@ -857,6 +857,7 @@ export default function ExpensesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>S.No.</TableHead>
+                      <TableHead>Timestamp</TableHead>
                       {columns
                         .filter((c) => c.visible)
                         .map((c) => (
@@ -900,6 +901,9 @@ export default function ExpensesPage() {
                       filteredData.map((exp, index) => (
                         <TableRow key={exp.id}>
                           <TableCell className="w-12 text-center">{index + 1}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {formatDateTime(exp.created_at)}
+                          </TableCell>
                           {columns
                             .filter((c) => c.visible)
                             .map((c) => (

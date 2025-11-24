@@ -6,6 +6,7 @@ import { expenses } from "@/lib/db";
 import { useParams } from "next/navigation";
 import { IndianRupee, Pencil, Save, Trash2 } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { formatDateTime } from '@/lib/utils';
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -150,6 +151,7 @@ export default function PaymentRecords() {
           <TableHeader className="bg-gray-50">
             <TableRow>
               <TableHead className="text-center py-3">S.No.</TableHead>
+              <TableHead className="text-center py-3">Timestamp</TableHead>
               <TableHead className="text-center py-3">Email</TableHead>
               <TableHead className="text-center py-3">Unique ID</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
@@ -207,11 +209,11 @@ export default function PaymentRecords() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-6">Loading...</TableCell>
+                <TableCell colSpan={14} className="text-center py-6">Loading...</TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
                   No payment records found.
                 </TableCell>
               </TableRow>
@@ -219,6 +221,7 @@ export default function PaymentRecords() {
               records.map((record, index) => (
                 <TableRow key={record.id}>
                   <TableCell className="text-center py-2">{index + 1}</TableCell>
+                  <TableCell className="text-center py-2">{formatDateTime(record.updated_at || record.created_at)}</TableCell>
                   <TableCell className="text-center py-2">{record.creator_email}</TableCell>
                   <TableCell className="text-center py-2">{record.unique_id || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">{record.expense_type}</TableCell>
