@@ -98,6 +98,7 @@ export default function PaymentRecords() {
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-50">
             <TableRow>
+              <TableHead className="text-center py-3">S.No.</TableHead>
               <TableHead className="text-center py-3">Email</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
@@ -153,17 +154,18 @@ export default function PaymentRecords() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6">Loading...</TableCell>
+                <TableCell colSpan={11} className="text-center py-6">Loading...</TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
                   No payment records found.
                 </TableCell>
               </TableRow>
             ) : (
-              records.map((record) => (
+              records.map((record, index) => (
                 <TableRow key={record.id}>
+                  <TableCell className="text-center py-2">{index + 1}</TableCell>
                   <TableCell className="text-center py-2">{record.creator_email}</TableCell>
                   <TableCell className="text-center py-2">{record.expense_type}</TableCell>
                   <TableCell className="text-center py-2">{record.event_title || "N/A"}</TableCell>

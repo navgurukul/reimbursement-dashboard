@@ -163,6 +163,7 @@ export default function FinanceReview() {
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-50">
             <TableRow>
+              <TableHead className="text-center py-3">S.No.</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Location</TableHead>
@@ -177,22 +178,23 @@ export default function FinanceReview() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-6">
+                <TableCell colSpan={10} className="text-center py-6">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : expenseList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={10} className="text-center py-6 text-gray-500">
                   No expenses pending finance review
                 </TableCell>
               </TableRow>
             ) : (
-              expenseList.map((expense) => (
+              expenseList.map((expense, index) => (
                 <TableRow
                   key={expense.id}
                   className="hover:bg-gray-50 transition-all py-3"
                 >
+                  <TableCell className="text-center py-3">{index + 1}</TableCell>
                   <TableCell className="text-center py-3">{expense.expense_type}</TableCell>
                   <TableCell className="text-center py-3">{expense.event_title || "N/A"}</TableCell>
                   <TableCell className="text-center py-3">{expense.location || "N/A"}</TableCell>

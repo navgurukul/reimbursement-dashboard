@@ -856,6 +856,7 @@ export default function ExpensesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>S.No.</TableHead>
                       {columns
                         .filter((c) => c.visible)
                         .map((c) => (
@@ -869,7 +870,7 @@ export default function ExpensesPage() {
                     {loading ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 2}
+                          colSpan={columns.filter((c) => c.visible).length + 3}
                           className="text-center py-4"
                         >
                           Loading…
@@ -878,7 +879,7 @@ export default function ExpensesPage() {
                     ) : getCurrent().length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 2}
+                          colSpan={columns.filter((c) => c.visible).length + 3}
                           className="text-center py-4 text-muted-foreground"
                         >
                           No expenses.
@@ -887,7 +888,7 @@ export default function ExpensesPage() {
                     ) : filteredData.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 2}
+                          colSpan={columns.filter((c) => c.visible).length + 3}
                           className="text-center py-4 text-muted-foreground"
                         >
                           {filters.amountMin || filters.amountMax
@@ -896,8 +897,9 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredData.map((exp) => (
+                      filteredData.map((exp, index) => (
                         <TableRow key={exp.id}>
+                          <TableCell className="w-12 text-center">{index + 1}</TableCell>
                           {columns
                             .filter((c) => c.visible)
                             .map((c) => (
