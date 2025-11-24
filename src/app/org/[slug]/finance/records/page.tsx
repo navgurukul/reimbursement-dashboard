@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
+import { expenses } from "@/lib/db";
+import { useParams } from "next/navigation";
 import { IndianRupee, Pencil, Save, Trash2 } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
@@ -18,7 +20,8 @@ import {
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const { slug } = useParams();
+
   // State for UTR editing functionality
   const [editingFields, setEditingFields] = useState<Record<string, { utr?: boolean }>>({});
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
@@ -31,7 +34,7 @@ export default function PaymentRecords() {
     open: false,
     id: null,
   });
-  
+
   const ADMIN_PASSWORD = "admin"; // your password
 
   useEffect(() => {
@@ -48,6 +51,36 @@ export default function PaymentRecords() {
         if (error) throw error;
 
         const rows = data || [];
+
+        // Fetch vouchers for these records (if any)
+        try {
+          const expenseIds = rows.map((r: any) => r.id).filter(Boolean);
+          if (expenseIds.length > 0) {
+            const { data: allVouchers, error: voucherError } = await supabase
+              .from("vouchers")
+              .select("*")
+              .in("expense_id", expenseIds);
+
+            const voucherMap: Record<string, any> = {};
+            if (!voucherError && allVouchers) {
+              allVouchers.forEach((v: any) => {
+                voucherMap[v.expense_id] = v;
+              });
+            }
+
+            // attach voucher info to rows
+            rows.forEach((r: any) => {
+              const voucher = voucherMap[r.id];
+              if (voucher) {
+                r.hasVoucher = true;
+                r.voucherId = voucher.id;
+              }
+            });
+          }
+        } catch (vErr) {
+          // non-critical: continue without voucher data
+          console.error("Error fetching vouchers for records:", vErr);
+        }
 
         // Bulk fetch event titles
         const eventIds = [
@@ -123,6 +156,7 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Location</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
+              <TableHead className="text-center py-3">Bills</TableHead>
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
               <TableHead className="text-center py-3">
@@ -173,11 +207,11 @@ export default function PaymentRecords() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-6">Loading...</TableCell>
+                <TableCell colSpan={13} className="text-center py-6">Loading...</TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={13} className="text-center py-6 text-gray-500">
                   No payment records found.
                 </TableCell>
               </TableRow>
@@ -191,6 +225,40 @@ export default function PaymentRecords() {
                   <TableCell className="text-center py-2">{record.event_title || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">{record.location || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">₹{record.approved_amount}</TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.receipt ? (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto font-normal cursor-pointer text-blue-600"
+                        onClick={() => {
+                          if (record.receipt?.path) {
+                            expenses.getReceiptUrl(record.receipt.path).then(({ url, error }) => {
+                              if (error) {
+                                console.error("Error getting receipt URL:", error);
+                                toast.error("Failed to load receipt");
+                              } else if (url) {
+                                window.open(url, "_blank");
+                              }
+                            });
+                          }
+                        }}
+                      >
+                        View Receipt
+                      </Button>
+                    ) : record.hasVoucher ? (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto font-normal cursor-pointer text-blue-600"
+                        onClick={() => window.open(`/org/${slug}/expenses/${record.id}/voucher`, "_blank")}
+                      >
+                        View Voucher
+                      </Button>
+                    ) : (
+                      "No receipt or voucher"
+                    )}
+                  </TableCell>
                   <TableCell className="text-center py-2">
                     {new Date(record.date).toLocaleDateString("en-IN")}
                   </TableCell>
