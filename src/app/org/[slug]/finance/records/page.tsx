@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses } from "@/lib/db";
@@ -258,12 +259,12 @@ export default function PaymentRecords() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
         <div className="flex items-center gap-2">
           <IndianRupee className="h-5 w-5" />
           <h2 className="text-xl font-semibold">Payment Records</h2>
         </div>
-        <div>
+        <div className="mt-2 sm:mt-0">
           <Button
             size="sm"
             onClick={() => setFilterOpen((s) => !s)}
@@ -279,7 +280,7 @@ export default function PaymentRecords() {
       {filterOpen && (
         <div className="p-4 rounded-md border shadow-sm bg-white">
           <div className="grid grid-cols-3 gap-4">
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Expense Type</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2 bg-gray-50 dark:bg-gray-800"
@@ -293,7 +294,7 @@ export default function PaymentRecords() {
               </select>
             </div>
 
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Event</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
@@ -307,7 +308,7 @@ export default function PaymentRecords() {
               </select>
             </div>
 
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Email</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
@@ -321,7 +322,7 @@ export default function PaymentRecords() {
               </select>
             </div>
 
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Unique ID</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
@@ -335,7 +336,7 @@ export default function PaymentRecords() {
               </select>
             </div>
 
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Location</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
@@ -349,7 +350,7 @@ export default function PaymentRecords() {
               </select>
             </div>
 
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Bills</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
@@ -363,7 +364,7 @@ export default function PaymentRecords() {
             </div>
 
             {utrValues.length > 0 && (
-              <div>
+              <div className="col-span-3 sm:col-span-1">
                 <label className="text-sm font-medium">UTR</label>
                 <select
                   className="mt-1 block w-full border rounded px-3 py-2"
@@ -378,7 +379,7 @@ export default function PaymentRecords() {
               </div>
             )}
 
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Date</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
@@ -430,7 +431,7 @@ export default function PaymentRecords() {
               </div>
             </div>
 
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Amount Min</label>
               <input
                 type="number"
@@ -440,7 +441,7 @@ export default function PaymentRecords() {
               />
             </div>
 
-            <div>
+            <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Amount Max</label>
               <input
                 type="number"
