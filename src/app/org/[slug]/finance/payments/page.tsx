@@ -439,7 +439,7 @@ export default function PaymentProcessingOnly() {
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-50">
+          <TableHeader className="bg-gray-300">
             <TableRow>
               <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
               <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>

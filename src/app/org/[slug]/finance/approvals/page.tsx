@@ -162,7 +162,7 @@ export default function FinanceReview() {
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-50">
+          <TableHeader className="bg-gray-300">
             <TableRow>
               <TableHead className="text-center py-3">S.No.</TableHead>
               <TableHead className="text-center py-3">Timestamp</TableHead>

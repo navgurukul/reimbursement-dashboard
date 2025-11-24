@@ -527,7 +527,7 @@ export default function ExpensesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-0">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
           <TabsList>
@@ -851,10 +851,10 @@ export default function ExpensesPage() {
             )}
 
             {/* table */}
-            <Card>
+            <Card className="pt-0">
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-gray-300">
                     <TableRow>
                       <TableHead>S.No.</TableHead>
                       <TableHead>Timestamp</TableHead>
