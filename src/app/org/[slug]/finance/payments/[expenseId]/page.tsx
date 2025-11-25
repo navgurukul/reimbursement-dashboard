@@ -17,6 +17,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import ExpenseHistory from "../../../expenses/[id]/history/expense-history"
+import { ExpenseComments } from "../../../expenses/[id]/history/expense-comments";
 
 
 import { toast } from "sonner";
@@ -358,6 +359,9 @@ export default function PaymentProcessingDetails() {
                                 </TableRow>
                             </TableBody>
                         </Table>
+                    </div>
+                    <div className="bg-white p-6 rounded shadow border mt-4">
+                        <ExpenseComments expenseId={typeof expenseId === "string" ? expenseId : ""} />
                     </div>
                 </div>
 
