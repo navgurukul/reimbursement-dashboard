@@ -1,9 +1,13 @@
 "use client";
 
+import React from "react";
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
-import { IndianRupee, Pencil, Save, Trash2 } from "lucide-react";
+import { expenses } from "@/lib/db";
+import { useParams } from "next/navigation";
+import { IndianRupee, Pencil, Save, Trash2, Funnel } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { formatDateTime } from '@/lib/utils';
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,8 +21,30 @@ import {
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
+  const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const { slug } = useParams();
+
+  // Filter state
+  const [filters, setFilters] = useState({
+    expenseType: "All Expense Type",
+    eventName: "All Events",
+    createdBy: "All Creators",
+    email: "All Emails",
+    uniqueId: "All Unique IDs",
+    location: "All Locations",
+    bills: "All Bills",
+    utr: "All UTRs",
+    startDate: "",
+    endDate: "",
+    dateMode: "All Dates",
+    minAmount: 0,
+    maxAmount: 0,
+  });
+
+  const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
+  const [filterOpen, setFilterOpen] = useState(false);
+
   // State for UTR editing functionality
   const [editingFields, setEditingFields] = useState<Record<string, { utr?: boolean }>>({});
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
@@ -31,7 +57,7 @@ export default function PaymentRecords() {
     open: false,
     id: null,
   });
-  
+
   const ADMIN_PASSWORD = "admin"; // your password
 
   useEffect(() => {
@@ -48,6 +74,36 @@ export default function PaymentRecords() {
         if (error) throw error;
 
         const rows = data || [];
+
+        // Fetch vouchers for these records (if any)
+        try {
+          const expenseIds = rows.map((r: any) => r.id).filter(Boolean);
+          if (expenseIds.length > 0) {
+            const { data: allVouchers, error: voucherError } = await supabase
+              .from("vouchers")
+              .select("*")
+              .in("expense_id", expenseIds);
+
+            const voucherMap: Record<string, any> = {};
+            if (!voucherError && allVouchers) {
+              allVouchers.forEach((v: any) => {
+                voucherMap[v.expense_id] = v;
+              });
+            }
+
+            // attach voucher info to rows
+            rows.forEach((r: any) => {
+              const voucher = voucherMap[r.id];
+              if (voucher) {
+                r.hasVoucher = true;
+                r.voucherId = voucher.id;
+              }
+            });
+          }
+        } catch (vErr) {
+          // non-critical: continue without voucher data
+          console.error("Error fetching vouchers for records:", vErr);
+        }
 
         // Bulk fetch event titles
         const eventIds = [
@@ -76,7 +132,40 @@ export default function PaymentRecords() {
           event_title: r.event_id ? eventTitleMap[r.event_id] || "N/A" : "N/A",
         }));
 
-        setRecords(withTitles);
+        // Fetch bank details to enrich records with user's unique_id (if available)
+        try {
+          const { data: bankData, error: bankError } = await supabase.from("bank_details").select("*");
+          if (bankError) throw bankError;
+
+          const enriched = withTitles.map((r: any) => {
+            const matched = bankData?.find((b: any) => b.email === r.creator_email);
+            return {
+              ...r,
+              unique_id: r.unique_id || matched?.unique_id || "N/A",
+            };
+          });
+
+          // compute amount bounds
+          const amounts = enriched.map((r: any) => Number(r.approved_amount) || 0);
+          const min = amounts.length ? Math.min(...amounts) : 0;
+          const max = amounts.length ? Math.max(...amounts) : 0;
+
+          setRecords(enriched);
+          setFilteredRecords(enriched);
+          setAmountBounds({ min, max });
+          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
+        } catch (bankErr) {
+          // If bank details fetch fails, fall back to existing titles and default Unique ID
+          const fallback = withTitles.map((r: any) => ({ ...r, unique_id: r.unique_id || "N/A" }));
+          const amounts = fallback.map((r: any) => Number(r.approved_amount) || 0);
+          const min = amounts.length ? Math.min(...amounts) : 0;
+          const max = amounts.length ? Math.max(...amounts) : 0;
+
+          setRecords(fallback);
+          setFilteredRecords(fallback);
+          setAmountBounds({ min, max });
+          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
+        }
       } catch (err: any) {
         toast.error("Failed to load records", { description: err.message });
       } finally {
@@ -87,22 +176,301 @@ export default function PaymentRecords() {
     fetchRecords();
   }, []);
 
+  // Derive options from fetched records
+  const expenseTypes = Array.from(new Set(records.map((r: any) => r.expense_type).filter(Boolean)));
+  const eventNames = Array.from(new Set(records.map((r: any) => r.event_title).filter(Boolean)));
+  const creators = Array.from(new Set(records.map((r: any) => r.creator_email).filter(Boolean)));
+  const locations = Array.from(new Set(records.map((r: any) => r.location).filter(Boolean)));
+  const uniqueIds = Array.from(new Set(records.map((r: any) => r.unique_id).filter(Boolean)));
+  const utrValues = Array.from(
+    new Set(
+      (filters.uniqueId && filters.uniqueId !== "All Unique IDs"
+        ? records.filter((r: any) => (r.unique_id || "") === filters.uniqueId)
+        : records
+      )
+        .map((r: any) => (r.utr || "").toString().trim())
+        .filter((v: string) => v !== "")
+    )
+  );
+
+  const applyFilters = () => {
+    const fr = records.filter((r: any) => {
+      if (filters.expenseType !== "All Expense Type" && r.expense_type !== filters.expenseType) return false;
+      if (filters.eventName !== "All Events" && (r.event_title || "N/A") !== filters.eventName) return false;
+      if (filters.createdBy !== "All Creators" && r.creator_email !== filters.createdBy) return false;
+      if (filters.email !== "All Emails" && r.creator_email !== filters.email) return false;
+      if (filters.uniqueId !== "All Unique IDs" && (r.unique_id || "") !== filters.uniqueId) return false;
+      if (filters.location !== "All Locations" && (r.location || "") !== filters.location) return false;
+      if (filters.bills !== "All Bills") {
+        if (filters.bills === "Receipt" && !r.receipt) return false;
+        if (filters.bills === "Voucher" && !r.hasVoucher) return false;
+      }
+      if (filters.utr && filters.utr !== "All UTRs") {
+        if (filters.utr === "Has" && !r.utr) return false;
+        if (filters.utr === "None" && r.utr) return false;
+        if (filters.utr !== "Has" && filters.utr !== "None" && (r.utr || "") !== filters.utr) return false;
+      }
+      if (filters.startDate) {
+        const start = new Date(filters.startDate);
+        const recDate = new Date(r.updated_at || r.created_at || r.date);
+        if (recDate < start) return false;
+      }
+      if (filters.endDate) {
+        const end = new Date(filters.endDate);
+        const recDate = new Date(r.updated_at || r.created_at || r.date);
+        end.setHours(23, 59, 59, 999);
+        if (recDate > end) return false;
+      }
+      const amt = Number(r.approved_amount) || 0;
+      if (filters.minAmount !== null && amt < Number(filters.minAmount)) return false;
+      if (filters.maxAmount !== null && amt > Number(filters.maxAmount)) return false;
+
+      return true;
+    });
+
+    setFilteredRecords(fr);
+  };
+
+  // Auto-apply filters when filter values change or when records update
+  useEffect(() => {
+    // only apply when records are loaded
+    if (!loading) applyFilters();
+  }, [filters, records]);
+
+  const clearFilters = () => {
+    setFilters((prev) => ({
+      ...prev,
+      expenseType: "All Expense Type",
+      eventName: "All Events",
+      createdBy: "All Creators",
+      email: "All Emails",
+      uniqueId: "All Unique IDs",
+      location: "All Locations",
+      bills: "All Bills",
+      utr: "All UTRs",
+      dateMode: "All Dates",
+      startDate: "",
+      endDate: "",
+      minAmount: amountBounds.min,
+      maxAmount: amountBounds.max,
+    }));
+    setFilteredRecords(records);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-1">
-        <IndianRupee className="h-5 w-5" />
-        <h2 className="text-xl font-semibold">Payment Records</h2>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
+        <div className="flex items-center gap-2">
+          <IndianRupee className="h-5 w-5" />
+          <h2 className="text-xl font-semibold">Payment Records</h2>
+        </div>
+        <div className="mt-2 sm:mt-0">
+          <Button
+            size="sm"
+            onClick={() => setFilterOpen((s) => !s)}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <Funnel className="w-4 h-4" />
+            Filters
+          </Button>
+        </div>
       </div>
+
+      {/* Filter panel */}
+      {filterOpen && (
+        <div className="p-4 rounded-md border shadow-sm bg-white">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Expense Type</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2 bg-gray-50 dark:bg-gray-800"
+                value={filters.expenseType}
+                onChange={(e) => setFilters((f) => ({ ...f, expenseType: e.target.value }))}
+              >
+                <option>All Expense Type</option>
+                {expenseTypes.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Event</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.eventName}
+                onChange={(e) => setFilters((f) => ({ ...f, eventName: e.target.value }))}
+              >
+                <option>All Events</option>
+                {eventNames.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Email</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.email}
+                onChange={(e) => setFilters((f) => ({ ...f, email: e.target.value }))}
+              >
+                <option>All Emails</option>
+                {creators.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Unique ID</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.uniqueId}
+                onChange={(e) => setFilters((f) => ({ ...f, uniqueId: e.target.value }))}
+              >
+                <option>All Unique IDs</option>
+                {uniqueIds.map((id) => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Location</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.location}
+                onChange={(e) => setFilters((f) => ({ ...f, location: e.target.value }))}
+              >
+                <option>All Locations</option>
+                {locations.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Bills</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.bills}
+                onChange={(e) => setFilters((f) => ({ ...f, bills: e.target.value }))}
+              >
+                <option>All Receipt/Voucher</option>
+                <option>Receipt</option>
+                <option>Voucher</option>
+              </select>
+            </div>
+
+            {utrValues.length > 0 && (
+              <div className="col-span-3 sm:col-span-1">
+                <label className="text-sm font-medium">UTR</label>
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2"
+                  value={filters.utr}
+                  onChange={(e) => setFilters((f) => ({ ...f, utr: e.target.value }))}
+                >
+                  <option value="All UTRs">All UTRs</option>
+                  {utrValues.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Date</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.dateMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setFilters((f) => {
+                    if (mode === "All Dates") return { ...f, dateMode: mode, startDate: "", endDate: "" };
+                    if (mode === "Single Date") return { ...f, dateMode: mode, startDate: f.startDate || "", endDate: f.startDate || "" };
+                    return { ...f, dateMode: mode };
+                  });
+                }}
+              >
+                <option>All Dates</option>
+                <option>Single Date</option>
+                <option>Custom Date</option>
+              </select>
+
+              {/* Conditional inputs shown below the Date selector */}
+              <div className="mt-2">
+                {filters.dateMode === "Single Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Select Date</label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.startDate}
+                      onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value, endDate: e.target.value }))}
+                    />
+                  </>
+                ) : filters.dateMode === "Custom Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Start Date</label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.startDate}
+                      onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))}
+                    />
+                    <label className="text-sm font-medium mt-2 block">End Date</label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.endDate}
+                      onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))}
+                    />
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Amount Min</label>
+              <input
+                type="number"
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.minAmount}
+                onChange={(e) => setFilters((f) => ({ ...f, minAmount: Number(e.target.value) }))}
+              />
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Amount Max</label>
+              <input
+                type="number"
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.maxAmount}
+                onChange={(e) => setFilters((f) => ({ ...f, maxAmount: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end gap-3">
+            <Button className="cursor-pointer" onClick={clearFilters}>Clear</Button>
+            <Button className="cursor-pointer" onClick={() => setFilterOpen(false)}>Close</Button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-50">
+          <TableHeader className="bg-gray-300">
             <TableRow>
+              <TableHead className="text-center py-3">S.No.</TableHead>
+              <TableHead className="text-center py-3">Timestamp</TableHead>
               <TableHead className="text-center py-3">Email</TableHead>
+              <TableHead className="text-center py-3">Unique ID</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Location</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
+              <TableHead className="text-center py-3">Bills</TableHead>
               <TableHead className="text-center py-3">Date</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
               <TableHead className="text-center py-3">
@@ -153,22 +521,59 @@ export default function PaymentRecords() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6">Loading...</TableCell>
+                <TableCell colSpan={14} className="text-center py-6">Loading...</TableCell>
               </TableRow>
-            ) : records.length === 0 ? (
+            ) : filteredRecords.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
                   No payment records found.
                 </TableCell>
               </TableRow>
             ) : (
-              records.map((record) => (
+              filteredRecords.map((record, index) => (
                 <TableRow key={record.id}>
+                  <TableCell className="text-center py-2">{index + 1}</TableCell>
+                  <TableCell className="text-center py-2">{formatDateTime(record.updated_at || record.created_at)}</TableCell>
                   <TableCell className="text-center py-2">{record.creator_email}</TableCell>
+                  <TableCell className="text-center py-2">{record.unique_id || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">{record.expense_type}</TableCell>
                   <TableCell className="text-center py-2">{record.event_title || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">{record.location || "N/A"}</TableCell>
                   <TableCell className="text-center py-2">₹{record.approved_amount}</TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.receipt ? (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto font-normal cursor-pointer text-blue-600"
+                        onClick={() => {
+                          if (record.receipt?.path) {
+                            expenses.getReceiptUrl(record.receipt.path).then(({ url, error }) => {
+                              if (error) {
+                                console.error("Error getting receipt URL:", error);
+                                toast.error("Failed to load receipt");
+                              } else if (url) {
+                                window.open(url, "_blank");
+                              }
+                            });
+                          }
+                        }}
+                      >
+                        View Receipt
+                      </Button>
+                    ) : record.hasVoucher ? (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto font-normal cursor-pointer text-blue-600"
+                        onClick={() => window.open(`/org/${slug}/expenses/${record.id}/voucher`, "_blank")}
+                      >
+                        View Voucher
+                      </Button>
+                    ) : (
+                      "No receipt or voucher"
+                    )}
+                  </TableCell>
                   <TableCell className="text-center py-2">
                     {new Date(record.date).toLocaleDateString("en-IN")}
                   </TableCell>
@@ -185,6 +590,8 @@ export default function PaymentRecords() {
                               r.id === record.id ? { ...r, utr: e.target.value } : r
                             );
                             setRecords(updated);
+                            // keep filtered view in sync
+                            setFilteredRecords((prev) => prev.map((r: any) => r.id === record.id ? { ...r, utr: e.target.value } : r));
                           }}
                           onKeyDown={async (e) => {
                             if (e.key === 'Enter') {
@@ -377,6 +784,7 @@ export default function PaymentRecords() {
 
                   // Remove from local UI list
                   setRecords((prev) => prev.filter((r) => r.id !== id));
+                  setFilteredRecords((prev) => prev.filter((r: any) => r.id !== id));
                   toast.success("Record removed from Payment Records");
                 } catch (err: any) {
                   toast.error("Failed to remove record", { description: err.message });

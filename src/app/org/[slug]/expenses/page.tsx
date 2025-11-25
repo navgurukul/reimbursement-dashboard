@@ -36,7 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 
 const defaultExpenseColumns = [
@@ -527,7 +527,7 @@ export default function ExpensesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-0">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
           <TabsList>
@@ -851,11 +851,13 @@ export default function ExpensesPage() {
             )}
 
             {/* table */}
-            <Card>
+            <Card className="pt-0">
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-gray-300">
                     <TableRow>
+                      <TableHead>S.No.</TableHead>
+                      <TableHead>Timestamp</TableHead>
                       {columns
                         .filter((c) => c.visible)
                         .map((c) => (
@@ -869,7 +871,7 @@ export default function ExpensesPage() {
                     {loading ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 2}
+                          colSpan={columns.filter((c) => c.visible).length + 3}
                           className="text-center py-4"
                         >
                           Loading…
@@ -878,7 +880,7 @@ export default function ExpensesPage() {
                     ) : getCurrent().length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 2}
+                          colSpan={columns.filter((c) => c.visible).length + 3}
                           className="text-center py-4 text-muted-foreground"
                         >
                           No expenses.
@@ -887,7 +889,7 @@ export default function ExpensesPage() {
                     ) : filteredData.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 2}
+                          colSpan={columns.filter((c) => c.visible).length + 3}
                           className="text-center py-4 text-muted-foreground"
                         >
                           {filters.amountMin || filters.amountMax
@@ -896,8 +898,12 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredData.map((exp) => (
+                      filteredData.map((exp, index) => (
                         <TableRow key={exp.id}>
+                          <TableCell className="w-12 text-center">{index + 1}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {formatDateTime(exp.created_at)}
+                          </TableCell>
                           {columns
                             .filter((c) => c.visible)
                             .map((c) => (

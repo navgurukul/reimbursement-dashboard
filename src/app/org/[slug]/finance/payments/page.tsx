@@ -2,6 +2,7 @@
 
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
+import { formatDateTime } from '@/lib/utils';
 import supabase from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
@@ -438,8 +439,10 @@ export default function PaymentProcessingOnly() {
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-50">
+          <TableHeader className="bg-gray-300">
             <TableRow>
+              <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
+              <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
               <TableHead className="px-4 py-3 text-center">Expense Type</TableHead>
               <TableHead className="px-4 py-3 text-center">Created By</TableHead>
               <TableHead className="px-4 py-3 text-center">Email</TableHead>
@@ -503,19 +506,21 @@ export default function PaymentProcessingOnly() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={16} className="text-center py-6">
+                <TableCell colSpan={19} className="text-center py-6">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : processingExpenses.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={16} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={19} className="text-center py-6 text-gray-500">
                   No expenses in payment processing.
                 </TableCell>
               </TableRow>
             ) : (
-              processingExpenses.map((expense) => (
+              processingExpenses.map((expense, index) => (
                 <TableRow key={expense.id} className="hover:bg-gray-50 transition py-3">
+                  <TableCell className="px-4 py-3 text-center">{index + 1}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{formatDateTime(expense.created_at)}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.expense_type || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.creator_name}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.email}</TableCell>

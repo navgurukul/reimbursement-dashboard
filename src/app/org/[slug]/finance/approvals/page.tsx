@@ -23,6 +23,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -113,35 +114,35 @@ export default function FinanceReview() {
     router.push(`/org/${organization.slug}/finance/${expense.id}`);
   };
 
- const handleApproveAll = async () => {
-  if (!orgId || expenseList.length === 0) {
-    toast.warning("No expenses to approve.");
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    const results = await Promise.all(
-      expenseList.map((expense) =>
-        expenses.updateByFinance(expense.id, true, "").catch((err) => ({ error: err }))
-      )
-    );
-
-    const failed = results.filter((res: any) => res?.error);
-    if (failed.length > 0) {
-      toast.error(`${failed.length} approvals failed`);
-    } else {
-      toast.success("All expenses approved by Finance");
+  const handleApproveAll = async () => {
+    if (!orgId || expenseList.length === 0) {
+      toast.warning("No expenses to approve.");
+      return;
     }
 
-    setExpenseList([]);
-  } catch (err: any) {
-    toast.error("Approval failed", { description: err.message });
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      setLoading(true);
+
+      const results = await Promise.all(
+        expenseList.map((expense) =>
+          expenses.updateByFinance(expense.id, true, "").catch((err) => ({ error: err }))
+        )
+      );
+
+      const failed = results.filter((res: any) => res?.error);
+      if (failed.length > 0) {
+        toast.error(`${failed.length} approvals failed`);
+      } else {
+        toast.success("All expenses approved by Finance");
+      }
+
+      setExpenseList([]);
+    } catch (err: any) {
+      toast.error("Approval failed", { description: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
 
@@ -161,8 +162,10 @@ export default function FinanceReview() {
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-50">
+          <TableHeader className="bg-gray-300">
             <TableRow>
+              <TableHead className="text-center py-3">S.No.</TableHead>
+              <TableHead className="text-center py-3">Timestamp</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Location</TableHead>
@@ -177,22 +180,24 @@ export default function FinanceReview() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-6">
+                <TableCell colSpan={11} className="text-center py-6">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : expenseList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
                   No expenses pending finance review
                 </TableCell>
               </TableRow>
             ) : (
-              expenseList.map((expense) => (
+              expenseList.map((expense, index) => (
                 <TableRow
                   key={expense.id}
                   className="hover:bg-gray-50 transition-all py-3"
                 >
+                  <TableCell className="text-center py-3">{index + 1}</TableCell>
+                  <TableCell className="text-center py-3 whitespace-nowrap">{formatDateTime(expense.created_at)}</TableCell>
                   <TableCell className="text-center py-3">{expense.expense_type}</TableCell>
                   <TableCell className="text-center py-3">{expense.event_title || "N/A"}</TableCell>
                   <TableCell className="text-center py-3">{expense.location || "N/A"}</TableCell>

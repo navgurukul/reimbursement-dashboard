@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { expenses, expenseEvents, expenseHistory, auth, profiles } from "@/lib/db";
+import { formatDateTime } from '@/lib/utils';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -246,7 +247,11 @@ export default function FinanceExpenseDetails() {
             <h2 className="text-lg font-semibold mb-4">Expense Details</h2>
             <Table>
               <TableBody>
-                 <TableRow>
+                <TableRow>
+                  <TableHead>Timestamp</TableHead>
+                  <TableCell>{formatDateTime(expense.created_at)}</TableCell>
+                </TableRow>
+                <TableRow>
                   <TableHead>Location of Expense</TableHead>
                   <TableCell>{expense.location || "N/A"}</TableCell>
                 </TableRow>
