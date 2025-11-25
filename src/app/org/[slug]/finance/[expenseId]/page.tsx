@@ -26,6 +26,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import ExpenseHistory from "../../expenses/[id]/history/expense-history"
+import { ExpenseComments } from "../../expenses/[id]/history/expense-comments";
 
 import supabase from "@/lib/supabase"; // Make sure this is correctly imported
 
@@ -352,6 +353,9 @@ export default function FinanceExpenseDetails() {
                 </TableRow>
               </TableBody>
             </Table>
+          </div>
+          <div className="bg-white p-6 rounded shadow border">
+            <ExpenseComments expenseId={typeof expenseId === "string" ? expenseId : ""} />
           </div>
         </div>
         {/* Activity History */}
