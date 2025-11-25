@@ -134,14 +134,14 @@ export function ExpenseComments({ expenseId }: CommentProps) {
               </div>
               <div className="flex-grow">
                 <div className="flex flex-col">
-                  <div className="flex items-center">
-                    <p className="font-medium text-gray-900">
-                      {comment.user?.full_name || 'Unknown User'}
-                    </p>
-                    <span className="ml-2 text-xs text-gray-500">
-                      {formatDate(comment.created_at)}
-                    </span>
-                  </div>
+                  <div className="flex flex-col md:flex-row md:items-center">
+                      <p className="font-medium text-gray-900">
+                        {comment.user?.full_name || 'Unknown User'}
+                      </p>
+                      <span className="mt-1 text-xs text-gray-500 md:mt-0 md:ml-2">
+                        {formatDate(comment.created_at)}
+                      </span>
+                    </div>
                   <p className="text-gray-700 mt-1">{comment.content}</p>
                 </div>
               </div>
