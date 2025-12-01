@@ -534,9 +534,9 @@ export default function TeamPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <Users className="w-5 h-5 text-gray-700" /> {/* Lucide Users icon */}
-            Active Members
+            Manage your team members and their roles
           </CardTitle>
-          <CardDescription>Manage your team members and their roles.</CardDescription>
+          {/* <CardDescription>Manage your team members and their roles.</CardDescription> */}
         </CardHeader>
 
         <CardContent className="space-y-4">
