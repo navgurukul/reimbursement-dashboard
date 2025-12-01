@@ -461,14 +461,14 @@ export default function SettingsPage() {
   };
 
   return (
-    <Tabs defaultValue="branding" className="space-y-6">
+    <Tabs defaultValue="columns" className="space-y-6">
       <TabsList>
-        <TabsTrigger value="branding">Branding & Theming</TabsTrigger>
+        {/* <TabsTrigger value="branding">Branding & Theming</TabsTrigger> */}
         <TabsTrigger value="columns">Expense Columns</TabsTrigger>
       </TabsList>
 
       {/* ----- Branding & Theming ----- */}
-      <TabsContent value="branding">
+      {/* <TabsContent value="branding">
         <Card>
           <CardHeader>
             <CardTitle>Branding &amp; Theming</CardTitle>
@@ -515,7 +515,7 @@ export default function SettingsPage() {
             <Button onClick={handleSaveBranding}>Save Branding</Button>
           </CardContent>
         </Card>
-      </TabsContent>
+      </TabsContent> */}
 
       {/* ----- Expense Columns ----- */}
       <TabsContent value="columns">

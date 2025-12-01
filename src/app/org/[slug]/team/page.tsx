@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
 import { organizations, profiles, RemovedUsers, authUsers } from "@/lib/db";
@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Trash, Copy, Link2, Users, User, Shield, Settings, Crown } from "lucide-react";
+import { Trash, Copy, Link2, Users, User, Shield, Settings, Filter, } from "lucide-react";
 import supabase from "@/lib/supabase"; // Add this import
 import { useRouter } from "next/navigation";
 import {
@@ -95,6 +95,49 @@ export default function TeamPage() {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [selectedEmailColumn, setSelectedEmailColumn] = useState<number | null>(null);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PER_PAGE = 10;
+
+  // Search state (client-side filtering)
+  const [search, setSearch] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  // Role filter state
+  const [roleFilter, setRoleFilter] = useState<'all' | 'owner' | 'member' | 'manager' | 'admin'>('all');
+
+  // Debounce the search input to avoid rapid filtering while typing
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
+  // Reset page when role filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roleFilter]);
+
+  const filteredMembers = useMemo(() => {
+    let result = members;
+
+    // Apply role filter first
+    if (roleFilter !== 'all') {
+      result = result.filter((m) => m.role === roleFilter);
+    }
+
+    // Apply search filter
+    if (!debouncedSearch) return result;
+    const q = debouncedSearch.toLowerCase();
+    return result.filter((m) => {
+      const name = (m.fullName || "").toLowerCase();
+      const email = (m.email || "").toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [members, debouncedSearch, roleFilter]);
 
   const detectDelimiter = (line: string) => {
     const candidates = [',', '\t', ';'];
@@ -144,7 +187,7 @@ export default function TeamPage() {
 
         if (orgUsersError) throw orgUsersError;
 
-        if (orgUsers && orgUsers.length > 0) {
+          if (orgUsers && orgUsers.length > 0) {
           // Get user IDs
           const userIds = orgUsers.map((user) => user.user_id);
 
@@ -170,8 +213,11 @@ export default function TeamPage() {
           });
 
           setMembers(formattedMembers);
+          // Reset to first page after loading members
+          setCurrentPage(1);
         } else {
           setMembers([]);
+          setCurrentPage(1);
         }
       } catch (error: any) {
         toast.error("Failed to load team members", {
@@ -471,7 +517,7 @@ export default function TeamPage() {
         <div>
           <h1 className="text-2xl font-semibold">Team Members</h1>
           <p className="text-sm text-muted-foreground">
-            {org?.name} — {members.length} member{members.length !== 1 && "s"}
+            {org?.name} — {(roleFilter !== 'all' || debouncedSearch) ? `${filteredMembers.length} of ${members.length} member${members.length !== 1 ? "s" : ""}` : `${members.length} member${members.length !== 1 && "s"}`}
           </p>
         </div>
         {(userRole === "owner" || userRole === "admin") && (
@@ -488,18 +534,76 @@ export default function TeamPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <Users className="w-5 h-5 text-gray-700" /> {/* Lucide Users icon */}
-            Active Members
+            Manage your team members and their roles
           </CardTitle>
-          <CardDescription>Manage your team members and their roles.</CardDescription>
+          {/* <CardDescription>Manage your team members and their roles.</CardDescription> */}
         </CardHeader>
 
         <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex-1">
+              <Input
+                placeholder="Search by name or email"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="max-w-lg w-full"
+              />
+            </div>
+
+            <div className="w-full sm:w-[180px] rounded-md mt-2 sm:mt-0">
+              <Select value={roleFilter} onValueChange={(v: any) => setRoleFilter(v)}>
+                <SelectTrigger className="w-full cursor-pointer">
+                  <SelectValue placeholder="Filter role" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectGroup>
+                    <SelectItem value="all" className="cursor-pointer">
+                      <div className="flex items-center gap-2 px-2 py-1">
+                        <Filter className="h-4 w-4" />
+                        <span>Filter By Role</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="owner" className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span>Owner</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="member" className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span>Member</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="manager" className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span>Manager</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="admin" className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span>Admin</span>
+                      </div>
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           {isLoadingMembers ? (
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
           ) : (
-            members.map((m) => (
+            // compute slice for current page
+            (() => {
+              const total = filteredMembers.length;
+              const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+              const start = (currentPage - 1) * PER_PAGE;
+              const end = start + PER_PAGE;
+              const pageMembers = filteredMembers.slice(start, end);
+
+              return (
+                <>
+                  {pageMembers.map((m) => (
               <div
                 key={m.id}
                 className="flex flex-col sm:flex-row sm:items-center sm:justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
@@ -512,13 +616,13 @@ export default function TeamPage() {
                 <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
                   {(userRole !== "admin" && userRole !== "owner") && (
                     <span
-                      className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
-                        ? "bg-yellow-100 text-yellow-800"
+                      className={`text-xs px-4 py-2 rounded-full font-medium shadow-sm bg-white border ${m.role === "owner"
+                        ? "text-black border-gray-200 cursor-pointer"
                         : m.role === "admin"
-                          ? "bg-red-100 text-red-800"
+                          ? "text-black border-gray-200 cursor-pointer"
                           : m.role === "manager"
-                            ? "bg-indigo-100 text-indigo-800"
-                            : "bg-green-100 text-green-800"
+                            ? "text-black border-gray-200 cursor-pointer"
+                            : "text-black border-gray-200 cursor-pointer"
                         }`}
                     >
                       {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
@@ -527,13 +631,13 @@ export default function TeamPage() {
                   {(userRole === "owner" || userRole === "admin") && (
                     m.role === "owner" ? (
                       <span
-                        className={`text-xs px-2 py-1 rounded-full font-medium ${m.role === "owner"
-                          ? "bg-yellow-100 text-yellow-800"
+                        className={`text-xs px-4 py-2 rounded-full font-medium shadow-sm bg-white border ${m.role === "owner"
+                          ? "text-black border-gray-200 cursor-pointer"
                           : m.role === "admin"
-                            ? "bg-red-100 text-red-800"
+                            ? "text-black border-gray-200 cursor-pointer"
                             : m.role === "manager"
-                              ? "bg-indigo-100 text-indigo-800"
-                              : "bg-green-100 text-green-800"
+                              ? "text-black border-gray-200 cursor-pointer"
+                              : "text-black border-gray-200 cursor-pointer"
                           }`}
                       >
                         {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
@@ -544,54 +648,75 @@ export default function TeamPage() {
                         onValueChange={(v: any) => handleChangeMemberRole(m.id, v)}
                         disabled={updatingRoleId === m.id}
                       >
-                        <SelectTrigger className={`w-[120px] text-xs h-7 rounded-full px-2 py-1 ${m.role === "owner"
-                          ? "bg-yellow-100 text-yellow-900"
-                          : m.role === "admin"
-                            ? "bg-red-100 text-red-900"
-                            : m.role === "manager"
-                              ? "bg-indigo-100 text-indigo-900"
-                              : "bg-green-100 text-green-900"
-                          }`}>
-                          <SelectValue placeholder="Change role" />
+                        <SelectTrigger className={`text-sm h-8 rounded-full px-3 py-1 flex items-center justify-between gap-2 min-w-[140px] shadow-sm bg-white border ${m.role === "owner"
+                              ? "text-black border-gray-200 cursor-pointer"
+                              : m.role === "admin"
+                                ? "text-black border-gray-200 cursor-pointer"
+                                : m.role === "manager"
+                                  ? "text-black border-gray-200 cursor-pointer"
+                                  : "text-black border-gray-200 cursor-pointer"
+                              }`}>
+                          <div className="flex-1 text-center">
+                            <SelectValue placeholder="Change role" />
+                          </div>
                         </SelectTrigger>
                         <SelectContent className="bg-white">
                           <SelectGroup>
-                            <SelectItem value="member">
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4" />
+                            <SelectItem value="member" className="cursor-pointer">
                                 <span>Member</span>
-                              </div>
                             </SelectItem>
-                            <SelectItem value="manager">
-                              <div className="flex items-center gap-2">
-                                <Settings className="w-4 h-4" />
+                            <SelectItem value="manager" className="cursor-pointer">
                                 <span>Manager</span>
-                              </div>
                             </SelectItem>
-                            <SelectItem value="admin">
-                              <div className="flex items-center gap-2">
-                                <Shield className="w-4 h-4" />
+                            <SelectItem value="admin" className="cursor-pointer">
                                 <span>Admin</span>
-                              </div>
                             </SelectItem>
                           </SelectGroup>
                         </SelectContent>
                       </Select>
                     )
                   )}
-                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 font-medium">
-                    Active
-                  </span>
 
                   {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
                     <Trash
-                      className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
+                      className="w-5 h-5 text-red-500 cursor-pointer hover:text-red-700"
                       onClick={() => confirmDeleteMember(m.id)}
                     />
                   )}
                 </div>
               </div>
-            ))
+                ))}
+
+                {/* Pagination controls */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="cursor-pointer caret-transparent"
+                  >
+                    Previous
+                  </Button>
+
+                  <div className="text-sm text-muted-foreground">
+                    {currentPage} of {totalPages}
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="cursor-pointer caret-transparent"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </>
+            );
+          })()
+        
           )}
         </CardContent>
       </Card>
