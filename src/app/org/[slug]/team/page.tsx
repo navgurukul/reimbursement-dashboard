@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Trash, Copy, Link2, Users, User, Shield, Settings, Crown } from "lucide-react";
+import { Trash, Copy, Link2, Users, User, Shield, Settings, Filter, } from "lucide-react";
 import supabase from "@/lib/supabase"; // Add this import
 import { useRouter } from "next/navigation";
 import {
@@ -102,6 +102,8 @@ export default function TeamPage() {
   // Search state (client-side filtering)
   const [search, setSearch] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  // Role filter state
+  const [roleFilter, setRoleFilter] = useState<'all' | 'owner' | 'member' | 'manager' | 'admin'>('all');
 
   // Debounce the search input to avoid rapid filtering while typing
   useEffect(() => {
@@ -114,15 +116,28 @@ export default function TeamPage() {
     setCurrentPage(1);
   }, [debouncedSearch]);
 
+  // Reset page when role filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roleFilter]);
+
   const filteredMembers = useMemo(() => {
-    if (!debouncedSearch) return members;
+    let result = members;
+
+    // Apply role filter first
+    if (roleFilter !== 'all') {
+      result = result.filter((m) => m.role === roleFilter);
+    }
+
+    // Apply search filter
+    if (!debouncedSearch) return result;
     const q = debouncedSearch.toLowerCase();
-    return members.filter((m) => {
+    return result.filter((m) => {
       const name = (m.fullName || "").toLowerCase();
       const email = (m.email || "").toLowerCase();
       return name.includes(q) || email.includes(q);
     });
-  }, [members, debouncedSearch]);
+  }, [members, debouncedSearch, roleFilter]);
 
   const detectDelimiter = (line: string) => {
     const candidates = [',', '\t', ';'];
@@ -502,7 +517,7 @@ export default function TeamPage() {
         <div>
           <h1 className="text-2xl font-semibold">Team Members</h1>
           <p className="text-sm text-muted-foreground">
-            {org?.name} — {debouncedSearch ? `${filteredMembers.length} of ${members.length} member${members.length !== 1 ? "s" : ""}` : `${members.length} member${members.length !== 1 && "s"}`}
+            {org?.name} — {(roleFilter !== 'all' || debouncedSearch) ? `${filteredMembers.length} of ${members.length} member${members.length !== 1 ? "s" : ""}` : `${members.length} member${members.length !== 1 && "s"}`}
           </p>
         </div>
         {(userRole === "owner" || userRole === "admin") && (
@@ -533,6 +548,44 @@ export default function TeamPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="max-w-lg"
               />
+            </div>
+
+            <div className="w-[180px] rounded-md">
+              <Select value={roleFilter} onValueChange={(v: any) => setRoleFilter(v)}>
+                <SelectTrigger className="w-full cursor-pointer">
+                  <SelectValue placeholder="Filter role" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectGroup>
+                    <SelectItem value="all" className="cursor-pointer">
+                      <div className="flex items-center gap-2 px-2 py-1">
+                        <Filter className="h-4 w-4" />
+                        <span>Filter By Role</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="owner" className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span>Owner</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="member" className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span>Member</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="manager" className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span>Manager</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="admin" className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span>Admin</span>
+                      </div>
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           {isLoadingMembers ? (
