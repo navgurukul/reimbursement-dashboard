@@ -540,17 +540,17 @@ export default function TeamPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex-1">
               <Input
                 placeholder="Search by name or email"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="max-w-lg"
+                className="max-w-lg w-full"
               />
             </div>
 
-            <div className="w-[180px] rounded-md">
+            <div className="w-full sm:w-[180px] rounded-md mt-2 sm:mt-0">
               <Select value={roleFilter} onValueChange={(v: any) => setRoleFilter(v)}>
                 <SelectTrigger className="w-full cursor-pointer">
                   <SelectValue placeholder="Filter role" />
