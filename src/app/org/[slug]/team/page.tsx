@@ -95,6 +95,9 @@ export default function TeamPage() {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [selectedEmailColumn, setSelectedEmailColumn] = useState<number | null>(null);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PER_PAGE = 10;
 
   const detectDelimiter = (line: string) => {
     const candidates = [',', '\t', ';'];
@@ -144,7 +147,7 @@ export default function TeamPage() {
 
         if (orgUsersError) throw orgUsersError;
 
-        if (orgUsers && orgUsers.length > 0) {
+          if (orgUsers && orgUsers.length > 0) {
           // Get user IDs
           const userIds = orgUsers.map((user) => user.user_id);
 
@@ -170,8 +173,11 @@ export default function TeamPage() {
           });
 
           setMembers(formattedMembers);
+          // Reset to first page after loading members
+          setCurrentPage(1);
         } else {
           setMembers([]);
+          setCurrentPage(1);
         }
       } catch (error: any) {
         toast.error("Failed to load team members", {
@@ -499,7 +505,17 @@ export default function TeamPage() {
               <Spinner />
             </div>
           ) : (
-            members.map((m) => (
+            // compute slice for current page
+            (() => {
+              const total = members.length;
+              const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+              const start = (currentPage - 1) * PER_PAGE;
+              const end = start + PER_PAGE;
+              const pageMembers = members.slice(start, end);
+
+              return (
+                <>
+                  {pageMembers.map((m) => (
               <div
                 key={m.id}
                 className="flex flex-col sm:flex-row sm:items-center sm:justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
@@ -591,7 +607,38 @@ export default function TeamPage() {
                   )}
                 </div>
               </div>
-            ))
+                ))}
+
+                {/* Pagination controls */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="cursor-pointer caret-transparent"
+                  >
+                    Previous
+                  </Button>
+
+                  <div className="text-sm text-muted-foreground">
+                    {currentPage} of {totalPages}
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="cursor-pointer caret-transparent"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </>
+            );
+          })()
+        
           )}
         </CardContent>
       </Card>
