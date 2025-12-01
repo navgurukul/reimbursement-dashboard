@@ -595,9 +595,6 @@ export default function TeamPage() {
                       </Select>
                     )
                   )}
-                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 font-medium">
-                    Active
-                  </span>
 
                   {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
                     <Trash
