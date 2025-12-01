@@ -528,8 +528,8 @@ export default function TeamPage() {
                 <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
                   {(userRole !== "admin" && userRole !== "owner") && (
                     <span
-                      className={`text-xs px-2 py-1 rounded-full font-medium shadow-sm bg-white border ${m.role === "owner"
-                        ? "text-black border-yellow-200 cursor-pointer"
+                      className={`text-xs px-4 py-2 rounded-full font-medium shadow-sm bg-white border ${m.role === "owner"
+                        ? "text-black border-gray-200 cursor-pointer"
                         : m.role === "admin"
                           ? "text-black border-gray-200 cursor-pointer"
                           : m.role === "manager"
@@ -543,8 +543,8 @@ export default function TeamPage() {
                   {(userRole === "owner" || userRole === "admin") && (
                     m.role === "owner" ? (
                       <span
-                        className={`text-xs px-2 py-1 rounded-full font-medium shadow-sm bg-white border ${m.role === "owner"
-                          ? "text-black border-yellow-200 cursor-pointer"
+                        className={`text-xs px-4 py-2 rounded-full font-medium shadow-sm bg-white border ${m.role === "owner"
+                          ? "text-black border-gray-200 cursor-pointer"
                           : m.role === "admin"
                             ? "text-black border-gray-200 cursor-pointer"
                             : m.role === "manager"
@@ -560,14 +560,14 @@ export default function TeamPage() {
                         onValueChange={(v: any) => handleChangeMemberRole(m.id, v)}
                         disabled={updatingRoleId === m.id}
                       >
-                        <SelectTrigger className={`w-[120px] text-xs h-7 rounded-full px-2 py-1 shadow-sm bg-white border ${m.role === "owner"
-                            ? "text-yellow-900 border-yellow-200 cursor-pointer"
-                            : m.role === "admin"
+                        <SelectTrigger className={`text-sm h-8 rounded-full px-3 py-1 flex items-center justify-between gap-2 min-w-[140px] shadow-sm bg-white border ${m.role === "owner"
                               ? "text-black border-gray-200 cursor-pointer"
-                              : m.role === "manager"
+                              : m.role === "admin"
                                 ? "text-black border-gray-200 cursor-pointer"
-                                : "text-black border-gray-200 cursor-pointer"
-                            }`}>
+                                : m.role === "manager"
+                                  ? "text-black border-gray-200 cursor-pointer"
+                                  : "text-black border-gray-200 cursor-pointer"
+                              }`}>
                           <SelectValue placeholder="Change role" />
                         </SelectTrigger>
                         <SelectContent className="bg-white">
@@ -598,7 +598,7 @@ export default function TeamPage() {
 
                   {(userRole === "owner" || userRole === "admin") && m.role !== "owner" && (
                     <Trash
-                      className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
+                      className="w-5 h-5 text-red-500 cursor-pointer hover:text-red-700"
                       onClick={() => confirmDeleteMember(m.id)}
                     />
                   )}
