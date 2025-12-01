@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
 import { organizations, profiles, RemovedUsers, authUsers } from "@/lib/db";
@@ -98,6 +98,31 @@ export default function TeamPage() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const PER_PAGE = 10;
+
+  // Search state (client-side filtering)
+  const [search, setSearch] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+
+  // Debounce the search input to avoid rapid filtering while typing
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
+  const filteredMembers = useMemo(() => {
+    if (!debouncedSearch) return members;
+    const q = debouncedSearch.toLowerCase();
+    return members.filter((m) => {
+      const name = (m.fullName || "").toLowerCase();
+      const email = (m.email || "").toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [members, debouncedSearch]);
 
   const detectDelimiter = (line: string) => {
     const candidates = [',', '\t', ';'];
@@ -477,7 +502,7 @@ export default function TeamPage() {
         <div>
           <h1 className="text-2xl font-semibold">Team Members</h1>
           <p className="text-sm text-muted-foreground">
-            {org?.name} — {members.length} member{members.length !== 1 && "s"}
+            {org?.name} — {debouncedSearch ? `${filteredMembers.length} of ${members.length} member${members.length !== 1 ? "s" : ""}` : `${members.length} member${members.length !== 1 && "s"}`}
           </p>
         </div>
         {(userRole === "owner" || userRole === "admin") && (
@@ -500,6 +525,16 @@ export default function TeamPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1">
+              <Input
+                placeholder="Search by name or email"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="max-w-lg"
+              />
+            </div>
+          </div>
           {isLoadingMembers ? (
             <div className="flex justify-center py-8">
               <Spinner />
@@ -507,11 +542,11 @@ export default function TeamPage() {
           ) : (
             // compute slice for current page
             (() => {
-              const total = members.length;
+              const total = filteredMembers.length;
               const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
               const start = (currentPage - 1) * PER_PAGE;
               const end = start + PER_PAGE;
-              const pageMembers = members.slice(start, end);
+              const pageMembers = filteredMembers.slice(start, end);
 
               return (
                 <>
