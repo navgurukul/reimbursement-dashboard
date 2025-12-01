@@ -656,27 +656,20 @@ export default function TeamPage() {
                                   ? "text-black border-gray-200 cursor-pointer"
                                   : "text-black border-gray-200 cursor-pointer"
                               }`}>
-                          <SelectValue placeholder="Change role" />
+                          <div className="flex-1 text-center">
+                            <SelectValue placeholder="Change role" />
+                          </div>
                         </SelectTrigger>
                         <SelectContent className="bg-white">
                           <SelectGroup>
                             <SelectItem value="member" className="cursor-pointer">
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4" />
                                 <span>Member</span>
-                              </div>
                             </SelectItem>
                             <SelectItem value="manager" className="cursor-pointer">
-                              <div className="flex items-center gap-2">
-                                <Settings className="w-4 h-4" />
                                 <span>Manager</span>
-                              </div>
                             </SelectItem>
                             <SelectItem value="admin" className="cursor-pointer">
-                              <div className="flex items-center gap-2">
-                                <Shield className="w-4 h-4" />
                                 <span>Admin</span>
-                              </div>
                             </SelectItem>
                           </SelectGroup>
                         </SelectContent>
