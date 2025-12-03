@@ -60,6 +60,7 @@ interface ExpenseData {
   approver_id?: string;
   event_id?: string | null;
   signature_url?: string;
+  unique_id?: string;
 }
 
 interface ExpenseItemData {
@@ -157,6 +158,7 @@ export default function NewExpensePage() {
         date: new Date().toISOString().split("T")[0],
         description: "",
         location: "", // ✅ add location
+        unique_id: formData.unique_id || "",
         ...customFieldValues, // ✅ Add label-based custom fields
       },
     }));
@@ -423,6 +425,7 @@ export default function NewExpensePage() {
 
           initialData.date = new Date().toISOString().split("T")[0];
           initialData.event_id = eventIdFromQuery || "";
+          initialData.unique_id = "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         } else {
           // Process default columns with approver options
@@ -448,6 +451,7 @@ export default function NewExpensePage() {
           });
           initialData.date = new Date().toISOString().split("T")[0];
           initialData.event_id = eventIdFromQuery || "";
+          initialData.unique_id = "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         }
       } catch (error) {
@@ -534,6 +538,21 @@ export default function NewExpensePage() {
       [key]: value,
     }));
 
+    // If the top-level Payment Unique ID is changed, propagate it to all expense items
+    if (key === "unique_id") {
+      const v = typeof value === "string" ? value : String(value);
+      setExpenseItemsData((prev) => {
+        const updated: Record<number, ExpenseItemData> = { ...prev };
+        expenseItems.forEach((id) => {
+          const item = updated[id] || {};
+          updated[id] = {
+            ...item,
+            unique_id: v,
+          };
+        });
+        return updated;
+      });
+    }
     // If changing the event, update the selected event
     if (key === "event_id" && value) {
       const event = events.find((e) => e.id === value);
@@ -821,6 +840,8 @@ export default function NewExpensePage() {
         custom_fields: custom_fields,
         event_id: formData.event_id || null,
         approver_id,
+        // include top-level Payment Unique ID if provided
+        unique_id: formData.unique_id || undefined,
         signature_url: signature_url_to_use ?? undefined,
         receipt: null,
         creator_email: user.email,
@@ -956,6 +977,8 @@ export default function NewExpensePage() {
             custom_fields: itemCustomFields,
             event_id: formData.event_id || null,
             approver_id: formData.approver || null,
+            // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
+            unique_id: item.unique_id || formData.unique_id || undefined,
             signature_url: isVoucher ? (signature_url_to_use ?? undefined) : (expense_signature_url ?? undefined),
             receipt: null,
             creator_email: user.email,
@@ -1161,6 +1184,26 @@ export default function NewExpensePage() {
         </CardHeader>
         <CardContent className="p-6 pt-0">
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
+            {/* Unique Expense ID - editable by user */}
+            <div className="space-y-2">
+              <Label htmlFor="unique_id" className="text-sm font-medium text-gray-700">
+                Payment Unique ID
+              </Label>
+              <Input
+                id="unique_id"
+                name="unique_id"
+                type="text"
+                value={formData.unique_id || ""}
+                onChange={(e) => handleInputChange("unique_id", e.target.value)}
+                placeholder="Enter payment unique ID (optional)"
+                className={`w-full ${errors["unique_id"] ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+              />
+              {errors["unique_id"] && (
+                <p className="text-red-500 text-sm mt-1" role="alert" id={`unique_id-error`}>
+                  {errors["unique_id"]}
+                </p>
+              )}
+            </div>
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
               <div className="flex items-center space-x-3 mb-2">
