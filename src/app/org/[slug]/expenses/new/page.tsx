@@ -615,6 +615,11 @@ export default function NewExpensePage() {
       if (!formData.voucher_signature_data_url) newErrors["voucher_signature_data_url"] = "Signature is required";
     }
 
+    // Validate required Payment Unique ID
+    if (!formData.unique_id || String(formData.unique_id).trim() === "") {
+      newErrors["unique_id"] = "Payment Unique ID is required";
+    }
+
     // Validate expense items
     for (const itemId of expenseItems) {
       const item = expenseItemsData[itemId];
@@ -1187,7 +1192,7 @@ export default function NewExpensePage() {
             {/* Unique Expense ID - editable by user */}
             <div className="space-y-2">
               <Label htmlFor="unique_id" className="text-sm font-medium text-gray-700">
-                Payment Unique ID
+                Payment Unique ID <span className="text-red-500 ml-1 text-sm">*</span>
               </Label>
               <Input
                 id="unique_id"
@@ -1195,7 +1200,10 @@ export default function NewExpensePage() {
                 type="text"
                 value={formData.unique_id || ""}
                 onChange={(e) => handleInputChange("unique_id", e.target.value)}
-                placeholder="Enter payment unique ID (optional)"
+                required
+                aria-invalid={errors["unique_id"] ? "true" : "false"}
+                aria-describedby={errors["unique_id"] ? "unique_id-error" : undefined}
+                placeholder="Enter payment unique ID"
                 className={`w-full ${errors["unique_id"] ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
               />
               {errors["unique_id"] && (
