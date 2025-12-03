@@ -95,7 +95,7 @@ export default function PaymentProcessingOnly() {
             creator_name: exp.creator?.full_name || "—",
             approver_name: exp.approver?.full_name || "—",
             payment_type: exp.payment_type || "NEFT",
-            unique_id: exp.unique_id || "—",
+            // unique_id: exp.unique_id || "N/A",
 
           }));
 
@@ -151,7 +151,7 @@ export default function PaymentProcessingOnly() {
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "N/A",
             debit_account: exp.debit_account || "10064244213",
             utr: exp.utr || "N/A",
-            unique_id: displayUniqueId,
+            unique_id: displayUniqueId || "N/A",
           };
         });
 
@@ -725,7 +725,7 @@ export default function PaymentProcessingOnly() {
                     )}
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 text-center">{expense.unique_id || "—"}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.unique_id || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <Badge className="bg-green-100 hover:bg-green-200 text-green-800 border border-green-300">
                       Finance Approved

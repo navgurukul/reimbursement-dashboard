@@ -255,7 +255,7 @@ export default function FinanceExpenseDetails() {
                 <TableRow>
                   <TableHead>Unique ID</TableHead>
                   <TableCell>
-                    {expense.unique_id || expense.uniqueId || expense.id}
+                    {expense.unique_id || "N/A"}
                   </TableCell>
                 </TableRow>
                 <TableRow>
