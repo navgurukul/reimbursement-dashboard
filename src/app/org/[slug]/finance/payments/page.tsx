@@ -152,6 +152,8 @@ export default function PaymentProcessingOnly() {
             debit_account: exp.debit_account || "10064244213",
             utr: exp.utr || "N/A",
             unique_id: displayUniqueId || "N/A",
+            // Prefer bank's email when we matched bank details (especially when matched by unique_id)
+            bank_email: (bankByUnique?.email || matchedBank?.email) || exp.email || "-",
           };
         });
 
@@ -218,7 +220,7 @@ export default function PaymentProcessingOnly() {
             row.push(exp.currency || "INR");
             break;
           case "Beneficiary Email ID":
-            row.push(exp.email || "—");
+            row.push(exp.bank_email || exp.email || "—");
             break;
           case "Remark":
             {
@@ -300,7 +302,7 @@ export default function PaymentProcessingOnly() {
             row.push(exp.currency || "INR");
             break;
           case "Beneficiary Email ID":
-            row.push(exp.email || "N/A");
+            row.push(exp.bank_email || exp.email || "N/A");
             break;
           case "Remark":
             {
@@ -531,7 +533,7 @@ export default function PaymentProcessingOnly() {
                   <TableCell className="px-4 py-3 text-center">{formatDateTime(expense.created_at)}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.expense_type || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.creator_name}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.email}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.bank_email || expense.email}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.event_title || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.location || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.approver_name}</TableCell>
