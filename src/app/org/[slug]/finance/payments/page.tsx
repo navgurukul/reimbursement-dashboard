@@ -134,7 +134,16 @@ export default function PaymentProcessingOnly() {
         if (bankError) throw bankError;
 
         const enrichedExpenses = filteredExpenses.map((exp) => {
-          const matchedBank = bankData?.find((bank) => bank.email === exp.email);
+          // If the expense itself has a unique_id, prefer bank details by that unique_id.
+          // Otherwise fall back to the previous behavior (lookup by email).
+          const bankByUnique = exp.unique_id
+            ? bankData?.find((bank) => bank.unique_id === exp.unique_id)
+            : null;
+          const matchedBank = bankByUnique || bankData?.find((bank) => bank.email === exp.email);
+
+          // Decide which unique id to display: expense-specific first, then bank's unique_id, then N/A
+          const displayUniqueId = exp.unique_id ? exp.unique_id : (matchedBank?.unique_id || "N/A");
+
           return {
             ...exp,
             beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "N/A",
@@ -142,8 +151,7 @@ export default function PaymentProcessingOnly() {
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "N/A",
             debit_account: exp.debit_account || "10064244213",
             utr: exp.utr || "N/A",
-            // remarks: exp.remarks || "Pune campuses 2 Hariom",
-            unique_id: matchedBank?.unique_id || "N/A",
+            unique_id: displayUniqueId,
           };
         });
 
