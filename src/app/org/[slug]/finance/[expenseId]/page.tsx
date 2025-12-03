@@ -217,7 +217,7 @@ export default function FinanceExpenseDetails() {
         <Button
           variant="outline"
           onClick={() => router.push(`/org/${expense.org_id}/finance`)}
-          className="text-sm"
+          className="text-sm cursor-pointer"
         >
           ← Back to Approval Queue
         </Button>
@@ -251,6 +251,12 @@ export default function FinanceExpenseDetails() {
                 <TableRow>
                   <TableHead>Timestamp</TableHead>
                   <TableCell>{formatDateTime(expense.created_at)}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableHead>Unique ID</TableHead>
+                  <TableCell>
+                    {expense.unique_id || "N/A"}
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableHead>Location of Expense</TableHead>

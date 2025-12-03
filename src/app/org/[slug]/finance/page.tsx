@@ -21,9 +21,9 @@ export default function FinancePage() {
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
       <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
         <TabsList className="gap-2">
-          <TabsTrigger value="approvals">Approval Queue</TabsTrigger>
-          <TabsTrigger value="payments">Payment Processing</TabsTrigger>
-          <TabsTrigger value="records">Records</TabsTrigger>
+          <TabsTrigger value="approvals" className="cursor-pointer">Approval Queue</TabsTrigger>
+          <TabsTrigger value="payments" className="cursor-pointer">Payment Processing</TabsTrigger>
+          <TabsTrigger value="records" className="cursor-pointer">Records</TabsTrigger>
         </TabsList>
       </div>
 

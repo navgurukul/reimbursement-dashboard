@@ -1121,6 +1121,12 @@ export default function ViewExpensePage() {
                   <p>{expense.location || "N/A"}</p>
                 </div>
                 <div>
+                  <p className="text-sm font-medium text-muted-foreground">Unique ID</p>
+                  <div className="flex items-center space-x-2">
+                    <p className="font-mono">{expense.unique_id || "N/A"}</p>
+                  </div>
+                </div>
+                <div>
                   <p className="text-sm font-medium text-muted-foreground">
                     Amount
                   </p>

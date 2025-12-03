@@ -224,7 +224,7 @@ export default function PaymentProcessingDetails() {
                 <Button
                     variant="outline"
                     onClick={() => router.push(`/org/${expense.org_id}/finance`)}
-                    className="text-sm"
+                    className="text-sm cursor-pointer"
                 >
                     ← Back to Payment Processing
                 </Button>
@@ -258,6 +258,10 @@ export default function PaymentProcessingDetails() {
                                 <TableRow>
                                     <TableHead>Timestamp</TableHead>
                                     <TableCell>{formatDateTime(expense.created_at)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableHead>Payment Unique ID</TableHead>
+                                    <TableCell className="font-mono">{expense.unique_id || expense.uniqueId || expense.id}</TableCell>
                                 </TableRow>
                                 <TableRow>
                                     <TableHead>Location of Expense</TableHead>

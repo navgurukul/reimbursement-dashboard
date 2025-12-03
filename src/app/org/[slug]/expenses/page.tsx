@@ -26,6 +26,7 @@ import {
   MoreHorizontal,
   Eye,
   Edit,
+  Copy,
   Trash2,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -858,6 +859,7 @@ export default function ExpensesPage() {
                     <TableRow>
                       <TableHead>S.No.</TableHead>
                       <TableHead>Timestamp</TableHead>
+                      <TableHead>Unique ID</TableHead>
                       {columns
                         .filter((c) => c.visible)
                         .map((c) => (
@@ -871,7 +873,7 @@ export default function ExpensesPage() {
                     {loading ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 3}
+                          colSpan={columns.filter((c) => c.visible).length + 4}
                           className="text-center py-4"
                         >
                           Loading…
@@ -880,7 +882,7 @@ export default function ExpensesPage() {
                     ) : getCurrent().length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 3}
+                          colSpan={columns.filter((c) => c.visible).length + 4}
                           className="text-center py-4 text-muted-foreground"
                         >
                           No expenses.
@@ -889,7 +891,7 @@ export default function ExpensesPage() {
                     ) : filteredData.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 3}
+                          colSpan={columns.filter((c) => c.visible).length + 4}
                           className="text-center py-4 text-muted-foreground"
                         >
                           {filters.amountMin || filters.amountMax
@@ -903,6 +905,11 @@ export default function ExpensesPage() {
                           <TableCell className="w-12 text-center">{index + 1}</TableCell>
                           <TableCell className="whitespace-nowrap">
                             {formatDateTime(exp.created_at)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono">{exp.unique_id || "N/A"}</span>
+                            </div>
                           </TableCell>
                           {columns
                             .filter((c) => c.visible)

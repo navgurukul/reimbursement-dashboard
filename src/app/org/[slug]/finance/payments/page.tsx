@@ -95,7 +95,7 @@ export default function PaymentProcessingOnly() {
             creator_name: exp.creator?.full_name || "—",
             approver_name: exp.approver?.full_name || "—",
             payment_type: exp.payment_type || "NEFT",
-            unique_id: exp.unique_id || "—",
+            // unique_id: exp.unique_id || "N/A",
 
           }));
 
@@ -134,7 +134,16 @@ export default function PaymentProcessingOnly() {
         if (bankError) throw bankError;
 
         const enrichedExpenses = filteredExpenses.map((exp) => {
-          const matchedBank = bankData?.find((bank) => bank.email === exp.email);
+          // If the expense itself has a unique_id, prefer bank details by that unique_id.
+          // Otherwise fall back to the previous behavior (lookup by email).
+          const bankByUnique = exp.unique_id
+            ? bankData?.find((bank) => bank.unique_id === exp.unique_id)
+            : null;
+          const matchedBank = bankByUnique || bankData?.find((bank) => bank.email === exp.email);
+
+          // Decide which unique id to display: expense-specific first, then bank's unique_id, then N/A
+          const displayUniqueId = exp.unique_id ? exp.unique_id : (matchedBank?.unique_id || "N/A");
+
           return {
             ...exp,
             beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "N/A",
@@ -142,8 +151,9 @@ export default function PaymentProcessingOnly() {
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "N/A",
             debit_account: exp.debit_account || "10064244213",
             utr: exp.utr || "N/A",
-            // remarks: exp.remarks || "Pune campuses 2 Hariom",
-            unique_id: matchedBank?.unique_id || "N/A",
+            unique_id: displayUniqueId || "N/A",
+            // Prefer bank's email when we matched bank details (especially when matched by unique_id)
+            bank_email: (bankByUnique?.email || matchedBank?.email) || exp.email || "-",
           };
         });
 
@@ -210,7 +220,7 @@ export default function PaymentProcessingOnly() {
             row.push(exp.currency || "INR");
             break;
           case "Beneficiary Email ID":
-            row.push(exp.email || "—");
+            row.push(exp.bank_email || exp.email || "—");
             break;
           case "Remark":
             {
@@ -292,7 +302,7 @@ export default function PaymentProcessingOnly() {
             row.push(exp.currency || "INR");
             break;
           case "Beneficiary Email ID":
-            row.push(exp.email || "N/A");
+            row.push(exp.bank_email || exp.email || "N/A");
             break;
           case "Remark":
             {
@@ -523,7 +533,7 @@ export default function PaymentProcessingOnly() {
                   <TableCell className="px-4 py-3 text-center">{formatDateTime(expense.created_at)}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.expense_type || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.creator_name}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.email}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.bank_email || expense.email}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.event_title || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.location || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">{expense.approver_name}</TableCell>
@@ -717,7 +727,7 @@ export default function PaymentProcessingOnly() {
                     )}
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 text-center">{expense.unique_id || "—"}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">{expense.unique_id || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <Badge className="bg-green-100 hover:bg-green-200 text-green-800 border border-green-300">
                       Finance Approved
