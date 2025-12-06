@@ -161,7 +161,7 @@ export default function SettingsPage() {
             settingsData.expense_columns.length > 0
           ) {
             // Process columns to ensure they have proper structure
-            const processedColumns = settingsData.expense_columns.map((col) => {
+            let processedColumns = settingsData.expense_columns.map((col) => {
               // Make sure options exist for appropriate column types
               if (
                 ["dropdown", "radio", "checkbox"].includes(col.type) &&
@@ -172,7 +172,32 @@ export default function SettingsPage() {
               return col;
             });
 
+            // Ensure location column exists if not present
+            const hasLocationColumn = processedColumns.some((col) => col.key === "location");
+            if (!hasLocationColumn) {
+              processedColumns.push({
+                key: "location",
+                label: "Location of Expense",
+                type: "dropdown",
+                visible: true,
+                required: true,
+                options: [],
+              });
+            }
+
             setColumns(processedColumns);
+          } else {
+            // If no columns exist, initialize with default columns plus location
+            const initialColumns = [...defaultColumns];
+            initialColumns.push({
+              key: "location",
+              label: "Location of Expense",
+              type: "dropdown",
+              visible: true,
+              required: true,
+              options: [],
+            });
+            setColumns(initialColumns);
           }
         }
 
