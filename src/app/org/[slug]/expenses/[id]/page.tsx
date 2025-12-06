@@ -956,6 +956,7 @@ export default function ViewExpensePage() {
         <Button
           variant="ghost"
           onClick={() => router.push(`/org/${slug}/expenses`)}
+          className="cursor-pointer"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Expenses
@@ -1368,17 +1369,23 @@ export default function ViewExpensePage() {
                 Object.keys(expense.custom_fields).length > 0 &&
                 customFields.length > 0 && ( // make sure customFields are loaded
                   <div className="grid grid-cols-2 gap-4 mt-4 break-words">
-                    {Object.entries(expense.custom_fields).map(([key, value]) => {
-                      const matchedField = customFields.find((field) => field.key === key);
-                      return (
-                        <div key={key}>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            {matchedField?.label || formatFieldName(key)}
-                          </p>
-                          <p>{value !== undefined && value !== "" ? formatFieldValue(value) : "—"}</p>
-                        </div>
-                      );
-                    })}
+                    {Object.entries(expense.custom_fields)
+                      .filter(([key]) => 
+                        key !== 'location_of_expense' && 
+                        key !== 'Location of Expense' &&
+                        key.toLowerCase() !== 'location_of_expense'
+                      ) // Exclude Location Of Expense
+                      .map(([key, value]) => {
+                        const matchedField = customFields.find((field) => field.key === key);
+                        return (
+                          <div key={key}>
+                            <p className="text-sm font-medium text-muted-foreground">
+                              {matchedField?.label || formatFieldName(key)}
+                            </p>
+                            <p>{value !== undefined && value !== "" ? formatFieldValue(value) : "—"}</p>
+                          </div>
+                        );
+                      })}
                   </div>
                 )}
             </CardContent>

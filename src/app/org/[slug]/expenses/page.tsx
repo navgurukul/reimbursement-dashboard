@@ -191,6 +191,9 @@ export default function ExpensesPage() {
 
         // ✅ Remove any existing 'description' columns
         expenseColumns = expenseColumns.filter((c) => c.key !== "description");
+        
+        // Remove any existing 'Location of Expense' columns
+        expenseColumns = expenseColumns.filter((c) => c.key !== "location");
 
         // Ensure creator_name column exists
         if (!expenseColumns.some((c) => c.key === "creator_name")) {
@@ -531,9 +534,9 @@ export default function ExpensesPage() {
     <div className="space-y-6 pt-0">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
-          <TabsList>
+          <TabsList className="cursor-pointer">
             {tabs.map((t) => (
-              <TabsTrigger key={t.value} value={t.value}>
+              <TabsTrigger key={t.value} value={t.value} className="cursor-pointer">
                 {t.label}
               </TabsTrigger>
             ))}
@@ -595,7 +598,7 @@ export default function ExpensesPage() {
             </div>
             {/* toolbar */}
             <div className="flex items-center justify-between mb-4">
-              <Button onClick={handleNew}>
+              <Button onClick={handleNew} className="cursor-pointer">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 New Expense
               </Button>

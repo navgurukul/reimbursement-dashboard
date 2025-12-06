@@ -68,7 +68,6 @@ interface ExpenseItemData {
   amount: number
   date: string
   description: string
-  location?: string;   // ✅ new
   [key: string]: string | number | string[] | undefined;
 }
 
@@ -122,6 +121,9 @@ export default function NewExpensePage() {
   // voucherDataMap
   const [voucherDataMap, setVoucherDataMap] = useState<Record<number, any>>({});
 
+  // Location options from settings
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+
   const getDefaultValueByType = (type: string) => {
     switch (type) {
       case "text":
@@ -157,7 +159,6 @@ export default function NewExpensePage() {
         // date: new Date().toISOString().split("T")[0],
         date: new Date().toISOString().split("T")[0],
         description: "",
-        location: "", // ✅ add location
         unique_id: formData.unique_id || "",
         ...customFieldValues, // ✅ Add label-based custom fields
       },
@@ -416,6 +417,21 @@ export default function NewExpensePage() {
 
           setColumns(processedColumns);
 
+          // Extract location options from settings
+          const locationColumn = columnsToUse.find((col: Column) => col.key === "location");
+          if (locationColumn && locationColumn.options) {
+            const options = locationColumn.options;
+            if (Array.isArray(options) && options.length > 0) {
+              if (typeof options[0] === 'object') {
+                // Convert array of objects to array of strings
+                setLocationOptions((options as Array<{ value: string; label: string }>).map(opt => opt.label || opt.value));
+              } else {
+                // It's already a string array
+                setLocationOptions(options as string[]);
+              }
+            }
+          }
+
           const initialData: Record<string, any> = {};
           processedColumns.forEach((col: any) => {
             if (col.visible) {
@@ -626,7 +642,6 @@ export default function NewExpensePage() {
       if (!item.expense_type) newErrors[`expense_type-${itemId}`] = "Expense Type is required";
       if (!item.amount || isNaN(item.amount)) newErrors[`amount-${itemId}`] = "Amount is required";
       // if (!item.date) newErrors[`date-${itemId}`] = "Date is required";
-      if (!item.location) newErrors[`location-${itemId}`] = "Location is required";  // ✅ ADD HERE
 
 
       if (!item.date) {
@@ -1118,19 +1133,6 @@ export default function NewExpensePage() {
       col.visible &&
       !defaultSystemFields.includes(col.key)
   );
-
-  const campusOptions = [
-    "Himachal",
-    "Kishanganj",
-    "Udaipur",
-    "Dantewada",
-    "Raipur",
-    "Jashpur",
-    "Dharmshala",
-    "Sarjapur",
-    "Pune",
-    "Remote",
-  ];
 
 
 
@@ -1637,31 +1639,6 @@ export default function NewExpensePage() {
                 return null;
               })}
             </div>
-            {/* Location of Expenses */}
-            <div className="space-y-2">
-              <Label htmlFor="location" className="text-sm font-medium text-gray-700">
-                Location of Expense <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.location || ""}
-                onValueChange={(value: string) => handleInputChange("location", value)}
-              >
-                <SelectTrigger id="location" className="w-full">
-                  <SelectValue placeholder="Select Location" />
-                </SelectTrigger>
-                <SelectContent>
-                  {campusOptions.map((campus) => (
-                    <SelectItem key={campus} value={campus}>
-                      {campus}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors["location"] && (
-                <p className="text-red-500 text-sm mt-1">{errors["location"]}</p>
-              )}
-            </div>
-
 
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
@@ -1782,7 +1759,7 @@ export default function NewExpensePage() {
                       <Button
                         type="button"
                         onClick={() => deleteItem(id)}
-                        className="p-2 rounded-md bg-white-200 hover:bg-red-200 text-red-600 hover:text-red-700 shadow-sm transition duration-200"
+                        className="p-2 rounded-md bg-white-200 hover:bg-red-200 text-red-600 hover:text-red-700 shadow-sm transition duration-200 cursor-pointer"
                         title="Delete"
                       >
                         <Trash className="w-4 h-4" />
@@ -1897,36 +1874,6 @@ export default function NewExpensePage() {
                         );
                       })}
                     </div>
-
-                    {/* Location of Expense */}
-                    <div className="space-y-2 mt-4">
-                      <Label htmlFor={`location-${id}`} className="text-sm font-medium text-gray-700">
-                        Location of Expense <span className="text-red-500">*</span>
-                      </Label>
-                      <Select
-                        value={String(getExpenseItemValue(id, "location") || "")}
-                        onValueChange={(value: string) =>
-                          handleExpenseItemChange(id, "location", value)
-                        }
-                      >
-                        <SelectTrigger id={`location-${id}`} className="w-full">
-                          <SelectValue placeholder="Select Location" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {campusOptions.map((campus) => (
-                            <SelectItem key={campus} value={campus}>
-                              {campus}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {errors[`location-${id}`] && (
-                        <p className="text-red-500 text-sm mt-1">
-                          {errors[`location-${id}`]}
-                        </p>
-                      )}
-                    </div>
-
 
                     {/* Description (full width) */}
                     {columns.map((col) => {
