@@ -4,7 +4,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses } from "@/lib/db";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { IndianRupee, Pencil, Save, Trash2, Funnel } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { formatDateTime } from '@/lib/utils';
@@ -24,6 +24,7 @@ export default function PaymentRecords() {
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { slug } = useParams();
+  const router = useRouter();
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -566,7 +567,7 @@ export default function PaymentRecords() {
                         variant="link"
                         size="sm"
                         className="p-0 h-auto font-normal cursor-pointer text-blue-600"
-                        onClick={() => window.open(`/org/${slug}/expenses/${record.id}/voucher`, "_blank")}
+                        onClick={() => router.push(`/org/${slug}/expenses/${record.id}/voucher?from=records`)}
                       >
                         View Voucher
                       </Button>
