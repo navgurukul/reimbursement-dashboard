@@ -8,14 +8,24 @@ import Records from "./records/page";
 import { useOrgStore } from "@/store/useOrgStore";
 import supabase from "@/lib/supabase";
 import { Spinner } from "@/components/ui/spinner";
-import { notFound, useRouter } from "next/navigation";
+import { notFound, useRouter, useSearchParams } from "next/navigation";
 
 export default function FinancePage() {
   const { userRole } = useOrgStore();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
   if (userRole !== "owner" && userRole !== "admin") {
     notFound();
   }
   const [activeTab, setActiveTab] = useState("approvals");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

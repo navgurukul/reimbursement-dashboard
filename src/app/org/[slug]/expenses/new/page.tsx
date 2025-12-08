@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import {
@@ -24,8 +24,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, CalendarIcon, Save, Upload, Trash } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ArrowLeft, CalendarIcon, Save, Upload, Trash, Info } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations, expenseHistory, voucherAttachments } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
@@ -69,6 +83,16 @@ interface ExpenseItemData {
   date: string
   description: string
   [key: string]: string | number | string[] | undefined;
+}
+
+interface BankDetailRecord {
+  id: number;
+  account_holder: string | null;
+  email: string | null;
+  unique_id: string | null;
+  bank_name?: string | null;
+  account_number?: string | null;
+  ifsc_code?: string | null;
 }
 
 export default function NewExpensePage() {
@@ -123,6 +147,15 @@ export default function NewExpensePage() {
 
   // Location options from settings
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
+
+  // Payment Unique ID helpers
+  const [uniqueIdModalOpen, setUniqueIdModalOpen] = useState(false);
+  const [bankSearchQuery, setBankSearchQuery] = useState("");
+  const [bankSearchResults, setBankSearchResults] = useState<BankDetailRecord[]>([]);
+  const [bankSearchLoading, setBankSearchLoading] = useState(false);
+  const [bankSearchError, setBankSearchError] = useState<string | null>(null);
+  const [selectedUniqueIdUser, setSelectedUniqueIdUser] = useState<BankDetailRecord | null>(null);
+  const [prefilledUniqueId, setPrefilledUniqueId] = useState<string | null>(null);
 
   const getDefaultValueByType = (type: string) => {
     switch (type) {
@@ -554,6 +587,15 @@ export default function NewExpensePage() {
       [key]: value,
     }));
 
+    if (key === "unique_id" && typeof value === "string") {
+      if (selectedUniqueIdUser && selectedUniqueIdUser.unique_id !== value) {
+        setSelectedUniqueIdUser(null);
+      }
+      if (prefilledUniqueId && prefilledUniqueId !== value) {
+        setPrefilledUniqueId(null);
+      }
+    }
+
     // If the top-level Payment Unique ID is changed, propagate it to all expense items
     if (key === "unique_id") {
       const v = typeof value === "string" ? value : String(value);
@@ -575,6 +617,89 @@ export default function NewExpensePage() {
       setSelectedEvent(event || null);
     }
   };
+
+  // Prefill Payment Unique ID using the logged-in user's bank details
+  useEffect(() => {
+    const fetchLoggedInUserUniqueId = async () => {
+      if (!user?.email || !organization?.id) return;
+      if (formData.unique_id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("bank_details")
+          .select("id,account_holder,email,unique_id,bank_name,account_number,ifsc_code")
+          .eq("email", user.email)
+          .limit(1);
+
+        if (error) {
+          console.error("Failed to fetch bank details for prefill:", error);
+          return;
+        }
+
+        const record = data?.[0];
+        if (record?.unique_id) {
+          handleInputChange("unique_id", record.unique_id);
+          setSelectedUniqueIdUser(record as BankDetailRecord);
+          setPrefilledUniqueId(record.unique_id);
+        }
+      } catch (err) {
+        console.error("Unexpected error while prefilling unique ID:", err);
+      }
+    };
+
+    fetchLoggedInUserUniqueId();
+  }, [formData.unique_id, organization?.id, user?.email]);
+
+  const handleUniqueIdSelect = (detail: BankDetailRecord) => {
+    const value = detail.unique_id || "";
+    handleInputChange("unique_id", value);
+    setSelectedUniqueIdUser(detail);
+    setPrefilledUniqueId(detail.unique_id || null);
+    setUniqueIdModalOpen(false);
+  };
+
+  // Search bank details when the modal is open
+  useEffect(() => {
+    if (!uniqueIdModalOpen) {
+      setBankSearchLoading(false);
+      setBankSearchError(null);
+      setBankSearchResults([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setBankSearchLoading(true);
+      setBankSearchError(null);
+
+      try {
+        const trimmed = bankSearchQuery.trim();
+
+        let query = supabase
+          .from("bank_details")
+          .select("id,account_holder,email,unique_id,bank_name,account_number,ifsc_code")
+          .order("account_holder", { ascending: true })
+          // .limit(20);
+
+        if (trimmed) {
+          query = query.or(
+            `account_holder.ilike.%${trimmed}%,email.ilike.%${trimmed}%,unique_id.ilike.%${trimmed}%`
+          );
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        setBankSearchResults((data || []) as BankDetailRecord[]);
+      } catch (err: any) {
+        console.error("Error searching bank details:", err);
+        setBankSearchError("Unable to search users right now");
+      } finally {
+        setBankSearchLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [bankSearchQuery, uniqueIdModalOpen]);
 
   // Handle expense signature save - separate from voucher signature
   const handleExpenseSignatureSave = async (dataUrl: string) => {
@@ -1193,27 +1318,142 @@ export default function NewExpensePage() {
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* Unique Expense ID - editable by user */}
             <div className="space-y-2">
-              <Label htmlFor="unique_id" className="text-sm font-medium text-gray-700">
-                Payment Unique ID <span className="text-red-500 ml-1 text-sm">*</span>
-              </Label>
-              <Input
-                id="unique_id"
-                name="unique_id"
-                type="text"
-                value={formData.unique_id || ""}
-                onChange={(e) => handleInputChange("unique_id", e.target.value)}
-                required
-                aria-invalid={errors["unique_id"] ? "true" : "false"}
-                aria-describedby={errors["unique_id"] ? "unique_id-error" : undefined}
-                placeholder="Enter payment unique ID"
-                className={`w-full ${errors["unique_id"] ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-              />
+              <div className="flex items-center gap-2">
+                <Label htmlFor="unique_id" className="text-sm font-medium text-gray-700">
+                  Payment Unique ID 
+                </Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    <p>A unique identifier used for payment processing</p>
+                  </TooltipContent>
+                </Tooltip>
+                <span className="text-red-500 ml-1 text-sm">*</span>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="unique_id"
+                  name="unique_id"
+                  type="text"
+                  value={formData.unique_id || ""}
+                  onChange={(e) => handleInputChange("unique_id", e.target.value)}
+                  required
+                  aria-invalid={errors["unique_id"] ? "true" : "false"}
+                  aria-describedby={errors["unique_id"] ? "unique_id-error" : undefined}
+                  placeholder="Enter payment unique ID"
+                  className={`w-full border ${
+                    errors["unique_id"]
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                      : "border-gray-300"
+                  } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
+                  disabled={!!prefilledUniqueId}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="sm:w-40 cursor-pointer bg-gray-300"
+                  onClick={() => {
+                    // setBankSearchQuery(formData.unique_id || user?.email || "");
+                    setBankSearchQuery("");
+                    setUniqueIdModalOpen(true);
+                  }}
+                >
+                  Search user
+                </Button>
+              </div>
               {errors["unique_id"] && (
                 <p className="text-red-500 text-sm mt-1" role="alert" id={`unique_id-error`}>
                   {errors["unique_id"]}
                 </p>
               )}
+
+              {(selectedUniqueIdUser || prefilledUniqueId) && (
+                <div className="bg-gray-50 px-2 py-0 text-sm text-gray-800">
+                  <p className="mt-1 text-xs text-gray-600">
+                    Pre-filled Payment Unique ID; allows searching and replacing with another user’s Unique ID.
+                  </p>
+                </div>
+              )}
             </div>
+
+            <Dialog open={uniqueIdModalOpen} onOpenChange={setUniqueIdModalOpen}>
+              <DialogContent className="max-w-xl">
+                <DialogHeader>
+                  <DialogTitle>Select a user</DialogTitle>
+                  <DialogDescription>
+                    Search by name, email, or Unique ID and click a row to autofill the payment Unique ID.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-3">
+                  <Input
+                    autoFocus
+                    value={bankSearchQuery}
+                    onChange={(e) => setBankSearchQuery(e.target.value)}
+                    placeholder="Search by name, email, or Unique ID"
+                  />
+
+                  {bankSearchError && (
+                    <p className="text-sm text-red-600">{bankSearchError}</p>
+                  )}
+
+                  <div className="max-h-80 overflow-y-auto rounded-md border bg-gray-50">
+                    {bankSearchLoading ? (
+                      <div className="px-3 py-4">
+                        {[...Array(5)].map((_, i) => (
+                          <div key={i} className="flex items-center justify-between gap-3 py-3">
+                            <div className="flex flex-col gap-2 w-2/3">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-3 w-40" />
+                            </div>
+                            <div className="flex flex-col items-end gap-2 w-1/3">
+                              <Skeleton className="h-4 w-20" />
+                              <Skeleton className="h-3 w-24" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : bankSearchResults.length === 0 && bankSearchQuery.trim() ? (
+                      <p className="px-3 py-4 text-sm text-gray-600">No matching users found.</p>
+                    ) : bankSearchResults.length === 0 ? (
+                      <p className="px-3 py-4 text-sm text-gray-400">Type to search users.</p>
+                    ) : (
+                      <div className="divide-y">
+                        {bankSearchResults.map((row) => (
+                          <button
+                            type="button"
+                            key={row.id}
+                            onClick={() => handleUniqueIdSelect(row)}
+                            className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-white cursor-pointer"
+                          >
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">
+                                {row.account_holder || "Unnamed account"}
+                              </p>
+                              <p className="text-xs text-gray-600">{row.email || "No email available"}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-mono text-sm text-gray-900">{row.unique_id || "—"}</p>
+                              {row.bank_name && (
+                                <p className="text-[11px] text-gray-500">{row.bank_name}</p>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" onClick={() => setUniqueIdModalOpen(false)} className="cursor-pointer">
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
               <div className="flex items-center space-x-3 mb-2">
@@ -2004,7 +2244,7 @@ export default function NewExpensePage() {
                               </Select>
                             </>
                           )}
-                        
+
                           {col.type === "radio" && col.options && (
                             <div className="space-y-1">
                               {col.options.map((option: any) => {
