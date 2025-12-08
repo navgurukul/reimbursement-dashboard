@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses, vouchers } from "@/lib/db";
 import { toast } from "sonner";
@@ -28,9 +28,12 @@ declare module 'jspdf' {
 export default function VoucherViewPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const expenseId = params.id as string;
   const slug = params.slug as string;
   const { organization } = useOrgStore();
+  const fromApprovalQueue = searchParams.get("from") === "approval-queue";
+  const fromRecords = searchParams.get("from") === "records";
 
   const [expense, setExpense] = useState<any>(null);
   const [voucher, setVoucher] = useState<any>(null);
@@ -38,6 +41,7 @@ export default function VoucherViewPage() {
   const [userSignatureUrl, setUserSignatureUrl] = useState<string | null>(null);
   const [approverName, setApproverName] = useState<string | null>(null);
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const fromPaymentProcessing = searchParams.get("from") === "payment-processing";
 
   // Fetch attachment URL after voucher loads
   useEffect(() => {
@@ -379,15 +383,44 @@ export default function VoucherViewPage() {
 
   return (
     <div className="max-w-[800px] mx-auto py-6">
-      <div className="flex items-center justify-between mb-6">
-        <Button
-          variant="ghost"
-          onClick={() => router.push(`/org/${slug}/expenses`)}
-          className="text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Expenses
-        </Button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        {fromRecords ? (
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/org/${slug}/finance?tab=records`)}
+            className="text-gray-600 hover:text-gray-900 cursor-pointer"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Records
+          </Button>
+        ) : fromApprovalQueue ? (
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/org/${slug}/finance/${expenseId}`)}
+            className="text-gray-600 hover:text-gray-900 cursor-pointer"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Approval Queue
+          </Button>
+        ) : fromPaymentProcessing ? (
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/org/${slug}/finance/payments/${expenseId}`)}
+            className="text-gray-600 hover:text-gray-900 cursor-pointer"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Payment Processing
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/org/${slug}/expenses/${expenseId}`)}
+            className="text-gray-600 hover:text-gray-900 cursor-pointer"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Expense Details
+          </Button>
+        )}
 
         <Button variant="outline" onClick={handleDownloadPDF} className="cursor-pointer">
           <Download className="mr-2 h-4 w-4" />

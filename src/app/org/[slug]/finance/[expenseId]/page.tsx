@@ -301,7 +301,7 @@ export default function FinanceExpenseDetails() {
                       <Button
                         variant="outline"
                         onClick={handleViewReceipt}
-                        className="flex items-center"
+                        className="flex items-center cursor-pointer"
                       >
                         <FileText className="mr-2 h-4 w-4" />
                         View Receipt ({expense.receipt.filename || "Document"})
@@ -309,9 +309,9 @@ export default function FinanceExpenseDetails() {
                     ) : hasVoucher ? (
                       <Button
                         variant="outline"
-                        className="flex items-center text-blue-600"
+                        className="flex items-center text-blue-600 cursor-pointer"
                         onClick={() =>
-                          router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
+                          router.push(`/org/${slug}/expenses/${expense.id}/voucher?from=approval-queue`)
                         }
                       >
                         <FileText className="mr-2 h-4 w-4" />
