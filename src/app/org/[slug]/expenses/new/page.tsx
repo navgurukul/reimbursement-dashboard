@@ -1355,7 +1355,8 @@ export default function NewExpensePage() {
                   variant="outline"
                   className="sm:w-40 cursor-pointer bg-gray-300"
                   onClick={() => {
-                    setBankSearchQuery(formData.unique_id || user?.email || "");
+                    // setBankSearchQuery(formData.unique_id || user?.email || "");
+                    setBankSearchQuery("");
                     setUniqueIdModalOpen(true);
                   }}
                 >
