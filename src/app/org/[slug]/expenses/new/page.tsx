@@ -1319,16 +1319,17 @@ export default function NewExpensePage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Label htmlFor="unique_id" className="text-sm font-medium text-gray-700">
-                  Payment Unique ID <span className="text-red-500 ml-1 text-sm">*</span>
+                  Payment Unique ID 
                 </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-xs">
-                    <p>A unique identifier used for payment processing. This may include an account number, transaction ID, or any other reference code associated with the payment.</p>
+                    <p>A unique identifier used for payment processing</p>
                   </TooltipContent>
                 </Tooltip>
+                <span className="text-red-500 ml-1 text-sm">*</span>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
