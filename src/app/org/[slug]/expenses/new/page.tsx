@@ -1265,7 +1265,7 @@ export default function NewExpensePage() {
     <div className="max-w-[800px] mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
         <Button
-          variant="ghost"
+          variant="outline"
           onClick={() => {
             if (eventIdFromQuery) {
               router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
