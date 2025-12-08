@@ -223,7 +223,7 @@ export default function PaymentProcessingDetails() {
             <div className="flex flex-col md:flex-row md:justify-between md:items-center">
                 <Button
                     variant="outline"
-                    onClick={() => router.push(`/org/${expense.org_id}/finance`)}
+                    onClick={() => router.push(`/org/${expense.org_id}/finance?tab=payments`)}
                     className="text-sm cursor-pointer"
                 >
                     ← Back to Payment Processing
