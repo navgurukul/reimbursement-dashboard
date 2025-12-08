@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ArrowLeft, CalendarIcon, Save, Upload, Trash, Info } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/store/useAuthStore";
 import { organizations, expenseHistory, voucherAttachments } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
@@ -1369,21 +1370,8 @@ export default function NewExpensePage() {
 
               {(selectedUniqueIdUser || prefilledUniqueId) && (
                 <div className="bg-gray-50 px-2 py-0 text-sm text-gray-800">
-                  {/* <div className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
-                    <span className="text-xs text-gray-700">
-                      {selectedUniqueIdUser?.account_holder || "Using your saved Unique ID"}
-                    </span>
-                    <span className="text-gray-500">|</span>
-                    <span className="text-xs text-gray-700">
-                      {selectedUniqueIdUser?.email || user?.email || ""}
-                    </span>
-                    <span className="text-gray-500">|</span>
-                    <span className="font-mono text-xs">
-                      UID: {selectedUniqueIdUser?.unique_id || prefilledUniqueId || formData.unique_id}
-                    </span>
-                  </div> */}
                   <p className="mt-1 text-xs text-gray-600">
-                    Pre-filled details; allows search and replace with another user’s Unique ID.
+                    Pre-filled Payment Unique ID; allows searching and replacing with another user’s Unique ID.
                   </p>
                 </div>
               )}
@@ -1412,11 +1400,24 @@ export default function NewExpensePage() {
 
                   <div className="max-h-80 overflow-y-auto rounded-md border bg-gray-50">
                     {bankSearchLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Spinner size="sm" />
+                      <div className="px-3 py-4">
+                        {[...Array(5)].map((_, i) => (
+                          <div key={i} className="flex items-center justify-between gap-3 py-3">
+                            <div className="flex flex-col gap-2 w-2/3">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-3 w-40" />
+                            </div>
+                            <div className="flex flex-col items-end gap-2 w-1/3">
+                              <Skeleton className="h-4 w-20" />
+                              <Skeleton className="h-3 w-24" />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ) : bankSearchResults.length === 0 ? (
+                    ) : bankSearchResults.length === 0 && bankSearchQuery.trim() ? (
                       <p className="px-3 py-4 text-sm text-gray-600">No matching users found.</p>
+                    ) : bankSearchResults.length === 0 ? (
+                      <p className="px-3 py-4 text-sm text-gray-400">Type to search users.</p>
                     ) : (
                       <div className="divide-y">
                         {bankSearchResults.map((row) => (
@@ -1443,10 +1444,6 @@ export default function NewExpensePage() {
                       </div>
                     )}
                   </div>
-
-                  {/* <p className="text-xs text-gray-600">
-                    Tip: if you don't see a user, try searching with their Unique ID or email. You can also type a value manually in the field above.
-                  </p> */}
                 </div>
 
                 <DialogFooter>
