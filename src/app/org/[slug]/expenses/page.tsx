@@ -184,12 +184,7 @@ export default function ExpensesPage() {
   const tabs =
     userRole === "member"
       ? [{ value: "my", label: "My Expenses" }]
-      : userRole === "admin"
-        ? [
-          { value: "my", label: "My Expenses" },
-          { value: "pending", label: "Pending Approval" },
-        ]
-        : [
+      : [
           { value: "my", label: "My Expenses" },
           { value: "pending", label: "Pending Approval" },
           { value: "all", label: "All Expenses" },
