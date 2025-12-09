@@ -156,6 +156,7 @@ export default function NewExpensePage() {
   const [bankSearchError, setBankSearchError] = useState<string | null>(null);
   const [selectedUniqueIdUser, setSelectedUniqueIdUser] = useState<BankDetailRecord | null>(null);
   const [prefilledUniqueId, setPrefilledUniqueId] = useState<string | null>(null);
+  const [uniqueIdUnavailable, setUniqueIdUnavailable] = useState(false);
 
   const getDefaultValueByType = (type: string) => {
     switch (type) {
@@ -588,6 +589,8 @@ export default function NewExpensePage() {
     }));
 
     if (key === "unique_id" && typeof value === "string") {
+      // If user types or changes the value, consider it available
+      setUniqueIdUnavailable(false);
       if (selectedUniqueIdUser && selectedUniqueIdUser.unique_id !== value) {
         setSelectedUniqueIdUser(null);
       }
@@ -641,6 +644,10 @@ export default function NewExpensePage() {
           handleInputChange("unique_id", record.unique_id);
           setSelectedUniqueIdUser(record as BankDetailRecord);
           setPrefilledUniqueId(record.unique_id);
+          setUniqueIdUnavailable(false);
+        } else {
+          // Logged-in user's bank details are missing a unique ID
+          setUniqueIdUnavailable(true);
         }
       } catch (err) {
         console.error("Unexpected error while prefilling unique ID:", err);
@@ -655,6 +662,7 @@ export default function NewExpensePage() {
     handleInputChange("unique_id", value);
     setSelectedUniqueIdUser(detail);
     setPrefilledUniqueId(detail.unique_id || null);
+    setUniqueIdUnavailable(false);
     setUniqueIdModalOpen(false);
   };
 
@@ -1342,13 +1350,13 @@ export default function NewExpensePage() {
                   required
                   aria-invalid={errors["unique_id"] ? "true" : "false"}
                   aria-describedby={errors["unique_id"] ? "unique_id-error" : undefined}
-                  placeholder="Enter payment unique ID"
+                  placeholder={uniqueIdUnavailable ? "Unique ID not available" : "Enter payment unique ID"}
                   className={`w-full border ${
                     errors["unique_id"]
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                       : "border-gray-300"
                   } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
-                  disabled={!!prefilledUniqueId}
+                  disabled={!!prefilledUniqueId || (uniqueIdUnavailable && !formData.unique_id)}
                 />
                 <Button
                   type="button"
@@ -1367,6 +1375,10 @@ export default function NewExpensePage() {
                 <p className="text-red-500 text-sm mt-1" role="alert" id={`unique_id-error`}>
                   {errors["unique_id"]}
                 </p>
+              )}
+
+              {uniqueIdUnavailable && !formData.unique_id && (
+                <p className="text-xs px-2 py-0 text-gray-600">Unique ID is not available for your login email. Please search for a user.</p>
               )}
 
               {(selectedUniqueIdUser || prefilledUniqueId) && (
