@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type Role = "owner" | "admin" | "member";
+export type Role = "owner" | "admin" | "manager" | "member";
 
 interface Organization {
   id: string;
