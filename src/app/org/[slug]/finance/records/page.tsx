@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses } from "@/lib/db";
 import { useParams, useRouter } from "next/navigation";
-import { IndianRupee, Pencil, Save, Trash2, Funnel } from "lucide-react";
+import { IndianRupee, Pencil, Save, Trash2, Funnel, Undo2 } from "lucide-react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { formatDateTime } from '@/lib/utils';
 import { toast } from "sonner";
@@ -18,6 +18,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -58,6 +64,10 @@ export default function PaymentRecords() {
     open: false,
     id: null,
   });
+  const [sendBackModal, setSendBackModal] = useState<{ open: boolean; id: string | null }>(
+    { open: false, id: null },
+  );
+  const [sendBackLoading, setSendBackLoading] = useState(false);
 
   const ADMIN_PASSWORD = "admin"; // your password
 
@@ -256,6 +266,30 @@ export default function PaymentRecords() {
       maxAmount: amountBounds.max,
     }));
     setFilteredRecords(records);
+  };
+
+  const sendBackToPaymentProcessing = async () => {
+    const id = sendBackModal.id;
+    if (!id) return;
+    try {
+      setSendBackLoading(true);
+
+      const { error } = await supabase
+        .from("expense_new")
+        .update({ payment_status: "pending" })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setRecords((prev) => prev.filter((r) => r.id !== id));
+      setFilteredRecords((prev) => prev.filter((r: any) => r.id !== id));
+      toast.success("Sent back to Payment Processing");
+      setSendBackModal({ open: false, id: null });
+    } catch (err: any) {
+      toast.error("Failed to send back", { description: err.message });
+    } finally {
+      setSendBackLoading(false);
+    }
   };
 
   return (
@@ -676,11 +710,28 @@ export default function PaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     <div className="flex items-center justify-center gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSendBackModal({ open: true, id: record.id })}
+                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                            >
+                              <Undo2 className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Back to Payment Processing</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setDeleteModal({ open: true, id: record.id })}
-                        className="flex items-center gap-2 border border-red-300 hover:bg-red-50 text-red-600 cursor-pointer"
+                        className="flex items-center gap-2 border border-gray-300 hover:bg-red-100 text-red-600 cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -747,6 +798,35 @@ export default function PaymentRecords() {
               }}
             >
               Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send back to Payment Processing modal */}
+      <Dialog open={sendBackModal.open} onOpenChange={() => setSendBackModal({ open: false, id: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send back to Payment Processing</DialogTitle>
+          </DialogHeader>
+          <div>
+            <p>Move this record back to Payment Processing? It will be removed from Payment Records.</p>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setSendBackModal({ open: false, id: null })}
+              className="cursor-pointer"
+              disabled={sendBackLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={sendBackToPaymentProcessing}
+              className="cursor-pointer"
+              disabled={sendBackLoading}
+            >
+              {sendBackLoading ? "Sending..." : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

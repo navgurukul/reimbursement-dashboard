@@ -28,9 +28,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CheckCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 
 const formatCurrency = (amount: number) => {
@@ -50,6 +57,7 @@ export default function PaymentProcessingOnly() {
   const [editingFields, setEditingFields] =
     useState<Record<string, { utr?: boolean; debit?: boolean }>>({});
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
+  const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
 
 
   const router = useRouter();
@@ -368,6 +376,10 @@ export default function PaymentProcessingOnly() {
     exportToCSV();
     setShowFormatModal(false);
   };
+
+  const expenseToConfirm = confirmExpenseId
+    ? processingExpenses.find((exp) => exp.id === confirmExpenseId)
+    : null;
 
   const handleMarkAsPaid = async () => {
     if (!orgId || processingExpenses.length === 0) {
@@ -734,22 +746,38 @@ export default function PaymentProcessingOnly() {
                     </Badge>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center space-x-2">
-                    <button
-                      onClick={() =>
-                        router.push(`/org/${orgId}/finance/payments/${expense.id}`)
-                      }
-                      title="View Expense"
-                      className="cursor-pointer"
-                    >
-                      <Eye className="w-4 h-4 text-gray-700" />
-                    </button>
-                    <button
-                      title="Mark as Paid"
-                      onClick={() => handleMarkAsPaidIndividual(expense.id)}
-                      className="text-green-600 hover:text-green-800 transition-transform hover:scale-110 cursor-pointer"
-                    >
-                      <CheckCircle className="w-5 h-5 " />
-                    </button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() =>
+                              router.push(`/org/${orgId}/finance/payments/${expense.id}`)
+                            }
+                            className="cursor-pointer"
+                          >
+                            <Eye className="w-4 h-4 text-gray-700" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>View Expense</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setConfirmExpenseId(expense.id)}
+                            className="text-green-600 hover:text-green-800 transition-transform hover:scale-110 cursor-pointer"
+                          >
+                            <CheckCircle className="w-5 h-5 " />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Mark as Paid</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                 </TableRow>
               ))
@@ -837,10 +865,10 @@ export default function PaymentProcessingOnly() {
             <DialogTitle>Mark all as Paid?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600">
-            This will mark all expenses in the list as paid. This action cannot be undone.
+            This will mark all expenses in the list as paid.
           </p>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setShowConfirmAllPaid(false)}>
+            <Button variant="outline" onClick={() => setShowConfirmAllPaid(false)} className="cursor-pointer">
               Cancel
             </Button>
             <Button
@@ -848,7 +876,36 @@ export default function PaymentProcessingOnly() {
                 await handleMarkAsPaid();
                 setShowConfirmAllPaid(false);
               }}
-              className="bg-gray-800 text-white"
+              className="bg-gray-800 text-white cursor-pointer"
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Confirm single expense */}
+      <Dialog open={!!confirmExpenseId} onOpenChange={() => setConfirmExpenseId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark as Paid?</DialogTitle>
+            <DialogDescription>
+              {expenseToConfirm
+                ? `This action will move payment records from the Payment Processing section.`
+                : "Mark this expense as paid? This will move it out of Payment Processing and cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setConfirmExpenseId(null)} className="cursor-pointer">
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (confirmExpenseId) {
+                  await handleMarkAsPaidIndividual(confirmExpenseId);
+                }
+                setConfirmExpenseId(null);
+              }}
+              className="bg-gray-800 text-white cursor-pointer"
             >
               Confirm
             </Button>

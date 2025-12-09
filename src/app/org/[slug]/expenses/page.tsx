@@ -37,6 +37,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 
@@ -91,6 +104,13 @@ export default function ExpensesPage() {
     createdBy: "",
     approver: "",
     status: "",
+  });
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    expenseId: string | null;
+  }>({
+    isOpen: false,
+    expenseId: null,
   });
 
   const OPTION_ALL = "ALL";
@@ -465,26 +485,38 @@ export default function ExpensesPage() {
     router.push(`/org/${slug}/expenses/new`);
   };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmation.expenseId) return;
 
-  const handleDelete = async (id: string) => {
     try {
-      const { error } = await expenses.delete(id);
+      const { error } = await expenses.delete(deleteConfirmation.expenseId);
       if (error) throw error;
       toast.success("Expense deleted successfully");
-      // Refresh the expenses list
       // Update the local state to reflect the deletion
       if (activeTab === "my") {
-        setExpensesData((prev) => prev.filter((expense) => expense.id !== id));
+        setExpensesData((prev) =>
+          prev.filter((expense) => expense.id !== deleteConfirmation.expenseId)
+        );
       } else if (activeTab === "pending") {
-        setPendingApprovals((prev) => prev.filter((expense) => expense.id !== id));
+        setPendingApprovals((prev) =>
+          prev.filter((expense) => expense.id !== deleteConfirmation.expenseId)
+        );
       } else {
-        setAllExpenses((prev) => prev.filter((expense) => expense.id !== id));
+        setAllExpenses((prev) =>
+          prev.filter((expense) => expense.id !== deleteConfirmation.expenseId)
+        );
       }
+      setDeleteConfirmation({ isOpen: false, expenseId: null });
     } catch (error: any) {
       toast.error("Failed to delete expense", {
         description: error.message,
       });
+      setDeleteConfirmation({ isOpen: false, expenseId: null });
     }
+  };
+
+  const handleDelete = (id: string) => {
+    setDeleteConfirmation({ isOpen: true, expenseId: id });
   };
 
   // Helper function to get value from custom_fields or directly from expense
@@ -1006,30 +1038,52 @@ export default function ExpensesPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-3 gap-3">
-                              {/* 👁️ View Icon */}
-                              <Eye
-                                className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
-                                onClick={() =>
-                                  router.push(`/org/${slug}/expenses/${exp.id}`)
-                                }
-                              />
-                              {/* ✏️ Edit Icon — status "submitted" ke liye */}
-                              {/* {exp.status === "submitted" && ( */}
-                              {/* ✏️ Edit Icon — sabko dikhega except expense approver ke liye aur status "submitted" ke liye */}
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Eye
+                                      className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
+                                      onClick={() =>
+                                        router.push(`/org/${slug}/expenses/${exp.id}`)
+                                      }
+                                    />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>View Expense</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                               {exp.status === "submitted" && exp.approver?.user_id !== user?.id && (
-                                <Edit
-                                  className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
-                                  onClick={() =>
-                                    router.push(`/org/${slug}/expenses/${exp.id}/edit`)
-                                  }
-                                />
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Edit
+                                        className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
+                                        onClick={() =>
+                                          router.push(`/org/${slug}/expenses/${exp.id}/edit`)
+                                        }
+                                      />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Edit Expense</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
-                              {/* 🗑️ Delete Icon — Admin or Owner ke liye */}
                               {(userRole === "admin" || userRole === "owner") && (
-                                <Trash2
-                                  className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
-                                  onClick={() => handleDelete(exp.id)}
-                                />
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Trash2
+                                        className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
+                                        onClick={() => handleDelete(exp.id)}
+                                      />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Delete Expense</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
                             </div>
                           </TableCell>
@@ -1043,6 +1097,41 @@ export default function ExpensesPage() {
           </TabsContent>
         ))}
       </Tabs>
+
+      <Dialog
+        open={deleteConfirmation.isOpen}
+        onOpenChange={(open) =>
+          setDeleteConfirmation((prev) => ({ ...prev, isOpen: open }))
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Expense</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this expense? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() =>
+                setDeleteConfirmation({ isOpen: false, expenseId: null })
+              }
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              className="cursor-pointer"
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
