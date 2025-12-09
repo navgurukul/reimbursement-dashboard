@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 
-type Role = "admin" | "member" | "owner" | null;
+type Role = "admin" | "member" | "owner" | "manager" | null;
 
 interface VoucherFormProps {
   formData: Record<string, any>;

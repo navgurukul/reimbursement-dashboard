@@ -184,12 +184,7 @@ export default function ExpensesPage() {
   const tabs =
     userRole === "member"
       ? [{ value: "my", label: "My Expenses" }]
-      : userRole === "admin"
-        ? [
-          { value: "my", label: "My Expenses" },
-          { value: "pending", label: "Pending Approval" },
-        ]
-        : [
+      : [
           { value: "my", label: "My Expenses" },
           { value: "pending", label: "Pending Approval" },
           { value: "all", label: "All Expenses" },
@@ -259,6 +254,34 @@ export default function ExpensesPage() {
           });
         my = data ?? [];
         all = data ?? [];
+      } else if (userRole === "manager") {
+        // Managers see their own expenses, pending approvals, and expenses where they are assigned as approver
+        const [
+          { data: myData, error: myErr },
+          { data: pendingData, error: pendingErr },
+          { data: allData, error: allErr },
+        ] = await Promise.all([
+          expenses.getByOrgAndUser(orgId, user?.id!),
+          expenses.getPendingApprovals(orgId, user?.id!),
+          expenses.getByApprover(orgId, user?.id!),
+        ]);
+
+        if (myErr)
+          toast.error("Failed to load your expenses", {
+            description: myErr.message,
+          });
+        if (pendingErr)
+          toast.error("Failed to load pending approvals", {
+            description: pendingErr.message,
+          });
+        if (allErr)
+          toast.error("Failed to load expenses where you are approver", {
+            description: allErr.message,
+          });
+
+        my = myData ?? [];
+        pending = pendingData ?? [];
+        all = allData ?? [];
       } else {
         // Admins and owners can see all views
         const [

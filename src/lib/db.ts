@@ -1379,6 +1379,76 @@ export const expenses = {
       error: null,
     };
   },
+
+  /**
+   * Get all expenses where the user is assigned as approver (for the "All Expenses" tab)
+   */
+  getByApprover: async (orgId: string, userId: string) => {
+    // Get expenses where user is assigned as approver
+    const { data: expenses, error } = await supabase
+      .from("expense_new")
+      .select(
+        `
+      *,
+      creator:profiles!user_id (
+        full_name
+      )
+    `
+      )
+      .eq("org_id", orgId)
+      .eq("approver_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    // Get all unique approver IDs
+    const approverIds = [
+      ...new Set(
+        (expenses || [])
+          .map((expense) => expense.approver_id)
+          .filter((id) => id)
+      ),
+    ];
+
+    if (approverIds.length > 0) {
+      // Get all approvers in one query
+      const { data: approvers } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", approverIds);
+
+      if (approvers && approvers.length > 0) {
+        // Create a lookup map
+        const approverMap: Record<
+          string,
+          { user_id: string; full_name: string }
+        > = {};
+        approvers.forEach((a) => {
+          approverMap[a.user_id] = a;
+        });
+
+        // Add approver data to each expense
+        expenses.forEach((expense) => {
+          if (expense.approver_id && approverMap[expense.approver_id]) {
+            expense.approver = {
+              full_name: approverMap[expense.approver_id].full_name,
+            };
+          }
+        });
+      }
+    }
+
+    return {
+      data: expenses as (Expense & {
+        creator: { full_name: string };
+        approver?: { full_name: string };
+      })[],
+      error: null,
+    };
+  },
+
   /**
    * Upload a receipt file
    */
