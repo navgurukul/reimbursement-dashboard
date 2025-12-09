@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CheckCircle } from "lucide-react";
@@ -887,12 +888,12 @@ export default function PaymentProcessingOnly() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark as Paid?</DialogTitle>
+            <DialogDescription>
+              {expenseToConfirm
+                ? `This action will move payment records from the Payment Processing section.`
+                : "Mark this expense as paid? This will move it out of Payment Processing and cannot be undone."}
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-gray-600">
-            {expenseToConfirm
-              ? `This action will move payment records from the Payment Processing section.`
-              : "Mark this expense as paid? This will move it out of Payment Processing and cannot be undone."}
-          </p>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setConfirmExpenseId(null)} className="cursor-pointer">
               Cancel
