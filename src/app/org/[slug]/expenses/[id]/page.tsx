@@ -1223,7 +1223,7 @@ export default function ViewExpensePage() {
                 </p>
                 {expense.receipt ? (
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <Button variant="outline" onClick={handleViewReceipt} className="w-full sm:w-auto cursor-pointer">
+                    <Button variant="outline" onClick={handleViewReceipt} className="text-blue-600 w-full sm:w-auto cursor-pointer">
                       <FileText className="mr-2 h-4 w-4" />
                       View Receipt ({expense.receipt.filename || "Document"})
                     </Button>
