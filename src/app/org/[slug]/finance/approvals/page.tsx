@@ -14,6 +14,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import {
   Table,
@@ -221,13 +227,21 @@ export default function FinanceReview() {
                     <Badge variant="success">Manager Approved</Badge>
                   </TableCell>
                   <TableCell className="text-center py-3">
-                    <button
-                      onClick={() => handleViewClick(expense)}
-                      title="View Expense"
-                      className="p-2 hover:text-black text-gray-700 transition-colors cursor-pointer"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => handleViewClick(expense)}
+                            className="hover:text-black text-gray-700 transition-colors cursor-pointer"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>View Expense</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                 </TableRow>
               ))

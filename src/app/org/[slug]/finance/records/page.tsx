@@ -18,6 +18,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -704,15 +710,23 @@ export default function PaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     <div className="flex items-center justify-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSendBackModal({ open: true, id: record.id })}
-                        className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
-                        title="Back to Payment Processing"
-                      >
-                        <Undo2 className="w-4 h-4" />
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSendBackModal({ open: true, id: record.id })}
+                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                            >
+                              <Undo2 className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Back to Payment Processing</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Button
                         size="sm"
                         variant="outline"

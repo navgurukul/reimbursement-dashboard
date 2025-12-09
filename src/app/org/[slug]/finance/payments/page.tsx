@@ -31,6 +31,12 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CheckCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 
 const formatCurrency = (amount: number) => {
@@ -734,22 +740,38 @@ export default function PaymentProcessingOnly() {
                     </Badge>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center space-x-2">
-                    <button
-                      onClick={() =>
-                        router.push(`/org/${orgId}/finance/payments/${expense.id}`)
-                      }
-                      title="View Expense"
-                      className="cursor-pointer"
-                    >
-                      <Eye className="w-4 h-4 text-gray-700" />
-                    </button>
-                    <button
-                      title="Mark as Paid"
-                      onClick={() => handleMarkAsPaidIndividual(expense.id)}
-                      className="text-green-600 hover:text-green-800 transition-transform hover:scale-110 cursor-pointer"
-                    >
-                      <CheckCircle className="w-5 h-5 " />
-                    </button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() =>
+                              router.push(`/org/${orgId}/finance/payments/${expense.id}`)
+                            }
+                            className="cursor-pointer"
+                          >
+                            <Eye className="w-4 h-4 text-gray-700" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>View Expense</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => handleMarkAsPaidIndividual(expense.id)}
+                            className="text-green-600 hover:text-green-800 transition-transform hover:scale-110 cursor-pointer"
+                          >
+                            <CheckCircle className="w-5 h-5 " />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Mark as Paid</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                 </TableRow>
               ))
