@@ -708,7 +708,7 @@ export default function PaymentRecords() {
                         size="sm"
                         variant="outline"
                         onClick={() => setSendBackModal({ open: true, id: record.id })}
-                        className="flex items-center gap-2 border border-amber-300 hover:bg-amber-50 text-amber-700 cursor-pointer"
+                        className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
                         title="Back to Payment Processing"
                       >
                         <Undo2 className="w-4 h-4" />
@@ -717,7 +717,7 @@ export default function PaymentRecords() {
                         size="sm"
                         variant="outline"
                         onClick={() => setDeleteModal({ open: true, id: record.id })}
-                        className="flex items-center gap-2 border border-red-300 hover:bg-red-50 text-red-600 cursor-pointer"
+                        className="flex items-center gap-2 border border-gray-300 hover:bg-red-100 text-red-600 cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
