@@ -1460,30 +1460,26 @@ export default function ViewExpensePage() {
                     </div>
 
                     {isReceiptPaneOpen && (
-                      <div className="space-y-3 p-4">
+                      <div className="p-4">
                         {receiptLoading ? (
                           <div className="flex h-64 items-center justify-center">
                             <Spinner size="lg" />
                           </div>
                         ) : receiptPreviewUrl ? (
                           isReceiptPdf ? (
-                            <object
-                              data={receiptPreviewUrl}
-                              type="application/pdf"
-                              className="h-[600px] w-full rounded-md border"
-                            >
-                              <div className="flex h-[600px] items-center justify-center rounded-md border bg-muted">
-                                <p className="text-sm text-muted-foreground">
-                                  PDF preview unavailable. You can still open it in a new tab.
-                                </p>
-                              </div>
-                            </object>
+                            <div className="rounded-md border bg-white overflow-hidden" style={{ height: '500px' }}>
+                              <iframe
+                                src={`${receiptPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                                className="h-full w-full border-none"
+                                title="Receipt PDF Preview"
+                              />
+                            </div>
                           ) : (
-                            <div className="rounded-md border bg-muted">
+                            <div className="overflow-y-auto rounded-md border bg-muted" style={{ height: 'auto' }}>
                               <img
                                 src={receiptPreviewUrl}
                                 alt={expense.receipt.filename || "Receipt preview"}
-                                className="max-h-[600px] w-full object-contain"
+                                className="w-full object-contain"
                               />
                             </div>
                           )
