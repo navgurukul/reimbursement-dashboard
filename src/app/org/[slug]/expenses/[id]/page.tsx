@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenses, expenseHistory, profiles, vouchers, expenseEvents } from "@/lib/db";
+import { expenses, expenseHistory, profiles, vouchers, expenseEvents, voucherAttachments } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,6 +120,11 @@ export default function ViewExpensePage() {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
   const [isReceiptPaneOpen, setIsReceiptPaneOpen] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [voucherDetails, setVoucherDetails] = useState<any | null>(null);
+  const [voucherSignatureUrl, setVoucherSignatureUrl] = useState<string | null>(null);
+  const [voucherAttachmentUrl, setVoucherAttachmentUrl] = useState<string | null>(null);
+  const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
+  const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
 
   // Load the user's saved signature if it exists
   useEffect(() => {
@@ -316,6 +321,69 @@ export default function ViewExpensePage() {
 
     fetchExpense();
   }, [expenseId, router, slug, orgId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadVoucherPreview = async () => {
+      if (!hasVoucher) {
+        setVoucherDetails(null);
+        setVoucherSignatureUrl(null);
+        setVoucherAttachmentUrl(null);
+        setIsVoucherPaneOpen(false);
+        return;
+      }
+
+      try {
+        setVoucherPreviewLoading(true);
+        const { data: voucherData, error } = await vouchers.getByExpenseId(expenseId);
+        if (error || !voucherData) {
+          if (!cancelled) {
+            setVoucherDetails(null);
+            setIsVoucherPaneOpen(false);
+          }
+          return;
+        }
+
+        if (cancelled) return;
+
+        setVoucherDetails(voucherData);
+        setIsVoucherPaneOpen(true); // open by default
+
+        if (voucherData.signature_url) {
+          const { url } = await vouchers.getSignatureUrl(voucherData.signature_url);
+          if (!cancelled) setVoucherSignatureUrl(url || null);
+        }
+
+        if ((voucherData as any).attachment_url || (voucherData as any).attachment) {
+          const attachmentValue = (voucherData as any).attachment_url || (voucherData as any).attachment;
+          const [, filePath] = String(attachmentValue).split(",");
+          if (filePath) {
+            const { url, error } = await voucherAttachments.getUrl(filePath);
+            if (!cancelled) {
+              setVoucherAttachmentUrl(!error ? url || null : null);
+            }
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Voucher preview load error:", err);
+          setVoucherDetails(null);
+          setIsVoucherPaneOpen(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setVoucherPreviewLoading(false);
+        }
+      }
+    };
+
+    loadVoucherPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasVoucher, expenseId]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1428,6 +1496,151 @@ export default function ViewExpensePage() {
                     )}
                   </div>
                 )}
+
+                {voucherDetails && (
+                  <div className="mt-4 rounded-lg border border-blue-200 bg-white shadow-sm">
+                    <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
+                        <div>
+                          <p className="text-base font-semibold">Voucher Preview</p>
+                          <p className="text-sm text-muted-foreground">
+                            Opens by default for quick review
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => setIsVoucherPaneOpen((prev) => !prev)}
+                        >
+                          {isVoucherPaneOpen ? (
+                            <>
+                              <ChevronDown className="mr-1 h-4 w-4" /> Minimize
+                            </>
+                          ) : (
+                            <>
+                              <ChevronRight className="mr-1 h-4 w-4" /> Expand
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => router.push(`/org/${slug}/expenses/${expense.id}/voucher`)}
+                        >
+                          Open full voucher
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isVoucherPaneOpen && (
+                      <div className="space-y-4 p-4">
+                        {voucherPreviewLoading ? (
+                          <div className="flex h-64 items-center justify-center">
+                            <Spinner size="lg" />
+                          </div>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Your Name</p>
+                                <p className="font-medium">{voucherDetails.your_name || expense.creator?.full_name || "—"}</p>
+                              </div>
+                              <div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-sm text-muted-foreground">Amount</p>
+                                  <span
+                                    className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800"
+                                    aria-label="voucher status"
+                                  >
+                                    {expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
+                                  </span>
+                                </div>
+                                <p className="font-medium">
+                                  {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(voucherDetails.amount || expense.amount)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-muted-foreground">Date</p>
+                                <p className="font-medium">{new Date(expense.date).toLocaleDateString("en-GB")}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-muted-foreground">Credit Person</p>
+                                <p className="font-medium">{voucherDetails.credit_person || "—"}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-muted-foreground">Approver</p>
+                                <p className="font-medium">{expense.approver?.full_name || "—"}</p>
+                              </div>
+                              <div className="md:col-span-2">
+                                <p className="text-sm text-muted-foreground">Purpose</p>
+                                <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">
+                                  {voucherDetails.purpose || "—"}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-sm text-muted-foreground mb-2">Signature</p>
+                              {voucherSignatureUrl ? (
+                                <div className="border rounded-md p-3 bg-white">
+                                  <img
+                                    src={voucherSignatureUrl}
+                                    alt="Voucher signature"
+                                    className="max-h-28 mx-auto"
+                                  />
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">Signature not available</p>
+                              )}
+                            </div>
+
+                            {voucherAttachmentUrl && (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-medium">Attachment</p>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="cursor-pointer"
+                                    onClick={() => window.open(voucherAttachmentUrl, "_blank")}
+                                  >
+                                    Open in new tab
+                                  </Button>
+                                </div>
+                                {voucherAttachmentUrl.toLowerCase().endsWith(".pdf") ? (
+                                  <object
+                                    data={voucherAttachmentUrl}
+                                    type="application/pdf"
+                                    className="h-[500px] w-full rounded-md border"
+                                  >
+                                    <div className="flex h-[500px] items-center justify-center rounded-md border bg-muted">
+                                      <p className="text-sm text-muted-foreground">
+                                        PDF preview unavailable. You can still open it in a new tab.
+                                      </p>
+                                    </div>
+                                  </object>
+                                ) : (
+                                  <div className="rounded-md border bg-muted">
+                                    <img
+                                      src={voucherAttachmentUrl}
+                                      alt="Voucher attachment preview"
+                                      className="max-h-[500px] w-full object-contain"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
 
@@ -1512,8 +1725,8 @@ export default function ViewExpensePage() {
                 customFields.length > 0 && ( // make sure customFields are loaded
                   <div className="grid grid-cols-2 gap-4 mt-4 break-words">
                     {Object.entries(expense.custom_fields)
-                      .filter(([key]) => 
-                        key !== 'location_of_expense' && 
+                      .filter(([key]) =>
+                        key !== 'location_of_expense' &&
                         key !== 'Location of Expense' &&
                         key.toLowerCase() !== 'location_of_expense'
                       ) // Exclude Location Of Expense
