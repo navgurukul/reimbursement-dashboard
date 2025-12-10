@@ -20,11 +20,15 @@ import {
   Share2,
   ChevronDown,
   ChevronRight,
+  Eye,
+  EyeOff,
+  Download,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import supabase from "@/lib/supabase";
 import ExpenseHistory from "./history/expense-history";
 import { ExpenseComments } from "./history/expense-comments";
@@ -32,7 +36,48 @@ import SignaturePad from "@/components/SignatureCanvas";
 import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
 import { generateVoucherPdf } from "@/app/actions/generateVoucherPdf";
 import { useAuthStore } from "@/store/useAuthStore";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { formatDate } from "@/lib/utils";
 
+// Utility function to convert image URL to base64
+async function convertImageUrlToBase64(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = function () {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas context not available"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      try {
+        const dataURL = canvas.toDataURL("image/png");
+        resolve(dataURL.replace(/^data:image\/(png|jpg);base64,/, ""));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = function (err) {
+      reject(err);
+    };
+    img.src = url;
+  });
+}
+
+// Add type augmentation for jsPDF
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: typeof autoTable;
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
+}
 
 // Import Policy type but use Supabase directly for policies
 interface Policy {
@@ -1089,6 +1134,221 @@ export default function ViewExpensePage() {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      // Fetch voucher data first
+      const { data: voucher, error: voucherError } = await vouchers.getByExpenseId(expenseId);
+      
+      if (voucherError || !voucher) {
+        toast.error("Voucher not found for this expense");
+        return;
+      }
+
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      const margin = 20;      // outer margin
+      const padding = 10;     // inner padding inside border
+
+      // ===== Outer rounded border (card) =====
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(
+        margin,
+        margin,
+        pageWidth - margin * 2,
+        pageHeight - margin * 2,
+        0,
+        0,
+      );
+
+      // ===== Header =====
+      let y = margin + padding;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(0, 0, 0);
+      doc.text("EXPENSE VOUCHER", pageWidth / 2, y, { align: "center" });
+
+      y += 8;
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(15);
+      doc.setTextColor(80, 80, 80);
+      doc.text(
+        `Organization: ${organization?.name || "Navgurukul"}`,
+        pageWidth / 2,
+        y,
+        { align: "center" }
+      );
+
+      // Voucher ID (left) + Created At (right) in same row
+      y += 10;
+      doc.setFont("helvetica", "bolditalic");
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+
+      // Left aligned (Voucher ID)
+      doc.text(`Voucher ID: ${voucher.id}`, margin + padding, y);
+
+      // Right aligned (Created At)
+      doc.text(
+        `Created At: ${formatDate(voucher.created_at)}`,
+        pageWidth - margin - padding,
+        y,
+        { align: "right" }
+      );
+
+      // Divider (full width black line)
+      y += 6;
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y, pageWidth - margin, y);
+
+      // ===== Table =====
+      const startY = y + 8;
+      const amountString = `INR ${Number(voucher.amount || 0).toFixed(2)}`;
+      const body = [
+        ["Name", voucher.your_name || "—"],
+        ["Amount", amountString],
+        ["Date", formatDate(expense.date)],
+        ["Credit Person", voucher.credit_person || "—"],
+        ["Approver", expense.approver?.full_name || "—"],
+        ["Purpose", voucher.purpose || "—"],
+        [
+          "Signature",
+          signatureUrl
+            ? "Digital signature attached below"
+            : "Not available",
+        ],
+      ];
+
+      autoTable(doc, {
+        startY,
+        head: [["Details", "Information"]],
+        body,
+        margin: { left: margin + padding, right: margin + padding },
+        styles: {
+          fontSize: 11,
+          cellPadding: 4,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.2,
+          textColor: [30, 30, 30],
+        },
+        headStyles: {
+          fillColor: [45, 45, 45],
+          textColor: 255,
+          fontStyle: "bold",
+          halign: "left",
+        },
+        alternateRowStyles: { fillColor: [246, 246, 246] },
+        columnStyles: {
+          0: { cellWidth: 60, fontStyle: "bold" },
+          1: { cellWidth: pageWidth - (margin + padding) * 2 - 60 },
+        },
+        // Amount in green + bold
+        didParseCell: (d) => {
+          if (d.section === "body" && d.row.index === 1 && d.column.index === 1) {
+            d.cell.styles.textColor = [0, 0, 0];
+            d.cell.styles.fontStyle = "bold";
+          }
+        },
+      });
+
+      y = (doc as any).lastAutoTable.finalY + 15;
+
+      // ===== Signature Section =====
+      // Divider above DIGITAL SIGNATURE:
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.2);
+      doc.line(margin + padding, y, pageWidth - margin - padding, y);
+
+      y += 8;
+
+      // Section title
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+      doc.text("DIGITAL SIGNATURE:", margin + padding, y);
+
+      y += 6;
+
+      if (signatureUrl) {
+        try {
+          const base64 = await convertImageUrlToBase64(signatureUrl);
+
+          // Desired max size
+          const maxW = 80; // signature max width
+          const maxH = 15; // signature max height
+
+          // Add image with preserved aspect ratio
+          doc.addImage(base64, "PNG", margin + padding + 4, y + 4, maxW, maxH);
+
+          // Dashed box that wraps the signature (just bigger than image)
+          const boxW = maxW + 8;
+          const boxH = maxH + 8;
+          doc.setLineWidth(0.3);
+          doc.setDrawColor(150);
+          (doc as any).setLineDash?.([2, 2], 0);
+          doc.rect(margin + padding, y, boxW, boxH);
+          (doc as any).setLineDash?.([]);
+        } catch {
+          // If image fails → show dashed placeholder with text
+          const boxW = 120;
+          const boxH = 30;
+          doc.setLineWidth(0.3);
+          doc.setDrawColor(150);
+          (doc as any).setLineDash?.([2, 2], 0);
+          doc.rect(margin + padding, y, boxW, boxH);
+          (doc as any).setLineDash?.([]);
+
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(10);
+          doc.setTextColor(150, 150, 150);
+          doc.text("Signature unavailable", margin + padding + 6, y + 15);
+        }
+      } else {
+        // No signature at all → placeholder box with text
+        const boxW = 120;
+        const boxH = 30;
+        doc.setLineWidth(0.3);
+        doc.setDrawColor(150);
+        (doc as any).setLineDash?.([2, 2], 0);
+        doc.rect(margin + padding, y, boxW, boxH);
+        (doc as any).setLineDash?.([]);
+
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(10);
+        doc.setTextColor(150, 150, 150);
+        doc.text("Signature Not Available", margin + padding + 6, y + 15);
+      }
+
+      // ===== Footer Note (always at bottom inside border) =====
+      const bottomFooterY = pageHeight - margin - 14;
+      // Divider line
+      doc.setDrawColor(120);
+      doc.setLineWidth(0.2);
+      doc.line(margin + padding, bottomFooterY, pageWidth - margin - padding, bottomFooterY);
+
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(12);
+      doc.setTextColor(100, 100, 100);
+
+      doc.text(
+        "This is a computer-generated voucher and is valid without physical signature.",
+        pageWidth / 2,
+        pageHeight - margin - 6,   // always just above bottom border
+        { align: "center" }
+      );
+
+      // Save file
+      doc.save(`voucher_${voucher.id}.pdf`);
+      toast.success("PDF downloaded successfully");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to download PDF");
+    }
+  };
+
   return (
     <div className="container mx-auto py-6">
       <div className="mb-4">
@@ -1357,113 +1617,96 @@ export default function ViewExpensePage() {
 
               {/* Receipt section with View Receipt button */}
               <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">
-                  Receipt/Voucher
-                </p>
-                {expense.receipt ? (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button variant="outline" onClick={handleViewReceipt} className="text-blue-600 w-full sm:w-auto cursor-pointer">
-                      <FileText className="mr-2 h-4 w-4" />
-                      View Receipt ({expense.receipt.filename || "Document"})
-                    </Button>
-                    <Button variant="outline" onClick={handleShareReceipt} className="cursor-pointer w-full sm:w-auto" disabled={sharingReceipt}>
-                      {sharingReceipt ? (
-                        <>
-                          <Spinner size="sm" className="mr-2" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          Share <Share2 className="h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ) : hasVoucher ? (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      className="text-blue-600 w-full sm:w-auto cursor-pointer"
-                      variant="outline"
-                      onClick={() =>
-                        router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
-                      }
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      View Voucher
-                    </Button>
-                    <Button variant="outline" onClick={handleShareVoucher} className="cursor-pointer w-full sm:w-auto" disabled={sharingVoucher}>
-                      {sharingVoucher ? (
-                        <>
-                          <Spinner size="sm" className="mr-2" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          Share <Share2 className="h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ) : (
+                {!expense.receipt && !hasVoucher && (
                   <p className="text-muted-foreground">No receipt or voucher available</p>
-                )}
-
-                {/* Input box + Copy icon will show only when Share button is clicked */}
-                {shareLink && (
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Input value={shareLink} readOnly className="flex-1" />
-                    <Button
-                      className="cursor-pointer"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        navigator.clipboard.writeText(shareLink);
-                        toast.success("Link copied to clipboard");
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
                 )}
 
                 {expense.receipt && (
                   <div className="mt-4 rounded-lg border border-gray-200 bg-white">
-                    <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-start gap-3">
-                        <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
-                        <div>
-                          <p className="text-base font-semibold">Receipt Preview</p>
-                          <p className="text-sm text-muted-foreground">
-                            Opens by default for quick review
-                          </p>
+                    <div className="border-b px-4 py-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
+                          <div>
+                            <p className="text-base font-semibold">Receipt Preview</p>
+                            <p className="text-sm text-muted-foreground">
+                              Opens by default for quick review
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="cursor-pointer"
+                                  onClick={() => setIsReceiptPaneOpen((prev) => !prev)}
+                                  aria-label={isReceiptPaneOpen ? "Hide receipt preview" : "Show receipt preview"}
+                                >
+                                  {isReceiptPaneOpen ? (
+                                    <EyeOff className="h-4 w-4" />
+                                  ) : (
+                                    <Eye className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>{isReceiptPaneOpen ? "Hide receipt preview" : "Show receipt preview"}</p>
+                              </TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="cursor-pointer"
+                                  onClick={handleShareReceipt}
+                                  aria-label="Share receipt"
+                                  disabled={sharingReceipt}
+                                >
+                                  {sharingReceipt ? (
+                                    <Spinner size="sm" className="h-4 w-4" />
+                                  ) : (
+                                    <Share2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Share receipt</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="cursor-pointer"
-                          onClick={() => setIsReceiptPaneOpen((prev) => !prev)}
-                        >
-                          {isReceiptPaneOpen ? (
-                            <>
-                              <ChevronDown className="mr-1 h-4 w-4" /> Minimize
-                            </>
-                          ) : (
-                            <>
-                              <ChevronRight className="mr-1 h-4 w-4" /> Expand
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="cursor-pointer"
-                          onClick={handleViewReceipt}
-                        >
-                          Open in new tab
-                        </Button>
-                      </div>
+
+                      {/* Share link section for receipt */}
+                      {shareLink && (
+                        <div className="flex items-center space-x-2 mt-3">
+                          <Input value={shareLink} readOnly className="flex-1" />
+                          <Button
+                            className="cursor-pointer"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              navigator.clipboard.writeText(shareLink);
+                              toast.success("Link copied to clipboard");
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            className="cursor-pointer"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setShareLink("")}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
                     {isReceiptPaneOpen && (
@@ -1502,42 +1745,107 @@ export default function ViewExpensePage() {
 
                 {voucherDetails && (
                   <div className="mt-4 rounded-lg border border-gray-200 bg-white">
-                    <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-start gap-3">
-                        <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
-                        <div>
-                          <p className="text-base font-semibold">Voucher Preview</p>
-                          <p className="text-sm text-muted-foreground">
-                            Opens by default for quick review
-                          </p>
+                    <div className="border-b px-4 py-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
+                          <div>
+                            <p className="text-base font-semibold">Voucher Preview</p>
+                            <p className="text-sm text-muted-foreground">
+                              Opens by default for quick review
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="cursor-pointer"
+                                  onClick={() => setIsVoucherPaneOpen((prev) => !prev)}
+                                  aria-label={isVoucherPaneOpen ? "Hide voucher preview" : "Show voucher preview"}
+                                >
+                                  {isVoucherPaneOpen ? (
+                                    <EyeOff className="h-4 w-4" />
+                                  ) : (
+                                    <Eye className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>{isVoucherPaneOpen ? "Hide voucher preview" : "Show voucher preview"}</p>
+                              </TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="cursor-pointer"
+                                  onClick={handleShareVoucher}
+                                  aria-label="Share voucher"
+                                  disabled={sharingVoucher}
+                                >
+                                  {sharingVoucher ? (
+                                    <Spinner size="sm" className="h-4 w-4" />
+                                  ) : (
+                                    <Share2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Share voucher</p>
+                              </TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="cursor-pointer"
+                                  onClick={handleDownloadPDF}
+                                  aria-label="Download voucher as PDF"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Download voucher as PDF</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="cursor-pointer"
-                          onClick={() => setIsVoucherPaneOpen((prev) => !prev)}
-                        >
-                          {isVoucherPaneOpen ? (
-                            <>
-                              <ChevronDown className="mr-1 h-4 w-4" /> Minimize
-                            </>
-                          ) : (
-                            <>
-                              <ChevronRight className="mr-1 h-4 w-4" /> Expand
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="cursor-pointer"
-                          onClick={() => router.push(`/org/${slug}/expenses/${expense.id}/voucher`)}
-                        >
-                          Open full voucher
-                        </Button>
-                      </div>
+
+                      {/* Share link section - shows below the header when share is clicked */}
+                      {shareLink && (
+                        <div className="flex items-center space-x-2 mt-3">
+                          <Input value={shareLink} readOnly className="flex-1" />
+                          <Button
+                            className="cursor-pointer"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              navigator.clipboard.writeText(shareLink);
+                              toast.success("Link copied to clipboard");
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            className="cursor-pointer"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setShareLink("")}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
                     {isVoucherPaneOpen && (
@@ -1606,14 +1914,6 @@ export default function ViewExpensePage() {
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                   <p className="text-sm font-medium">Attachment</p>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="cursor-pointer"
-                                    onClick={() => window.open(voucherAttachmentUrl, "_blank")}
-                                  >
-                                    Open in new tab
-                                  </Button>
                                 </div>
                                 {voucherAttachmentFilename && voucherAttachmentFilename.toLowerCase().endsWith(".pdf") ? (
                                   <div className="rounded-md border bg-white overflow-hidden" style={{ height: "500px" }}>
