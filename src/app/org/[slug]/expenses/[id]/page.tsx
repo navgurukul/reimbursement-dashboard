@@ -1420,14 +1420,14 @@ export default function ViewExpensePage() {
                 )}
 
                 {expense.receipt && (
-                  <div className="mt-4 rounded-lg border border-blue-200 bg-white shadow-sm">
+                  <div className="mt-4 rounded-lg border border-gray-200 bg-white">
                     <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-start gap-3">
                         <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
                         <div>
                           <p className="text-base font-semibold">Receipt Preview</p>
                           <p className="text-sm text-muted-foreground">
-                            {expense.receipt.filename || "Document"} • opens by default for quick review
+                            Opens by default for quick review
                           </p>
                         </div>
                       </div>
@@ -1450,7 +1450,7 @@ export default function ViewExpensePage() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="secondary"
+                          variant="outline"
                           className="cursor-pointer"
                           onClick={handleViewReceipt}
                         >
@@ -1498,7 +1498,7 @@ export default function ViewExpensePage() {
                 )}
 
                 {voucherDetails && (
-                  <div className="mt-4 rounded-lg border border-blue-200 bg-white shadow-sm">
+                  <div className="mt-4 rounded-lg border border-gray-200 bg-white">
                     <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-start gap-3">
                         <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
