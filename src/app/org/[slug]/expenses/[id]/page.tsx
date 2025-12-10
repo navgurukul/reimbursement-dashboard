@@ -1631,6 +1631,13 @@ export default function ViewExpensePage() {
                                 )}
                               </div>
                             )}
+
+                            {!voucherAttachmentUrl && (
+                              <div className="flex gap-1">
+                                <p className="text-sm font-medium">Attachment : </p>
+                                <p className="text-sm text-muted-foreground">Not Available</p>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
