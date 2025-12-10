@@ -18,6 +18,8 @@ import {
   Clock,
   Copy,
   Share2,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
@@ -115,6 +117,9 @@ export default function ViewExpensePage() {
   const [shareLink, setShareLink] = useState<string>("");
   const [sharingReceipt, setSharingReceipt] = useState(false);
   const [sharingVoucher, setSharingVoucher] = useState(false);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
+  const [isReceiptPaneOpen, setIsReceiptPaneOpen] = useState(false);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   // Load the user's saved signature if it exists
   useEffect(() => {
@@ -209,7 +214,7 @@ export default function ViewExpensePage() {
   useEffect(() => {
     async function fetchExpense() {
       try {
-        // Fetch the 
+        // Fetch the expense
         const { data, error } = await expenses.getById(expenseId);
         if (error) {
           toast.error("Failed to load expense", {
@@ -311,6 +316,51 @@ export default function ViewExpensePage() {
 
     fetchExpense();
   }, [expenseId, router, slug, orgId]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadReceiptPreview = async () => {
+      if (!expense?.receipt?.path) {
+        setReceiptPreviewUrl(null);
+        setIsReceiptPaneOpen(false);
+        return;
+      }
+
+      try {
+        setReceiptLoading(true);
+        const { url, error } = await expenses.getReceiptUrl(expense.receipt.path);
+
+        if (isCancelled) return;
+
+        if (error || !url) {
+          console.error("Error loading receipt preview:", error);
+          setReceiptPreviewUrl(null);
+          setIsReceiptPaneOpen(false);
+          return;
+        }
+
+        setReceiptPreviewUrl(url);
+        setIsReceiptPaneOpen(true); // open by default for quick access
+      } catch (err) {
+        if (!isCancelled) {
+          console.error("Receipt preview error:", err);
+          setReceiptPreviewUrl(null);
+          setIsReceiptPaneOpen(false);
+        }
+      } finally {
+        if (!isCancelled) {
+          setReceiptLoading(false);
+        }
+      }
+    };
+
+    loadReceiptPreview();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [expense?.receipt?.path]);
 
   // Handle custom amount approval
   const handleApproveCustomAmount = async () => {
@@ -725,6 +775,12 @@ export default function ViewExpensePage() {
   const handleViewReceipt = async () => {
     if (expense.receipt?.path) {
       try {
+        if (receiptPreviewUrl) {
+          window.open(receiptPreviewUrl, "_blank");
+          return;
+        }
+
+        setReceiptLoading(true);
         const { url, error } = await expenses.getReceiptUrl(
           expense.receipt.path
         );
@@ -734,11 +790,14 @@ export default function ViewExpensePage() {
           return;
         }
         if (url) {
+          setReceiptPreviewUrl(url);
           window.open(url, "_blank");
         }
       } catch (err) {
         console.error("Error opening receipt:", err);
         toast.error("Failed to open receipt");
+      } finally {
+        setReceiptLoading(false);
       }
     }
   };
@@ -831,6 +890,11 @@ export default function ViewExpensePage() {
   if (!expense) {
     return null;
   }
+
+  const receiptFileName = expense.receipt?.filename || expense.receipt?.path;
+  const isReceiptPdf =
+    typeof receiptFileName === "string" &&
+    receiptFileName.toLowerCase().endsWith(".pdf");
 
   // Helper function to format field names
   const formatFieldName = (name: string) => {
@@ -1284,6 +1348,84 @@ export default function ViewExpensePage() {
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
+                  </div>
+                )}
+
+                {expense.receipt && (
+                  <div className="mt-4 rounded-lg border border-blue-200 bg-white shadow-sm">
+                    <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
+                        <div>
+                          <p className="text-base font-semibold">Receipt Preview</p>
+                          <p className="text-sm text-muted-foreground">
+                            {expense.receipt.filename || "Document"} • opens by default for quick review
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => setIsReceiptPaneOpen((prev) => !prev)}
+                        >
+                          {isReceiptPaneOpen ? (
+                            <>
+                              <ChevronDown className="mr-1 h-4 w-4" /> Minimize
+                            </>
+                          ) : (
+                            <>
+                              <ChevronRight className="mr-1 h-4 w-4" /> Expand
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="cursor-pointer"
+                          onClick={handleViewReceipt}
+                        >
+                          Open in new tab
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isReceiptPaneOpen && (
+                      <div className="space-y-3 p-4">
+                        {receiptLoading ? (
+                          <div className="flex h-64 items-center justify-center">
+                            <Spinner size="lg" />
+                          </div>
+                        ) : receiptPreviewUrl ? (
+                          isReceiptPdf ? (
+                            <object
+                              data={receiptPreviewUrl}
+                              type="application/pdf"
+                              className="h-[600px] w-full rounded-md border"
+                            >
+                              <div className="flex h-[600px] items-center justify-center rounded-md border bg-muted">
+                                <p className="text-sm text-muted-foreground">
+                                  PDF preview unavailable. You can still open it in a new tab.
+                                </p>
+                              </div>
+                            </object>
+                          ) : (
+                            <div className="rounded-md border bg-muted">
+                              <img
+                                src={receiptPreviewUrl}
+                                alt={expense.receipt.filename || "Receipt preview"}
+                                className="max-h-[600px] w-full object-contain"
+                              />
+                            </div>
+                          )
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Receipt preview not available right now.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
