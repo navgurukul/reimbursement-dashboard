@@ -123,6 +123,7 @@ export default function ViewExpensePage() {
   const [voucherDetails, setVoucherDetails] = useState<any | null>(null);
   const [voucherSignatureUrl, setVoucherSignatureUrl] = useState<string | null>(null);
   const [voucherAttachmentUrl, setVoucherAttachmentUrl] = useState<string | null>(null);
+  const [voucherAttachmentFilename, setVoucherAttachmentFilename] = useState<string | null>(null);
   const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
 
@@ -330,6 +331,7 @@ export default function ViewExpensePage() {
         setVoucherDetails(null);
         setVoucherSignatureUrl(null);
         setVoucherAttachmentUrl(null);
+        setVoucherAttachmentFilename(null);
         setIsVoucherPaneOpen(false);
         return;
       }
@@ -357,12 +359,17 @@ export default function ViewExpensePage() {
 
         if ((voucherData as any).attachment_url || (voucherData as any).attachment) {
           const attachmentValue = (voucherData as any).attachment_url || (voucherData as any).attachment;
-          const [, filePath] = String(attachmentValue).split(",");
+          const [filename, filePath] = String(attachmentValue).split(",");
           if (filePath) {
             const { url, error } = await voucherAttachments.getUrl(filePath);
             if (!cancelled) {
               setVoucherAttachmentUrl(!error ? url || null : null);
+              setVoucherAttachmentFilename(filename || null);
             }
+          }
+        } else {
+          if (!cancelled) {
+            setVoucherAttachmentFilename(null);
           }
         }
       } catch (err) {
@@ -1608,18 +1615,14 @@ export default function ViewExpensePage() {
                                     Open in new tab
                                   </Button>
                                 </div>
-                                {voucherAttachmentUrl.toLowerCase().endsWith(".pdf") ? (
-                                  <object
-                                    data={voucherAttachmentUrl}
-                                    type="application/pdf"
-                                    className="h-[500px] w-full rounded-md border"
-                                  >
-                                    <div className="flex h-[500px] items-center justify-center rounded-md border bg-muted">
-                                      <p className="text-sm text-muted-foreground">
-                                        PDF preview unavailable. You can still open it in a new tab.
-                                      </p>
-                                    </div>
-                                  </object>
+                                {voucherAttachmentFilename && voucherAttachmentFilename.toLowerCase().endsWith(".pdf") ? (
+                                  <div className="rounded-md border bg-white overflow-hidden" style={{ height: "500px" }}>
+                                    <iframe
+                                      src={`${voucherAttachmentUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                                      className="h-full w-full border-none"
+                                      title="Attachment PDF Preview"
+                                    />
+                                  </div>
                                 ) : (
                                   <div className="rounded-md border bg-muted">
                                     <img
