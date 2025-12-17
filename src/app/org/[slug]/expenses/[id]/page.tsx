@@ -1504,7 +1504,7 @@ export default function ViewExpensePage() {
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
                     ) : (
-                      <Edit />
+                      <Pencil />
                     )}
                     Custom amount
                   </Button>
@@ -1532,7 +1532,7 @@ export default function ViewExpensePage() {
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
                     ) : (
-                      <Edit />
+                      <Pencil />
                     )}
                     Custom amount
                   </Button>

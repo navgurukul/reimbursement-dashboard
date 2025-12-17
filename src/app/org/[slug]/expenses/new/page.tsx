@@ -2264,7 +2264,7 @@ export default function NewExpensePage() {
                         className="p-2 rounded-md bg-white-200 hover:bg-red-200 text-red-600 hover:text-red-700 shadow-sm transition duration-200 cursor-pointer"
                         title="Delete"
                       >
-                        <Trash className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
 
