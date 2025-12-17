@@ -37,7 +37,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ArrowLeft, CalendarIcon, Save, Upload, Trash, Info } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarIcon,
+  Save,
+  Upload,
+  Trash,
+  Info,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -78,10 +85,10 @@ interface ExpenseData {
 }
 
 interface ExpenseItemData {
-  expense_type: string
-  amount: number
-  date: string
-  description: string
+  expense_type: string;
+  amount: number;
+  date: string;
+  description: string;
   [key: string]: string | number | string[] | undefined;
 }
 
@@ -119,11 +126,17 @@ export default function NewExpensePage() {
 
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [receiptFiles, setReceiptFiles] = useState<Record<number, File | null>>({});
-  const [receiptPreviews, setReceiptPreviews] = useState<Record<number, string | null>>({});
+  const [receiptFiles, setReceiptFiles] = useState<Record<number, File | null>>(
+    {}
+  );
+  const [receiptPreviews, setReceiptPreviews] = useState<
+    Record<number, string | null>
+  >({});
 
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
-  const [voucherModalOpenMap, setVoucherModalOpenMap] = useState<Record<number, boolean>>({});
+  const [voucherModalOpenMap, setVoucherModalOpenMap] = useState<
+    Record<number, boolean>
+  >({});
 
   const [events, setEvents] = useState<ExpenseEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
@@ -139,8 +152,12 @@ export default function NewExpensePage() {
   const [loadingSignature, setLoadingSignature] = useState(true);
 
   const [expenseItems, setExpenseItems] = useState<number[]>([]);
-  const [expenseItemsData, setExpenseItemsData] = useState<Record<number, ExpenseItemData>>({})
-  const [voucherAttachmentsMap, setVoucherAttachmentsMap] = useState<Record<number, File | null>>({});
+  const [expenseItemsData, setExpenseItemsData] = useState<
+    Record<number, ExpenseItemData>
+  >({});
+  const [voucherAttachmentsMap, setVoucherAttachmentsMap] = useState<
+    Record<number, File | null>
+  >({});
 
   // voucherDataMap
   const [voucherDataMap, setVoucherDataMap] = useState<Record<number, any>>({});
@@ -151,11 +168,16 @@ export default function NewExpensePage() {
   // Payment Unique ID helpers
   const [uniqueIdModalOpen, setUniqueIdModalOpen] = useState(false);
   const [bankSearchQuery, setBankSearchQuery] = useState("");
-  const [bankSearchResults, setBankSearchResults] = useState<BankDetailRecord[]>([]);
+  const [bankSearchResults, setBankSearchResults] = useState<
+    BankDetailRecord[]
+  >([]);
   const [bankSearchLoading, setBankSearchLoading] = useState(false);
   const [bankSearchError, setBankSearchError] = useState<string | null>(null);
-  const [selectedUniqueIdUser, setSelectedUniqueIdUser] = useState<BankDetailRecord | null>(null);
-  const [prefilledUniqueId, setPrefilledUniqueId] = useState<string | null>(null);
+  const [selectedUniqueIdUser, setSelectedUniqueIdUser] =
+    useState<BankDetailRecord | null>(null);
+  const [prefilledUniqueId, setPrefilledUniqueId] = useState<string | null>(
+    null
+  );
   const [uniqueIdUnavailable, setUniqueIdUnavailable] = useState(false);
 
   const getDefaultValueByType = (type: string) => {
@@ -200,33 +222,37 @@ export default function NewExpensePage() {
   };
 
   const deleteItem = (id: number) => {
-    setExpenseItems((prev) => prev.filter((item) => item !== id))
+    setExpenseItems((prev) => prev.filter((item) => item !== id));
     setExpenseItemsData((prev) => {
-      const newData = { ...prev }
-      delete newData[id]
-      return newData
-    })
+      const newData = { ...prev };
+      delete newData[id];
+      return newData;
+    });
     // Clean up voucher modal state
     setVoucherModalOpenMap((prev) => {
-      const newMap = { ...prev }
-      delete newMap[id]
-      return newMap
-    })
+      const newMap = { ...prev };
+      delete newMap[id];
+      return newMap;
+    });
     // Clean up receipt files
     setReceiptFiles((prev) => {
-      const newFiles = { ...prev }
-      delete newFiles[id]
-      return newFiles
-    })
+      const newFiles = { ...prev };
+      delete newFiles[id];
+      return newFiles;
+    });
     setReceiptPreviews((prev) => {
-      const newPreviews = { ...prev }
-      delete newPreviews[id]
-      return newPreviews
-    })
-  }
+      const newPreviews = { ...prev };
+      delete newPreviews[id];
+      return newPreviews;
+    });
+  };
 
   // Handler for expense items - separate from main form
-  const handleExpenseItemChange = (itemId: number, key: keyof ExpenseItemData, value: string | number | string[]) => {
+  const handleExpenseItemChange = (
+    itemId: number,
+    key: keyof ExpenseItemData,
+    value: string | number | string[]
+  ) => {
     setExpenseItemsData((prev) => ({
       ...prev,
       [itemId]: {
@@ -247,7 +273,10 @@ export default function NewExpensePage() {
     }
   };
 
-  const getExpenseItemValue = (itemId: number, key: keyof ExpenseItemData): string | number | string[] => {
+  const getExpenseItemValue = (
+    itemId: number,
+    key: keyof ExpenseItemData
+  ): string | number | string[] => {
     const value = expenseItemsData[itemId]?.[key];
     if (
       value === undefined ||
@@ -257,7 +286,7 @@ export default function NewExpensePage() {
       return "";
     }
     return value;
-  }
+  };
   // Add these utility functions for error handling and UX improvements
   const scrollToFirstError = (errors: Record<string, string>) => {
     const firstErrorField = Object.keys(errors)[0];
@@ -452,13 +481,19 @@ export default function NewExpensePage() {
           setColumns(processedColumns);
 
           // Extract location options from settings
-          const locationColumn = columnsToUse.find((col: Column) => col.key === "location");
+          const locationColumn = columnsToUse.find(
+            (col: Column) => col.key === "location"
+          );
           if (locationColumn && locationColumn.options) {
             const options = locationColumn.options;
             if (Array.isArray(options) && options.length > 0) {
-              if (typeof options[0] === 'object') {
+              if (typeof options[0] === "object") {
                 // Convert array of objects to array of strings
-                setLocationOptions((options as Array<{ value: string; label: string }>).map(opt => opt.label || opt.value));
+                setLocationOptions(
+                  (options as Array<{ value: string; label: string }>).map(
+                    (opt) => opt.label || opt.value
+                  )
+                );
               } else {
                 // It's already a string array
                 setLocationOptions(options as string[]);
@@ -535,7 +570,10 @@ export default function NewExpensePage() {
   };
 
   // Handle multiple receipt files
-  const handleFileChanges = (e: React.ChangeEvent<HTMLInputElement>, itemId: number) => {
+  const handleFileChanges = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    itemId: number
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -548,7 +586,10 @@ export default function NewExpensePage() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setReceiptFiles((prev) => ({ ...prev, [itemId]: file }));
-      setReceiptPreviews((prev) => ({ ...prev, [itemId]: reader.result as string }));
+      setReceiptPreviews((prev) => ({
+        ...prev,
+        [itemId]: reader.result as string,
+      }));
     };
     reader.readAsDataURL(file);
   };
@@ -572,7 +613,9 @@ export default function NewExpensePage() {
       const endDate = new Date(selectedEvent.end_date);
 
       if (selectedDate < startDate || selectedDate > endDate) {
-        newErrors["date"] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
+        newErrors[
+          "date"
+        ] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
       }
     }
     // Clear error if value is now filled
@@ -630,7 +673,9 @@ export default function NewExpensePage() {
       try {
         const { data, error } = await supabase
           .from("bank_details")
-          .select("id,account_holder,email,unique_id,bank_name,account_number,ifsc_code")
+          .select(
+            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code"
+          )
           .eq("email", user.email)
           .limit(1);
 
@@ -684,9 +729,11 @@ export default function NewExpensePage() {
 
         let query = supabase
           .from("bank_details")
-          .select("id,account_holder,email,unique_id,bank_name,account_number,ifsc_code")
-          .order("account_holder", { ascending: true })
-          // .limit(20);
+          .select(
+            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code"
+          )
+          .order("account_holder", { ascending: true });
+        // .limit(20);
 
         if (trimmed) {
           query = query.or(
@@ -758,10 +805,13 @@ export default function NewExpensePage() {
     // Validate main form fields
     if (voucherModalOpen) {
       if (!formData.yourName) newErrors["yourName"] = "Your Name is required";
-      if (!formData.voucherAmount) newErrors["voucherAmount"] = "Amount is required";
+      if (!formData.voucherAmount)
+        newErrors["voucherAmount"] = "Amount is required";
       if (!formData.purpose) newErrors["purpose"] = "Purpose is required";
-      if (!formData.voucherCreditPerson) newErrors["voucherCreditPerson"] = "Credit Person is required";
-      if (!formData.voucher_signature_data_url) newErrors["voucher_signature_data_url"] = "Signature is required";
+      if (!formData.voucherCreditPerson)
+        newErrors["voucherCreditPerson"] = "Credit Person is required";
+      if (!formData.voucher_signature_data_url)
+        newErrors["voucher_signature_data_url"] = "Signature is required";
     }
 
     // Validate required Payment Unique ID
@@ -772,10 +822,11 @@ export default function NewExpensePage() {
     // Validate expense items
     for (const itemId of expenseItems) {
       const item = expenseItemsData[itemId];
-      if (!item.expense_type) newErrors[`expense_type-${itemId}`] = "Expense Type is required";
-      if (!item.amount || isNaN(item.amount)) newErrors[`amount-${itemId}`] = "Amount is required";
+      if (!item.expense_type)
+        newErrors[`expense_type-${itemId}`] = "Expense Type is required";
+      if (!item.amount || isNaN(item.amount))
+        newErrors[`amount-${itemId}`] = "Amount is required";
       // if (!item.date) newErrors[`date-${itemId}`] = "Date is required";
-
 
       if (!item.date) {
         newErrors[`date-${itemId}`] = "Date is required";
@@ -784,7 +835,9 @@ export default function NewExpensePage() {
         const startDate = new Date(selectedEvent.start_date);
         const endDate = new Date(selectedEvent.end_date);
         if (itemDate < startDate || itemDate > endDate) {
-          newErrors[`date-${itemId}`] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
+          newErrors[
+            `date-${itemId}`
+          ] = `Date must be within the event duration (${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})`;
         }
       }
 
@@ -797,14 +850,22 @@ export default function NewExpensePage() {
 
       if (voucherModalOpenMap[itemId]) {
         const voucherData = voucherDataMap[itemId] || {};
-        if (!voucherData.yourName) newErrors[`yourName-${itemId}`] = "Your Name is required";
+        if (!voucherData.yourName)
+          newErrors[`yourName-${itemId}`] = "Your Name is required";
 
-        if (!voucherData.voucherAmount) newErrors[`voucherAmount-${itemId}`] = "Amount is required";
-        if (!voucherData.purpose) newErrors[`purpose-${itemId}`] = "Purpose is required";
-        if (!voucherData.voucherCreditPerson) newErrors[`voucherCreditPerson-${itemId}`] = "Credit Person is required";
-        if (!voucherData.voucher_signature_data_url) newErrors[`voucher_signature_data_url-${itemId}`] = "Signature is required";
+        if (!voucherData.voucherAmount)
+          newErrors[`voucherAmount-${itemId}`] = "Amount is required";
+        if (!voucherData.purpose)
+          newErrors[`purpose-${itemId}`] = "Purpose is required";
+        if (!voucherData.voucherCreditPerson)
+          newErrors[`voucherCreditPerson-${itemId}`] =
+            "Credit Person is required";
+        if (!voucherData.voucher_signature_data_url)
+          newErrors[`voucher_signature_data_url-${itemId}`] =
+            "Signature is required";
       } else {
-        if (!receiptFiles[itemId]) newErrors[`receipt-${itemId}`] = "Receipt is required";
+        if (!receiptFiles[itemId])
+          newErrors[`receipt-${itemId}`] = "Receipt is required";
       }
     }
 
@@ -819,7 +880,6 @@ export default function NewExpensePage() {
     if (!formData.location) {
       newErrors["location"] = "Location is required";
     }
-
 
     // Receipt required for main expense if not in voucher mode
     if (!voucherModalOpen && !receiptFile) {
@@ -855,8 +915,10 @@ export default function NewExpensePage() {
       // Get the user's saved signature path from their profile if needed
       let profileSignaturePath: string | null = null;
       if (
-        (savedUserSignature === formData.expense_signature_data_url && !voucherModalOpen) ||
-        (savedUserSignature === formData.voucher_signature_data_url && voucherModalOpen)
+        (savedUserSignature === formData.expense_signature_data_url &&
+          !voucherModalOpen) ||
+        (savedUserSignature === formData.voucher_signature_data_url &&
+          voucherModalOpen)
       ) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -876,9 +938,14 @@ export default function NewExpensePage() {
 
       // Handle voucher signature
       if (voucherModalOpen && formData.voucher_signature_data_url) {
-        if (formData.voucher_signature_data_url === savedUserSignature && profileSignaturePath) {
+        if (
+          formData.voucher_signature_data_url === savedUserSignature &&
+          profileSignaturePath
+        ) {
           voucher_signature_url = profileSignaturePath;
-        } else if (formData.voucher_signature_data_url.startsWith("data:image/")) {
+        } else if (
+          formData.voucher_signature_data_url.startsWith("data:image/")
+        ) {
           const { path, error } = await uploadSignature(
             formData.voucher_signature_data_url,
             user.id,
@@ -892,7 +959,9 @@ export default function NewExpensePage() {
           }
           voucher_signature_url = path;
         } else {
-          toast.error("Invalid signature format. Please redraw your signature.");
+          toast.error(
+            "Invalid signature format. Please redraw your signature."
+          );
           setSaving(false);
           return;
         }
@@ -900,9 +969,14 @@ export default function NewExpensePage() {
 
       // Handle expense signature
       if (!voucherModalOpen && formData.expense_signature_data_url) {
-        if (formData.expense_signature_data_url === savedUserSignature && profileSignaturePath) {
+        if (
+          formData.expense_signature_data_url === savedUserSignature &&
+          profileSignaturePath
+        ) {
           expense_signature_url = profileSignaturePath;
-        } else if (formData.expense_signature_data_url.startsWith("data:image/")) {
+        } else if (
+          formData.expense_signature_data_url.startsWith("data:image/")
+        ) {
           const { path, error } = await uploadSignature(
             formData.expense_signature_data_url,
             user.id,
@@ -916,7 +990,9 @@ export default function NewExpensePage() {
           }
           expense_signature_url = path;
         } else {
-          toast.error("Invalid signature format. Please redraw your signature.");
+          toast.error(
+            "Invalid signature format. Please redraw your signature."
+          );
           setSaving(false);
           return;
         }
@@ -932,7 +1008,9 @@ export default function NewExpensePage() {
             "approver"
           );
           if (error) {
-            toast.error(`Failed to upload approver signature: ${error.message}`);
+            toast.error(
+              `Failed to upload approver signature: ${error.message}`
+            );
             setSaving(false);
             return;
           }
@@ -945,7 +1023,9 @@ export default function NewExpensePage() {
       }
 
       const approver_id = formData.approver || null;
-      const signature_url_to_use = voucherModalOpen ? voucher_signature_url : expense_signature_url;
+      const signature_url_to_use = voucherModalOpen
+        ? voucher_signature_url
+        : expense_signature_url;
 
       const sanitizeLabel = (label: string): string => {
         return label
@@ -972,7 +1052,6 @@ export default function NewExpensePage() {
           }
         }
       });
-
 
       if (voucherModalOpen) {
         custom_fields["description"] = formData.description || "Cash Voucher";
@@ -1021,7 +1100,10 @@ export default function NewExpensePage() {
         let userName = "Unknown User";
         if (authStorage?.state?.user?.profile?.full_name) {
           userName = authStorage.state.user.profile.full_name;
-        } else if (typeof authRaw === "string" && authRaw.includes("full_name")) {
+        } else if (
+          typeof authRaw === "string" &&
+          authRaw.includes("full_name")
+        ) {
           const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
           if (match && match[1]) {
             userName = match[1];
@@ -1080,7 +1162,7 @@ export default function NewExpensePage() {
           created_by: user.id,
           org_id: organization.id,
           approver_id,
-          attachment: attachmentData
+          attachment: attachmentData,
         };
 
         const { data: voucherResponse, error: voucherError } = await supabase
@@ -1132,7 +1214,9 @@ export default function NewExpensePage() {
             approver_id: formData.approver || null,
             // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
             unique_id: item.unique_id || formData.unique_id || undefined,
-            signature_url: isVoucher ? (signature_url_to_use ?? undefined) : (expense_signature_url ?? undefined),
+            signature_url: isVoucher
+              ? signature_url_to_use ?? undefined
+              : expense_signature_url ?? undefined,
             receipt: null,
             creator_email: user.email,
             approver_email: approverEmail,
@@ -1164,7 +1248,11 @@ export default function NewExpensePage() {
               setSaving(false);
               return;
             }
-            attachmentData = [voucherAttachment.name, path, voucherAttachment.type].join(",");
+            attachmentData = [
+              voucherAttachment.name,
+              path,
+              voucherAttachment.type,
+            ].join(",");
           }
 
           if (isVoucher) {
@@ -1173,16 +1261,23 @@ export default function NewExpensePage() {
               expense_id: itemData.id,
               your_name: itemVoucherData.yourName || formData.yourName || null,
               amount: item.amount,
-              purpose: itemVoucherData.purpose || formData.purpose || "Cash Voucher",
-              credit_person: itemVoucherData.voucherCreditPerson || formData.voucherCreditPerson || null,
+              purpose:
+                itemVoucherData.purpose || formData.purpose || "Cash Voucher",
+              credit_person:
+                itemVoucherData.voucherCreditPerson ||
+                formData.voucherCreditPerson ||
+                null,
               signature_url: itemVoucherData.voucher_signature_url
                 ? itemVoucherData.voucher_signature_url
-                : (signature_url_to_use ?? expense_signature_url ?? undefined),
-              manager_signature_url: itemVoucherData.manager_signature_url || manager_signature_url || null,
+                : signature_url_to_use ?? expense_signature_url ?? undefined,
+              manager_signature_url:
+                itemVoucherData.manager_signature_url ||
+                manager_signature_url ||
+                null,
               created_by: user.id,
               org_id: organization.id,
               approver_id: formData.approver || null,
-              attachment: attachmentData
+              attachment: attachmentData,
             };
 
             const { error: voucherError } = await supabase
@@ -1191,9 +1286,14 @@ export default function NewExpensePage() {
 
             if (voucherError) {
               console.error("Voucher creation error:", voucherError);
-              toast.error(`Failed to create voucher for item: ${voucherError.message}`);
+              toast.error(
+                `Failed to create voucher for item: ${voucherError.message}`
+              );
               try {
-                await supabase.from("expense_new").delete().eq("id", itemData.id);
+                await supabase
+                  .from("expense_new")
+                  .delete()
+                  .eq("id", itemData.id);
               } catch (cleanupError) {
                 console.error("Failed to clean up expense:", cleanupError);
               }
@@ -1208,7 +1308,10 @@ export default function NewExpensePage() {
             let userName = "Unknown User";
             if (authStorage?.state?.user?.profile?.full_name) {
               userName = authStorage.state.user.profile.full_name;
-            } else if (typeof authRaw === "string" && authRaw.includes("full_name")) {
+            } else if (
+              typeof authRaw === "string" &&
+              authRaw.includes("full_name")
+            ) {
               const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
               if (match && match[1]) {
                 userName = match[1];
@@ -1260,14 +1363,17 @@ export default function NewExpensePage() {
     );
   }
 
-  const defaultSystemFields = ["amount", "date", "expense_type", "approver", "event_id", "description"];
+  const defaultSystemFields = [
+    "amount",
+    "date",
+    "expense_type",
+    "approver",
+    "event_id",
+    "description",
+  ];
   const customFields = columns.filter(
-    (col) =>
-      col.visible &&
-      !defaultSystemFields.includes(col.key)
+    (col) => col.visible && !defaultSystemFields.includes(col.key)
   );
-
-
 
   return (
     <div className="max-w-[800px] mx-auto py-6">
@@ -1289,7 +1395,8 @@ export default function NewExpensePage() {
         <Button
           onClick={handleSubmit}
           disabled={saving}
-          className="bg-black text-white hover:bg-black/90 cursor-pointer"
+          variant="neutral"
+          className="cursor-pointer"
         >
           {saving ? (
             <>
@@ -1327,8 +1434,11 @@ export default function NewExpensePage() {
             {/* Unique Expense ID - editable by user */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Label htmlFor="unique_id" className="text-sm font-medium text-gray-700">
-                  Payment Unique ID 
+                <Label
+                  htmlFor="unique_id"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Payment Unique ID
                 </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1346,17 +1456,28 @@ export default function NewExpensePage() {
                   name="unique_id"
                   type="text"
                   value={formData.unique_id || ""}
-                  onChange={(e) => handleInputChange("unique_id", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("unique_id", e.target.value)
+                  }
                   required
                   aria-invalid={errors["unique_id"] ? "true" : "false"}
-                  aria-describedby={errors["unique_id"] ? "unique_id-error" : undefined}
-                  placeholder={uniqueIdUnavailable ? "Unique ID not available" : "Enter payment unique ID"}
+                  aria-describedby={
+                    errors["unique_id"] ? "unique_id-error" : undefined
+                  }
+                  placeholder={
+                    uniqueIdUnavailable
+                      ? "Unique ID not available"
+                      : "Enter payment unique ID"
+                  }
                   className={`w-full border ${
                     errors["unique_id"]
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                       : "border-gray-300"
                   } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
-                  disabled={!!prefilledUniqueId || (uniqueIdUnavailable && !formData.unique_id)}
+                  disabled={
+                    !!prefilledUniqueId ||
+                    (uniqueIdUnavailable && !formData.unique_id)
+                  }
                 />
                 <Button
                   type="button"
@@ -1372,30 +1493,42 @@ export default function NewExpensePage() {
                 </Button>
               </div>
               {errors["unique_id"] && (
-                <p className="text-red-500 text-sm mt-1" role="alert" id={`unique_id-error`}>
+                <p
+                  className="text-red-500 text-sm mt-1"
+                  role="alert"
+                  id={`unique_id-error`}
+                >
                   {errors["unique_id"]}
                 </p>
               )}
 
               {uniqueIdUnavailable && !formData.unique_id && (
-                <p className="text-xs px-2 py-0 text-gray-600">Unique ID is not available for your login email. Please search for a user.</p>
+                <p className="text-xs px-2 py-0 text-gray-600">
+                  Unique ID is not available for your login email. Please search
+                  for a user.
+                </p>
               )}
 
               {(selectedUniqueIdUser || prefilledUniqueId) && (
                 <div className="bg-gray-50 px-2 py-0 text-sm text-gray-800">
                   <p className="mt-1 text-xs text-gray-600">
-                    Pre-filled Payment Unique ID; allows searching and replacing with another user’s Unique ID.
+                    Pre-filled Payment Unique ID; allows searching and replacing
+                    with another user’s Unique ID.
                   </p>
                 </div>
               )}
             </div>
 
-            <Dialog open={uniqueIdModalOpen} onOpenChange={setUniqueIdModalOpen}>
+            <Dialog
+              open={uniqueIdModalOpen}
+              onOpenChange={setUniqueIdModalOpen}
+            >
               <DialogContent className="max-w-xl">
                 <DialogHeader>
                   <DialogTitle>Select a user</DialogTitle>
                   <DialogDescription>
-                    Search by name, email, or Unique ID and click a row to autofill the payment Unique ID.
+                    Search by name, email, or Unique ID and click a row to
+                    autofill the payment Unique ID.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -1415,7 +1548,10 @@ export default function NewExpensePage() {
                     {bankSearchLoading ? (
                       <div className="px-3 py-4">
                         {[...Array(5)].map((_, i) => (
-                          <div key={i} className="flex items-center justify-between gap-3 py-3">
+                          <div
+                            key={i}
+                            className="flex items-center justify-between gap-3 py-3"
+                          >
                             <div className="flex flex-col gap-2 w-2/3">
                               <Skeleton className="h-4 w-32" />
                               <Skeleton className="h-3 w-40" />
@@ -1427,10 +1563,15 @@ export default function NewExpensePage() {
                           </div>
                         ))}
                       </div>
-                    ) : bankSearchResults.length === 0 && bankSearchQuery.trim() ? (
-                      <p className="px-3 py-4 text-sm text-gray-600">No matching users found.</p>
+                    ) : bankSearchResults.length === 0 &&
+                      bankSearchQuery.trim() ? (
+                      <p className="px-3 py-4 text-sm text-gray-600">
+                        No matching users found.
+                      </p>
                     ) : bankSearchResults.length === 0 ? (
-                      <p className="px-3 py-4 text-sm text-gray-400">Type to search users.</p>
+                      <p className="px-3 py-4 text-sm text-gray-400">
+                        Type to search users.
+                      </p>
                     ) : (
                       <div className="divide-y">
                         {bankSearchResults.map((row) => (
@@ -1444,12 +1585,18 @@ export default function NewExpensePage() {
                               <p className="text-sm font-semibold text-gray-900">
                                 {row.account_holder || "Unnamed account"}
                               </p>
-                              <p className="text-xs text-gray-600">{row.email || "No email available"}</p>
+                              <p className="text-xs text-gray-600">
+                                {row.email || "No email available"}
+                              </p>
                             </div>
                             <div className="text-right">
-                              <p className="font-mono text-sm text-gray-900">{row.unique_id || "—"}</p>
+                              <p className="font-mono text-sm text-gray-900">
+                                {row.unique_id || "—"}
+                              </p>
                               {row.bank_name && (
-                                <p className="text-[11px] text-gray-500">{row.bank_name}</p>
+                                <p className="text-[11px] text-gray-500">
+                                  {row.bank_name}
+                                </p>
                               )}
                             </div>
                           </button>
@@ -1460,7 +1607,11 @@ export default function NewExpensePage() {
                 </div>
 
                 <DialogFooter>
-                  <Button type="button" onClick={() => setUniqueIdModalOpen(false)} className="cursor-pointer">
+                  <Button
+                    type="button"
+                    onClick={() => setUniqueIdModalOpen(false)}
+                    className="cursor-pointer"
+                  >
                     Close
                   </Button>
                 </DialogFooter>
@@ -1516,8 +1667,12 @@ export default function NewExpensePage() {
                 {columns.map((col) => {
                   if (
                     !col.visible ||
-                    !["date", "dropdown", "expense_type", "number"].includes(col.type) ||
-                    !["date", "approver", "expense_type", "amount"].includes(col.key)
+                    !["date", "dropdown", "expense_type", "number"].includes(
+                      col.type
+                    ) ||
+                    !["date", "approver", "expense_type", "amount"].includes(
+                      col.key
+                    )
                   )
                     return null;
 
@@ -1541,13 +1696,24 @@ export default function NewExpensePage() {
                             name={col.key}
                             type="date"
                             value={formData[col.key] || ""}
-                            onChange={(e) => handleInputChange(col.key, e.target.value)}
-                            className={`w-full ${errors[col.key]
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                              : ""
-                              }`}
-                            min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
-                            max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
+                            onChange={(e) =>
+                              handleInputChange(col.key, e.target.value)
+                            }
+                            className={`w-full ${
+                              errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                            }`}
+                            min={
+                              selectedEvent
+                                ? selectedEvent.start_date.split("T")[0]
+                                : undefined
+                            }
+                            max={
+                              selectedEvent
+                                ? selectedEvent.end_date.split("T")[0]
+                                : undefined
+                            }
                           />
                           {errors[col.key] && (
                             <p
@@ -1572,19 +1738,24 @@ export default function NewExpensePage() {
                           >
                             <SelectTrigger
                               id={col.key}
-                              className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                                }`}
+                              className={`w-full ${
+                                errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
                             >
                               <SelectValue placeholder="Please Select" />
                             </SelectTrigger>
                             <SelectContent>
                               {col.options.map((option: any) => {
                                 const value =
-                                  typeof option === "string" ? option : option.value;
+                                  typeof option === "string"
+                                    ? option
+                                    : option.value;
                                 const label =
-                                  typeof option === "string" ? option : option.label;
+                                  typeof option === "string"
+                                    ? option
+                                    : option.label;
                                 return (
                                   <SelectItem key={value} value={value}>
                                     {label}
@@ -1616,19 +1787,24 @@ export default function NewExpensePage() {
                           >
                             <SelectTrigger
                               id={col.key}
-                              className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                                }`}
+                              className={`w-full ${
+                                errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
                             >
                               <SelectValue placeholder="Select expense type" />
                             </SelectTrigger>
                             <SelectContent>
                               {col.options.map((option: any) => {
                                 const value =
-                                  typeof option === "string" ? option : option.value;
+                                  typeof option === "string"
+                                    ? option
+                                    : option.value;
                                 const label =
-                                  typeof option === "string" ? option : option.label;
+                                  typeof option === "string"
+                                    ? option
+                                    : option.label;
                                 return (
                                   <SelectItem key={value} value={value}>
                                     {label}
@@ -1658,12 +1834,16 @@ export default function NewExpensePage() {
                             type="number"
                             value={formData[col.key] || ""}
                             onChange={(e) =>
-                              handleInputChange(col.key, parseFloat(e.target.value))
+                              handleInputChange(
+                                col.key,
+                                parseFloat(e.target.value)
+                              )
                             }
-                            className={`w-full ${errors[col.key]
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                              : ""
-                              }`}
+                            className={`w-full ${
+                              errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                            }`}
                             placeholder="Enter amount"
                           />
                           {errors[col.key] && (
@@ -1701,11 +1881,14 @@ export default function NewExpensePage() {
                       id={col.key}
                       name={col.key}
                       value={formData[col.key] || ""}
-                      onChange={(e) => handleInputChange(col.key, e.target.value)}
-                      className={`w-full min-h-[75px] ${errors[col.key]
-                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                        : ""
-                        }`}
+                      onChange={(e) =>
+                        handleInputChange(col.key, e.target.value)
+                      }
+                      className={`w-full min-h-[75px] ${
+                        errors[col.key]
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
+                      }`}
                       placeholder="Brief description of this expense report..."
                     />
                     {errors[col.key] && (
@@ -1724,69 +1907,100 @@ export default function NewExpensePage() {
               {customFields.map((col) => {
                 if (
                   !col.visible ||
-                  !["text", "number", "date", "textarea", "dropdown", "radio", "checkbox"].includes(col.type)
-                ) return null;
-
+                  ![
+                    "text",
+                    "number",
+                    "date",
+                    "textarea",
+                    "dropdown",
+                    "radio",
+                    "checkbox",
+                  ].includes(col.type)
+                )
+                  return null;
 
                 return (
                   <div key={col.key} className="space-y-2">
-                    <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor={col.key}
+                      className="text-sm font-medium text-gray-700"
+                    >
                       {col.label}
                       {col.required && (
                         <span className="text-red-500 ml-1 text-sm">*</span>
                       )}
                     </Label>
-                    {(col.type === "text") && (
+                    {col.type === "text" && (
                       <Input
                         id={col.key}
                         name={col.key}
                         type={col.type}
                         value={formData[col.key] || ""}
-                        onChange={(e) => handleInputChange(col.key, e.target.value)}
-                        className={`w-full ${errors[col.key]
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                          : ""
-                          }`}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
                         placeholder={`Enter ${col.label}`}
-                      />)}
-                    {(col.type === "number") && (
+                      />
+                    )}
+                    {col.type === "number" && (
                       <Input
                         id={col.key}
                         name={col.key}
                         type={col.type}
                         value={formData[col.key] || ""}
-                        onChange={(e) => handleInputChange(col.key, col.type === "number" ? parseFloat(e.target.value) : e.target.value)}
-                        className={`w-full ${errors[col.key]
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                          : ""
-                          }`}
+                        onChange={(e) =>
+                          handleInputChange(
+                            col.key,
+                            col.type === "number"
+                              ? parseFloat(e.target.value)
+                              : e.target.value
+                          )
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
                         placeholder={`Enter ${col.label}`}
-                      />)}
-                    {(col.type === "date") && (
-
+                      />
+                    )}
+                    {col.type === "date" && (
                       <Input
                         id={col.key}
                         name={col.key}
                         type="date"
                         value={formData[col.key] || ""}
-                        onChange={(e) => handleInputChange(col.key, e.target.value)}
-                        className={`w-full ${errors[col.key]
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                          : ""
-                          }`}
-                      />)}
-                    {(col.type === "textarea") && (
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
+                      />
+                    )}
+                    {col.type === "textarea" && (
                       <Textarea
                         id={col.key}
                         name={col.key}
                         value={formData[col.key] || ""}
-                        onChange={(e) => handleInputChange(col.key, e.target.value)}
-                        className={`w-full min-h-[75px] ${errors[col.key]
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                          : ""
-                          }`}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        className={`w-full min-h-[75px] ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
                         placeholder="Brief description of this expense report..."
-                      />)}
+                      />
+                    )}
                     {col.type === "dropdown" && col.options && (
                       <>
                         <Select
@@ -1797,19 +2011,24 @@ export default function NewExpensePage() {
                         >
                           <SelectTrigger
                             id={col.key}
-                            className={`w-full ${errors[col.key]
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                              : ""
-                              }`}
+                            className={`w-full ${
+                              errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                            }`}
                           >
                             <SelectValue placeholder="Please Select" />
                           </SelectTrigger>
                           <SelectContent>
                             {col.options.map((option: any) => {
                               const value =
-                                typeof option === "string" ? option : option.value;
+                                typeof option === "string"
+                                  ? option
+                                  : option.value;
                               const label =
-                                typeof option === "string" ? option : option.label;
+                                typeof option === "string"
+                                  ? option
+                                  : option.label;
                               return (
                                 <SelectItem key={value} value={value}>
                                   {label}
@@ -1823,20 +2042,30 @@ export default function NewExpensePage() {
                     {col.type === "radio" && col.options && (
                       <div className="space-y-1">
                         {col.options.map((option: any) => {
-                          const value = typeof option === "string" ? option : option.value;
-                          const label = typeof option === "string" ? option : option.label;
+                          const value =
+                            typeof option === "string" ? option : option.value;
+                          const label =
+                            typeof option === "string" ? option : option.label;
                           return (
-                            <div key={value} className="flex items-center space-x-2">
+                            <div
+                              key={value}
+                              className="flex items-center space-x-2"
+                            >
                               <input
                                 type="radio"
                                 id={`${col.key}-${value}`}
                                 name={col.key}
                                 value={value}
                                 checked={formData[col.key] === value}
-                                onChange={() => handleInputChange(col.key, value)}
+                                onChange={() =>
+                                  handleInputChange(col.key, value)
+                                }
                                 className="h-4 w-4 text-blue-600 border-gray-300"
                               />
-                              <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
+                              <label
+                                htmlFor={`${col.key}-${value}`}
+                                className="text-sm text-gray-700"
+                              >
                                 {label}
                               </label>
                             </div>
@@ -1847,11 +2076,14 @@ export default function NewExpensePage() {
                     {col.type === "checkbox" && col.options && (
                       <div className="space-y-2">
                         {col.options.map((option: any) => {
-                          const value = typeof option === "string" ? option : option.value;
-                          const label = typeof option === "string" ? option : option.label;
+                          const value =
+                            typeof option === "string" ? option : option.value;
+                          const label =
+                            typeof option === "string" ? option : option.label;
 
                           // Get current selected values (as an array)
-                          const selectedValues: string[] = formData[col.key] || [];
+                          const selectedValues: string[] =
+                            formData[col.key] || [];
 
                           const isChecked = selectedValues.includes(value);
 
@@ -1864,16 +2096,24 @@ export default function NewExpensePage() {
                           };
 
                           return (
-                            <div key={value} className="flex items-center space-x-2">
+                            <div
+                              key={value}
+                              className="flex items-center space-x-2"
+                            >
                               <input
                                 type="checkbox"
                                 id={`${col.key}-${value}`}
                                 name={`${col.key}-${value}`}
                                 checked={isChecked}
-                                onChange={(e) => handleCheckboxChange(e.target.checked)}
+                                onChange={(e) =>
+                                  handleCheckboxChange(e.target.checked)
+                                }
                                 className="h-4 w-4 text-blue-600 border-gray-300 rounded"
                               />
-                              <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
+                              <label
+                                htmlFor={`${col.key}-${value}`}
+                                className="text-sm text-gray-700"
+                              >
                                 {label}
                               </label>
                             </div>
@@ -1882,7 +2122,11 @@ export default function NewExpensePage() {
                       </div>
                     )}
                     {errors[col.key] && (
-                      <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
+                      <p
+                        className="text-red-500 text-sm mt-1"
+                        role="alert"
+                        id={`${col.key}-error`}
+                      >
                         {errors[col.key]}
                       </p>
                     )}
@@ -1991,7 +2235,14 @@ export default function NewExpensePage() {
                   onInputChange={handleInputChange}
                   userRole={userRole}
                   savedUserSignature={savedUserSignature}
-                  selectedEvent={selectedEvent ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date } : undefined}
+                  selectedEvent={
+                    selectedEvent
+                      ? {
+                          start_date: selectedEvent.start_date,
+                          end_date: selectedEvent.end_date,
+                        }
+                      : undefined
+                  }
                   errors={errors}
                 />
               )}
@@ -2003,7 +2254,6 @@ export default function NewExpensePage() {
                 {expenseItems.map((id, index) => (
                   <div key={id} className="border rounded-lg bg-white p-5">
                     <div className="flex justify-between items-center mb-3">
-
                       <h1 className="text-xl font-medium text-gray-700">
                         Expense {index + 2}
                       </h1>
@@ -2023,8 +2273,9 @@ export default function NewExpensePage() {
                       {columns.map((col) => {
                         if (
                           !col.visible ||
-                          !['dropdown', 'date', 'number'].includes(col.type) ||
-                          col.key === "approver" || !defaultSystemFields.includes(col.key)
+                          !["dropdown", "date", "number"].includes(col.type) ||
+                          col.key === "approver" ||
+                          !defaultSystemFields.includes(col.key)
                         )
                           return null;
 
@@ -2036,36 +2287,57 @@ export default function NewExpensePage() {
                             >
                               {col.label}
                               {col.required && (
-                                <span className="text-red-500 ml-1 text-sm">*</span>
+                                <span className="text-red-500 ml-1 text-sm">
+                                  *
+                                </span>
                               )}
                             </Label>
-
-
 
                             {/* Dropdown */}
                             {col.type === "dropdown" && col.options && (
                               <>
                                 <Select
                                   value={
-                                    getExpenseItemValue(id, "expense_type") !== undefined && getExpenseItemValue(id, "expense_type") !== null
-                                      ? String(getExpenseItemValue(id, "expense_type"))
+                                    getExpenseItemValue(id, "expense_type") !==
+                                      undefined &&
+                                    getExpenseItemValue(id, "expense_type") !==
+                                      null
+                                      ? String(
+                                          getExpenseItemValue(
+                                            id,
+                                            "expense_type"
+                                          )
+                                        )
                                       : undefined
                                   }
-                                  onValueChange={(value) => handleExpenseItemChange(id, "expense_type", value)}
+                                  onValueChange={(value) =>
+                                    handleExpenseItemChange(
+                                      id,
+                                      "expense_type",
+                                      value
+                                    )
+                                  }
                                 >
                                   <SelectTrigger
                                     id={col.key}
-                                    className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                      }`}
+                                    className={`w-full ${
+                                      errors[col.key]
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                    }`}
                                   >
                                     <SelectValue placeholder="Select expense type" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {col.options.map((option: any) => {
-                                      const value = typeof option === "string" ? option : option.value;
-                                      const label = typeof option === "string" ? option : option.label;
+                                      const value =
+                                        typeof option === "string"
+                                          ? option
+                                          : option.value;
+                                      const label =
+                                        typeof option === "string"
+                                          ? option
+                                          : option.label;
                                       return (
                                         <SelectItem key={value} value={value}>
                                           {label}
@@ -2075,7 +2347,9 @@ export default function NewExpensePage() {
                                   </SelectContent>
                                 </Select>
                                 {errors[col.key] && (
-                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                  <p className="text-red-500 text-sm">
+                                    {errors[col.key]}
+                                  </p>
                                 )}
                               </>
                             )}
@@ -2088,16 +2362,33 @@ export default function NewExpensePage() {
                                   name={col.key}
                                   type="date"
                                   value={getExpenseItemValue(id, "date")}
-                                  onChange={(e) => handleExpenseItemChange(id, "date", e.target.value)}
-                                  className={`w-full ${errors[col.key]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
-                                    }`}
-                                  min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
-                                  max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
+                                  onChange={(e) =>
+                                    handleExpenseItemChange(
+                                      id,
+                                      "date",
+                                      e.target.value
+                                    )
+                                  }
+                                  className={`w-full ${
+                                    errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                  }`}
+                                  min={
+                                    selectedEvent
+                                      ? selectedEvent.start_date.split("T")[0]
+                                      : undefined
+                                  }
+                                  max={
+                                    selectedEvent
+                                      ? selectedEvent.end_date.split("T")[0]
+                                      : undefined
+                                  }
                                 />
                                 {errors[col.key] && (
-                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                  <p className="text-red-500 text-sm">
+                                    {errors[col.key]}
+                                  </p>
                                 )}
                               </>
                             )}
@@ -2111,14 +2402,23 @@ export default function NewExpensePage() {
                                   type="number"
                                   placeholder="Enter amount"
                                   value={getExpenseItemValue(id, "amount")}
-                                  onChange={(e) => handleExpenseItemChange(id, "amount", parseFloat(e.target.value))}
-                                  className={`w-full ${errors[col.key]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
-                                    }`}
+                                  onChange={(e) =>
+                                    handleExpenseItemChange(
+                                      id,
+                                      "amount",
+                                      parseFloat(e.target.value)
+                                    )
+                                  }
+                                  className={`w-full ${
+                                    errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                  }`}
                                 />
                                 {errors[col.key] && (
-                                  <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                                  <p className="text-red-500 text-sm">
+                                    {errors[col.key]}
+                                  </p>
                                 )}
                               </>
                             )}
@@ -2129,30 +2429,49 @@ export default function NewExpensePage() {
 
                     {/* Description (full width) */}
                     {columns.map((col) => {
-                      if (!col.visible || col.type !== "textarea" || col.key === "approver" || !defaultSystemFields.includes(col.key)
-                      ) return null;
+                      if (
+                        !col.visible ||
+                        col.type !== "textarea" ||
+                        col.key === "approver" ||
+                        !defaultSystemFields.includes(col.key)
+                      )
+                        return null;
 
                       return (
                         <div key={col.key} className="space-y-2">
-                          <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                          <Label
+                            htmlFor={col.key}
+                            className="text-sm font-medium text-gray-700"
+                          >
                             {col.label}
                             {col.required && (
-                              <span className="text-red-500 ml-1 text-sm">*</span>
+                              <span className="text-red-500 ml-1 text-sm">
+                                *
+                              </span>
                             )}
                           </Label>
                           <Textarea
                             id={col.key}
                             name={col.key}
                             value={getExpenseItemValue(id, "description")}
-                            onChange={(e) => handleExpenseItemChange(id, "description", e.target.value)}
-                            className={`w-full min-h-[50px] ${errors[col.key]
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                              : ""
-                              }`}
+                            onChange={(e) =>
+                              handleExpenseItemChange(
+                                id,
+                                "description",
+                                e.target.value
+                              )
+                            }
+                            className={`w-full min-h-[50px] ${
+                              errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                            }`}
                             placeholder="Brief description of this expense report..."
                           />
                           {errors[col.key] && (
-                            <p className="text-red-500 text-sm">{errors[col.key]}</p>
+                            <p className="text-red-500 text-sm">
+                              {errors[col.key]}
+                            </p>
                           )}
                         </div>
                       );
@@ -2161,91 +2480,172 @@ export default function NewExpensePage() {
                     {customFields.map((col) => {
                       if (
                         !col.visible ||
-                        !["text", "number", "date", "textarea", "dropdown", "radio", "checkbox"].includes(col.type)
-                      ) return null;
-
+                        ![
+                          "text",
+                          "number",
+                          "date",
+                          "textarea",
+                          "dropdown",
+                          "radio",
+                          "checkbox",
+                        ].includes(col.type)
+                      )
+                        return null;
 
                       return (
                         <div key={col.key} className="space-y-2 mt-5">
-                          <Label htmlFor={col.key} className="text-sm font-medium text-gray-700">
+                          <Label
+                            htmlFor={col.key}
+                            className="text-sm font-medium text-gray-700"
+                          >
                             {col.label}
                             {col.required && (
-                              <span className="text-red-500 ml-1 text-sm">*</span>
+                              <span className="text-red-500 ml-1 text-sm">
+                                *
+                              </span>
                             )}
                           </Label>
-                          {(col.type === "text") && (
+                          {col.type === "text" && (
                             <Input
                               id={col.key}
                               name={col.key}
                               type={col.type}
-                              value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
-                              onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
-                              className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                                }`}
+                              value={
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              }
+                              onChange={(e) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  e.target.value
+                                )
+                              }
+                              className={`w-full ${
+                                errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
                               placeholder={`Enter ${col.label}`}
-                            />)}
-                          {(col.type === "number") && (
+                            />
+                          )}
+                          {col.type === "number" && (
                             <Input
                               id={col.key}
                               name={col.key}
                               type={col.type}
-                              value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
-                              onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, col.type === "number" ? parseFloat(e.target.value) : e.target.value)}
-                              className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                                }`}
+                              value={
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              }
+                              onChange={(e) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  col.type === "number"
+                                    ? parseFloat(e.target.value)
+                                    : e.target.value
+                                )
+                              }
+                              className={`w-full ${
+                                errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
                               placeholder={`Enter ${col.label}`}
-                            />)}
-                          {(col.type === "date") && (
+                            />
+                          )}
+                          {col.type === "date" && (
                             <Input
                               id={col.key}
                               name={col.key}
                               type="date"
-                              value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
-                              onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
-                              className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                                }`}
-                            />)}
-                          {(col.type === "textarea") && (
+                              value={
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              }
+                              onChange={(e) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  e.target.value
+                                )
+                              }
+                              className={`w-full ${
+                                errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
+                            />
+                          )}
+                          {col.type === "textarea" && (
                             <Textarea
                               id={col.key}
                               name={col.key}
-                              value={getExpenseItemValue(id, col.key as keyof ExpenseItemData) || ""}
-                              onChange={(e) => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, e.target.value)}
-                              className={`w-full min-h-[75px] ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                                }`}
+                              value={
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              }
+                              onChange={(e) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  e.target.value
+                                )
+                              }
+                              className={`w-full min-h-[75px] ${
+                                errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
                               placeholder="Brief description of this expense report..."
-                            />)}
+                            />
+                          )}
                           {col.type === "dropdown" && col.options && (
                             <>
                               <Select
-                                value={String(getExpenseItemValue(id, col.key as keyof ExpenseItemData) || "")}
+                                value={String(
+                                  getExpenseItemValue(
+                                    id,
+                                    col.key as keyof ExpenseItemData
+                                  ) || ""
+                                )}
                                 onValueChange={(value: string) =>
-                                  handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)
+                                  handleExpenseItemChange(
+                                    id,
+                                    col.key as keyof ExpenseItemData,
+                                    value
+                                  )
                                 }
                               >
                                 <SelectTrigger
                                   id={col.key}
-                                  className={`w-full ${errors[col.key]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
-                                    }`}
+                                  className={`w-full ${
+                                    errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                  }`}
                                 >
                                   <SelectValue placeholder="Please Select" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {col.options.map((option: any) => {
                                     const value =
-                                      typeof option === "string" ? option : option.value;
+                                      typeof option === "string"
+                                        ? option
+                                        : option.value;
                                     const label =
-                                      typeof option === "string" ? option : option.label;
+                                      typeof option === "string"
+                                        ? option
+                                        : option.label;
                                     return (
                                       <SelectItem key={value} value={value}>
                                         {label}
@@ -2260,25 +2660,52 @@ export default function NewExpensePage() {
                           {col.type === "radio" && col.options && (
                             <div className="space-y-1">
                               {col.options.map((option: any) => {
-                                const value = typeof option === "string" ? option : option.value;
-                                const label = typeof option === "string" ? option : option.label;
-                                const currentValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
+                                const value =
+                                  typeof option === "string"
+                                    ? option
+                                    : option.value;
+                                const label =
+                                  typeof option === "string"
+                                    ? option
+                                    : option.label;
+                                const currentValue = getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                );
                                 const selectedRadioValue =
-                                  typeof currentValue === "string" || typeof currentValue === "number"
+                                  typeof currentValue === "string" ||
+                                  typeof currentValue === "number"
                                     ? String(currentValue)
                                     : "";
                                 return (
-                                  <div key={value} className="flex items-center space-x-2">
+                                  <div
+                                    key={value}
+                                    className="flex items-center space-x-2"
+                                  >
                                     <input
                                       type="radio"
                                       id={`${col.key}-${value}-${id}`} // Include itemId in id for uniqueness
                                       name={`${col.key}-${id}`} // Include itemId in name to create separate radio groups
                                       value={value}
-                                      checked={getExpenseItemValue(id, col.key as keyof ExpenseItemData) === value}
-                                      onChange={() => handleExpenseItemChange(id, col.key as keyof ExpenseItemData, value)}
+                                      checked={
+                                        getExpenseItemValue(
+                                          id,
+                                          col.key as keyof ExpenseItemData
+                                        ) === value
+                                      }
+                                      onChange={() =>
+                                        handleExpenseItemChange(
+                                          id,
+                                          col.key as keyof ExpenseItemData,
+                                          value
+                                        )
+                                      }
                                       className="h-4 w-4 text-blue-600 border-gray-300"
                                     />
-                                    <label htmlFor={`${col.key}-${value}-${id}`} className="text-sm text-gray-700">
+                                    <label
+                                      htmlFor={`${col.key}-${value}-${id}`}
+                                      className="text-sm text-gray-700"
+                                    >
                                       {label}
                                     </label>
                                   </div>
@@ -2289,35 +2716,62 @@ export default function NewExpensePage() {
                           {col.type === "checkbox" && col.options && (
                             <div className="space-y-2">
                               {col.options.map((option: any) => {
-                                const value = typeof option === "string" ? option : option.value;
-                                const label = typeof option === "string" ? option : option.label;
+                                const value =
+                                  typeof option === "string"
+                                    ? option
+                                    : option.value;
+                                const label =
+                                  typeof option === "string"
+                                    ? option
+                                    : option.label;
 
                                 // Get current selected values (as an array)
-                                const rawValue = getExpenseItemValue(id, col.key as keyof ExpenseItemData);
-                                const selectedValues: string[] = Array.isArray(rawValue) ? rawValue : [];
+                                const rawValue = getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                );
+                                const selectedValues: string[] = Array.isArray(
+                                  rawValue
+                                )
+                                  ? rawValue
+                                  : [];
 
+                                const isChecked =
+                                  selectedValues.includes(value);
 
-                                const isChecked = selectedValues.includes(value);
-
-                                const handleCheckboxChange = (checked: boolean) => {
+                                const handleCheckboxChange = (
+                                  checked: boolean
+                                ) => {
                                   const updatedValues = checked
                                     ? [...selectedValues, value]
                                     : selectedValues.filter((v) => v !== value);
 
-                                  handleExpenseItemChange(id, col.key as keyof ExpenseItemData, updatedValues);
+                                  handleExpenseItemChange(
+                                    id,
+                                    col.key as keyof ExpenseItemData,
+                                    updatedValues
+                                  );
                                 };
 
                                 return (
-                                  <div key={value} className="flex items-center space-x-2">
+                                  <div
+                                    key={value}
+                                    className="flex items-center space-x-2"
+                                  >
                                     <input
                                       type="checkbox"
                                       id={`${col.key}-${value}`}
                                       name={`${col.key}-${value}`}
                                       checked={isChecked}
-                                      onChange={(e) => handleCheckboxChange(e.target.checked)}
+                                      onChange={(e) =>
+                                        handleCheckboxChange(e.target.checked)
+                                      }
                                       className="h-4 w-4 text-blue-600 border-gray-300 rounded"
                                     />
-                                    <label htmlFor={`${col.key}-${value}`} className="text-sm text-gray-700">
+                                    <label
+                                      htmlFor={`${col.key}-${value}`}
+                                      className="text-sm text-gray-700"
+                                    >
                                       {label}
                                     </label>
                                   </div>
@@ -2326,20 +2780,24 @@ export default function NewExpensePage() {
                             </div>
                           )}
                           {errors[col.key] && (
-                            <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
+                            <p
+                              className="text-red-500 text-sm mt-1"
+                              role="alert"
+                              id={`${col.key}-error`}
+                            >
                               {errors[col.key]}
                             </p>
                           )}
                         </div>
-
                       );
                       return null;
                     })}
 
-
                     {/* Receipt Upload */}
                     <div className="space-y-2 mt-5">
-                      <Label className="text-sm font-medium text-gray-700">Receipt</Label>
+                      <Label className="text-sm font-medium text-gray-700">
+                        Receipt
+                      </Label>
 
                       <div className="p-4 bg-gray-50/50 rounded-lg border">
                         <div className="flex items-center justify-between">
@@ -2379,7 +2837,8 @@ export default function NewExpensePage() {
                               htmlFor="receipt"
                               className="text-sm font-medium text-gray-700"
                             >
-                              Receipt <span className="text-red-500 ml-0.5">*</span>
+                              Receipt{" "}
+                              <span className="text-red-500 ml-0.5">*</span>
                             </Label>
                             <div className="mt-2">
                               <Input
@@ -2388,9 +2847,13 @@ export default function NewExpensePage() {
                                 type="file"
                                 onChange={(e) => handleFileChanges(e, id)}
                                 required={!voucherModalOpenMap[index]}
-                                aria-invalid={errors["receipt"] ? "true" : "false"}
+                                aria-invalid={
+                                  errors["receipt"] ? "true" : "false"
+                                }
                                 aria-describedby={
-                                  errors["receipt"] ? "receipt-error" : undefined
+                                  errors["receipt"]
+                                    ? "receipt-error"
+                                    : undefined
                                 }
                                 className={
                                   errors["receipt"]
@@ -2409,12 +2872,16 @@ export default function NewExpensePage() {
                               )}
 
                               <div className="text-sm text-gray-500 mt-1">
-                                {receiptFiles[id] && receiptFiles[id].name ? receiptFiles[id].name : "No file chosen"}
+                                {receiptFiles[id] && receiptFiles[id].name
+                                  ? receiptFiles[id].name
+                                  : "No file chosen"}
                               </div>
                             </div>
                             {receiptPreviews[id] && (
                               <div className="mt-2">
-                                {receiptPreviews[id].startsWith("data:image") ? (
+                                {receiptPreviews[id].startsWith(
+                                  "data:image"
+                                ) ? (
                                   <img
                                     src={receiptPreviews[id]}
                                     alt="Receipt preview"
@@ -2459,13 +2926,15 @@ export default function NewExpensePage() {
                           savedUserSignature={savedUserSignature}
                           selectedEvent={
                             selectedEvent
-                              ? { start_date: selectedEvent.start_date, end_date: selectedEvent.end_date }
+                              ? {
+                                  start_date: selectedEvent.start_date,
+                                  end_date: selectedEvent.end_date,
+                                }
                               : undefined
                           }
                           errors={errors}
                         />
                       )}
-
                     </div>
                   </div>
                 ))}
@@ -2475,18 +2944,17 @@ export default function NewExpensePage() {
             <Button
               type="button"
               onClick={addItem}
-              className="bg-black hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-md cursor-pointer"
+              variant="neutral"
+              className="cursor-pointer"
             >
               ➕ Add Another Expense Item
             </Button>
 
-
-
-
             {/* Expense Signature Section - Only shown when voucher is not open */}
             {(() => {
               // Only show the signature section if *none* of the vouchers are open (i.e., for the main expense form)
-              const anyVoucherOpen = Object.values(voucherModalOpenMap).some(Boolean);
+              const anyVoucherOpen =
+                Object.values(voucherModalOpenMap).some(Boolean);
               if (!anyVoucherOpen) {
                 return (
                   <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
@@ -2540,7 +3008,8 @@ export default function NewExpensePage() {
                     )}
 
                     {savedUserSignature &&
-                      formData.expense_signature_preview !== savedUserSignature && (
+                      formData.expense_signature_preview !==
+                        savedUserSignature && (
                         <p className="text-xs text-blue-600">
                           * You're using a new signature. This will replace your
                           saved signature when you submit.
@@ -2551,7 +3020,6 @@ export default function NewExpensePage() {
               }
               return null;
             })()}
-
           </form>
         </CardContent>
       </Card>

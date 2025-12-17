@@ -243,7 +243,8 @@ export default function FinanceExpenseDetails() {
             <Button
               onClick={handleFinanceApprove}
               disabled={processing}
-              className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
+              variant="success"
+              className="cursor-pointer"
             >
               Approve
             </Button>

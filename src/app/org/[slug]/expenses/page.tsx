@@ -637,7 +637,7 @@ export default function ExpensesPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
+                  <CardTitle className="text-xs font-semibold">
                     Total Expense{" "}
                   </CardTitle>
                 </CardHeader>
@@ -647,66 +647,58 @@ export default function ExpensesPage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
+                  <CardTitle className="text-xs font-semibold">
                     Manager Approved
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl text-green-600">
-                    {stats.approved}
-                  </div>
+                  <div className="stat-value">{stats.approved}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
+                  <CardTitle className="text-xs font-semibold">
                     Finance Approved
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl text-green-600">
-                    {stats.finance_approved}
-                  </div>
+                  <div className="stat-value">{stats.finance_approved}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
+                  <CardTitle className="text-xs font-semibold">
                     Expense Pending
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl  text-amber-600">
-                    {stats.pending}
-                  </div>
+                  <div className="stat-value">{stats.pending}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
+                  <CardTitle className="text-xs font-semibold">
                     Manager Rejected
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl text-red-600">{stats.rejected}</div>
+                  <div className="stat-value">{stats.rejected}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
+                  <CardTitle className="text-xs font-semibold">
                     Finance Rejected
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl text-red-600">
-                    {stats.finance_rejected}
-                  </div>
+                  <div className="stat-value">{stats.finance_rejected}</div>
                 </CardContent>
               </Card>
             </div>
             {/* toolbar */}
             <div className="flex items-center justify-between mb-4">
-              <Button onClick={handleNew} className="cursor-pointer">
+              <Button onClick={handleNew}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 New Expense
               </Button>

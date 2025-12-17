@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Save } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
-
 export default function CreateExpenseEventPage() {
   const router = useRouter();
   const params = useParams();
@@ -23,7 +22,6 @@ export default function CreateExpenseEventPage() {
   const slug = params.slug as string;
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-
 
   const [formData, setFormData] = useState({
     title: "",
@@ -77,9 +75,11 @@ export default function CreateExpenseEventPage() {
 
     const newErrors: Record<string, string> = {};
     if (!formData.title) newErrors["title"] = "Event title is required.";
-    if (!formData.start_date) newErrors["start_date"] = "Start date is required.";
+    if (!formData.start_date)
+      newErrors["start_date"] = "Start date is required.";
     if (!formData.end_date) newErrors["end_date"] = "End date is required.";
-    if (!formData.description) newErrors["description"] = "Description is required.";
+    if (!formData.description)
+      newErrors["description"] = "Description is required.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -147,7 +147,6 @@ export default function CreateExpenseEventPage() {
               {errors["title"] && (
                 <p className="text-red-500 text-sm mt-1">{errors["title"]}</p>
               )}
-
             </div>
 
             <div className="space-y-2">
@@ -162,10 +161,14 @@ export default function CreateExpenseEventPage() {
                 }
                 placeholder="Details about this expense event"
                 rows={4}
-                className={`w-full ${errors["description"] ? "border-red-500" : ""}`}
+                className={`w-full ${
+                  errors["description"] ? "border-red-500" : ""
+                }`}
               />
               {errors["description"] && (
-                <p className="text-red-500 text-sm mt-1">{errors["description"]}</p>
+                <p className="text-red-500 text-sm mt-1">
+                  {errors["description"]}
+                </p>
               )}
             </div>
 
@@ -178,13 +181,16 @@ export default function CreateExpenseEventPage() {
                   id="start_date"
                   type="date"
                   value={formData.start_date}
-                  onChange={(e) => handleInputChange("start_date", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("start_date", e.target.value)
+                  }
                   className={errors["start_date"] ? "border-red-500" : ""}
                 />
                 {errors["start_date"] && (
-                  <p className="text-red-500 text-sm mt-1">{errors["start_date"]}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors["start_date"]}
+                  </p>
                 )}
-
               </div>
               <div className="space-y-2">
                 <label htmlFor="end_date" className="text-sm font-medium">
@@ -194,24 +200,21 @@ export default function CreateExpenseEventPage() {
                   id="end_date"
                   type="date"
                   value={formData.end_date}
-                  onChange={(e) => handleInputChange("end_date", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("end_date", e.target.value)
+                  }
                   className={errors["end_date"] ? "border-red-500" : ""}
                 />
                 {errors["end_date"] && (
-                  <p className="text-red-500 text-sm mt-1">{errors["end_date"]}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors["end_date"]}
+                  </p>
                 )}
-
-
               </div>
-
             </div>
 
             <div className="pt-4 flex justify-end">
-              <Button
-                type="submit"
-                disabled={saving}
-                className="bg-black text-white hover:bg-black/90"
-              >
+              <Button type="submit" disabled={saving} variant="neutral">
                 {saving ? (
                   <>
                     <Spinner className="mr-2 h-4 w-4" />
@@ -224,7 +227,6 @@ export default function CreateExpenseEventPage() {
                   </>
                 )}
               </Button>
-
             </div>
           </form>
         </CardContent>

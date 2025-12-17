@@ -1472,7 +1472,7 @@ export default function ViewExpensePage() {
                 <>
                   <Button
                     onClick={() => handleApprove("policy")}
-                    className="bg-green-600 hover:bg-green-700"
+                    variant="success"
                     disabled={updateLoading}
                   >
                     {updateLoading ? (
@@ -1485,7 +1485,7 @@ export default function ViewExpensePage() {
 
                   <Button
                     onClick={() => handleApprove("full")}
-                    className="bg-amber-600 hover:bg-amber-700"
+                    variant="warning"
                     disabled={updateLoading}
                   >
                     {updateLoading ? (

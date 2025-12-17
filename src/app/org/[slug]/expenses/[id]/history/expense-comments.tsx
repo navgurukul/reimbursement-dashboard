@@ -170,7 +170,7 @@ export function ExpenseComments({ expenseId }: CommentProps) {
               <Button
                 onClick={handleAddComment}
                 disabled={!newComment.trim() || isLoading}
-                className="flex items-center gap-1.5 bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-md"
+                variant="neutral"
               >
                 {isLoading ? (
                   <Spinner size="sm" />

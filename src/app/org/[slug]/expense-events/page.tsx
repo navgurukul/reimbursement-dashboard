@@ -136,7 +136,6 @@ export default function ExpenseEventsPage() {
         {(userRole === "admin" || userRole === "owner") && (
           <Button
             onClick={() => router.push(`/org/${slug}/expense-events/new`)}
-            className="bg-black text-white hover:bg-black/90"
           >
             <PlusCircle className="mr-2 h-4 w-4" />
             New Event

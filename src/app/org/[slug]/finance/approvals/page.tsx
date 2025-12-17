@@ -159,7 +159,6 @@ export default function FinanceReview() {
         {/* <h2 className="subsection-heading">Finance Review</h2> */}
         <Button
           onClick={() => setConfirmApproveAllOpen(true)}
-          className="bg-gray-600 hover:bg-gray-700 text-white cursor-pointer"
           disabled={expenseList.length === 0 || loading}
         >
           Approve All
@@ -289,7 +288,7 @@ export default function FinanceReview() {
               Cancel
             </Button>
             <Button
-              className="bg-gray-600 hover:bg-gray-700 text-white"
+              variant="neutral"
               onClick={async () => {
                 setConfirmApproveAllOpen(false);
                 await handleApproveAll(); // Call the actual approval logic

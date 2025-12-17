@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, type LucideProps } from "lucide-react";
 
-interface SpinnerProps extends React.HTMLAttributes<HTMLDivElement> {
+interface SpinnerProps extends Omit<LucideProps, "ref"> {
   size?: "sm" | "md" | "lg";
   className?: string;
 }

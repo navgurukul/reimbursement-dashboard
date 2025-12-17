@@ -105,7 +105,7 @@ const ConfirmModal = ({
               onConfirm();
               onClose();
             }}
-            className="bg-red-600 text-white hover:bg-red-700"
+            variant="destructive"
           >
             Delete
           </Button>
@@ -411,7 +411,7 @@ export default function ExpenseEventDetailPage() {
               <Button
                 onClick={handleSubmitEvent}
                 disabled={saving || eventExpenses.length === 0}
-                className="bg-black text-white hover:bg-black/90"
+                variant="neutral"
               >
                 Submit Event
               </Button>
