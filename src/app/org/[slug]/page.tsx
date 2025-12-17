@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, DollarSign, Users } from "lucide-react";
 import supabase from "@/lib/supabase";
 
@@ -49,19 +50,23 @@ export default function OrgDashboard() {
         if (expensesError) throw expensesError;
 
         // Calculate total paid reimbursements
-        const totalPaid = paidExpenses?.reduce((sum, expense) => {
-          return sum + (parseFloat(expense.approved_amount) || 0);
-        }, 0) || 0;
+        const totalPaid =
+          paidExpenses?.reduce((sum, expense) => {
+            return sum + (parseFloat(expense.approved_amount) || 0);
+          }, 0) || 0;
 
         // Calculate monthly paid amount (current month)
         const currentMonth = new Date();
         currentMonth.setDate(1);
-        const monthlyPaid = paidExpenses?.filter(expense => {
-          const expenseDate = new Date(expense.created_at);
-          return expenseDate >= currentMonth;
-        }).reduce((sum, expense) => {
-          return sum + (parseFloat(expense.approved_amount) || 0);
-        }, 0) || 0;
+        const monthlyPaid =
+          paidExpenses
+            ?.filter((expense) => {
+              const expenseDate = new Date(expense.created_at);
+              return expenseDate >= currentMonth;
+            })
+            .reduce((sum, expense) => {
+              return sum + (parseFloat(expense.approved_amount) || 0);
+            }, 0) || 0;
 
         // Fetch team members count
         const { data: teamMembers, error: teamError } = await supabase
@@ -96,23 +101,6 @@ export default function OrgDashboard() {
     }).format(amount);
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome to {organization?.name}'s dashboard
-          </p>
-        </div>
-        <div className="flex items-center justify-center h-48">
-          <Spinner className="w-5 h-5 mr-2" />
-          <span className="text-sm text-gray-600">Loading dashboard...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -122,61 +110,80 @@ export default function OrgDashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Reimbursements
-            </CardTitle>
-            <span className="h-4 w-4 text-muted-foreground">₹</span>
-            {/* <DollarSign className="h-4 w-4 text-muted-foreground" /> */}
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(stats.totalPaidReimbursements)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalPaidReimbursements > 0 
-                ? "Total paid reimbursements" 
-                : "No reimbursements yet"}
-            </p>
-          </CardContent>
-        </Card>
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-28 mb-2" />
+                <Skeleton className="h-3 w-40" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Reimbursements
+              </CardTitle>
+              <span className="h-4 w-4 text-muted-foreground">₹</span>
+              {/* <DollarSign className="h-4 w-4 text-muted-foreground" /> */}
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatCurrency(stats.totalPaidReimbursements)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {stats.totalPaidReimbursements > 0
+                  ? "Total paid reimbursements"
+                  : "No reimbursements yet"}
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.teamMembersCount}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.teamMembersCount === 1 
-                ? "Just you for now" 
-                : `${stats.teamMembersCount} team members`}
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Team Members
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.teamMembersCount}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.teamMembersCount === 1
+                  ? "Just you for now"
+                  : `${stats.teamMembersCount} team members`}
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Monthly Overview
-            </CardTitle>
-            <BarChart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(stats.monthlyPaidAmount)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.monthlyPaidAmount > 0 
-                ? "Paid this month" 
-                : "No activity this month"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Monthly Overview
+              </CardTitle>
+              <BarChart className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatCurrency(stats.monthlyPaidAmount)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {stats.monthlyPaidAmount > 0
+                  ? "Paid this month"
+                  : "No activity this month"}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

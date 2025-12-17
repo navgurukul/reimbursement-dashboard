@@ -4,6 +4,7 @@ import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
 import { formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogTrigger,
@@ -588,11 +590,7 @@ export default function PaymentProcessingOnly() {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={19} className="text-center py-6">
-                  Loading...
-                </TableCell>
-              </TableRow>
+              <TableSkeleton colSpan={19} rows={5} />
             ) : processingExpenses.length === 0 ? (
               <TableRow>
                 <TableCell

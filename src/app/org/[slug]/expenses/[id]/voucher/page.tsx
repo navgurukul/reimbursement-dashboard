@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 import { ArrowLeft, Download } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
@@ -131,11 +132,7 @@ export default function VoucherViewPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!voucher || !expense) {

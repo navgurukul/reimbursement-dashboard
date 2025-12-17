@@ -20,6 +20,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import SignaturePad from "@/components/SignatureCanvas";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -314,7 +315,7 @@ export default function ProfilePage() {
             >
               {uploadingPhoto ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#64748b]"></div>
+                  <Spinner size="sm" />
                   Uploading...
                 </>
               ) : (

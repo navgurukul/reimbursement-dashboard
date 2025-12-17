@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlusCircle, Search } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 import {
   Table,
   TableHeader,
@@ -106,11 +107,7 @@ export default function ExpenseEventsPage() {
   );
 
   if (!orgId || !user) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const getEventTimelineStatus = (start: string, end: string) => {
@@ -161,9 +158,7 @@ export default function ExpenseEventsPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Spinner size="lg" />
-        </div>
+        <PageLoader />
       ) : filteredEvents.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">

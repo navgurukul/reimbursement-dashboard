@@ -41,7 +41,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const resp = await fetch("/api/invite/use-link-signup", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ linkId: inviteToken, email: inviteEmail, userId }),
+              body: JSON.stringify({
+                linkId: inviteToken,
+                email: inviteEmail,
+                userId,
+              }),
             });
             // Clear invite context regardless of outcome to avoid loops
             ls.removeItem("inviteLinkToken");
@@ -58,7 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               await fetch("/api/invite/use-link-signup", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ linkId: inviteToken, email: derivedEmail, userId }),
+                body: JSON.stringify({
+                  linkId: inviteToken,
+                  email: derivedEmail,
+                  userId,
+                }),
               });
             }
           } catch {
@@ -78,9 +86,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!inviteErr && inviteData && !inviteData.used) {
               const { error: memberErr } = await supabase
                 .from("organization_users")
-                .insert({ org_id: inviteData.org_id, user_id: userId, role: inviteData.role });
+                .insert({
+                  org_id: inviteData.org_id,
+                  user_id: userId,
+                  role: inviteData.role,
+                });
               if (!memberErr) {
-                await supabase.from("invites").update({ used: true }).eq("id", oldInviteToken);
+                await supabase
+                  .from("invites")
+                  .update({ used: true })
+                  .eq("id", oldInviteToken);
               }
             }
           } catch {
@@ -142,7 +157,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [setUser]);
 
   if (isLoading) {
-    return <Spinner />;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner />
+      </div>
+    );
   }
 
   return children;

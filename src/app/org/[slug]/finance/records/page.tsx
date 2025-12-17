@@ -15,6 +15,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { toast } from "sonner";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
@@ -684,11 +685,7 @@ export default function PaymentRecords() {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={14} className="text-center py-6">
-                  Loading...
-                </TableCell>
-              </TableRow>
+              <TableSkeleton colSpan={14} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow>
                 <TableCell

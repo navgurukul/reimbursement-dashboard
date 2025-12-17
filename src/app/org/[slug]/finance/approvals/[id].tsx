@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -80,82 +82,98 @@ export default function FinanceExpenseDetail() {
     }
   };
 
-  if (loading || !expense) return <p className="p-6">Loading...</p>;
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-start">
         <h2 className="text-2xl font-semibold">Finance Expense Review</h2>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => router.back()}>
-            ← Back
-          </Button>
-          <Button onClick={handleApprove}>Approve</Button>
-          <Button variant="destructive" onClick={() => setShowCommentBox(true)}>
-            Reject
-          </Button>
-        </div>
+        {!loading && (
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => router.back()}>
+              ← Back
+            </Button>
+            <Button onClick={handleApprove}>Approve</Button>
+            <Button
+              variant="destructive"
+              onClick={() => setShowCommentBox(true)}
+            >
+              Reject
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Expense Info Table */}
       <div className="overflow-x-auto border rounded bg-white shadow">
-        <Table>
-          <TableBody>
-            <TableRow className="py-3">
-              <TableHead>Expense Type</TableHead>
-              <TableCell>{expense.category || "—"}</TableCell>
-            </TableRow>
-            <TableRow className="py-3">
-              <TableHead>Amount</TableHead>
-              <TableCell>{formatCurrency(expense.amount)}</TableCell>
-            </TableRow>
-            <TableRow className="py-3">
-              <TableHead>Date</TableHead>
-              <TableCell>
-                {new Date(expense.date).toLocaleDateString("en-IN")}
-              </TableCell>
-            </TableRow>
-            <TableRow className="py-3">
-              <TableHead>Description</TableHead>
-              <TableCell>{expense.description || "—"}</TableCell>
-            </TableRow>
-            <TableRow className="py-3">
-              <TableHead>Submitted by</TableHead>
-              <TableCell>{expense.creator?.full_name || "—"}</TableCell>
-            </TableRow>
-            <TableRow className="py-3">
-              <TableHead>Approved by</TableHead>
-              <TableCell>{expense.approver?.full_name || "—"}</TableCell>
-            </TableRow>
-            <TableRow className="py-3">
-              <TableHead>Status</TableHead>
-              <TableCell>
-                <ExpenseStatusBadge status={expense.status} />
-              </TableCell>
-            </TableRow>
-            {expense.hasVoucher && (
+        {loading ? (
+          <div className="p-6 space-y-3">
+            {[...Array(7)].map((_, i) => (
+              <div key={i} className="flex gap-4">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Table>
+            <TableBody>
               <TableRow className="py-3">
-                <TableHead>Voucher</TableHead>
+                <TableHead>Expense Type</TableHead>
+                <TableCell>{expense.category || "—"}</TableCell>
+              </TableRow>
+              <TableRow className="py-3">
+                <TableHead>Amount</TableHead>
+                <TableCell>{formatCurrency(expense.amount)}</TableCell>
+              </TableRow>
+              <TableRow className="py-3">
+                <TableHead>Date</TableHead>
                 <TableCell>
-                  <Button
-                    variant="link"
-                    className="text-blue-600 p-0"
-                    onClick={() =>
-                      router.push(`/org/${slug}/expenses/${expense.id}/voucher`)
-                    }
-                  >
-                    📄 View Voucher
-                  </Button>
+                  {new Date(expense.date).toLocaleDateString("en-IN")}
                 </TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              <TableRow className="py-3">
+                <TableHead>Description</TableHead>
+                <TableCell>{expense.description || "—"}</TableCell>
+              </TableRow>
+              <TableRow className="py-3">
+                <TableHead>Submitted by</TableHead>
+                <TableCell>{expense.creator?.full_name || "—"}</TableCell>
+              </TableRow>
+              <TableRow className="py-3">
+                <TableHead>Approved by</TableHead>
+                <TableCell>{expense.approver?.full_name || "—"}</TableCell>
+              </TableRow>
+              <TableRow className="py-3">
+                <TableHead>Status</TableHead>
+                <TableCell>
+                  <ExpenseStatusBadge status={expense.status} />
+                </TableCell>
+              </TableRow>
+              {expense.hasVoucher && (
+                <TableRow className="py-3">
+                  <TableHead>Voucher</TableHead>
+                  <TableCell>
+                    <Button
+                      variant="link"
+                      className="text-blue-600 p-0"
+                      onClick={() =>
+                        router.push(
+                          `/org/${slug}/expenses/${expense.id}/voucher`
+                        )
+                      }
+                    >
+                      📄 View Voucher
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       {/* Rejection Comment Box */}
-      {showCommentBox && (
+      {!loading && showCommentBox && (
         <div className="space-y-2 border-t pt-4">
           <label htmlFor="comment" className="block font-medium">
             Rejection Comment (required)

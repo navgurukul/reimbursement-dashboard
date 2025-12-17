@@ -14,6 +14,8 @@ import { formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Clock } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -223,9 +225,9 @@ export default function PaymentProcessingDetails() {
     setProcessing(false);
   };
 
-  if (loading) return <div className="p-6 text-gray-600">Loading...</div>;
-  if (!expense)
+  if (!loading && !expense) {
     return <div className="p-6 text-red-600">Expense not found</div>;
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -234,29 +236,32 @@ export default function PaymentProcessingDetails() {
         <Button
           variant="outline"
           onClick={() =>
-            router.push(`/org/${expense.org_id}/finance?tab=payments`)
+            router.push(`/org/${expense?.org_id || slug}/finance?tab=payments`)
           }
           className="text-sm cursor-pointer"
+          disabled={loading}
         >
           ← Back to Payment Processing
         </Button>
-        <div className="flex gap-2 mt-2 md:mt-0">
-          <Button
-            onClick={handleFinanceApprove}
-            disabled={processing}
-            className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
-          >
-            Approve
-          </Button>
-          <Button
-            onClick={() => setShowCommentBox(true)}
-            disabled={processing}
-            variant="destructive"
-            className="cursor-pointer"
-          >
-            Reject
-          </Button>
-        </div>
+        {!loading && (
+          <div className="flex gap-2 mt-2 md:mt-0">
+            <Button
+              onClick={handleFinanceApprove}
+              disabled={processing}
+              className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
+            >
+              Approve
+            </Button>
+            <Button
+              onClick={() => setShowCommentBox(true)}
+              disabled={processing}
+              variant="destructive"
+              className="cursor-pointer"
+            >
+              Reject
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Grid Layout */}
@@ -265,129 +270,148 @@ export default function PaymentProcessingDetails() {
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded shadow border">
             <h2 className="text-lg font-semibold mb-4">Expense Details</h2>
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableCell>{formatDateTime(expense.created_at)}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Payment Unique ID</TableHead>
-                  <TableCell className="font-mono">
-                    {expense.unique_id || expense.uniqueId || expense.id}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Location of Expense</TableHead>
-                  <TableCell>{expense.location || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Event Name</TableHead>
-                  <TableCell>{eventTitle || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Expense Type</TableHead>
-                  <TableCell>
-                    {expense.expense_type || "Not Provided"}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Amount</TableHead>
-                  <TableCell>₹{expense.amount}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Approved Amount</TableHead>
-                  <TableCell>₹{expense.approved_amount}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableCell>
-                    {new Date(expense.date).toLocaleDateString("en-IN")}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableCell>
-                    <ExpenseStatusBadge status={expense.status} />
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Approver</TableHead>
-                  <TableCell>{expense.approver?.full_name || "—"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Receipt/Voucher</TableHead>
-                  <TableCell>
-                    {expense.receipt ? (
-                      <Button
-                        variant="outline"
-                        onClick={handleViewReceipt}
-                        className="flex items-center cursor-pointer"
-                      >
-                        <FileText className="mr-2 h-4 w-4" />
-                        View Receipt ({expense.receipt.filename || "Document"})
-                      </Button>
-                    ) : hasVoucher ? (
-                      <Button
-                        variant="outline"
-                        className="flex items-center text-blue-600 cursor-pointer"
-                        onClick={() =>
-                          router.push(
-                            `/org/${slug}/expenses/${expense.id}/voucher?from=payment-processing`
+            {loading ? (
+              <div className="space-y-3">
+                {[...Array(12)].map((_, i) => (
+                  <div key={i} className="flex gap-4">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Table>
+                <TableBody>
+                  <TableRow>
+                    <TableHead>Timestamp</TableHead>
+                    <TableCell>{formatDateTime(expense.created_at)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Payment Unique ID</TableHead>
+                    <TableCell className="font-mono">
+                      {expense.unique_id || expense.uniqueId || expense.id}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Location of Expense</TableHead>
+                    <TableCell>{expense.location || "N/A"}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Event Name</TableHead>
+                    <TableCell>{eventTitle || "N/A"}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Expense Type</TableHead>
+                    <TableCell>
+                      {expense.expense_type || "Not Provided"}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Amount</TableHead>
+                    <TableCell>₹{expense.amount}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Approved Amount</TableHead>
+                    <TableCell>₹{expense.approved_amount}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableCell>
+                      {new Date(expense.date).toLocaleDateString("en-IN")}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Status</TableHead>
+                    <TableCell>
+                      <ExpenseStatusBadge status={expense.status} />
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Approver</TableHead>
+                    <TableCell>{expense.approver?.full_name || "—"}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Receipt/Voucher</TableHead>
+                    <TableCell>
+                      {expense.receipt ? (
+                        <Button
+                          variant="outline"
+                          onClick={handleViewReceipt}
+                          className="flex items-center cursor-pointer"
+                        >
+                          <FileText className="mr-2 h-4 w-4" />
+                          View Receipt ({expense.receipt.filename || "Document"}
                           )
-                        }
-                      >
-                        <FileText className="mr-2 h-4 w-4" />
-                        View Voucher
-                      </Button>
-                    ) : (
-                      <p className="text-muted-foreground">
-                        No receipt or voucher available
-                      </p>
-                    )}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableCell>
-                    {expense.custom_fields?.description || "—"}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Signature</TableHead>
-                  <TableCell>
-                    {expense.signature_url ? (
-                      <img
-                        src={expense.signature_url}
-                        alt="Signature"
-                        className="h-16 object-contain border"
-                      />
-                    ) : (
-                      "Not Available"
-                    )}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Approver Signature</TableHead>
-                  <TableCell>
-                    {expense.approver_signature_url ? (
-                      <img
-                        src={expense.approver_signature_url}
-                        alt="Approver Signature"
-                        className="h-16 object-contain border"
-                      />
-                    ) : (
-                      "Not Available"
-                    )}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                        </Button>
+                      ) : hasVoucher ? (
+                        <Button
+                          variant="outline"
+                          className="flex items-center text-blue-600 cursor-pointer"
+                          onClick={() =>
+                            router.push(
+                              `/org/${slug}/expenses/${expense.id}/voucher?from=payment-processing`
+                            )
+                          }
+                        >
+                          <FileText className="mr-2 h-4 w-4" />
+                          View Voucher
+                        </Button>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No receipt or voucher available
+                        </p>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Description</TableHead>
+                    <TableCell>
+                      {expense.custom_fields?.description || "—"}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Signature</TableHead>
+                    <TableCell>
+                      {expense.signature_url ? (
+                        <img
+                          src={expense.signature_url}
+                          alt="Signature"
+                          className="h-16 object-contain border"
+                        />
+                      ) : (
+                        "Not Available"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Approver Signature</TableHead>
+                    <TableCell>
+                      {expense.approver_signature_url ? (
+                        <img
+                          src={expense.approver_signature_url}
+                          alt="Approver Signature"
+                          className="h-16 object-contain border"
+                        />
+                      ) : (
+                        "Not Available"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            )}
           </div>
           <div className="bg-white p-6 rounded shadow border mt-4">
-            <ExpenseComments
-              expenseId={typeof expenseId === "string" ? expenseId : ""}
-            />
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-32 mb-4" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : (
+              <ExpenseComments
+                expenseId={typeof expenseId === "string" ? expenseId : ""}
+              />
+            )}
           </div>
         </div>
 
@@ -402,9 +426,20 @@ export default function PaymentProcessingDetails() {
                 <CardTitle>Activity History</CardTitle>
               </CardHeader>
               <CardContent className="max-h-[500px] overflow-auto">
-                <ExpenseHistory
-                  expenseId={typeof expenseId === "string" ? expenseId : ""}
-                />
+                {loading ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-3 w-3/4" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <ExpenseHistory
+                    expenseId={typeof expenseId === "string" ? expenseId : ""}
+                  />
+                )}
               </CardContent>
             </Card>
           </div>

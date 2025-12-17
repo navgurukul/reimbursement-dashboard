@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PlusCircle, Edit, Trash2, Upload } from "lucide-react";
 import {
   Select,
@@ -68,48 +69,62 @@ export default function PoliciesPage() {
   const [selectedFileName, setSelectedFileName] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-
   useEffect(() => {
     const fetchData = async () => {
       if (!organization?.id) return;
       setIsLoading(true);
       try {
         // Fetch policies
-        const { data: policiesData, error: policiesError } = await policies.getPoliciesByOrgId(
-          organization.id
-        );
+        const { data: policiesData, error: policiesError } =
+          await policies.getPoliciesByOrgId(organization.id);
         if (policiesError) throw policiesError;
         setPolicyList(policiesData || []);
 
         // Fetch organization settings to get expense types
-        const { data: settings, error: settingsError } = await orgSettings.getByOrgId(
-          organization.id
-        );
+        const { data: settings, error: settingsError } =
+          await orgSettings.getByOrgId(organization.id);
         if (settingsError) throw settingsError;
 
         // Get expense column definitions from settings or use defaults
-        const columnsToUse = settings?.expense_columns && settings.expense_columns.length > 0
-          ? settings.expense_columns
-          : defaultExpenseColumns;
+        const columnsToUse =
+          settings?.expense_columns && settings.expense_columns.length > 0
+            ? settings.expense_columns
+            : defaultExpenseColumns;
 
         // Find the expense_type column
-        const expenseTypeColumn = columnsToUse.find((col: any) => col.key === "expense_type");
-
+        const expenseTypeColumn = columnsToUse.find(
+          (col: any) => col.key === "expense_type"
+        );
 
         if (expenseTypeColumn && expenseTypeColumn.options) {
           // Extract expense type options
           const options = expenseTypeColumn.options;
           // Check if options is an array of objects or strings
-          if (Array.isArray(options) && options.length > 0 && typeof options[0] === 'object') {
+          if (
+            Array.isArray(options) &&
+            options.length > 0 &&
+            typeof options[0] === "object"
+          ) {
             // Convert array of objects to array of strings
-            setExpenseTypeOptions((options as Array<{ value: string; label: string }>).map(opt => opt.label || opt.value));
+            setExpenseTypeOptions(
+              (options as Array<{ value: string; label: string }>).map(
+                (opt) => opt.label || opt.value
+              )
+            );
           } else {
             // It's already a string array
             setExpenseTypeOptions(options as string[]);
           }
         } else {
           // Fallback to default options if not found
-          setExpenseTypeOptions(["Travel", "Meals", "Office Supplies", "Equipment", "Software", "Other"]);
+          setExpenseTypeOptions([
+            "Travel",
+            "Meals",
+            "Office Supplies",
+            "Equipment",
+            "Software",
+            "Other",
+          ]);
         }
       } catch (error: any) {
         toast.error("Failed to load data", {
@@ -186,23 +201,28 @@ export default function PoliciesPage() {
     }
   };
 
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       // Validate file type
-      if (!file.type.includes('pdf')) {
-        toast.error('Only PDF files are allowed');
-        setErrors((prev) => ({ ...prev, fileUpload: 'Only PDF files are allowed' }));
+      if (!file.type.includes("pdf")) {
+        toast.error("Only PDF files are allowed");
+        setErrors((prev) => ({
+          ...prev,
+          fileUpload: "Only PDF files are allowed",
+        }));
         return;
       }
 
       // Validate file size (5MB limit)
       if (file.size > 5 * 1024 * 1024) {
-        toast.error('File size must be under 5MB');
-        setErrors((prev) => ({ ...prev, fileUpload: 'File size must be under 5MB' }));
+        toast.error("File size must be under 5MB");
+        setErrors((prev) => ({
+          ...prev,
+          fileUpload: "File size must be under 5MB",
+        }));
         return;
       }
 
@@ -214,10 +234,10 @@ export default function PoliciesPage() {
         delete updated.fileUpload;
         return updated;
       });
-      toast.success('PDF selected successfully');
+      toast.success("PDF selected successfully");
     } catch (error) {
-      toast.error('Failed to select file');
-      if (e.target) e.target.value = '';
+      toast.error("Failed to select file");
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -226,7 +246,8 @@ export default function PoliciesPage() {
     if (!organization?.id || !isAdminOrOwner) return;
     // Validate fields first
     const newErrors: Record<string, string> = {};
-    if (!currentPolicy.expense_type) newErrors["expense_type"] = "Expense type is required.";
+    if (!currentPolicy.expense_type)
+      newErrors["expense_type"] = "Expense type is required.";
     if (
       currentPolicy.per_unit_cost === null ||
       currentPolicy.per_unit_cost === undefined ||
@@ -248,10 +269,16 @@ export default function PoliciesPage() {
     ) {
       newErrors["upper_limit"] = "Upper limit cannot be negative.";
     }
-    if (!currentPolicy.eligibility || String(currentPolicy.eligibility).trim() === "") {
+    if (
+      !currentPolicy.eligibility ||
+      String(currentPolicy.eligibility).trim() === ""
+    ) {
       newErrors["eligibility"] = "Eligibility is required.";
     }
-    if (!currentPolicy.conditions || String(currentPolicy.conditions).trim() === "") {
+    if (
+      !currentPolicy.conditions ||
+      String(currentPolicy.conditions).trim() === ""
+    ) {
       newErrors["conditions"] = "Conditions are required.";
     }
     // Require a PDF on create; allow existing URL during edit
@@ -269,7 +296,9 @@ export default function PoliciesPage() {
 
     setErrors({});
     setIsSubmitting(true);
-    const toastId = toast.loading(isEditing ? "Updating policy..." : "Adding policy...");
+    const toastId = toast.loading(
+      isEditing ? "Updating policy..." : "Adding policy..."
+    );
 
     try {
       let pdfUrl = currentPolicy.policy_url;
@@ -292,19 +321,23 @@ export default function PoliciesPage() {
         policy_url: pdfUrl,
       };
 
-
       if (isEditing && "id" in currentPolicy) {
         // Update existing policy
-        const { data, error } = await policies.updatePolicy(currentPolicy.id, policyPayload);
+        const { data, error } = await policies.updatePolicy(
+          currentPolicy.id,
+          policyPayload
+        );
         if (error) throw error;
 
-        setPolicyList(prev => prev.map(p => p.id === currentPolicy.id ? data as Policy : p));
+        setPolicyList((prev) =>
+          prev.map((p) => (p.id === currentPolicy.id ? (data as Policy) : p))
+        );
       } else {
         // Create new policy
         const { data, error } = await policies.createPolicy(policyPayload);
         if (error) throw error;
 
-        setPolicyList(prev => [...prev, data as Policy]);
+        setPolicyList((prev) => [...prev, data as Policy]);
       }
 
       // Close dialog and reset state
@@ -313,7 +346,6 @@ export default function PoliciesPage() {
       setSelectedFileName("");
       setCurrentPolicy(defaultPolicy);
       toast.success(isEditing ? "Policy updated!" : "Policy created!");
-
     } catch (error: any) {
       console.error("Submit error:", error);
       toast.error(error.message || "Failed to save policy");
@@ -323,20 +355,10 @@ export default function PoliciesPage() {
     }
   };
 
-
   const handleDelete = (policyId: string) => {
     if (!isAdminOrOwner) return;
     setDeletePolicyId(policyId); // Triggers the modal
   };
-
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-32">
-        <Spinner />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -366,9 +388,16 @@ export default function PoliciesPage() {
                   <div className="col-span-3">
                     <Select
                       value={currentPolicy.expense_type || ""}
-                      onValueChange={(value) => handleSelectChange("expense_type", value)}
+                      onValueChange={(value) =>
+                        handleSelectChange("expense_type", value)
+                      }
                     >
-                      <SelectTrigger id="expense_type" className={`w-full ${errors["expense_type"] ? "border-red-500" : ""}`}>
+                      <SelectTrigger
+                        id="expense_type"
+                        className={`w-full ${
+                          errors["expense_type"] ? "border-red-500" : ""
+                        }`}
+                      >
                         <SelectValue placeholder="Select expense type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -380,7 +409,9 @@ export default function PoliciesPage() {
                       </SelectContent>
                     </Select>
                     {errors["expense_type"] && (
-                      <p className="text-red-500 text-sm">{errors["expense_type"]}</p>
+                      <p className="text-red-500 text-sm">
+                        {errors["expense_type"]}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -395,18 +426,20 @@ export default function PoliciesPage() {
                       type="number"
                       value={currentPolicy.per_unit_cost || ""}
                       onChange={handleInputChange}
-                      className={`${errors["per_unit_cost"] ? "border-red-500" : ""}`}
+                      className={`${
+                        errors["per_unit_cost"] ? "border-red-500" : ""
+                      }`}
                       placeholder="e.g., 3/km, 200/meal"
                     />
                     {errors["per_unit_cost"] && (
-                      <p className="text-red-500 text-sm">{errors["per_unit_cost"]}</p>
+                      <p className="text-red-500 text-sm">
+                        {errors["per_unit_cost"]}
+                      </p>
                     )}
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="upper_limit">
-                    Upper Limit (₹)
-                  </Label>
+                  <Label htmlFor="upper_limit">Upper Limit (₹)</Label>
                   <div className="col-span-3">
                     <Input
                       id="upper_limit"
@@ -414,11 +447,15 @@ export default function PoliciesPage() {
                       type="number"
                       value={currentPolicy.upper_limit || ""}
                       onChange={handleNumberInputChange}
-                      className={`${errors["upper_limit"] ? "border-red-500" : ""}`}
+                      className={`${
+                        errors["upper_limit"] ? "border-red-500" : ""
+                      }`}
                       placeholder="e.g., 5000"
                     />
                     {errors["upper_limit"] && (
-                      <p className="text-red-500 text-sm">{errors["upper_limit"]}</p>
+                      <p className="text-red-500 text-sm">
+                        {errors["upper_limit"]}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -432,11 +469,15 @@ export default function PoliciesPage() {
                       name="eligibility"
                       value={currentPolicy.eligibility || ""}
                       onChange={handleInputChange}
-                      className={`${errors["eligibility"] ? "border-red-500" : ""}`}
+                      className={`${
+                        errors["eligibility"] ? "border-red-500" : ""
+                      }`}
                       placeholder="e.g., All Team Members"
                     />
                     {errors["eligibility"] && (
-                      <p className="text-red-500 text-sm">{errors["eligibility"]}</p>
+                      <p className="text-red-500 text-sm">
+                        {errors["eligibility"]}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -450,11 +491,15 @@ export default function PoliciesPage() {
                       name="conditions"
                       value={currentPolicy.conditions || ""}
                       onChange={handleInputChange}
-                      className={`${errors["conditions"] ? "border-red-500" : ""}`}
+                      className={`${
+                        errors["conditions"] ? "border-red-500" : ""
+                      }`}
                       placeholder="Enter any specific conditions..."
                     />
                     {errors["conditions"] && (
-                      <p className="text-red-500 text-sm">{errors["conditions"]}</p>
+                      <p className="text-red-500 text-sm">
+                        {errors["conditions"]}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -485,7 +530,9 @@ export default function PoliciesPage() {
                       </p>
                     )}
                     {errors["fileUpload"] && (
-                      <p className="text-red-500 text-sm">{errors["fileUpload"]}</p>
+                      <p className="text-red-500 text-sm">
+                        {errors["fileUpload"]}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -519,17 +566,36 @@ export default function PoliciesPage() {
               <TableRow>
                 <TableHead className="w-[120px]">Expense Type</TableHead>
                 <TableHead className="w-[120px]">Per Unit Cost</TableHead>
-                <TableHead className="w-[120px]">Upper Limit</TableHead> 
-                <TableHead className="w-[120px]">Eligibility</TableHead> 
+                <TableHead className="w-[120px]">Upper Limit</TableHead>
+                <TableHead className="w-[120px]">Eligibility</TableHead>
                 <TableHead className="w-[120px]">Conditions</TableHead>
                 <TableHead className="w-[120px]">Policies</TableHead>
                 {isAdminOrOwner && (
-                  <TableHead className="w-[100px] text-center">Action</TableHead>
+                  <TableHead className="w-[100px] text-center">
+                    Action
+                  </TableHead>
                 )}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {policyList.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={isAdminOrOwner ? 7 : 6}>
+                    <div className="space-y-2 py-4">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="flex gap-4">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="h-4 w-20" />
+                        </div>
+                      ))}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : policyList.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={isAdminOrOwner ? 7 : 6}
@@ -544,19 +610,23 @@ export default function PoliciesPage() {
                     <TableCell className="font-medium">
                       {policy.expense_type}
                     </TableCell>
-                    <TableCell>
-                      {policy.per_unit_cost || "N/A"}
-                    </TableCell>
+                    <TableCell>{policy.per_unit_cost || "N/A"}</TableCell>
                     <TableCell>
                       {policy.upper_limit ? `₹${policy.upper_limit}` : "N/A"}
                     </TableCell>
                     <TableCell className="max-w-[200px]">
-                      <div className="truncate" title={policy.eligibility || "N/A"}>
+                      <div
+                        className="truncate"
+                        title={policy.eligibility || "N/A"}
+                      >
                         {policy.eligibility || "N/A"}
                       </div>
                     </TableCell>
                     <TableCell className="max-w-[200px]">
-                      <div className="truncate" title={policy.conditions || "N/A"}>
+                      <div
+                        className="truncate"
+                        title={policy.conditions || "N/A"}
+                      >
                         {policy.conditions || "N/A"}
                       </div>
                     </TableCell>
@@ -605,7 +675,10 @@ export default function PoliciesPage() {
       </div>
 
       {/* Delete Confirmation Dialog - moved outside table */}
-      <Dialog open={!!deletePolicyId} onOpenChange={() => setDeletePolicyId(null)}>
+      <Dialog
+        open={!!deletePolicyId}
+        onOpenChange={() => setDeletePolicyId(null)}
+      >
         <DialogContent className="!bg-white !text-black">
           <DialogHeader>
             <DialogTitle>Delete Policy</DialogTitle>
@@ -622,9 +695,13 @@ export default function PoliciesPage() {
               onClick={async () => {
                 const toastId = toast.loading("Deleting policy...");
                 try {
-                  const { error } = await policies.deletePolicy(deletePolicyId!);
+                  const { error } = await policies.deletePolicy(
+                    deletePolicyId!
+                  );
                   if (error) throw error;
-                  setPolicyList((prev) => prev.filter((p) => p.id !== deletePolicyId));
+                  setPolicyList((prev) =>
+                    prev.filter((p) => p.id !== deletePolicyId)
+                  );
                   toast.success("Policy deleted successfully!");
                 } catch (error: any) {
                   toast.error("Failed to delete policy", {

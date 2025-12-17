@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
@@ -1042,14 +1043,10 @@ export default function ExpensesPage() {
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 4}
-                          className="text-center py-4"
-                        >
-                          Loading…
-                        </TableCell>
-                      </TableRow>
+                      <TableSkeleton
+                        colSpan={columns.filter((c) => c.visible).length + 4}
+                        rows={5}
+                      />
                     ) : getCurrent().length === 0 ? (
                       <TableRow>
                         <TableCell

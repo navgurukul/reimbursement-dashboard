@@ -30,6 +30,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
 
@@ -185,11 +186,7 @@ export default function FinanceReview() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={12} className="text-center py-6">
-                  Loading...
-                </TableCell>
-              </TableRow>
+              <TableSkeleton colSpan={12} rows={5} />
             ) : expenseList.length === 0 ? (
               <TableRow>
                 <TableCell
