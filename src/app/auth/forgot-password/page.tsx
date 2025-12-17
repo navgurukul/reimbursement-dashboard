@@ -47,8 +47,8 @@ export default function ForgotPasswordPage() {
       <Card className="w-full max-w-md">
         <CardContent className="p-6 space-y-6">
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold">Forgot password</h1>
-            <p className="text-muted-foreground text-sm">
+            <h1 className="section-heading">Forgot password</h1>
+            <p className="descriptive-text text-sm">
               Enter your email to receive a reset link
             </p>
           </div>
@@ -65,7 +65,11 @@ export default function ForgotPasswordPage() {
                 disabled={loading}
               />
             </div>
-            <Button type="submit" className="w-full cursor-pointer" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full cursor-pointer"
+              disabled={loading}
+            >
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Spinner className="w-4 h-4" />

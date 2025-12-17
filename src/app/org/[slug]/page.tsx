@@ -104,10 +104,8 @@ export default function OrgDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome to {organization?.name}'s dashboard
-        </p>
+        <h1 className="page-title">Dashboard</h1>
+        <p className="descriptive-text">Welcome to {organization?.name}</p>
       </div>
 
       {loading ? (
@@ -136,7 +134,7 @@ export default function OrgDashboard() {
               {/* <DollarSign className="h-4 w-4 text-muted-foreground" /> */}
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="stat-value">
                 {formatCurrency(stats.totalPaidReimbursements)}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -155,7 +153,7 @@ export default function OrgDashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.teamMembersCount}</div>
+              <div className="stat-value">{stats.teamMembersCount}</div>
               <p className="text-xs text-muted-foreground">
                 {stats.teamMembersCount === 1
                   ? "Just you for now"
@@ -172,7 +170,7 @@ export default function OrgDashboard() {
               <BarChart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="stat-value">
                 {formatCurrency(stats.monthlyPaidAmount)}
               </div>
               <p className="text-xs text-muted-foreground">

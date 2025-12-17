@@ -264,7 +264,7 @@ export default function FinanceExpenseDetails() {
         {/* Expense Details */}
         <div className="space-y-6 md:col-span-4">
           <div className="bg-white p-6 rounded shadow border">
-            <h2 className="text-lg font-semibold mb-4">Expense Details</h2>
+            <h2 className="card-title mb-4">Expense Details</h2>
             {loading ? (
               <Table>
                 <TableBody>

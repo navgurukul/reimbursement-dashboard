@@ -87,7 +87,7 @@ const ConfirmModal = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-md w-full">
         <div className="flex justify-between items-start mb-4">
-          <h3 className="text-lg font-semibold">{title}</h3>
+          <h3 className="card-title">{title}</h3>
           <button
             onClick={onClose}
             className="rounded-full p-1 hover:bg-gray-100"
@@ -340,7 +340,7 @@ export default function ExpenseEventDetailPage() {
   if (!event) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold mb-2">Event not found</h2>
+        <h2 className="subsection-heading mb-2">Event not found</h2>
         <p className="text-gray-500 mb-4">
           The expense event you're looking for doesn't exist.
         </p>
@@ -503,7 +503,7 @@ export default function ExpenseEventDetailPage() {
           </div>
           <div className="mt-6 pt-6 border-t">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Expenses</h3>
+              <h3 className="card-title">Expenses</h3>
               {event.status === "draft" && (
                 <Button
                   onClick={() =>

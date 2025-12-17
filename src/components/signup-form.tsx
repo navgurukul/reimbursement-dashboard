@@ -257,7 +257,6 @@ export function SignupForm({
           description: "Please check your email to confirm your signup.",
           nextHref: `/org/${inviteLink.organization.slug}`,
         });
-
       } else {
         // Regular signup (no invite)
         setDialogState({
@@ -267,7 +266,6 @@ export function SignupForm({
           nextHref: "/auth/signin",
         });
       }
-
 
       await syncExternalAuth(userId);
     } catch (err: any) {
@@ -348,7 +346,7 @@ export function SignupForm({
       <Card className="shadow-md border">
         <CardContent className="p-6 space-y-6">
           <div className="text-center">
-            <h1 className="text-2xl font-bold">{getFormTitle()}</h1>
+            <h1 className="section-heading">{getFormTitle()}</h1>
             {inviteType === "new" && inviteLink && (
               <p className="text-sm text-muted-foreground mt-1">
                 You're joining as a{" "}

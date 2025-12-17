@@ -87,7 +87,7 @@ export default function FinanceExpenseDetail() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-start">
-        <h2 className="text-2xl font-semibold">Finance Expense Review</h2>
+        <h2 className="section-heading">Finance Expense Review</h2>
         {!loading && (
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => router.back()}>

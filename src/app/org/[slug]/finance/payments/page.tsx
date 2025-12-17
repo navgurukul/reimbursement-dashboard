@@ -482,10 +482,7 @@ export default function PaymentProcessingOnly() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h3 className="text-lg font-medium text-gray-800">
-          Payment Processing
-        </h3>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
         <div className="flex gap-2 flex-wrap">
           <Button
             onClick={() => setShowConfirmAllPaid(true)}

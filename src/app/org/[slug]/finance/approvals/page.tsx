@@ -155,8 +155,8 @@ export default function FinanceReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800">Finance Review</h2>
+      <div className="flex items-center justify-end">
+        {/* <h2 className="subsection-heading">Finance Review</h2> */}
         <Button
           onClick={() => setConfirmApproveAllOpen(true)}
           className="bg-gray-600 hover:bg-gray-700 text-white cursor-pointer"

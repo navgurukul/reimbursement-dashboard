@@ -43,14 +43,14 @@ interface ColumnConfig {
   key: string;
   label: string;
   type:
-  | "text"
-  | "number"
-  | "date"
-  | "dropdown"
-  | "radio"
-  | "checkbox"
-  | "textarea"
-  | "file";
+    | "text"
+    | "number"
+    | "date"
+    | "dropdown"
+    | "radio"
+    | "checkbox"
+    | "textarea"
+    | "file";
   visible: boolean;
   options?: string[] | { value: string; label: string }[]; // For dropdown, radio, checkbox
   required?: boolean;
@@ -173,7 +173,9 @@ export default function SettingsPage() {
             });
 
             // Ensure location column exists if not present
-            const hasLocationColumn = processedColumns.some((col) => col.key === "location");
+            const hasLocationColumn = processedColumns.some(
+              (col) => col.key === "location"
+            );
             if (!hasLocationColumn) {
               processedColumns.push({
                 key: "location",
@@ -428,20 +430,18 @@ export default function SettingsPage() {
 
   const handleSaveColumn = () => {
     if (!editingColumn) return;
-    let cleanedLabel = editingColumn.label
-    .trim()
-    .replace(/\s+/g, " ");
+    let cleanedLabel = editingColumn.label.trim().replace(/\s+/g, " ");
     const invalidChars = /[^a-zA-Z ]/; // only allow letters and spaces
 
     if (!cleanedLabel) {
-    toast.error("Column label cannot be empty!");
-    return;
-  }
+      toast.error("Column label cannot be empty!");
+      return;
+    }
 
-  if (invalidChars.test(cleanedLabel)) {
-    toast.error("only allow letters and spaces!");
-    return;
-  }
+    if (invalidChars.test(cleanedLabel)) {
+      toast.error("only allow letters and spaces!");
+      return;
+    }
 
     try {
       // Create a copy of the editing column
@@ -486,11 +486,14 @@ export default function SettingsPage() {
   };
 
   return (
-    <Tabs defaultValue="columns" className="space-y-6">
-      <TabsList>
-        {/* <TabsTrigger value="branding">Branding & Theming</TabsTrigger> */}
-        <TabsTrigger value="columns">Expense Columns</TabsTrigger>
-      </TabsList>
+    <div className="space-y-6">
+      <h1 className="page-title">Organisation Settings</h1>
+
+      {/* <Tabs defaultValue="columns" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="branding">Branding & Theming</TabsTrigger>
+          <TabsTrigger value="columns">Expense Columns</TabsTrigger>
+        </TabsList> */}
 
       {/* ----- Branding & Theming ----- */}
       {/* <TabsContent value="branding">
@@ -543,185 +546,188 @@ export default function SettingsPage() {
       </TabsContent> */}
 
       {/* ----- Expense Columns ----- */}
-      <TabsContent value="columns">
-        <Card>
-          <CardHeader>
-            <CardTitle>Expense Columns </CardTitle>
-            <CardDescription>
-              Configure columns and field types for the expense form
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-end">
-              <Button onClick={handleAddColumn} variant="outline">
-                <PlusCircle className="w-4 h-4 mr-2" />
-                Add Column
-              </Button>
+      {/* <TabsContent value="columns"> */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Expense Columns </CardTitle>
+              <CardDescription>
+                Configure columns and field types for the expense form
+              </CardDescription>
             </div>
-
-            <div className="space-y-4">
-              {columns.map((col) => (
-                <div
-                  key={col.key}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div className="flex items-center space-x-4">
-                    <Checkbox
-                      checked={col.visible}
-                      onCheckedChange={(v) =>
-                        setColumns((prev) =>
-                          prev.map((c) =>
-                            c.key === col.key
-                              ? { ...c, visible: v as boolean }
-                              : c
-                          )
+            <Button onClick={handleAddColumn} variant="outline">
+              <PlusCircle className="w-4 h-4 mr-2" />
+              Add Column
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            {columns.map((col) => (
+              <div
+                key={col.key}
+                className="flex items-center justify-between p-4 border rounded-lg"
+              >
+                <div className="flex items-center space-x-4">
+                  <Checkbox
+                    checked={col.visible}
+                    onCheckedChange={(v) =>
+                      setColumns((prev) =>
+                        prev.map((c) =>
+                          c.key === col.key
+                            ? { ...c, visible: v as boolean }
+                            : c
                         )
-                      }
-                      disabled={defaultColumns.some((c) => c.key === col.key)}
-                    />
-                    <div>
-                      <p className="font-medium">{col.label}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Type: {col.type}
-                        {col.options && Array.isArray(col.options)
-                          ? ` (${col.options.length} options)`
-                          : ""}
-                      </p>
-                    </div>
+                      )
+                    }
+                    disabled={defaultColumns.some((c) => c.key === col.key)}
+                  />
+                  <div>
+                    <p className="font-medium">{col.label}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Type: {col.type}
+                      {col.options && Array.isArray(col.options)
+                        ? ` (${col.options.length} options)`
+                        : ""}
+                    </p>
                   </div>
-                  <div className="flex items-center space-x-2">
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEditColumn(col)}
+                  >
+                    <Settings2 className="w-4 h-4" />
+                  </Button>
+                  {!defaultColumns.some((c) => c.key === col.key) && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleEditColumn(col)}
+                      onClick={() => handleDeleteColumn(col.key)}
                     >
-                      <Settings2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" />
                     </Button>
-                    {!defaultColumns.some((c) => c.key === col.key) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteColumn(col.key)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end">
             <Button onClick={handleSaveColumns}>Save Columns</Button>
+          </div>
 
-            <Dialog open={showColumnDialog} onOpenChange={setShowColumnDialog}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingColumn?.key?.startsWith("custom_field_")
-                      ? "Add Column"
-                      : "Edit Column"}
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Column Label</Label>
-                    <Input
-                      value={editingColumn?.label || ""}
-                      onChange={(e) =>
-                        setEditingColumn((prev) =>
-                          prev
-                            ? {
+          <Dialog open={showColumnDialog} onOpenChange={setShowColumnDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingColumn?.key?.startsWith("custom_field_")
+                    ? "Add Column"
+                    : "Edit Column"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Column Label</Label>
+                  <Input
+                    value={editingColumn?.label || ""}
+                    onChange={(e) =>
+                      setEditingColumn((prev) =>
+                        prev
+                          ? {
                               ...prev,
                               label: e.target.value,
                               key: prev.key.startsWith("custom_field_")
                                 ? prev.key
                                 : e.target.value
-                                  .toLowerCase()
-                                  .replace(/\s+/g, "_"),
+                                    .toLowerCase()
+                                    .replace(/\s+/g, "_"),
                             }
-                            : null
-                        )
-                      }
-                      disabled={
-                        !editingColumn?.key?.startsWith("custom_field_") &&
-                        defaultColumns.some((c) => c.key === editingColumn?.key)
-                      }
-                    />
-                  </div>
+                          : null
+                      )
+                    }
+                    disabled={
+                      !editingColumn?.key?.startsWith("custom_field_") &&
+                      defaultColumns.some((c) => c.key === editingColumn?.key)
+                    }
+                  />
+                </div>
 
-                  <div className="space-y-2">
-                    <Label>Field Type</Label>
-                    <Select
-                      value={editingColumn?.type}
-                      onValueChange={(value: ColumnConfig["type"]) =>
-                        setEditingColumn((prev) =>
-                          prev ? { ...prev, type: value } : null
-                        )
-                      }
-                      disabled={defaultColumns.some(
-                        (c) => c.key === editingColumn?.key
-                      )}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="text">Text</SelectItem>
-                        <SelectItem value="number">Number</SelectItem>
-                        <SelectItem value="date">Date</SelectItem>
-                        <SelectItem value="textarea">Text Area</SelectItem>
-                        <SelectItem value="dropdown">Dropdown</SelectItem>
-                        <SelectItem value="radio">Radio</SelectItem>
-                        <SelectItem value="checkbox">Checkbox</SelectItem>
-                        {/* <SelectItem value="file">File Upload</SelectItem> */}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {["dropdown", "radio", "checkbox"].includes(
-                    editingColumn?.type || ""
-                  ) &&
-                    editingColumn?.key !== "approver" && (
-                      <div className="space-y-2">
-                        <Label>Options (one per line)</Label>
-                        <Textarea
-                          value={newOptions}
-                          onChange={(e) => setNewOptions(e.target.value)}
-                          placeholder="Enter options..."
-                          rows={5}
-                        />
-                      </div>
+                <div className="space-y-2">
+                  <Label>Field Type</Label>
+                  <Select
+                    value={editingColumn?.type}
+                    onValueChange={(value: ColumnConfig["type"]) =>
+                      setEditingColumn((prev) =>
+                        prev ? { ...prev, type: value } : null
+                      )
+                    }
+                    disabled={defaultColumns.some(
+                      (c) => c.key === editingColumn?.key
                     )}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">Text</SelectItem>
+                      <SelectItem value="number">Number</SelectItem>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="textarea">Text Area</SelectItem>
+                      <SelectItem value="dropdown">Dropdown</SelectItem>
+                      <SelectItem value="radio">Radio</SelectItem>
+                      <SelectItem value="checkbox">Checkbox</SelectItem>
+                      {/* <SelectItem value="file">File Upload</SelectItem> */}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  {editingColumn?.key === "approver" && (
-                    <div className="text-sm text-muted-foreground p-2 bg-muted rounded-md">
-                      Options for this field are automatically populated with
-                      organization members who can approve expenses (owners,
-                      admins, and managers).
+                {["dropdown", "radio", "checkbox"].includes(
+                  editingColumn?.type || ""
+                ) &&
+                  editingColumn?.key !== "approver" && (
+                    <div className="space-y-2">
+                      <Label>Options (one per line)</Label>
+                      <Textarea
+                        value={newOptions}
+                        onChange={(e) => setNewOptions(e.target.value)}
+                        placeholder="Enter options..."
+                        rows={5}
+                      />
                     </div>
                   )}
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={editingColumn?.required}
-                      onCheckedChange={(v) =>
-                        setEditingColumn((prev) =>
-                          prev ? { ...prev, required: v as boolean } : null
-                        )
-                      }
-                    />
-                    <Label>Required field</Label>
+                {editingColumn?.key === "approver" && (
+                  <div className="text-sm text-muted-foreground p-2 bg-muted rounded-md">
+                    Options for this field are automatically populated with
+                    organization members who can approve expenses (owners,
+                    admins, and managers).
                   </div>
+                )}
 
-                  <Button onClick={handleSaveColumn} className="w-full">
-                    Save Column
-                  </Button>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    checked={editingColumn?.required}
+                    onCheckedChange={(v) =>
+                      setEditingColumn((prev) =>
+                        prev ? { ...prev, required: v as boolean } : null
+                      )
+                    }
+                  />
+                  <Label>Required field</Label>
                 </div>
-              </DialogContent>
-            </Dialog>
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
+
+                <Button onClick={handleSaveColumn} className="w-full">
+                  Save Column
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
+      {/* </TabsContent> */}
+      {/* </Tabs> */}
+    </div>
   );
 }

@@ -270,7 +270,7 @@ export default function PaymentProcessingDetails() {
         {/* Expense Details */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded shadow border">
-            <h2 className="text-lg font-semibold mb-4">Expense Details</h2>
+            <h2 className="card-title mb-4">Expense Details</h2>
             {loading ? (
               <Table>
                 <TableBody>

@@ -556,9 +556,9 @@ export default function TeamPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Team Members</h1>
-          <p className="text-sm text-muted-foreground">
-            {org?.name} —{" "}
+          <h1 className="page-title">Team Members</h1>
+          <p className="descriptive-text">
+            {org?.name}:{" "}
             {roleFilter !== "all" || debouncedSearch
               ? `${filteredMembers.length} of ${members.length} member${
                   members.length !== 1 ? "s" : ""
@@ -577,14 +577,11 @@ export default function TeamPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Users className="w-5 h-5 text-gray-700" />{" "}
-            {/* Lucide Users icon */}
+        {/* <CardHeader>
+          <CardTitle className="text-md font-semibold">
             Manage your team members and their roles
           </CardTitle>
-          {/* <CardDescription>Manage your team members and their roles.</CardDescription> */}
-        </CardHeader>
+        </CardHeader> */}
 
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

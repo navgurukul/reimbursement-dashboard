@@ -615,6 +615,7 @@ export default function ExpensesPage() {
 
   return (
     <div className="space-y-6 pt-0">
+      <h1 className="page-title">Expenses</h1>
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
           <TabsList className="cursor-pointer">
@@ -641,7 +642,7 @@ export default function ExpensesPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl">{stats.total}</div>
+                  <div className="stat-value">{stats.total}</div>
                 </CardContent>
               </Card>
               <Card>

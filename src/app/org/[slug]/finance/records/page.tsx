@@ -357,11 +357,7 @@ export default function PaymentRecords() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-        <div className="flex items-center gap-2">
-          <IndianRupee className="h-5 w-5" />
-          <h2 className="text-xl font-semibold">Payment Records</h2>
-        </div>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end">
         <div className="mt-2 sm:mt-0">
           <Button
             size="sm"

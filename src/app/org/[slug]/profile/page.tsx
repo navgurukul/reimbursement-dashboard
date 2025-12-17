@@ -264,10 +264,8 @@ export default function ProfilePage() {
       >
         <ArrowLeft /> Back to Dashboard
       </Button>
-      <h1 className="text-2xl font-extrabold my-1 text-center text-[#111827]">
-        My Profile
-      </h1>
-      <p className="text-[#64748b] mb-8 text-center text-base">
+      <h1 className="section-heading my-1 text-center">My Profile</h1>
+      <p className="descriptive-text mb-8 text-center text-base">
         View personal and bank information
       </p>
 

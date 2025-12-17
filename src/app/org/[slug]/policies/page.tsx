@@ -364,7 +364,7 @@ export default function PoliciesPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">Expense Policies</h2>
+        <h1 className="page-title">Expense Policies</h1>
         {isAdminOrOwner && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>

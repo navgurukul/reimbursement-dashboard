@@ -42,7 +42,7 @@ export function LoginForm({
       try {
         window.localStorage.setItem("googleLogin", "false");
         window.localStorage.setItem("forgotPassword", "false");
-      } catch { }
+      } catch {}
     }
 
     try {
@@ -89,7 +89,7 @@ export function LoginForm({
       }
     } catch (err: any) {
       toast.dismiss();
-      
+
       // Handle specific error scenarios
       let errorMessage = "Login failed";
       let toastMessage = "Login failed";
@@ -97,10 +97,12 @@ export function LoginForm({
 
       if (err.message) {
         const errorMsg = err.message.toLowerCase();
-        
+
         // Check for specific Supabase error messages
-        if (errorMsg.includes("invalid login credentials") || 
-            errorMsg.includes("invalid email or password")) {
+        if (
+          errorMsg.includes("invalid login credentials") ||
+          errorMsg.includes("invalid email or password")
+        ) {
           // For invalid credentials, we need to determine the specific issue
           try {
             // First check if user exists in profiles table by email
@@ -109,7 +111,7 @@ export function LoginForm({
               .select("email")
               .eq("email", email.toLowerCase())
               .single();
-            
+
             if (profileData && !profileError) {
               // User exists in profiles table, now check if they signed up with OAuth only
               try {
@@ -121,30 +123,35 @@ export function LoginForm({
                 });
 
                 if (response.ok) {
-                  const { hasOAuthProvider, hasEmailProvider } = await response.json();
-                  
+                  const { hasOAuthProvider, hasEmailProvider } =
+                    await response.json();
+
                   if (hasOAuthProvider && !hasEmailProvider) {
                     // User signed up with OAuth only, trying to login with email/password
                     errorMessage = "Account created with Google";
                     toastMessage = "Use Google to sign in";
-                    toastDescription = "This account was created using Google. Please use the 'Continue with Google' button to sign in.";
+                    toastDescription =
+                      "This account was created using Google. Please use the 'Continue with Google' button to sign in.";
                   } else {
                     // User has email provider, so wrong password
                     errorMessage = "Password is incorrect";
                     toastMessage = "Incorrect password";
-                    toastDescription = "The password you entered is wrong. Please try again.";
+                    toastDescription =
+                      "The password you entered is wrong. Please try again.";
                   }
                 } else {
                   // If API call fails, assume wrong password
                   errorMessage = "Password is incorrect";
                   toastMessage = "Incorrect password";
-                  toastDescription = "The password you entered is wrong. Please try again.";
+                  toastDescription =
+                    "The password you entered is wrong. Please try again.";
                 }
               } catch (authCheckErr) {
                 // If we can't check auth providers, assume wrong password
                 errorMessage = "Password is incorrect";
                 toastMessage = "Incorrect password";
-                toastDescription = "The password you entered is wrong. Please try again.";
+                toastDescription =
+                  "The password you entered is wrong. Please try again.";
               }
             } else {
               // User doesn't exist in database
@@ -161,7 +168,8 @@ export function LoginForm({
         } else if (errorMsg.includes("email not confirmed")) {
           errorMessage = "Email not confirmed";
           toastMessage = "Email not confirmed";
-          toastDescription = "Please check your email and confirm your account.";
+          toastDescription =
+            "Please check your email and confirm your account.";
         } else if (errorMsg.includes("too many requests")) {
           errorMessage = "Too many login attempts";
           toastMessage = "Too many attempts";
@@ -192,12 +200,17 @@ export function LoginForm({
           window.localStorage.setItem("forgotPassword", "false");
           // Hint middleware we're in OAuth (short-lived cookie)
           document.cookie = `oauthFlow=1; Path=/; Max-Age=300; SameSite=Lax`;
-        } catch { }
+        } catch {}
       }
       const redirectToParam = searchParams.get("redirectTo");
-      const baseRedirect = typeof window !== "undefined" ? window.location.origin : "";
+      const baseRedirect =
+        typeof window !== "undefined" ? window.location.origin : "";
       // Send OAuth back to site root; middleware will no longer force create-password for OAuth
-      const redirectTo = `${baseRedirect}/${redirectToParam ? `?redirectTo=${encodeURIComponent(redirectToParam)}` : ""}`;
+      const redirectTo = `${baseRedirect}/${
+        redirectToParam
+          ? `?redirectTo=${encodeURIComponent(redirectToParam)}`
+          : ""
+      }`;
 
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -219,7 +232,10 @@ export function LoginForm({
   };
 
   return (
-    <div className={cn("w-full max-w-md mx-auto relative", className)} {...props}>
+    <div
+      className={cn("w-full max-w-md mx-auto relative", className)}
+      {...props}
+    >
       {isLoading && (
         <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-center justify-center rounded-lg">
           <div className="flex items-center gap-2 text-gray-700">
@@ -231,10 +247,8 @@ export function LoginForm({
       <Card className="shadow-md border">
         <CardContent className="p-6 space-y-6">
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold">Welcome back</h1>
-            <p className="text-muted-foreground text-sm">
-              Sign in to your account
-            </p>
+            <h1 className="section-heading">Welcome back</h1>
+            <p className="descriptive-text text-sm">Sign in to your account</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -311,11 +325,28 @@ export function LoginForm({
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-4 w-4" aria-hidden>
-                    <path fill="#FFC107" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C32.9 6.1 28.7 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.9z" />
-                    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.8 16 19.1 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C32.9 6.1 28.7 4 24 4 16.3 4 9.6 8.5 6.3 14.7z" />
-                    <path fill="#4CAF50" d="M24 44c5.3 0 9.9-1.8 13.2-4.9l-6.1-5.1C28.8 35.4 26.5 36 24 36c-5.3 0-9.8-3.4-11.4-8.2l-6.4 5C9.4 39.5 16.1 44 24 44z" />
-                    <path fill="#1976D2" d="M43.6 20.5H24v8h11.3c-1 2.9-3 5.1-5.5 6.7l6.1 5.1C39.3 36.2 44 30.9 44 24c0-1.3-.1-2.7-.4-3.5z" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 48 48"
+                    className="h-4 w-4"
+                    aria-hidden
+                  >
+                    <path
+                      fill="#FFC107"
+                      d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C32.9 6.1 28.7 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.9z"
+                    />
+                    <path
+                      fill="#FF3D00"
+                      d="M6.3 14.7l6.6 4.8C14.8 16 19.1 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C32.9 6.1 28.7 4 24 4 16.3 4 9.6 8.5 6.3 14.7z"
+                    />
+                    <path
+                      fill="#4CAF50"
+                      d="M24 44c5.3 0 9.9-1.8 13.2-4.9l-6.1-5.1C28.8 35.4 26.5 36 24 36c-5.3 0-9.8-3.4-11.4-8.2l-6.4 5C9.4 39.5 16.1 44 24 44z"
+                    />
+                    <path
+                      fill="#1976D2"
+                      d="M43.6 20.5H24v8h11.3c-1 2.9-3 5.1-5.5 6.7l6.1 5.1C39.3 36.2 44 30.9 44 24c0-1.3-.1-2.7-.4-3.5z"
+                    />
                   </svg>
                   Continue with Google
                 </span>

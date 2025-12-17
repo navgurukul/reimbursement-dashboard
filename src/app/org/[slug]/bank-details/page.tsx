@@ -222,7 +222,7 @@ export default function BankDetailsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Bank Details</h2>
+        <h1 className="page-title">Bank Details</h1>
         <Button
           onClick={() => {
             setEditing(null);
@@ -247,7 +247,7 @@ export default function BankDetailsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-white shadow-lg max-w-md w-full">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <DialogTitle className="text-xl font-semibold">
+            <DialogTitle className="subsection-heading">
               {editing ? "Edit Bank Detail" : "Add New Bank Detail"}
             </DialogTitle>
             {[

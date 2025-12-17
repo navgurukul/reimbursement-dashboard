@@ -120,7 +120,7 @@ export function ExpenseComments({ expenseId }: CommentProps) {
         >
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
         </svg>
-        <h2 className="text-lg font-medium text-gray-900">Comments</h2>
+        <h2 className="card-title">Comments</h2>
       </div>
 
       <div className="space-y-4 border-b border-gray-200 pb-5">

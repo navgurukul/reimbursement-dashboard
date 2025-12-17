@@ -125,11 +125,11 @@ export default function ExpenseEventsPage() {
   };
 
   return (
-    <div className="max-w-[1200px] mx-auto py-6 space-y-6">
+    <div className="max-w-[1200px] mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Expense Events</h1>
-          <p className="text-gray-500">
+          <h1 className="page-title">Expense Events</h1>
+          <p className="descriptive-text">
             Group your expenses by events for better organization
           </p>
         </div>
