@@ -5,7 +5,15 @@ import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses } from "@/lib/db";
 import { useParams, useRouter } from "next/navigation";
-import { IndianRupee, Pencil, Save, Trash2, Funnel, Undo2 } from "lucide-react";
+import {
+  IndianRupee,
+  Pencil,
+  Save,
+  Trash2,
+  Funnel,
+  Undo2,
+  Filter,
+} from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -359,12 +367,8 @@ export default function PaymentRecords() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end">
         <div className="mt-2 sm:mt-0">
-          <Button
-            size="sm"
-            onClick={() => setFilterOpen((s) => !s)}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <Funnel className="w-4 h-4" />
+          <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
+            <Filter className="mr-2 h-4 w-4" />
             Filters
           </Button>
         </div>

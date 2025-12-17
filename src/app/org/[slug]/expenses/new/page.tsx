@@ -42,7 +42,7 @@ import {
   CalendarIcon,
   Save,
   Upload,
-  Trash,
+  Trash2,
   Info,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";

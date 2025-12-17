@@ -256,18 +256,11 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-[1320px] mx-auto min-h-screen">
-      <Button
-        variant="link"
-        onClick={() => router.push(`/org/${organization?.slug}`)}
-        // className="text-sm"
-      >
-        <ArrowLeft /> Back to Dashboard
-      </Button>
-      <h1 className="section-heading my-1 text-center">My Profile</h1>
-      <p className="descriptive-text mb-8 text-center text-base">
-        View personal and bank information
-      </p>
+    <div className="max-w-[1320px] mx-auto min-h-screen space-y-6">
+      <div>
+        <h1 className="page-title">My Profile</h1>
+        <p className="descriptive-text">View personal and bank information</p>
+      </div>
 
       {/* Personal Information */}
       <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 flex flex-col md:flex-row gap-8 shadow-sm">
@@ -328,7 +321,7 @@ export default function ProfilePage() {
 
         <div className="flex-1 flex flex-col gap-8 justify-center">
           <div className="flex items-center gap-2 mb-2">
-            <User className="w-6 h-6 text-[#111827]" />
+            {/* <User className="w-6 h-6 text-[#111827]" /> */}
             <span className="font-bold text-xl text-[#111827]">
               Personal Information
             </span>
@@ -405,7 +398,7 @@ export default function ProfilePage() {
       {/* Bank Information */}
       <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 shadow-sm">
         <div className="flex items-center gap-2 mb-6">
-          <Landmark className="w-6 h-6 text-[#111827]" />
+          {/* <Landmark className="w-6 h-6 text-[#111827]" /> */}
           <span className="font-bold text-xl text-[#111827]">
             Bank Information
           </span>

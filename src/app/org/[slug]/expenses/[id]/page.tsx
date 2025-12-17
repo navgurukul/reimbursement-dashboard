@@ -20,7 +20,7 @@ import {
   X,
   FileText,
   AlertCircle,
-  Edit,
+  Pencil,
   Clock,
   Copy,
   Share2,

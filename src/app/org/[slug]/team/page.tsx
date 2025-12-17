@@ -34,7 +34,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Trash,
+  Trash2,
   Copy,
   Link2,
   Users,
@@ -759,8 +759,8 @@ export default function TeamPage() {
 
                         {(userRole === "owner" || userRole === "admin") &&
                           m.role !== "owner" && (
-                            <Trash
-                              className="w-5 h-5 text-red-500 cursor-pointer hover:text-red-700"
+                            <Trash2
+                              className="w-4 h-4 text-red-600 cursor-pointer hover:text-red-800"
                               onClick={() => confirmDeleteMember(m.id)}
                             />
                           )}

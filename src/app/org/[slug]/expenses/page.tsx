@@ -31,7 +31,7 @@ import {
   Download,
   MoreHorizontal,
   Eye,
-  Edit,
+  Pencil,
   Copy,
   Trash2,
 } from "lucide-react";
@@ -706,7 +706,6 @@ export default function ExpensesPage() {
                 <Button
                   variant="outline"
                   onClick={() => setShowFilters((s) => !s)}
-                  className="cursor-pointer"
                 >
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
@@ -1171,7 +1170,7 @@ export default function ExpensesPage() {
                                   <TooltipProvider>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <Edit
+                                        <Pencil
                                           className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                           onClick={() =>
                                             router.push(
@@ -1192,7 +1191,7 @@ export default function ExpensesPage() {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <Trash2
-                                        className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
+                                        className="w-4 h-4 text-red-600 cursor-pointer hover:text-red-800"
                                         onClick={() => handleDelete(exp.id)}
                                       />
                                     </TooltipTrigger>

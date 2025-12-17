@@ -12,10 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowLeft,
-  Edit,
+  Pencil,
   PlusCircle,
   Save,
-  Trash,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -383,7 +383,7 @@ export default function ExpenseEventDetailPage() {
                 className="text-red-600"
                 onClick={() => setShowDeleteModal(true)}
               >
-                <Trash className="mr-2 h-4 w-4" />
+                <Trash2 className="mr-2 h-4 w-4" />
                 Delete
               </Button>
 
@@ -403,7 +403,7 @@ export default function ExpenseEventDetailPage() {
                 </Button>
               ) : (
                 <Button variant="outline" onClick={() => setEditing(true)}>
-                  <Edit className="mr-2 h-4 w-4" />
+                  <Pencil className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
               )}
