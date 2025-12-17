@@ -12,10 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowLeft,
-  Edit,
+  Pencil,
   PlusCircle,
   Save,
-  Trash,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -28,7 +28,10 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import {
+  ExpenseStatusBadge,
+  EventStatusBadge,
+} from "@/components/ExpenseStatusBadge";
 import { formatDate, formatCurrency } from "@/lib/utils";
 
 interface ExpenseEvent {
@@ -49,7 +52,13 @@ interface Expense {
   amount: number;
   approved_amount?: number;
   date: string;
-  status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed" | "approved_as_per_policy";
+  status:
+    | "draft"
+    | "submitted"
+    | "approved"
+    | "rejected"
+    | "reimbursed"
+    | "approved_as_per_policy";
   receipt: any;
   custom_fields: Record<string, any>;
   approver_id?: string;
@@ -78,7 +87,7 @@ const ConfirmModal = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-md w-full">
         <div className="flex justify-between items-start mb-4">
-          <h3 className="text-lg font-semibold">{title}</h3>
+          <h3 className="card-title">{title}</h3>
           <button
             onClick={onClose}
             className="rounded-full p-1 hover:bg-gray-100"
@@ -96,7 +105,7 @@ const ConfirmModal = ({
               onConfirm();
               onClose();
             }}
-            className="bg-red-600 text-white hover:bg-red-700"
+            variant="destructive"
           >
             Delete
           </Button>
@@ -150,7 +159,8 @@ export default function ExpenseEventDetailPage() {
         setEventExpenses(
           (expensesData || []).map((exp: any) => ({
             ...exp,
-            approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+            approved_amount:
+              exp.approved_amount === null ? undefined : exp.approved_amount,
           })) as Expense[]
         );
       } catch (error: any) {
@@ -165,19 +175,17 @@ export default function ExpenseEventDetailPage() {
 
     fetchEventDetails();
   }, [eventId, orgId, slug, router]);
-  
+
   const approvedStatuses = [
     "finance_approved",
     "approved",
     "approved_as_per_policy",
     "approve_full_amount",
-    "custom_amount"
+    "custom_amount",
   ];
 
   const approvedTotal = eventExpenses
-    .filter((exp) =>
-      approvedStatuses.includes(exp.status?.toLowerCase())
-    )
+    .filter((exp) => approvedStatuses.includes(exp.status?.toLowerCase()))
     .reduce((sum, exp) => sum + (exp.approved_amount || 0), 0);
 
   // Total of all created expenses linked to this event
@@ -269,7 +277,8 @@ export default function ExpenseEventDetailPage() {
       setEventExpenses(
         (expensesData || []).map((exp: any) => ({
           ...exp,
-          approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+          approved_amount:
+            exp.approved_amount === null ? undefined : exp.approved_amount,
         }))
       );
     } catch (error: any) {
@@ -281,7 +290,6 @@ export default function ExpenseEventDetailPage() {
     }
   };
 
-
   function getEventTimelineStatus(startDate: string, endDate: string): string {
     const today = new Date();
     const start = new Date(startDate);
@@ -291,7 +299,6 @@ export default function ExpenseEventDetailPage() {
     if (today > end) return "Closed";
     return "Ongoing";
   }
-
 
   const handleRemoveExpense = async (expenseId: string) => {
     try {
@@ -307,7 +314,8 @@ export default function ExpenseEventDetailPage() {
       setEventExpenses(
         (data || []).map((exp: any) => ({
           ...exp,
-          approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+          approved_amount:
+            exp.approved_amount === null ? undefined : exp.approved_amount,
         }))
       );
 
@@ -332,7 +340,7 @@ export default function ExpenseEventDetailPage() {
   if (!event) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold mb-2">Event not found</h2>
+        <h2 className="subsection-heading mb-2">Event not found</h2>
         <p className="text-gray-500 mb-4">
           The expense event you're looking for doesn't exist.
         </p>
@@ -375,7 +383,7 @@ export default function ExpenseEventDetailPage() {
                 className="text-red-600"
                 onClick={() => setShowDeleteModal(true)}
               >
-                <Trash className="mr-2 h-4 w-4" />
+                <Trash2 className="mr-2 h-4 w-4" />
                 Delete
               </Button>
 
@@ -395,7 +403,7 @@ export default function ExpenseEventDetailPage() {
                 </Button>
               ) : (
                 <Button variant="outline" onClick={() => setEditing(true)}>
-                  <Edit className="mr-2 h-4 w-4" />
+                  <Pencil className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
               )}
@@ -403,7 +411,7 @@ export default function ExpenseEventDetailPage() {
               <Button
                 onClick={handleSubmitEvent}
                 disabled={saving || eventExpenses.length === 0}
-                className="bg-black text-white hover:bg-black/90"
+                variant="neutral"
               >
                 Submit Event
               </Button>
@@ -427,19 +435,10 @@ export default function ExpenseEventDetailPage() {
                 <CardTitle className="text-xl">{event.title}</CardTitle>
               )}
               <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4">
-                <Badge
-                  className={(() => {
-                    const status = getEventTimelineStatus(event.start_date, event.end_date);
-                    return status === "Ongoing"
-                      ? "bg-green-100 text-green-800"
-                      : status === "Upcoming"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-gray-300 text-gray-800";
-                  })()}
-                  variant="outline"
-                >
-                  {getEventTimelineStatus(event.start_date, event.end_date)}
-                </Badge>
+                <EventStatusBadge
+                  startDate={event.start_date}
+                  endDate={event.end_date}
+                />
                 <p className="text-sm text-gray-500 mt-1 sm:mt-0 sm:ml-2">
                   {editing ? (
                     <div className="flex flex-col sm:flex-row sm:space-x-2">
@@ -463,7 +462,8 @@ export default function ExpenseEventDetailPage() {
                     </div>
                   ) : (
                     <>
-                      {formatDate(event.start_date)} - {formatDate(event.end_date)}
+                      {formatDate(event.start_date)} -{" "}
+                      {formatDate(event.end_date)}
                     </>
                   )}
                 </p>
@@ -474,7 +474,9 @@ export default function ExpenseEventDetailPage() {
               <p className="text-xl font-bold">
                 {formatCurrency(createdTotal)}
               </p>
-              <p className="text-xl font-medium text-green-600 mt-2">Approved Amount</p>
+              <p className="text-xl font-medium text-green-600 mt-2">
+                Approved Amount
+              </p>
               <p className="text-xl font-bold text-green-600">
                 {formatCurrency(approvedTotal)}
               </p>
@@ -487,7 +489,9 @@ export default function ExpenseEventDetailPage() {
             {editing ? (
               <Textarea
                 value={editedEvent.description || ""}
-                onChange={(e) => handleInputChange("description", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("description", e.target.value)
+                }
                 placeholder="Event description"
                 className="min-h-[100px]"
               />
@@ -499,7 +503,7 @@ export default function ExpenseEventDetailPage() {
           </div>
           <div className="mt-6 pt-6 border-t">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Expenses</h3>
+              <h3 className="card-title">Expenses</h3>
               {event.status === "draft" && (
                 <Button
                   onClick={() =>
@@ -552,20 +556,11 @@ export default function ExpenseEventDetailPage() {
                         {expense.custom_fields?.description || "—"}
                       </TableCell>
                       <TableCell>{formatCurrency(expense.amount)}</TableCell>
-                      <TableCell>{formatCurrency(expense.approved_amount || 0)}</TableCell>
                       <TableCell>
-                        <Badge
-                          className={`${["approved", "finance_approved"].includes(expense.status)
-                            ? "bg-green-100 text-green-800 hover:bg-green-700 hover:text-white"
-                            : ["rejected", "finance_rejected"].includes(expense.status)
-                              ? "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white"
-                              : expense.status === "submitted"
-                                ? "bg-amber-100 text-amber-800 hover:bg-amber-700 hover:text-white"
-                                : "bg-gray-100 text-gray-800 hover:bg-gray-700 hover:text-white"
-                            }`}
-                        >
-                          {expense.status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                        </Badge>
+                        {formatCurrency(expense.approved_amount || 0)}
+                      </TableCell>
+                      <TableCell>
+                        <ExpenseStatusBadge status={expense.status} />
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">

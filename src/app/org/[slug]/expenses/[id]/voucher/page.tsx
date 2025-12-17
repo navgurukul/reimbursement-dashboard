@@ -8,15 +8,17 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 import { ArrowLeft, Download } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import supabase from "@/lib/supabase";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { voucherAttachments } from "@/lib/db";
 
 // Add type augmentation for jsPDF
-declare module 'jspdf' {
+declare module "jspdf" {
   interface jsPDF {
     autoTable: typeof autoTable;
     lastAutoTable: {
@@ -41,7 +43,8 @@ export default function VoucherViewPage() {
   const [userSignatureUrl, setUserSignatureUrl] = useState<string | null>(null);
   const [approverName, setApproverName] = useState<string | null>(null);
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
-  const fromPaymentProcessing = searchParams.get("from") === "payment-processing";
+  const fromPaymentProcessing =
+    searchParams.get("from") === "payment-processing";
 
   // Fetch attachment URL after voucher loads
   useEffect(() => {
@@ -129,11 +132,7 @@ export default function VoucherViewPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!voucher || !expense) {
@@ -180,8 +179,8 @@ export default function VoucherViewPage() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
-      const margin = 20;      // outer margin
-      const padding = 10;     // inner padding inside border
+      const margin = 20; // outer margin
+      const padding = 10; // inner padding inside border
 
       // ===== Outer rounded border (card) =====
       doc.setDrawColor(0);
@@ -192,7 +191,7 @@ export default function VoucherViewPage() {
         pageWidth - margin * 2,
         pageHeight - margin * 2,
         0,
-        0,
+        0
       );
 
       // ===== Header =====
@@ -279,7 +278,11 @@ export default function VoucherViewPage() {
         },
         // Amount in green + bold
         didParseCell: (d) => {
-          if (d.section === "body" && d.row.index === 1 && d.column.index === 1) {
+          if (
+            d.section === "body" &&
+            d.row.index === 1 &&
+            d.column.index === 1
+          ) {
             d.cell.styles.textColor = [0, 0, 0];
             d.cell.styles.fontStyle = "bold";
           }
@@ -359,7 +362,12 @@ export default function VoucherViewPage() {
       // Divider line
       doc.setDrawColor(120);
       doc.setLineWidth(0.2);
-      doc.line(margin + padding, bottomFooterY, pageWidth - margin - padding, bottomFooterY);
+      doc.line(
+        margin + padding,
+        bottomFooterY,
+        pageWidth - margin - padding,
+        bottomFooterY
+      );
 
       doc.setFont("helvetica", "italic");
       doc.setFontSize(12);
@@ -368,7 +376,7 @@ export default function VoucherViewPage() {
       doc.text(
         "This is a computer-generated voucher and is valid without physical signature.",
         pageWidth / 2,
-        pageHeight - margin - 6,   // always just above bottom border
+        pageHeight - margin - 6, // always just above bottom border
         { align: "center" }
       );
 
@@ -405,7 +413,9 @@ export default function VoucherViewPage() {
         ) : fromPaymentProcessing ? (
           <Button
             variant="outline"
-            onClick={() => router.push(`/org/${slug}/finance/payments/${expenseId}`)}
+            onClick={() =>
+              router.push(`/org/${slug}/finance/payments/${expenseId}`)
+            }
             className="text-gray-600 hover:text-gray-900 cursor-pointer"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -422,7 +432,11 @@ export default function VoucherViewPage() {
           </Button>
         )}
 
-        <Button variant="outline" onClick={handleDownloadPDF} className="cursor-pointer">
+        <Button
+          variant="outline"
+          onClick={handleDownloadPDF}
+          className="cursor-pointer"
+        >
           <Download className="mr-2 h-4 w-4" />
           Download PDF
         </Button>
@@ -432,9 +446,7 @@ export default function VoucherViewPage() {
         <CardHeader className="bg-gray-50 border-b">
           <div className="flex justify-between items-center">
             <CardTitle className="text-xl font-medium">Voucher</CardTitle>
-            <div className="py-1 px-3 rounded-full text-xs bg-amber-100 text-amber-800">
-              {expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
-            </div>
+            <ExpenseStatusBadge status={expense.status} />
           </div>
         </CardHeader>
 
@@ -480,29 +492,32 @@ export default function VoucherViewPage() {
           </div>
 
           {/* Attachment Section */}
-          {voucher?.attachment && (() => {
-            const [fileName] = String(voucher.attachment).split(",");
-            if (!attachmentUrl) {
+          {voucher?.attachment &&
+            (() => {
+              const [fileName] = String(voucher.attachment).split(",");
+              if (!attachmentUrl) {
+                return (
+                  <div className="mt-6 border-b pb-6 mb-6">
+                    <h3 className="text-base font-medium mb-2">Attachment</h3>
+                    <p className="text-gray-500 text-sm">
+                      Loading attachment...
+                    </p>
+                  </div>
+                );
+              }
               return (
                 <div className="mt-6 border-b pb-6 mb-6">
                   <h3 className="text-base font-medium mb-2">Attachment</h3>
-                  <p className="text-gray-500 text-sm">Loading attachment...</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(attachmentUrl, "_blank")}
+                    className="inline-flex items-center text-blue-800 hover:text-blue-800 cursor-pointer"
+                  >
+                    View Attachment
+                  </Button>
                 </div>
               );
-            }
-            return (
-              <div className="mt-6 border-b pb-6 mb-6">
-                <h3 className="text-base font-medium mb-2">Attachment</h3>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(attachmentUrl, "_blank")}
-                  className="inline-flex items-center text-blue-800 hover:text-blue-800 cursor-pointer"
-                >
-                  View Attachment
-                </Button>
-              </div>
-            );
-          })()}
+            })()}
 
           <div>
             <h3 className="text-base font-medium mb-4">Signature</h3>

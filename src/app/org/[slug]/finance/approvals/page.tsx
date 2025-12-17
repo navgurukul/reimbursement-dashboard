@@ -30,7 +30,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
 
 const formatCurrency = (amount: number) =>
@@ -131,7 +132,9 @@ export default function FinanceReview() {
 
       const results = await Promise.all(
         expenseList.map((expense) =>
-          expenses.updateByFinance(expense.id, true, "").catch((err) => ({ error: err }))
+          expenses
+            .updateByFinance(expense.id, true, "")
+            .catch((err) => ({ error: err }))
         )
       );
 
@@ -150,50 +153,53 @@ export default function FinanceReview() {
     }
   };
 
-
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800">Finance Review</h2>
+      <div className="flex items-center justify-end">
+        {/* <h2 className="subsection-heading">Finance Review</h2> */}
         <Button
           onClick={() => setConfirmApproveAllOpen(true)}
-          className="bg-gray-600 hover:bg-gray-700 text-white cursor-pointer"
           disabled={expenseList.length === 0 || loading}
         >
           Approve All
         </Button>
-
       </div>
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300">
             <TableRow>
-              <TableHead className="text-center py-3">S.No.</TableHead>
-              <TableHead className="text-center py-3">Timestamp</TableHead>
-              <TableHead className="text-center py-3">Unique ID</TableHead>
-              <TableHead className="text-center py-3">Expense Type</TableHead>
-              <TableHead className="text-center py-3">Event Name</TableHead>
-              <TableHead className="text-center py-3">Location</TableHead>
-              <TableHead className="text-center py-3">Amount</TableHead>
-              <TableHead className="text-center py-3">Date</TableHead>
-              <TableHead className="text-center py-3">Submitted By</TableHead>
-              <TableHead className="text-center py-3">Approved By</TableHead>
-              <TableHead className="text-center py-3">Status</TableHead>
-              <TableHead className="text-center py-3">Actions</TableHead>
+              <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
+              <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
+              <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Expense Type
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Event Name
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">Location</TableHead>
+              <TableHead className="px-4 py-3 text-center">Amount</TableHead>
+              <TableHead className="px-4 py-3 text-center">Date</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Submitted By
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Approved By
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">Status</TableHead>
+              <TableHead className="px-4 py-3 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={12} className="text-center py-6">
-                  Loading...
-                </TableCell>
-              </TableRow>
+              <TableSkeleton colSpan={12} rows={5} />
             ) : expenseList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
+                <TableCell
+                  colSpan={12}
+                  className="text-center py-6 text-muted-foreground"
+                >
                   No expenses pending finance review
                 </TableCell>
               </TableRow>
@@ -201,32 +207,48 @@ export default function FinanceReview() {
               expenseList.map((expense, index) => (
                 <TableRow
                   key={expense.id}
-                  className="hover:bg-gray-50 transition-all py-3"
+                  className="hover:bg-gray-50 transition-colors"
                 >
-                  <TableCell className="text-center py-3">{index + 1}</TableCell>
-                  <TableCell className="text-center py-3 whitespace-nowrap">{formatDateTime(expense.created_at)}</TableCell>
-                    <TableCell className="text-center py-3">
-                      <span className="font-mono">{expense.unique_id || "N/A"}</span>
-                    </TableCell>
-                  <TableCell className="text-center py-3">{expense.expense_type}</TableCell>
-                  <TableCell className="text-center py-3">{expense.event_title || "N/A"}</TableCell>
-                  <TableCell className="text-center py-3">{expense.location || "N/A"}</TableCell>
-                  <TableCell className="text-center py-3 font-medium text-green-700">
+                  <TableCell className="px-4 py-3 text-center">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center whitespace-nowrap">
+                    {formatDateTime(expense.created_at)}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <span className="font-mono">
+                      {expense.unique_id || "N/A"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.expense_type}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.event_title || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.location || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center font-medium text-green-700">
                     {formatCurrency(expense.amount)}
                   </TableCell>
-                  <TableCell className="text-center py-3 whitespace-nowrap">
+                  <TableCell className="px-4 py-3 text-center whitespace-nowrap">
                     {new Date(expense.date).toLocaleDateString("en-IN", {
                       day: "2-digit",
                       month: "short",
                       year: "numeric",
                     })}
                   </TableCell>
-                  <TableCell className="text-center py-3">{expense.creator_name}</TableCell>
-                  <TableCell className="text-center py-3">{expense.approver_name}</TableCell>
-                  <TableCell className="text-center py-3">
-                    <Badge variant="success">Manager Approved</Badge>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.creator_name}
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.approver_name}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <ExpenseStatusBadge status="approved" />
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -249,18 +271,24 @@ export default function FinanceReview() {
           </TableBody>
         </Table>
       </div>
-      <Dialog open={confirmApproveAllOpen} onOpenChange={setConfirmApproveAllOpen}>
+      <Dialog
+        open={confirmApproveAllOpen}
+        onOpenChange={setConfirmApproveAllOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Bulk Approval</DialogTitle>
           </DialogHeader>
           <p>Are you sure you want to approve all listed expenses?</p>
           <DialogFooter className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setConfirmApproveAllOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmApproveAllOpen(false)}
+            >
               Cancel
             </Button>
             <Button
-              className="bg-gray-600 hover:bg-gray-700 text-white"
+              variant="neutral"
               onClick={async () => {
                 setConfirmApproveAllOpen(false);
                 await handleApproveAll(); // Call the actual approval logic
@@ -271,7 +299,6 @@ export default function FinanceReview() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

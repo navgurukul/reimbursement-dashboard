@@ -5,11 +5,27 @@ import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses } from "@/lib/db";
 import { useParams, useRouter } from "next/navigation";
-import { IndianRupee, Pencil, Save, Trash2, Funnel, Undo2 } from "lucide-react";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { formatDateTime } from '@/lib/utils';
+import {
+  IndianRupee,
+  Pencil,
+  Save,
+  Trash2,
+  Funnel,
+  Undo2,
+  Filter,
+} from "lucide-react";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
+import { formatDateTime } from "@/lib/utils";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,20 +69,26 @@ export default function PaymentRecords() {
   const [filterOpen, setFilterOpen] = useState(false);
 
   // State for UTR editing functionality
-  const [editingFields, setEditingFields] = useState<Record<string, { utr?: boolean }>>({});
+  const [editingFields, setEditingFields] = useState<
+    Record<string, { utr?: boolean }>
+  >({});
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordModal, setPasswordModal] = useState({
     open: false,
     expenseId: null as null | string,
   });
   const [enteredPassword, setEnteredPassword] = useState("");
-  const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string | null }>({
+  const [deleteModal, setDeleteModal] = useState<{
+    open: boolean;
+    id: string | null;
+  }>({
     open: false,
     id: null,
   });
-  const [sendBackModal, setSendBackModal] = useState<{ open: boolean; id: string | null }>(
-    { open: false, id: null },
-  );
+  const [sendBackModal, setSendBackModal] = useState<{
+    open: boolean;
+    id: string | null;
+  }>({ open: false, id: null });
   const [sendBackLoading, setSendBackLoading] = useState(false);
 
   const ADMIN_PASSWORD = "admin"; // your password
@@ -145,11 +167,15 @@ export default function PaymentRecords() {
 
         // Fetch bank details to enrich records with user's unique_id (if available)
         try {
-          const { data: bankData, error: bankError } = await supabase.from("bank_details").select("*");
+          const { data: bankData, error: bankError } = await supabase
+            .from("bank_details")
+            .select("*");
           if (bankError) throw bankError;
 
           const enriched = withTitles.map((r: any) => {
-            const matched = bankData?.find((b: any) => b.email === r.creator_email);
+            const matched = bankData?.find(
+              (b: any) => b.email === r.creator_email
+            );
             return {
               ...r,
               unique_id: r.unique_id || matched?.unique_id || "N/A",
@@ -157,7 +183,9 @@ export default function PaymentRecords() {
           });
 
           // compute amount bounds
-          const amounts = enriched.map((r: any) => Number(r.approved_amount) || 0);
+          const amounts = enriched.map(
+            (r: any) => Number(r.approved_amount) || 0
+          );
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
 
@@ -167,8 +195,13 @@ export default function PaymentRecords() {
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
-          const fallback = withTitles.map((r: any) => ({ ...r, unique_id: r.unique_id || "N/A" }));
-          const amounts = fallback.map((r: any) => Number(r.approved_amount) || 0);
+          const fallback = withTitles.map((r: any) => ({
+            ...r,
+            unique_id: r.unique_id || "N/A",
+          }));
+          const amounts = fallback.map(
+            (r: any) => Number(r.approved_amount) || 0
+          );
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
 
@@ -188,11 +221,21 @@ export default function PaymentRecords() {
   }, []);
 
   // Derive options from fetched records
-  const expenseTypes = Array.from(new Set(records.map((r: any) => r.expense_type).filter(Boolean)));
-  const eventNames = Array.from(new Set(records.map((r: any) => r.event_title).filter(Boolean)));
-  const creators = Array.from(new Set(records.map((r: any) => r.creator_email).filter(Boolean)));
-  const locations = Array.from(new Set(records.map((r: any) => r.location).filter(Boolean)));
-  const uniqueIds = Array.from(new Set(records.map((r: any) => r.unique_id).filter(Boolean)));
+  const expenseTypes = Array.from(
+    new Set(records.map((r: any) => r.expense_type).filter(Boolean))
+  );
+  const eventNames = Array.from(
+    new Set(records.map((r: any) => r.event_title).filter(Boolean))
+  );
+  const creators = Array.from(
+    new Set(records.map((r: any) => r.creator_email).filter(Boolean))
+  );
+  const locations = Array.from(
+    new Set(records.map((r: any) => r.location).filter(Boolean))
+  );
+  const uniqueIds = Array.from(
+    new Set(records.map((r: any) => r.unique_id).filter(Boolean))
+  );
   const utrValues = Array.from(
     new Set(
       (filters.uniqueId && filters.uniqueId !== "All Unique IDs"
@@ -206,12 +249,33 @@ export default function PaymentRecords() {
 
   const applyFilters = () => {
     const fr = records.filter((r: any) => {
-      if (filters.expenseType !== "All Expense Type" && r.expense_type !== filters.expenseType) return false;
-      if (filters.eventName !== "All Events" && (r.event_title || "N/A") !== filters.eventName) return false;
-      if (filters.createdBy !== "All Creators" && r.creator_email !== filters.createdBy) return false;
-      if (filters.email !== "All Emails" && r.creator_email !== filters.email) return false;
-      if (filters.uniqueId !== "All Unique IDs" && (r.unique_id || "") !== filters.uniqueId) return false;
-      if (filters.location !== "All Locations" && (r.location || "") !== filters.location) return false;
+      if (
+        filters.expenseType !== "All Expense Type" &&
+        r.expense_type !== filters.expenseType
+      )
+        return false;
+      if (
+        filters.eventName !== "All Events" &&
+        (r.event_title || "N/A") !== filters.eventName
+      )
+        return false;
+      if (
+        filters.createdBy !== "All Creators" &&
+        r.creator_email !== filters.createdBy
+      )
+        return false;
+      if (filters.email !== "All Emails" && r.creator_email !== filters.email)
+        return false;
+      if (
+        filters.uniqueId !== "All Unique IDs" &&
+        (r.unique_id || "") !== filters.uniqueId
+      )
+        return false;
+      if (
+        filters.location !== "All Locations" &&
+        (r.location || "") !== filters.location
+      )
+        return false;
       if (filters.bills !== "All Bills") {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
@@ -219,7 +283,12 @@ export default function PaymentRecords() {
       if (filters.utr && filters.utr !== "All UTRs") {
         if (filters.utr === "Has" && !r.utr) return false;
         if (filters.utr === "None" && r.utr) return false;
-        if (filters.utr !== "Has" && filters.utr !== "None" && (r.utr || "") !== filters.utr) return false;
+        if (
+          filters.utr !== "Has" &&
+          filters.utr !== "None" &&
+          (r.utr || "") !== filters.utr
+        )
+          return false;
       }
       if (filters.startDate) {
         const start = new Date(filters.startDate);
@@ -233,8 +302,10 @@ export default function PaymentRecords() {
         if (recDate > end) return false;
       }
       const amt = Number(r.approved_amount) || 0;
-      if (filters.minAmount !== null && amt < Number(filters.minAmount)) return false;
-      if (filters.maxAmount !== null && amt > Number(filters.maxAmount)) return false;
+      if (filters.minAmount !== null && amt < Number(filters.minAmount))
+        return false;
+      if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
+        return false;
 
       return true;
     });
@@ -294,18 +365,10 @@ export default function PaymentRecords() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-        <div className="flex items-center gap-2">
-          <IndianRupee className="h-5 w-5" />
-          <h2 className="text-xl font-semibold">Payment Records</h2>
-        </div>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end">
         <div className="mt-2 sm:mt-0">
-          <Button
-            size="sm"
-            onClick={() => setFilterOpen((s) => !s)}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <Funnel className="w-4 h-4" />
+          <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
+            <Filter className="mr-2 h-4 w-4" />
             Filters
           </Button>
         </div>
@@ -320,11 +383,15 @@ export default function PaymentRecords() {
               <select
                 className="mt-1 block w-full border rounded px-3 py-2 bg-gray-50 dark:bg-gray-800"
                 value={filters.expenseType}
-                onChange={(e) => setFilters((f) => ({ ...f, expenseType: e.target.value }))}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, expenseType: e.target.value }))
+                }
               >
                 <option>All Expense Type</option>
                 {expenseTypes.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
             </div>
@@ -334,11 +401,15 @@ export default function PaymentRecords() {
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.eventName}
-                onChange={(e) => setFilters((f) => ({ ...f, eventName: e.target.value }))}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, eventName: e.target.value }))
+                }
               >
                 <option>All Events</option>
                 {eventNames.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
             </div>
@@ -348,11 +419,15 @@ export default function PaymentRecords() {
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.email}
-                onChange={(e) => setFilters((f) => ({ ...f, email: e.target.value }))}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, email: e.target.value }))
+                }
               >
                 <option>All Emails</option>
                 {creators.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
             </div>
@@ -362,11 +437,15 @@ export default function PaymentRecords() {
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.uniqueId}
-                onChange={(e) => setFilters((f) => ({ ...f, uniqueId: e.target.value }))}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, uniqueId: e.target.value }))
+                }
               >
                 <option>All Unique IDs</option>
                 {uniqueIds.map((id) => (
-                  <option key={id} value={id}>{id}</option>
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
                 ))}
               </select>
             </div>
@@ -376,11 +455,15 @@ export default function PaymentRecords() {
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.location}
-                onChange={(e) => setFilters((f) => ({ ...f, location: e.target.value }))}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, location: e.target.value }))
+                }
               >
                 <option>All Locations</option>
                 {locations.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
             </div>
@@ -390,7 +473,9 @@ export default function PaymentRecords() {
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.bills}
-                onChange={(e) => setFilters((f) => ({ ...f, bills: e.target.value }))}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, bills: e.target.value }))
+                }
               >
                 <option>All Receipt/Voucher</option>
                 <option>Receipt</option>
@@ -404,11 +489,15 @@ export default function PaymentRecords() {
                 <select
                   className="mt-1 block w-full border rounded px-3 py-2"
                   value={filters.utr}
-                  onChange={(e) => setFilters((f) => ({ ...f, utr: e.target.value }))}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, utr: e.target.value }))
+                  }
                 >
                   <option value="All UTRs">All UTRs</option>
                   {utrValues.map((u) => (
-                    <option key={u} value={u}>{u}</option>
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -422,8 +511,20 @@ export default function PaymentRecords() {
                 onChange={(e) => {
                   const mode = e.target.value;
                   setFilters((f) => {
-                    if (mode === "All Dates") return { ...f, dateMode: mode, startDate: "", endDate: "" };
-                    if (mode === "Single Date") return { ...f, dateMode: mode, startDate: f.startDate || "", endDate: f.startDate || "" };
+                    if (mode === "All Dates")
+                      return {
+                        ...f,
+                        dateMode: mode,
+                        startDate: "",
+                        endDate: "",
+                      };
+                    if (mode === "Single Date")
+                      return {
+                        ...f,
+                        dateMode: mode,
+                        startDate: f.startDate || "",
+                        endDate: f.startDate || "",
+                      };
                     return { ...f, dateMode: mode };
                   });
                 }}
@@ -442,7 +543,13 @@ export default function PaymentRecords() {
                       type="date"
                       className="mt-1 block w-full border rounded px-3 py-2"
                       value={filters.startDate}
-                      onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value, endDate: e.target.value }))}
+                      onChange={(e) =>
+                        setFilters((f) => ({
+                          ...f,
+                          startDate: e.target.value,
+                          endDate: e.target.value,
+                        }))
+                      }
                     />
                   </>
                 ) : filters.dateMode === "Custom Date" ? (
@@ -452,14 +559,20 @@ export default function PaymentRecords() {
                       type="date"
                       className="mt-1 block w-full border rounded px-3 py-2"
                       value={filters.startDate}
-                      onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, startDate: e.target.value }))
+                      }
                     />
-                    <label className="text-sm font-medium mt-2 block">End Date</label>
+                    <label className="text-sm font-medium mt-2 block">
+                      End Date
+                    </label>
                     <input
                       type="date"
                       className="mt-1 block w-full border rounded px-3 py-2"
                       value={filters.endDate}
-                      onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, endDate: e.target.value }))
+                      }
                     />
                   </>
                 ) : null}
@@ -472,7 +585,12 @@ export default function PaymentRecords() {
                 type="number"
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.minAmount}
-                onChange={(e) => setFilters((f) => ({ ...f, minAmount: Number(e.target.value) }))}
+                onChange={(e) =>
+                  setFilters((f) => ({
+                    ...f,
+                    minAmount: Number(e.target.value),
+                  }))
+                }
               />
             </div>
 
@@ -482,13 +600,25 @@ export default function PaymentRecords() {
                 type="number"
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.maxAmount}
-                onChange={(e) => setFilters((f) => ({ ...f, maxAmount: Number(e.target.value) }))}
+                onChange={(e) =>
+                  setFilters((f) => ({
+                    ...f,
+                    maxAmount: Number(e.target.value),
+                  }))
+                }
               />
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-3">
-            <Button className="cursor-pointer" onClick={clearFilters}>Clear</Button>
-            <Button className="cursor-pointer" onClick={() => setFilterOpen(false)}>Close</Button>
+            <Button className="cursor-pointer" onClick={clearFilters}>
+              Clear
+            </Button>
+            <Button
+              className="cursor-pointer"
+              onClick={() => setFilterOpen(false)}
+            >
+              Close
+            </Button>
           </div>
         </div>
       )}
@@ -533,7 +663,7 @@ export default function PaymentRecords() {
                         // Close any open UTR editing fields
                         setEditingFields((prev) => {
                           const updated = { ...prev };
-                          Object.keys(updated).forEach(key => {
+                          Object.keys(updated).forEach((key) => {
                             if (updated[key].utr) {
                               updated[key] = { ...updated[key], utr: false };
                             }
@@ -555,26 +685,43 @@ export default function PaymentRecords() {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={14} className="text-center py-6">Loading...</TableCell>
-              </TableRow>
+              <TableSkeleton colSpan={14} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                <TableCell
+                  colSpan={14}
+                  className="text-center py-6 text-gray-500"
+                >
                   No payment records found.
                 </TableCell>
               </TableRow>
             ) : (
               filteredRecords.map((record, index) => (
                 <TableRow key={record.id}>
-                  <TableCell className="text-center py-2">{index + 1}</TableCell>
-                  <TableCell className="text-center py-2">{formatDateTime(record.updated_at || record.created_at)}</TableCell>
-                  <TableCell className="text-center py-2">{record.creator_email}</TableCell>
-                  <TableCell className="text-center py-2">{record.unique_id || "N/A"}</TableCell>
-                  <TableCell className="text-center py-2">{record.expense_type}</TableCell>
-                  <TableCell className="text-center py-2">{record.event_title || "N/A"}</TableCell>
-                  <TableCell className="text-center py-2">{record.location || "N/A"}</TableCell>
-                  <TableCell className="text-center py-2">₹{record.approved_amount}</TableCell>
+                  <TableCell className="text-center py-2">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {formatDateTime(record.updated_at || record.created_at)}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.creator_email}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.unique_id || "N/A"}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.expense_type}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.event_title || "N/A"}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.location || "N/A"}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    ₹{record.approved_amount}
+                  </TableCell>
                   <TableCell className="text-center py-2">
                     {record.receipt ? (
                       <Button
@@ -583,14 +730,19 @@ export default function PaymentRecords() {
                         className="p-0 h-auto font-normal cursor-pointer text-blue-600"
                         onClick={() => {
                           if (record.receipt?.path) {
-                            expenses.getReceiptUrl(record.receipt.path).then(({ url, error }) => {
-                              if (error) {
-                                console.error("Error getting receipt URL:", error);
-                                toast.error("Failed to load receipt");
-                              } else if (url) {
-                                window.open(url, "_blank");
-                              }
-                            });
+                            expenses
+                              .getReceiptUrl(record.receipt.path)
+                              .then(({ url, error }) => {
+                                if (error) {
+                                  console.error(
+                                    "Error getting receipt URL:",
+                                    error
+                                  );
+                                  toast.error("Failed to load receipt");
+                                } else if (url) {
+                                  window.open(url, "_blank");
+                                }
+                              });
                           }
                         }}
                       >
@@ -601,7 +753,11 @@ export default function PaymentRecords() {
                         variant="link"
                         size="sm"
                         className="p-0 h-auto font-normal cursor-pointer text-blue-600"
-                        onClick={() => router.push(`/org/${slug}/expenses/${record.id}/voucher?from=records`)}
+                        onClick={() =>
+                          router.push(
+                            `/org/${slug}/expenses/${record.id}/voucher?from=records`
+                          )
+                        }
                       >
                         View Voucher
                       </Button>
@@ -612,7 +768,9 @@ export default function PaymentRecords() {
                   <TableCell className="text-center py-2">
                     {new Date(record.date).toLocaleDateString("en-IN")}
                   </TableCell>
-                  <TableCell className="text-center py-2">{record.status}</TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.status}
+                  </TableCell>
                   <TableCell className="text-center py-2">
                     {editingFields[record.id]?.utr ? (
                       <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
@@ -622,14 +780,22 @@ export default function PaymentRecords() {
                           value={record.utr || ""}
                           onChange={(e) => {
                             const updated = records.map((r) =>
-                              r.id === record.id ? { ...r, utr: e.target.value } : r
+                              r.id === record.id
+                                ? { ...r, utr: e.target.value }
+                                : r
                             );
                             setRecords(updated);
                             // keep filtered view in sync
-                            setFilteredRecords((prev) => prev.map((r: any) => r.id === record.id ? { ...r, utr: e.target.value } : r));
+                            setFilteredRecords((prev) =>
+                              prev.map((r: any) =>
+                                r.id === record.id
+                                  ? { ...r, utr: e.target.value }
+                                  : r
+                              )
+                            );
                           }}
                           onKeyDown={async (e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === "Enter") {
                               // Save UTR when Enter is pressed
                               const { error } = await supabase
                                 .from("expense_new")
@@ -642,7 +808,10 @@ export default function PaymentRecords() {
                                 toast.success("UTR updated");
                                 setEditingFields((prev) => ({
                                   ...prev,
-                                  [record.id]: { ...prev[record.id], utr: false },
+                                  [record.id]: {
+                                    ...prev[record.id],
+                                    utr: false,
+                                  },
                                 }));
                               }
                             }
@@ -666,7 +835,10 @@ export default function PaymentRecords() {
                                 toast.success("UTR updated");
                                 setEditingFields((prev) => ({
                                   ...prev,
-                                  [record.id]: { ...prev[record.id], utr: false },
+                                  [record.id]: {
+                                    ...prev[record.id],
+                                    utr: false,
+                                  },
                                 }));
                               }
                             }}
@@ -678,7 +850,9 @@ export default function PaymentRecords() {
                       </div>
                     ) : (
                       <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
-                        <span className="truncate max-w-[100px] text-sm">{record.utr || "—"}</span>
+                        <span className="truncate max-w-[100px] text-sm">
+                          {record.utr || "—"}
+                        </span>
                         <div className="w-16">
                           <Button
                             size="icon"
@@ -688,10 +862,16 @@ export default function PaymentRecords() {
                               if (isPasswordVerified) {
                                 setEditingFields((prev) => ({
                                   ...prev,
-                                  [record.id]: { ...(prev[record.id] || {}), utr: true },
+                                  [record.id]: {
+                                    ...(prev[record.id] || {}),
+                                    utr: true,
+                                  },
                                 }));
                               } else {
-                                setPasswordModal({ open: true, expenseId: record.id });
+                                setPasswordModal({
+                                  open: true,
+                                  expenseId: record.id,
+                                });
                                 setEnteredPassword("");
                               }
                             }}
@@ -704,9 +884,10 @@ export default function PaymentRecords() {
                     )}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    <Badge variant="success" className="text-xs">
-                      {record.payment_status}
-                    </Badge>
+                    <ExpenseStatusBadge
+                      status={record.payment_status}
+                      className="text-xs"
+                    />
                   </TableCell>
                   <TableCell className="text-center py-2">
                     <div className="flex items-center justify-center gap-2">
@@ -716,7 +897,9 @@ export default function PaymentRecords() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setSendBackModal({ open: true, id: record.id })}
+                              onClick={() =>
+                                setSendBackModal({ open: true, id: record.id })
+                              }
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
                             >
                               <Undo2 className="w-4 h-4" />
@@ -730,7 +913,9 @@ export default function PaymentRecords() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setDeleteModal({ open: true, id: record.id })}
+                        onClick={() =>
+                          setDeleteModal({ open: true, id: record.id })
+                        }
                         className="flex items-center gap-2 border border-gray-300 hover:bg-red-100 text-red-600 cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -745,7 +930,10 @@ export default function PaymentRecords() {
       </div>
 
       {/* Password Modal for UTR Editing */}
-      <Dialog open={passwordModal.open} onOpenChange={() => setPasswordModal({ open: false, expenseId: null })}>
+      <Dialog
+        open={passwordModal.open}
+        onOpenChange={() => setPasswordModal({ open: false, expenseId: null })}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Enter Password to Unlock UTR Editing</DialogTitle>
@@ -758,10 +946,13 @@ export default function PaymentRecords() {
               value={enteredPassword}
               onChange={(e) => setEnteredPassword(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === "Enter") {
                   if (enteredPassword === ADMIN_PASSWORD) {
                     setIsPasswordVerified(true);
-                    if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+                    if (
+                      passwordModal.expenseId &&
+                      passwordModal.expenseId !== "unlock"
+                    ) {
                       const id = passwordModal.expenseId;
                       setEditingFields((prev) => ({
                         ...prev,
@@ -776,14 +967,19 @@ export default function PaymentRecords() {
                 }
               }}
             />
-            <p className="text-sm text-gray-600">Reach out to admin for password to unlock UTR editing.</p>
+            <p className="text-sm text-gray-600">
+              Reach out to admin for password to unlock UTR editing.
+            </p>
           </div>
           <DialogFooter className="mt-4">
             <Button
               onClick={() => {
                 if (enteredPassword === ADMIN_PASSWORD) {
                   setIsPasswordVerified(true);
-                  if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+                  if (
+                    passwordModal.expenseId &&
+                    passwordModal.expenseId !== "unlock"
+                  ) {
                     const id = passwordModal.expenseId;
                     setEditingFields((prev) => ({
                       ...prev,
@@ -804,13 +1000,19 @@ export default function PaymentRecords() {
       </Dialog>
 
       {/* Send back to Payment Processing modal */}
-      <Dialog open={sendBackModal.open} onOpenChange={() => setSendBackModal({ open: false, id: null })}>
+      <Dialog
+        open={sendBackModal.open}
+        onOpenChange={() => setSendBackModal({ open: false, id: null })}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Send back to Payment Processing</DialogTitle>
           </DialogHeader>
           <div>
-            <p>Move this record back to Payment Processing? It will be removed from Payment Records.</p>
+            <p>
+              Move this record back to Payment Processing? It will be removed
+              from Payment Records.
+            </p>
           </div>
           <DialogFooter className="mt-4">
             <Button
@@ -833,13 +1035,19 @@ export default function PaymentRecords() {
       </Dialog>
 
       {/* Delete confirmation modal */}
-      <Dialog open={deleteModal.open} onOpenChange={() => setDeleteModal({ open: false, id: null })}>
+      <Dialog
+        open={deleteModal.open}
+        onOpenChange={() => setDeleteModal({ open: false, id: null })}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Payment Record</DialogTitle>
           </DialogHeader>
           <div>
-            <p>Are you sure you want to delete this payment record? This action cannot be undone.</p>
+            <p>
+              Are you sure you want to delete this payment record? This action
+              cannot be undone.
+            </p>
           </div>
           <DialogFooter className="mt-4">
             <Button
@@ -865,10 +1073,14 @@ export default function PaymentRecords() {
 
                   // Remove from local UI list
                   setRecords((prev) => prev.filter((r) => r.id !== id));
-                  setFilteredRecords((prev) => prev.filter((r: any) => r.id !== id));
+                  setFilteredRecords((prev) =>
+                    prev.filter((r: any) => r.id !== id)
+                  );
                   toast.success("Record removed from Payment Records");
                 } catch (err: any) {
-                  toast.error("Failed to remove record", { description: err.message });
+                  toast.error("Failed to remove record", {
+                    description: err.message,
+                  });
                 } finally {
                   setDeleteModal({ open: false, id: null });
                 }

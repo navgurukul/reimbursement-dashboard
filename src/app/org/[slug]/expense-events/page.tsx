@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlusCircle, Search } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 import {
   Table,
   TableHeader,
@@ -20,7 +21,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { EventStatusBadge } from "@/components/ExpenseStatusBadge";
 import { formatDate, formatCurrency } from "@/lib/utils";
 
 interface ExpenseEvent {
@@ -34,7 +35,6 @@ interface ExpenseEvent {
   custom_fields: Record<string, any>;
   created_at: string;
   approved_amount?: number; // Add this line
-
 }
 
 export default function ExpenseEventsPage() {
@@ -84,7 +84,10 @@ export default function ExpenseEventsPage() {
         const entries = await Promise.all(
           events.map(async (ev) => {
             const { data } = await expenses.getByEventId(ev.id);
-            const total = (data || []).reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+            const total = (data || []).reduce(
+              (sum: number, exp: any) => sum + (exp.amount || 0),
+              0
+            );
             return [ev.id, total] as const;
           })
         );
@@ -104,13 +107,8 @@ export default function ExpenseEventsPage() {
   );
 
   if (!orgId || !user) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <PageLoader />;
   }
-
 
   const getEventTimelineStatus = (start: string, end: string) => {
     const today = new Date();
@@ -126,20 +124,18 @@ export default function ExpenseEventsPage() {
     return "Ongoing";
   };
 
-
   return (
-    <div className="max-w-[1200px] mx-auto py-6 space-y-6">
+    <div className="max-w-[1200px] mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Expense Events</h1>
-          <p className="text-gray-500">
+          <h1 className="page-title">Expense Events</h1>
+          <p className="descriptive-text">
             Group your expenses by events for better organization
           </p>
         </div>
         {(userRole === "admin" || userRole === "owner") && (
           <Button
             onClick={() => router.push(`/org/${slug}/expense-events/new`)}
-            className="bg-black text-white hover:bg-black/90"
           >
             <PlusCircle className="mr-2 h-4 w-4" />
             New Event
@@ -161,9 +157,7 @@ export default function ExpenseEventsPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Spinner size="lg" />
-        </div>
+        <PageLoader />
       ) : filteredEvents.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -208,23 +202,12 @@ export default function ExpenseEventsPage() {
                     {formatDate(event.start_date)} -{" "}
                     {formatDate(event.end_date)}
                   </TableCell>
-                    <TableCell className="space-x-2">
-                      {(() => {
-                        const status = getEventTimelineStatus(event.start_date, event.end_date);
-                        const badgeColor =
-                          status === "Ongoing"
-                            ? "bg-green-100 text-green-800"
-                            : status === "Upcoming"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-gray-300 text-gray-800";
-
-                        return (
-                          <Badge className={badgeColor} variant="outline">
-                            {status}
-                          </Badge>
-                        );
-                      })()}
-                    </TableCell>
+                  <TableCell className="space-x-2">
+                    <EventStatusBadge
+                      startDate={event.start_date}
+                      endDate={event.end_date}
+                    />
+                  </TableCell>
                   <TableCell>
                     {formatCurrency(eventTotals[event.id] || 0)}
                   </TableCell>

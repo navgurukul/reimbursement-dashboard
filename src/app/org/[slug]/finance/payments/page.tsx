@@ -2,14 +2,14 @@
 
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Eye, Download, Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
-
 
 import {
   Table,
@@ -19,8 +19,9 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogTrigger,
@@ -39,7 +40,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-
 const formatCurrency = (amount: number) => {
   if (isNaN(amount) || amount === null || amount === undefined) return "—";
   return new Intl.NumberFormat("en-IN", {
@@ -54,11 +54,11 @@ export default function PaymentProcessingOnly() {
   const [processingExpenses, setProcessingExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   // const [editingFields, setEditingFields] = useState<Record<string, { remarks: boolean; debit: boolean }>>({});
-  const [editingFields, setEditingFields] =
-    useState<Record<string, { utr?: boolean; debit?: boolean }>>({});
+  const [editingFields, setEditingFields] = useState<
+    Record<string, { utr?: boolean; debit?: boolean }>
+  >({});
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
-
 
   const router = useRouter();
 
@@ -66,10 +66,20 @@ export default function PaymentProcessingOnly() {
   const [showFormatModal, setShowFormatModal] = useState(false);
 
   const allColumns = [
-    "beneficiary name", "Beneficiary Account Number", "IFSC",
-    "Transaction Type", "Debit Account No.", "Transaction Date", "Amount", "Currency", "Beneficiary Email ID", "Remark"
+    "beneficiary name",
+    "Beneficiary Account Number",
+    "IFSC",
+    "Transaction Type",
+    "Debit Account No.",
+    "Transaction Date",
+    "Amount",
+    "Currency",
+    "Beneficiary Email ID",
+    "Remark",
   ];
-  const [selectedColumns, setSelectedColumns] = useState<string[]>([...allColumns]);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([
+    ...allColumns,
+  ]);
 
   const ADMIN_PASSWORD = "admin"; // your password
 
@@ -80,7 +90,6 @@ export default function PaymentProcessingOnly() {
   const [enteredPassword, setEnteredPassword] = useState("");
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
 
-
   useEffect(() => {
     async function fetchExpensesAndBankDetails() {
       if (!orgId) return;
@@ -88,14 +97,16 @@ export default function PaymentProcessingOnly() {
       try {
         setLoading(true);
 
-        const { data: expenseData, error: expenseError } = await expenses.getByOrg(orgId);
+        const { data: expenseData, error: expenseError } =
+          await expenses.getByOrg(orgId);
         if (expenseError) throw expenseError;
 
         let filteredExpenses = (expenseData || [])
           // .filter((exp: any) => exp.status === "finance_approved")
-          .filter((exp: any) =>
-            exp.status === "finance_approved" &&
-            (!exp.payment_status || exp.payment_status === "pending")
+          .filter(
+            (exp: any) =>
+              exp.status === "finance_approved" &&
+              (!exp.payment_status || exp.payment_status === "pending")
           )
           .map((exp: any) => ({
             ...exp,
@@ -104,7 +115,6 @@ export default function PaymentProcessingOnly() {
             approver_name: exp.approver?.full_name || "—",
             payment_type: exp.payment_type || "NEFT",
             // unique_id: exp.unique_id || "N/A",
-
           }));
 
         // Bulk fetch event titles for displayed expenses
@@ -138,7 +148,9 @@ export default function PaymentProcessingOnly() {
           }));
         }
 
-        const { data: bankData, error: bankError } = await supabase.from("bank_details").select("*");
+        const { data: bankData, error: bankError } = await supabase
+          .from("bank_details")
+          .select("*");
         if (bankError) throw bankError;
 
         const enrichedExpenses = filteredExpenses.map((exp) => {
@@ -147,21 +159,27 @@ export default function PaymentProcessingOnly() {
           const bankByUnique = exp.unique_id
             ? bankData?.find((bank) => bank.unique_id === exp.unique_id)
             : null;
-          const matchedBank = bankByUnique || bankData?.find((bank) => bank.email === exp.email);
+          const matchedBank =
+            bankByUnique || bankData?.find((bank) => bank.email === exp.email);
 
           // Decide which unique id to display: expense-specific first, then bank's unique_id, then N/A
-          const displayUniqueId = exp.unique_id ? exp.unique_id : (matchedBank?.unique_id || "N/A");
+          const displayUniqueId = exp.unique_id
+            ? exp.unique_id
+            : matchedBank?.unique_id || "N/A";
 
           return {
             ...exp,
-            beneficiary_name: exp.beneficiary_name || matchedBank?.account_holder || "N/A",
-            account_number: exp.account_number || matchedBank?.account_number || "N/A",
+            beneficiary_name:
+              exp.beneficiary_name || matchedBank?.account_holder || "N/A",
+            account_number:
+              exp.account_number || matchedBank?.account_number || "N/A",
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "N/A",
             debit_account: exp.debit_account || "10064244213",
             utr: exp.utr || "N/A",
             unique_id: displayUniqueId || "N/A",
             // Prefer bank's email when we matched bank details (especially when matched by unique_id)
-            bank_email: (bankByUnique?.email || matchedBank?.email) || exp.email || "-",
+            bank_email:
+              bankByUnique?.email || matchedBank?.email || exp.email || "-",
           };
         });
 
@@ -178,22 +196,25 @@ export default function PaymentProcessingOnly() {
     fetchExpensesAndBankDetails();
   }, [orgId]);
 
-
   const exportToCSV = () => {
     const headers = selectedColumns;
 
     // Descriptions for each column to match the provided Excel template
     const descriptionsMap: Record<string, string> = {
       "beneficiary name": "Enter Beneficiary name. MANDATORY",
-      "Beneficiary Account Number": "Enter Beneficiary account number. This can be IDFC FIRST Bank account or other Bank account. MANDATORY",
-      "IFSC": "Enter beneficiary bank IFSC code. Required only for Inter bank (NEFT/RTGS) payment.",
-      "Transaction Type": "Enter Payment type: IFT- Within Bank Payment, NEFT- Inter-Bank(NEFT) Payment, RTGS- Inter-Bank(RTGS) Payment. MANDATORY",
-      "Debit Account No.": "Enter Debit account number. This should be IDFC FIRST Bank account number only. User should have access to do transaction on this account. MANDATORY",
-      "Transaction Date": "Enter transaction value date. Should be today's date or future date. MANDATORY DD/MM/YYYY format",
-      "Amount": "Enter Payment amount. MANDATORY",
-      "Currency": "Enter transaction currency. Should be INR only. MANDATORY",
+      "Beneficiary Account Number":
+        "Enter Beneficiary account number. This can be IDFC FIRST Bank account or other Bank account. MANDATORY",
+      IFSC: "Enter beneficiary bank IFSC code. Required only for Inter bank (NEFT/RTGS) payment.",
+      "Transaction Type":
+        "Enter Payment type: IFT- Within Bank Payment, NEFT- Inter-Bank(NEFT) Payment, RTGS- Inter-Bank(RTGS) Payment. MANDATORY",
+      "Debit Account No.":
+        "Enter Debit account number. This should be IDFC FIRST Bank account number only. User should have access to do transaction on this account. MANDATORY",
+      "Transaction Date":
+        "Enter transaction value date. Should be today's date or future date. MANDATORY DD/MM/YYYY format",
+      Amount: "Enter Payment amount. MANDATORY",
+      Currency: "Enter transaction currency. Should be INR only. MANDATORY",
       "Beneficiary Email ID": "Enter beneficiary email id. OPTIONAL",
-      "Remark": "Enter Remarks OPTIONAL",
+      Remark: "Enter Remarks OPTIONAL",
     };
 
     const rows = processingExpenses.map((exp) => {
@@ -218,7 +239,9 @@ export default function PaymentProcessingOnly() {
             break;
           case "Transaction Date":
             row.push(
-              exp.value_date ? new Date(exp.value_date).toLocaleDateString("en-IN") : "—"
+              exp.value_date
+                ? new Date(exp.value_date).toLocaleDateString("en-IN")
+                : "—"
             );
             break;
           case "Amount":
@@ -232,14 +255,17 @@ export default function PaymentProcessingOnly() {
             break;
           case "Remark":
             {
-              const createdBy = exp.creator_name || exp.creator?.full_name || "—";
-              const approvedBy = exp.approver_name || exp.approver?.full_name || "—";
+              const createdBy =
+                exp.creator_name || exp.creator?.full_name || "—";
+              const approvedBy =
+                exp.approver_name || exp.approver?.full_name || "—";
               const location = exp.location || "—";
               const remark = `${location}, ${createdBy}, ${approvedBy}`;
               row.push(remark);
             }
             break;
-          default: row.push("—");
+          default:
+            row.push("—");
         }
       }
 
@@ -249,8 +275,16 @@ export default function PaymentProcessingOnly() {
     // Build CSV with header row + description row + data rows
     const csvRows: string[] = [];
     csvRows.push(headers.map((h) => `"${h}"`).join(","));
-    csvRows.push(headers.map((h) => `"${(descriptionsMap[h] || "").replace(/"/g, '""')}"`).join(","));
-    csvRows.push(...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")));
+    csvRows.push(
+      headers
+        .map((h) => `"${(descriptionsMap[h] || "").replace(/"/g, '""')}"`)
+        .join(",")
+    );
+    csvRows.push(
+      ...rows.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      )
+    );
     const csvContent = csvRows.join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -267,15 +301,19 @@ export default function PaymentProcessingOnly() {
 
     const descriptionsMap: Record<string, string> = {
       "beneficiary name": "Enter Beneficiary name. MANDATORY",
-      "Beneficiary Account Number": "Enter Beneficiary account number. This can be IDFC FIRST Bank account or other Bank account. MANDATORY",
-      "IFSC": "Enter beneficiary bank IFSC code. Required only for Inter bank (NEFT/RTGS) payment.",
-      "Transaction Type": "Enter Payment type: IFT- Within Bank Payment, NEFT- Inter-Bank(NEFT) Payment, RTGS- Inter-Bank(RTGS) Payment. MANDATORY",
-      "Debit Account No.": "Enter Debit account number. This should be IDFC FIRST Bank account number only. User should have access to do transaction on this account. MANDATORY",
-      "Transaction Date": "Enter transaction value date. Should be today's date or future date. MANDATORY DD/MM/YYYY format",
-      "Amount": "Enter Payment amount. MANDATORY",
-      "Currency": "Enter transaction currency. Should be INR only. MANDATORY",
+      "Beneficiary Account Number":
+        "Enter Beneficiary account number. This can be IDFC FIRST Bank account or other Bank account. MANDATORY",
+      IFSC: "Enter beneficiary bank IFSC code. Required only for Inter bank (NEFT/RTGS) payment.",
+      "Transaction Type":
+        "Enter Payment type: IFT- Within Bank Payment, NEFT- Inter-Bank(NEFT) Payment, RTGS- Inter-Bank(RTGS) Payment. MANDATORY",
+      "Debit Account No.":
+        "Enter Debit account number. This should be IDFC FIRST Bank account number only. User should have access to do transaction on this account. MANDATORY",
+      "Transaction Date":
+        "Enter transaction value date. Should be today's date or future date. MANDATORY DD/MM/YYYY format",
+      Amount: "Enter Payment amount. MANDATORY",
+      Currency: "Enter transaction currency. Should be INR only. MANDATORY",
       "Beneficiary Email ID": "Enter beneficiary email id. OPTIONAL",
-      "Remark": "Enter Remarks OPTIONAL",
+      Remark: "Enter Remarks OPTIONAL",
     };
 
     const rows = processingExpenses.map((exp) => {
@@ -300,7 +338,9 @@ export default function PaymentProcessingOnly() {
             break;
           case "Transaction Date":
             row.push(
-              exp.value_date ? new Date(exp.value_date).toLocaleDateString("en-IN") : "N/A"
+              exp.value_date
+                ? new Date(exp.value_date).toLocaleDateString("en-IN")
+                : "N/A"
             );
             break;
           case "Amount":
@@ -314,8 +354,10 @@ export default function PaymentProcessingOnly() {
             break;
           case "Remark":
             {
-              const createdBy = exp.creator_name || exp.creator?.full_name || "—";
-              const approvedBy = exp.approver_name || exp.approver?.full_name || "—";
+              const createdBy =
+                exp.creator_name || exp.creator?.full_name || "—";
+              const approvedBy =
+                exp.approver_name || exp.approver?.full_name || "—";
               const location = exp.location || "—";
               const remark = `${location}, ${createdBy}, ${approvedBy}`;
               row.push(remark);
@@ -354,11 +396,15 @@ export default function PaymentProcessingOnly() {
   // Validate that if Transaction Date column is selected, all rows have a value_date
   const validateTransactionDatesForExport = () => {
     if (selectedColumns.includes("Transaction Date")) {
-      const missing = processingExpenses.filter((exp) => !exp.value_date || exp.value_date === "");
+      const missing = processingExpenses.filter(
+        (exp) => !exp.value_date || exp.value_date === ""
+      );
       if (missing.length > 0) {
         // Show a clear notification and prevent the export
-        toast.error("Please add Transaction Date for all expenses before exporting.", {
-        });
+        toast.error(
+          "Please add Transaction Date for all expenses before exporting.",
+          {}
+        );
         return false;
       }
     }
@@ -434,18 +480,11 @@ export default function PaymentProcessingOnly() {
     }
   };
 
-
-
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h3 className="text-lg font-medium text-gray-800">Payment Processing</h3>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
         <div className="flex gap-2 flex-wrap">
-          <Button
-            onClick={() => setShowConfirmAllPaid(true)}
-            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white cursor-pointer text-sm sm:text-base"
-          >
+          <Button onClick={() => setShowConfirmAllPaid(true)}>
             Mark all as Paid
           </Button>
           <Button
@@ -465,18 +504,36 @@ export default function PaymentProcessingOnly() {
             <TableRow>
               <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
               <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
-              <TableHead className="px-4 py-3 text-center">Expense Type</TableHead>
-              <TableHead className="px-4 py-3 text-center">Created By</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Expense Type
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Created By
+              </TableHead>
               <TableHead className="px-4 py-3 text-center">Email</TableHead>
-              <TableHead className="px-4 py-3 text-center">Event Name</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Event Name
+              </TableHead>
               <TableHead className="px-4 py-3 text-center">Location</TableHead>
-              <TableHead className="px-4 py-3 text-center">Approved By</TableHead>
-              <TableHead className="px-4 py-3 text-center">Beneficiary Name</TableHead>
-              <TableHead className="px-4 py-3 text-center">Account Number</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Approved By
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Beneficiary Name
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Account Number
+              </TableHead>
               <TableHead className="px-4 py-3 text-center">IFSC</TableHead>
-              <TableHead className="px-4 py-3 text-center">Payment Type</TableHead>
-              <TableHead className="px-4 py-3 text-center">Debit Account</TableHead>
-              <TableHead className="px-4 py-3 text-center">Transaction Date</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Payment Type
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Debit Account
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Transaction Date
+              </TableHead>
               <TableHead className="px-4 py-3 text-center">Amount</TableHead>
               <TableHead className="px-4 py-3 text-center">Currency</TableHead>
               <TableHead className="px-4 py-3 text-center">
@@ -504,7 +561,7 @@ export default function PaymentProcessingOnly() {
                         // Close any open UTR editing fields
                         setEditingFields((prev) => {
                           const updated = { ...prev };
-                          Object.keys(updated).forEach(key => {
+                          Object.keys(updated).forEach((key) => {
                             if (updated[key].utr) {
                               updated[key] = { ...updated[key], utr: false };
                             }
@@ -527,31 +584,55 @@ export default function PaymentProcessingOnly() {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={19} className="text-center py-6">
-                  Loading...
-                </TableCell>
-              </TableRow>
+              <TableSkeleton colSpan={19} rows={5} />
             ) : processingExpenses.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={19} className="text-center py-6 text-gray-500">
+                <TableCell
+                  colSpan={19}
+                  className="text-center py-6 text-muted-foreground"
+                >
                   No expenses in payment processing.
                 </TableCell>
               </TableRow>
             ) : (
               processingExpenses.map((expense, index) => (
-                <TableRow key={expense.id} className="hover:bg-gray-50 transition py-3">
-                  <TableCell className="px-4 py-3 text-center">{index + 1}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{formatDateTime(expense.created_at)}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.expense_type || "N/A"}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.creator_name}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.bank_email || expense.email}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.event_title || "N/A"}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.location || "N/A"}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.approver_name}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.beneficiary_name}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.account_number}</TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.ifsc}</TableCell>
+                <TableRow
+                  key={expense.id}
+                  className="hover:bg-gray-50 transition-colors"
+                >
+                  <TableCell className="px-4 py-3 text-center">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {formatDateTime(expense.created_at)}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.expense_type || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.creator_name}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.bank_email || expense.email}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.event_title || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.location || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.approver_name}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.beneficiary_name}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.account_number}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.ifsc}
+                  </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <select
                       className="border px-2 py-1 rounded bg-white text-sm"
@@ -566,8 +647,12 @@ export default function PaymentProcessingOnly() {
                       }}
                     >
                       <option value="IFT">IFT - Within Bank Payment</option>
-                      <option value="NEFT">NEFT - Inter-Bank(NEFT) Payment</option>
-                      <option value="RTGS">RTGS - Inter-Bank(RTGS) Payment</option>
+                      <option value="NEFT">
+                        NEFT - Inter-Bank(NEFT) Payment
+                      </option>
+                      <option value="RTGS">
+                        RTGS - Inter-Bank(RTGS) Payment
+                      </option>
                     </select>
                   </TableCell>
 
@@ -580,7 +665,9 @@ export default function PaymentProcessingOnly() {
                           value={expense.debit_account}
                           onChange={(e) => {
                             const updated = processingExpenses.map((exp) =>
-                              exp.id === expense.id ? { ...exp, debit_account: e.target.value } : exp
+                              exp.id === expense.id
+                                ? { ...exp, debit_account: e.target.value }
+                                : exp
                             );
                             setProcessingExpenses(updated);
                           }}
@@ -593,7 +680,10 @@ export default function PaymentProcessingOnly() {
                             onClick={() =>
                               setEditingFields((prev) => ({
                                 ...prev,
-                                [expense.id]: { ...prev[expense.id], debit: false },
+                                [expense.id]: {
+                                  ...prev[expense.id],
+                                  debit: false,
+                                },
                               }))
                             }
                             title="Save"
@@ -613,7 +703,10 @@ export default function PaymentProcessingOnly() {
                             onClick={() =>
                               setEditingFields((prev) => ({
                                 ...prev,
-                                [expense.id]: { ...(prev[expense.id] || {}), debit: true },
+                                [expense.id]: {
+                                  ...(prev[expense.id] || {}),
+                                  debit: true,
+                                },
                               }))
                             }
                             title="Edit"
@@ -623,9 +716,7 @@ export default function PaymentProcessingOnly() {
                         </div>
                       </div>
                     )}
-
                   </TableCell>
-
 
                   <TableCell className="px-4 py-3 text-center">
                     <input
@@ -633,7 +724,9 @@ export default function PaymentProcessingOnly() {
                       className="border px-2 py-1 rounded text-sm"
                       value={
                         expense.value_date
-                          ? new Date(expense.value_date).toISOString().split("T")[0]
+                          ? new Date(expense.value_date)
+                              .toISOString()
+                              .split("T")[0]
                           : ""
                       }
                       onChange={(e) => {
@@ -649,7 +742,9 @@ export default function PaymentProcessingOnly() {
                   <TableCell className="px-4 py-3 text-center">
                     {formatCurrency(expense.approved_amount)}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">{expense.currency || "INR"}</TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.currency || "INR"}
+                  </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {editingFields[expense.id]?.utr ? (
                       <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
@@ -659,12 +754,14 @@ export default function PaymentProcessingOnly() {
                           value={expense.utr}
                           onChange={(e) => {
                             const updated = processingExpenses.map((exp) =>
-                              exp.id === expense.id ? { ...exp, utr: e.target.value } : exp
+                              exp.id === expense.id
+                                ? { ...exp, utr: e.target.value }
+                                : exp
                             );
                             setProcessingExpenses(updated);
                           }}
                           onKeyDown={async (e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === "Enter") {
                               // Save UTR when Enter is pressed
                               const { error } = await supabase
                                 .from("expense_new")
@@ -677,7 +774,10 @@ export default function PaymentProcessingOnly() {
                                 toast.success("UTR updated");
                                 setEditingFields((prev) => ({
                                   ...prev,
-                                  [expense.id]: { ...prev[expense.id], utr: false },
+                                  [expense.id]: {
+                                    ...prev[expense.id],
+                                    utr: false,
+                                  },
                                 }));
                               }
                             }
@@ -701,7 +801,10 @@ export default function PaymentProcessingOnly() {
                                 toast.success("UTR updated");
                                 setEditingFields((prev) => ({
                                   ...prev,
-                                  [expense.id]: { ...prev[expense.id], utr: false },
+                                  [expense.id]: {
+                                    ...prev[expense.id],
+                                    utr: false,
+                                  },
                                 }));
                               }
                             }}
@@ -713,7 +816,9 @@ export default function PaymentProcessingOnly() {
                       </div>
                     ) : (
                       <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
-                        <span className="truncate max-w-[100px] text-sm">{expense.utr || "—"}</span>
+                        <span className="truncate max-w-[100px] text-sm">
+                          {expense.utr || "—"}
+                        </span>
                         <div className="w-16">
                           <Button
                             size="icon"
@@ -723,10 +828,16 @@ export default function PaymentProcessingOnly() {
                               if (isPasswordVerified) {
                                 setEditingFields((prev) => ({
                                   ...prev,
-                                  [expense.id]: { ...(prev[expense.id] || {}), utr: true },
+                                  [expense.id]: {
+                                    ...(prev[expense.id] || {}),
+                                    utr: true,
+                                  },
                                 }));
                               } else {
-                                setPasswordModal({ open: true, expenseId: expense.id });
+                                setPasswordModal({
+                                  open: true,
+                                  expenseId: expense.id,
+                                });
                                 setEnteredPassword("");
                               }
                             }}
@@ -739,11 +850,14 @@ export default function PaymentProcessingOnly() {
                     )}
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 text-center">{expense.unique_id || "N/A"}</TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    <Badge className="bg-green-100 hover:bg-green-200 text-green-800 border border-green-300">
-                      Finance Approved
-                    </Badge>
+                    {expense.unique_id || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <ExpenseStatusBadge
+                      status="finance_approved"
+                      className="border border-green-300"
+                    />
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center space-x-2">
                     <TooltipProvider>
@@ -751,7 +865,9 @@ export default function PaymentProcessingOnly() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() =>
-                              router.push(`/org/${orgId}/finance/payments/${expense.id}`)
+                              router.push(
+                                `/org/${orgId}/finance/payments/${expense.id}`
+                              )
                             }
                             className="cursor-pointer"
                           >
@@ -802,7 +918,9 @@ export default function PaymentProcessingOnly() {
                     if (checked) {
                       setSelectedColumns((prev) => [...prev, col]);
                     } else {
-                      setSelectedColumns((prev) => prev.filter((c) => c !== col));
+                      setSelectedColumns((prev) =>
+                        prev.filter((c) => c !== col)
+                      );
                     }
                   }}
                 />
@@ -834,7 +952,9 @@ export default function PaymentProcessingOnly() {
             <DialogTitle>Choose export format</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">Which format would you like to download?</p>
+            <p className="text-sm text-gray-600">
+              Which format would you like to download?
+            </p>
             <div className="flex gap-2">
               <Button
                 onClick={() => {
@@ -868,7 +988,11 @@ export default function PaymentProcessingOnly() {
             This will mark all expenses in the list as paid.
           </p>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setShowConfirmAllPaid(false)} className="cursor-pointer">
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmAllPaid(false)}
+              className="cursor-pointer"
+            >
               Cancel
             </Button>
             <Button
@@ -884,7 +1008,10 @@ export default function PaymentProcessingOnly() {
         </DialogContent>
       </Dialog>
       {/* Confirm single expense */}
-      <Dialog open={!!confirmExpenseId} onOpenChange={() => setConfirmExpenseId(null)}>
+      <Dialog
+        open={!!confirmExpenseId}
+        onOpenChange={() => setConfirmExpenseId(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark as Paid?</DialogTitle>
@@ -895,7 +1022,11 @@ export default function PaymentProcessingOnly() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setConfirmExpenseId(null)} className="cursor-pointer">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmExpenseId(null)}
+              className="cursor-pointer"
+            >
               Cancel
             </Button>
             <Button
@@ -912,7 +1043,10 @@ export default function PaymentProcessingOnly() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={passwordModal.open} onOpenChange={() => setPasswordModal({ open: false, expenseId: null })}>
+      <Dialog
+        open={passwordModal.open}
+        onOpenChange={() => setPasswordModal({ open: false, expenseId: null })}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Enter Password to Unlock UTR Editing</DialogTitle>
@@ -925,10 +1059,13 @@ export default function PaymentProcessingOnly() {
               value={enteredPassword}
               onChange={(e) => setEnteredPassword(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === "Enter") {
                   if (enteredPassword === ADMIN_PASSWORD) {
                     setIsPasswordVerified(true);
-                    if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+                    if (
+                      passwordModal.expenseId &&
+                      passwordModal.expenseId !== "unlock"
+                    ) {
                       const id = passwordModal.expenseId;
                       setEditingFields((prev) => ({
                         ...prev,
@@ -943,14 +1080,19 @@ export default function PaymentProcessingOnly() {
                 }
               }}
             />
-            <p className="text-sm text-gray-600">Reach out to admin for password to unlock UTR editing.</p>
+            <p className="text-sm text-gray-600">
+              Reach out to admin for password to unlock UTR editing.
+            </p>
           </div>
           <DialogFooter className="mt-4">
             <Button
               onClick={() => {
                 if (enteredPassword === ADMIN_PASSWORD) {
                   setIsPasswordVerified(true);
-                  if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+                  if (
+                    passwordModal.expenseId &&
+                    passwordModal.expenseId !== "unlock"
+                  ) {
                     const id = passwordModal.expenseId;
                     setEditingFields((prev) => ({
                       ...prev,
@@ -969,7 +1111,6 @@ export default function PaymentProcessingOnly() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

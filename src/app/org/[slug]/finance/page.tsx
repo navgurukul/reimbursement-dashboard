@@ -14,7 +14,7 @@ export default function FinancePage() {
   const { userRole } = useOrgStore();
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   if (userRole !== "owner" && userRole !== "admin") {
     notFound();
   }
@@ -28,26 +28,41 @@ export default function FinancePage() {
   }, [searchParams]);
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-      <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
-        <TabsList className="gap-2">
-          <TabsTrigger value="approvals" className="cursor-pointer">Approval Queue</TabsTrigger>
-          <TabsTrigger value="payments" className="cursor-pointer">Payment Processing</TabsTrigger>
-          <TabsTrigger value="records" className="cursor-pointer">Records</TabsTrigger>
-        </TabsList>
+    <div className="space-y-6">
+      <div>
+        <h1 className="page-title">Financial management</h1>
       </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
+        <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
+          <TabsList className="gap-2">
+            <TabsTrigger value="approvals" className="cursor-pointer">
+              Approval Queue
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="cursor-pointer">
+              Payment Processing
+            </TabsTrigger>
+            <TabsTrigger value="records" className="cursor-pointer">
+              Records
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      <TabsContent value="approvals">
-        <FinanceReview />
-      </TabsContent>
+        <TabsContent value="approvals">
+          <FinanceReview />
+        </TabsContent>
 
-      <TabsContent value="payments">
-        <PaymentProcessing />
-      </TabsContent>
+        <TabsContent value="payments">
+          <PaymentProcessing />
+        </TabsContent>
 
-      <TabsContent value="records">
-        <Records />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="records">
+          <Records />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

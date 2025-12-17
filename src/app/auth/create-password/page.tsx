@@ -27,7 +27,9 @@ export default function ResetPasswordPage() {
       try {
         // 1) Handle hash tokens: #access_token & #refresh_token
         if (typeof window !== "undefined" && window.location.hash) {
-          const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+          const hash = new URLSearchParams(
+            window.location.hash.replace(/^#/, "")
+          );
           const access_token = hash.get("access_token");
           const refresh_token = hash.get("refresh_token");
           if (access_token && refresh_token) {
@@ -52,11 +54,14 @@ export default function ResetPasswordPage() {
         const { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData.session && code) {
           try {
-            const { error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
+            const { error: exchErr } =
+              await supabase.auth.exchangeCodeForSession(code);
             if (exchErr) throw exchErr;
           } catch (ex) {
             // Still no session; show non-blocking error
-            setLinkError("The reset link could not be validated, but you may still try updating your password below.");
+            setLinkError(
+              "The reset link could not be validated, but you may still try updating your password below."
+            );
           }
         }
       } catch (err: any) {
@@ -108,8 +113,8 @@ export default function ResetPasswordPage() {
       <Card className="w-full max-w-md">
         <CardContent className="p-6 space-y-6">
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold">Create password</h1>
-            <p className="text-muted-foreground text-sm">
+            <h1 className="section-heading">Create password</h1>
+            <p className="descriptive-text text-sm">
               Enter a new password for your account
             </p>
           </div>
@@ -143,7 +148,11 @@ export default function ResetPasswordPage() {
                 disabled={updating}
               />
             </div>
-            <Button type="submit" className="w-full cursor-pointer" disabled={updating}>
+            <Button
+              type="submit"
+              className="w-full cursor-pointer"
+              disabled={updating}
+            >
               {updating ? (
                 <div className="flex items-center gap-2">
                   <Spinner className="w-4 h-4" />

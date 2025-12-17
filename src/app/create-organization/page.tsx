@@ -14,6 +14,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 import {
   Card,
   CardContent,
@@ -106,8 +108,6 @@ export default function CreateOrganizationPage() {
   }, [user, organization, setOrganization, setUserRole, router]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-
-    
     if (!user) {
       toast.error("Authentication required", {
         description: "Please sign in to create an organization.",
@@ -134,9 +134,12 @@ export default function CreateOrganizationPage() {
       if (orgError || !orgData) {
         toast.dismiss(loadingToast);
         toast.error("Failed to create organization", {
-          description: typeof orgError === 'object' && orgError !== null && 'message' in orgError 
-            ? String(orgError.message) 
-            : "Please try again.",
+          description:
+            typeof orgError === "object" &&
+            orgError !== null &&
+            "message" in orgError
+              ? String(orgError.message)
+              : "Please try again.",
         });
         setIsSubmitting(false);
         return;
@@ -164,7 +167,7 @@ export default function CreateOrganizationPage() {
 
       // 4) Success message
       toast.dismiss(loadingToast);
-     toast.success ("Organization created successfully!", {
+      toast.success("Organization created successfully!", {
         description: "Redirecting to your dashboard…",
       });
 
@@ -193,14 +196,7 @@ export default function CreateOrganizationPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
-        <Card className="w-full max-w-2xl">
-          <CardHeader className="text-center space-y-1">
-            <CardTitle>Loading...</CardTitle>
-            <CardDescription>
-              Please wait while we check your organization status.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <PageLoader message="Please wait while we check your organization status." />
       </div>
     );
   }

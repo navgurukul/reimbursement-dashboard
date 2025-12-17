@@ -10,7 +10,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableHeader,
@@ -25,12 +31,12 @@ import {
   Download,
   MoreHorizontal,
   Eye,
-  Edit,
+  Pencil,
   Copy,
   Trash2,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Badge } from "@/components/ui/badge";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +58,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
@@ -120,7 +127,13 @@ export default function ExpensesPage() {
   }, [expensesData, pendingApprovals, allExpenses]);
 
   const unique = (values: any[]) =>
-    Array.from(new Set(values.filter((v) => v !== undefined && v !== null && String(v).trim() !== "")));
+    Array.from(
+      new Set(
+        values.filter(
+          (v) => v !== undefined && v !== null && String(v).trim() !== ""
+        )
+      )
+    );
 
   const expenseTypeOptions = useMemo(
     () =>
@@ -138,7 +151,10 @@ export default function ExpensesPage() {
   );
 
   const creatorOptions = useMemo(
-    () => unique(allDataCombined.map((e: any) => e.creator?.full_name || e.creator_name)),
+    () =>
+      unique(
+        allDataCombined.map((e: any) => e.creator?.full_name || e.creator_name)
+      ),
     [allDataCombined]
   );
 
@@ -206,7 +222,7 @@ export default function ExpensesPage() {
 
         // ✅ Remove any existing 'description' columns
         expenseColumns = expenseColumns.filter((c) => c.key !== "description");
-        
+
         // Remove any existing 'Location of Expense' columns
         expenseColumns = expenseColumns.filter((c) => c.key !== "location");
 
@@ -223,7 +239,9 @@ export default function ExpensesPage() {
         // Ensure event_title column exists
         if (!expenseColumns.some((c) => c.key === "event_title")) {
           // Place Event after Category if present, else near the start
-          const categoryIdx = expenseColumns.findIndex((c) => c.key === "category");
+          const categoryIdx = expenseColumns.findIndex(
+            (c) => c.key === "category"
+          );
           const insertIdx = categoryIdx >= 0 ? categoryIdx + 1 : 1;
           expenseColumns.splice(insertIdx, 0, {
             key: "event_title",
@@ -235,7 +253,6 @@ export default function ExpensesPage() {
 
         setColumns(expenseColumns);
       }
-
 
       // 2) load expenses per role
       let my: any[] = [],
@@ -382,8 +399,8 @@ export default function ExpensesPage() {
                 }
 
                 // Get approver name from our map
-                const approverName = expense.approver.full_name || "—"
-                  // approverNamesMap[expense.id] || "Unknown Approver";
+                const approverName = expense.approver.full_name || "—";
+                // approverNamesMap[expense.id] || "Unknown Approver";
 
                 // Set approver info on the expense
                 expense.approver = {
@@ -393,7 +410,8 @@ export default function ExpensesPage() {
 
                 // Set event title if available
                 if (expense.event_id) {
-                  expense.event_title = eventTitleMap[expense.event_id] || "N/A";
+                  expense.event_title =
+                    eventTitleMap[expense.event_id] || "N/A";
                 } else {
                   expense.event_title = "N/A";
                 }
@@ -424,12 +442,13 @@ export default function ExpensesPage() {
       setStats({
         total: all.length,
         approved: all.filter((e) => e.status === "approved").length,
-        finance_approved: all.filter((e) => e.status === "finance_approved").length,
+        finance_approved: all.filter((e) => e.status === "finance_approved")
+          .length,
         pending: all.filter((e) => e.status === "submitted").length,
         rejected: all.filter((e) => e.status === "rejected").length,
-        finance_rejected: all.filter((e) => e.status === "finance_rejected").length,
+        finance_rejected: all.filter((e) => e.status === "finance_rejected")
+          .length,
       });
-
 
       setLoading(false);
     }
@@ -468,13 +487,19 @@ export default function ExpensesPage() {
     }
 
     const ciIncludes = (a?: string, b?: string) =>
-      (a || "").toString().toLowerCase().includes((b || "").toString().toLowerCase());
+      (a || "")
+        .toString()
+        .toLowerCase()
+        .includes((b || "").toString().toLowerCase());
 
     return data.filter((e: any) => {
-      const expenseType = e.expense_type || e.category || e.custom_fields?.category;
-      if (filters.expenseType && expenseType !== filters.expenseType) return false;
+      const expenseType =
+        e.expense_type || e.category || e.custom_fields?.category;
+      if (filters.expenseType && expenseType !== filters.expenseType)
+        return false;
 
-      if (filters.eventName && e.event_title !== filters.eventName) return false;
+      if (filters.eventName && e.event_title !== filters.eventName)
+        return false;
 
       if (minAmt !== undefined && Number(e.amount) < minAmt) return false;
       if (maxAmt !== undefined && Number(e.amount) > maxAmt) return false;
@@ -501,8 +526,11 @@ export default function ExpensesPage() {
       return true;
     });
   };
-  
-  const filteredData = useMemo(() => filteredCurrent(), [filters, expensesData, pendingApprovals, allExpenses, activeTab]);
+
+  const filteredData = useMemo(
+    () => filteredCurrent(),
+    [filters, expensesData, pendingApprovals, allExpenses, activeTab]
+  );
 
   const handleNew = () => {
     router.push(`/org/${slug}/expenses/new`);
@@ -587,11 +615,16 @@ export default function ExpensesPage() {
 
   return (
     <div className="space-y-6 pt-0">
+      <h1 className="page-title">Expenses</h1>
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
           <TabsList className="cursor-pointer">
             {tabs.map((t) => (
-              <TabsTrigger key={t.value} value={t.value} className="cursor-pointer">
+              <TabsTrigger
+                key={t.value}
+                value={t.value}
+                className="cursor-pointer"
+              >
                 {t.label}
               </TabsTrigger>
             ))}
@@ -604,61 +637,76 @@ export default function ExpensesPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Total Expense </CardTitle>
+                  <CardTitle className="text-xs font-semibold">
+                    Total Expense{" "}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl">{stats.total}</div>
+                  <div className="stat-value">{stats.total}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Manager Approved</CardTitle>
+                  <CardTitle className="text-xs font-semibold">
+                    Manager Approved
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl text-green-600">{stats.approved}</div>
+                  <div className="stat-value">{stats.approved}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Finance Approved</CardTitle>
+                  <CardTitle className="text-xs font-semibold">
+                    Finance Approved
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl text-green-600">{stats.finance_approved}</div>
+                  <div className="stat-value">{stats.finance_approved}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Expense Pending</CardTitle>
+                  <CardTitle className="text-xs font-semibold">
+                    Expense Pending
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl  text-amber-600">{stats.pending}</div>
+                  <div className="stat-value">{stats.pending}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Manager Rejected</CardTitle>
+                  <CardTitle className="text-xs font-semibold">
+                    Manager Rejected
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl text-red-600">{stats.rejected}</div>
+                  <div className="stat-value">{stats.rejected}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Finance Rejected</CardTitle>
+                  <CardTitle className="text-xs font-semibold">
+                    Finance Rejected
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl text-red-600">{stats.finance_rejected}</div>
+                  <div className="stat-value">{stats.finance_rejected}</div>
                 </CardContent>
               </Card>
             </div>
             {/* toolbar */}
             <div className="flex items-center justify-between mb-4">
-              <Button onClick={handleNew} className="cursor-pointer">
+              <Button onClick={handleNew}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 New Expense
               </Button>
               <div className="flex space-x-2">
-                <Button variant="outline" onClick={() => setShowFilters((s) => !s)} className="cursor-pointer">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters((s) => !s)}
+                >
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                 </Button>
@@ -678,14 +726,19 @@ export default function ExpensesPage() {
                       <Select
                         value={filters.expenseType || OPTION_ALL}
                         onValueChange={(v) =>
-                          setFilters({ ...filters, expenseType: v === OPTION_ALL ? "" : v })
+                          setFilters({
+                            ...filters,
+                            expenseType: v === OPTION_ALL ? "" : v,
+                          })
                         }
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Expense Type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={OPTION_ALL}>All Expense Types</SelectItem>
+                          <SelectItem value={OPTION_ALL}>
+                            All Expense Types
+                          </SelectItem>
                           {expenseTypeOptions.map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
@@ -699,14 +752,19 @@ export default function ExpensesPage() {
                       <Select
                         value={filters.eventName || OPTION_ALL}
                         onValueChange={(v) =>
-                          setFilters({ ...filters, eventName: v === OPTION_ALL ? "" : v })
+                          setFilters({
+                            ...filters,
+                            eventName: v === OPTION_ALL ? "" : v,
+                          })
                         }
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Event Name" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={OPTION_ALL}>All Event Names</SelectItem>
+                          <SelectItem value={OPTION_ALL}>
+                            All Event Names
+                          </SelectItem>
                           {eventNameOptions.map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
@@ -720,14 +778,19 @@ export default function ExpensesPage() {
                       <Select
                         value={filters.status || OPTION_ALL}
                         onValueChange={(v) =>
-                          setFilters({ ...filters, status: v === OPTION_ALL ? "" : v })
+                          setFilters({
+                            ...filters,
+                            status: v === OPTION_ALL ? "" : v,
+                          })
                         }
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={OPTION_ALL}>All Statuses</SelectItem>
+                          <SelectItem value={OPTION_ALL}>
+                            All Statuses
+                          </SelectItem>
                           {statusOptions.map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
@@ -739,16 +802,29 @@ export default function ExpensesPage() {
                     <div className="space-y-1">
                       <Label>Amount Range</Label>
                       <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                        <span className="font-bold text-gray-700">Min: ₹{currentMinAmount.toLocaleString("en-IN")}</span>
-                        <span className="font-bold text-gray-700">Max: ₹{currentMaxAmount.toLocaleString("en-IN")}</span>
+                        <span className="font-bold text-gray-700">
+                          Min: ₹{currentMinAmount.toLocaleString("en-IN")}
+                        </span>
+                        <span className="font-bold text-gray-700">
+                          Max: ₹{currentMaxAmount.toLocaleString("en-IN")}
+                        </span>
                       </div>
                       <div className="relative h-4">
                         <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-200 rounded-full -translate-y-1/2"></div>
                         <div
                           className="absolute top-1/2 h-1 bg-black rounded-full -translate-y-1/2"
                           style={{
-                            left: `${((currentMinAmount - amountBounds.min) / (amountBounds.max - amountBounds.min)) * 100}%`,
-                            right: `${100 - ((currentMaxAmount - amountBounds.min) / (amountBounds.max - amountBounds.min)) * 100}%`,
+                            left: `${
+                              ((currentMinAmount - amountBounds.min) /
+                                (amountBounds.max - amountBounds.min)) *
+                              100
+                            }%`,
+                            right: `${
+                              100 -
+                              ((currentMaxAmount - amountBounds.min) /
+                                (amountBounds.max - amountBounds.min)) *
+                                100
+                            }%`,
                           }}
                         />
 
@@ -764,7 +840,10 @@ export default function ExpensesPage() {
                             if (val >= currentMaxAmount) {
                               val = currentMaxAmount - amountStep; // prevent overlap
                             }
-                            setFilters((prev) => ({ ...prev, amountMin: String(val) }));
+                            setFilters((prev) => ({
+                              ...prev,
+                              amountMin: String(val),
+                            }));
                           }}
                           className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
                         />
@@ -781,7 +860,10 @@ export default function ExpensesPage() {
                             if (val <= currentMinAmount) {
                               val = currentMinAmount + amountStep; // prevent overlap
                             }
-                            setFilters((prev) => ({ ...prev, amountMax: String(val) }));
+                            setFilters((prev) => ({
+                              ...prev,
+                              amountMax: String(val),
+                            }));
                           }}
                           className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
                         />
@@ -800,8 +882,8 @@ export default function ExpensesPage() {
                             ...(v === OPTION_ALL
                               ? { dateFrom: "", dateTo: "" }
                               : v === "SINGLE"
-                                ? { dateTo: "" }
-                                : {}),
+                              ? { dateTo: "" }
+                              : {}),
                           })
                         }
                       >
@@ -817,13 +899,22 @@ export default function ExpensesPage() {
                       {filters.dateMode !== OPTION_ALL && (
                         <>
                           <Label>
-                            {filters.dateMode === "SINGLE" ? "On Date" : "From Date"}
+                            {filters.dateMode === "SINGLE"
+                              ? "On Date"
+                              : "From Date"}
                           </Label>
                           <Input
                             type="date"
-                            placeholder={filters.dateMode === "SINGLE" ? "Date" : "From"}
+                            placeholder={
+                              filters.dateMode === "SINGLE" ? "Date" : "From"
+                            }
                             value={filters.dateFrom}
-                            onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                            onChange={(e) =>
+                              setFilters({
+                                ...filters,
+                                dateFrom: e.target.value,
+                              })
+                            }
                           />
                           {filters.dateMode === "CUSTOM" && (
                             <>
@@ -832,7 +923,12 @@ export default function ExpensesPage() {
                                 type="date"
                                 placeholder="To"
                                 value={filters.dateTo}
-                                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                                onChange={(e) =>
+                                  setFilters({
+                                    ...filters,
+                                    dateTo: e.target.value,
+                                  })
+                                }
                               />
                             </>
                           )}
@@ -845,14 +941,19 @@ export default function ExpensesPage() {
                       <Select
                         value={filters.createdBy || OPTION_ALL}
                         onValueChange={(v) =>
-                          setFilters({ ...filters, createdBy: v === OPTION_ALL ? "" : v })
+                          setFilters({
+                            ...filters,
+                            createdBy: v === OPTION_ALL ? "" : v,
+                          })
                         }
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Created By" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={OPTION_ALL}>All Created By</SelectItem>
+                          <SelectItem value={OPTION_ALL}>
+                            All Created By
+                          </SelectItem>
                           {creatorOptions.map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
@@ -866,14 +967,19 @@ export default function ExpensesPage() {
                       <Select
                         value={filters.approver || OPTION_ALL}
                         onValueChange={(v) =>
-                          setFilters({ ...filters, approver: v === OPTION_ALL ? "" : v })
+                          setFilters({
+                            ...filters,
+                            approver: v === OPTION_ALL ? "" : v,
+                          })
                         }
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Approver" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={OPTION_ALL}>All Approvers</SelectItem>
+                          <SelectItem value={OPTION_ALL}>
+                            All Approvers
+                          </SelectItem>
                           {approverOptions.map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
@@ -929,18 +1035,14 @@ export default function ExpensesPage() {
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 4}
-                          className="text-center py-4"
-                        >
-                          Loading…
-                        </TableCell>
-                      </TableRow>
+                      <TableSkeleton
+                        colSpan={columns.filter((c) => c.visible).length + 5}
+                        rows={5}
+                      />
                     ) : getCurrent().length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 4}
+                          colSpan={columns.filter((c) => c.visible).length + 5}
                           className="text-center py-4 text-muted-foreground"
                         >
                           No expenses.
@@ -949,7 +1051,7 @@ export default function ExpensesPage() {
                     ) : filteredData.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 4}
+                          colSpan={columns.filter((c) => c.visible).length + 5}
                           className="text-center py-4 text-muted-foreground"
                         >
                           {filters.amountMin || filters.amountMax
@@ -960,13 +1062,17 @@ export default function ExpensesPage() {
                     ) : (
                       filteredData.map((exp, index) => (
                         <TableRow key={exp.id}>
-                          <TableCell className="w-12 text-center">{index + 1}</TableCell>
+                          <TableCell className="w-12 text-center">
+                            {index + 1}
+                          </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {formatDateTime(exp.created_at)}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             <div className="flex items-center space-x-2">
-                              <span className="font-mono">{exp.unique_id || "N/A"}</span>
+                              <span className="font-mono">
+                                {exp.unique_id || "N/A"}
+                              </span>
                             </div>
                           </TableCell>
                           {columns
@@ -1023,41 +1129,22 @@ export default function ExpensesPage() {
                                   ) : (
                                     "No receipt or voucher"
                                   )
-
                                 ) : c.key === "approver" ? (
                                   exp.approver?.full_name || "—"
                                 ) : c.key === "category" ? (
                                   getExpenseValue(exp, "category")
                                 ) : c.key === "event_title" ? (
                                   exp.event_title || "N/A"
-                                ) : typeof exp[c.key] === "object" && exp[c.key] !== null ? (
+                                ) : typeof exp[c.key] === "object" &&
+                                  exp[c.key] !== null ? (
                                   JSON.stringify(exp[c.key])
                                 ) : (
                                   exp[c.key] || "—"
                                 )}
-
                               </TableCell>
                             ))}
                           <TableCell>
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs ${exp.status === "approved"
-                                ? "bg-green-100 text-green-800"
-                                : exp.status === "finance_approved"
-                                  ? "bg-green-100 text-green-800"
-                                  : exp.status === "finance_rejected" || exp.status === "rejected"
-                                    ? "bg-red-100 text-red-800"
-                                    : exp.status === "submitted"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : "bg-gray-100 text-gray-800"
-                                }`}
-                            >
-                                {exp.status === "approved"
-                                  ? "Manager_Approved"
-                                  : (exp.status === "rejected" || exp.status === "manager_rejected")
-                                    ? "Manager_Reject"
-                                    : exp.status.charAt(0).toUpperCase() +
-                                      exp.status.slice(1)}
-                            </span>
+                            <ExpenseStatusBadge status={exp.status} />
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-3 gap-3">
@@ -1067,7 +1154,9 @@ export default function ExpensesPage() {
                                     <Eye
                                       className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                       onClick={() =>
-                                        router.push(`/org/${slug}/expenses/${exp.id}`)
+                                        router.push(
+                                          `/org/${slug}/expenses/${exp.id}`
+                                        )
                                       }
                                     />
                                   </TooltipTrigger>
@@ -1076,29 +1165,33 @@ export default function ExpensesPage() {
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
-                              {exp.status === "submitted" && exp.approver?.user_id !== user?.id && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Edit
-                                        className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
-                                        onClick={() =>
-                                          router.push(`/org/${slug}/expenses/${exp.id}/edit`)
-                                        }
-                                      />
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Edit Expense</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                              {(userRole === "admin" || userRole === "owner") && (
+                              {exp.status === "submitted" &&
+                                exp.approver?.user_id !== user?.id && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Pencil
+                                          className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
+                                          onClick={() =>
+                                            router.push(
+                                              `/org/${slug}/expenses/${exp.id}/edit`
+                                            )
+                                          }
+                                        />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Edit Expense</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              {(userRole === "admin" ||
+                                userRole === "owner") && (
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <Trash2
-                                        className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-700"
+                                        className="w-4 h-4 text-red-600 cursor-pointer hover:text-red-800"
                                         onClick={() => handleDelete(exp.id)}
                                       />
                                     </TooltipTrigger>
@@ -1131,7 +1224,8 @@ export default function ExpensesPage() {
           <DialogHeader>
             <DialogTitle>Delete Expense</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this expense? This action cannot be undone.
+              Are you sure you want to delete this expense? This action cannot
+              be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-3">
@@ -1157,4 +1251,3 @@ export default function ExpensesPage() {
     </div>
   );
 }
-
