@@ -3,17 +3,28 @@ import { createClient } from "@supabase/supabase-js";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Server-side Supabase client using service role for storage upload
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
-);
-
 type GenerateVoucherPdfBody = {
   voucherId: string;
 };
 
 export async function POST(req: Request) {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    return NextResponse.json(
+      {
+        error: "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY or URL missing",
+      },
+      { status: 500 }
+    );
+  }
+
+  // Server-side Supabase client using service role for storage upload at runtime
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+  );
   const url = new URL(req.url);
   const includeDebug = url.searchParams.get("debug") === "1";
   const debug: Array<{ step: string; details?: any }> = [];
@@ -24,7 +35,10 @@ export async function POST(req: Request) {
   try {
     const { voucherId } = (await req.json()) as GenerateVoucherPdfBody;
     if (!voucherId) {
-      return NextResponse.json({ error: "voucherId is required", ...(includeDebug ? { debug } : {}) }, { status: 400 });
+      return NextResponse.json(
+        { error: "voucherId is required", ...(includeDebug ? { debug } : {}) },
+        { status: 400 }
+      );
     }
 
     // Load voucher
@@ -34,16 +48,27 @@ export async function POST(req: Request) {
       .eq("id", voucherId)
       .single();
 
-    debug.push({ step: "voucher.fetch", details: { voucherId, error: vErr?.message } });
+    debug.push({
+      step: "voucher.fetch",
+      details: { voucherId, error: vErr?.message },
+    });
 
     // Fetch signature only from vouchers.signature_url
     if (voucher?.signature_url) {
       signaturePath = voucher.signature_url;
-      signatureSource = voucher.signature_url.startsWith("http") ? "external" : "user-signatures";
+      signatureSource = voucher.signature_url.startsWith("http")
+        ? "external"
+        : "user-signatures";
     }
 
     if (vErr || !voucher) {
-      return NextResponse.json({ error: vErr?.message || "Voucher not found", ...(includeDebug ? { debug } : {}) }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: vErr?.message || "Voucher not found",
+          ...(includeDebug ? { debug } : {}),
+        },
+        { status: 404 }
+      );
     }
 
     // Load expense
@@ -53,10 +78,19 @@ export async function POST(req: Request) {
       .eq("id", voucher.expense_id)
       .single();
 
-    debug.push({ step: "expense.fetch", details: { expenseId: voucher.expense_id, error: eErr?.message } });
+    debug.push({
+      step: "expense.fetch",
+      details: { expenseId: voucher.expense_id, error: eErr?.message },
+    });
 
     if (eErr || !expense) {
-      return NextResponse.json({ error: eErr?.message || "Expense not found", ...(includeDebug ? { debug } : {}) }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: eErr?.message || "Expense not found",
+          ...(includeDebug ? { debug } : {}),
+        },
+        { status: 404 }
+      );
     }
 
     // Get organization for name
@@ -68,7 +102,10 @@ export async function POST(req: Request) {
         .eq("id", expense.org_id)
         .single();
       if (org?.name) orgName = org.name;
-      debug.push({ step: "organization.fetch", details: { orgId: expense.org_id, orgName } });
+      debug.push({
+        step: "organization.fetch",
+        details: { orgId: expense.org_id, orgName },
+      });
     }
 
     // Optionally fetch approver name
@@ -80,7 +117,10 @@ export async function POST(req: Request) {
         .eq("user_id", expense.approver_id)
         .single();
       approverName = approver?.full_name || null;
-      debug.push({ step: "approver.fetch", details: { approverId: expense.approver_id, approverName } });
+      debug.push({
+        step: "approver.fetch",
+        details: { approverId: expense.approver_id, approverName },
+      });
     }
 
     const formatDate = (iso: string) => new Date(iso).toLocaleDateString();
@@ -94,7 +134,14 @@ export async function POST(req: Request) {
 
     doc.setDrawColor(0);
     doc.setLineWidth(0.3);
-    doc.roundedRect(margin, margin, pageWidth - margin * 2, pageHeight - margin * 2, 0, 0);
+    doc.roundedRect(
+      margin,
+      margin,
+      pageWidth - margin * 2,
+      pageHeight - margin * 2,
+      0,
+      0
+    );
 
     let y = margin + padding;
     doc.setFont("helvetica", "bold");
@@ -112,7 +159,12 @@ export async function POST(req: Request) {
     doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
     doc.text(`Voucher ID: ${voucher.id}`, margin + padding, y);
-    doc.text(`Created At: ${formatDate(voucher.created_at)}`, pageWidth - margin - padding, y, { align: "right" });
+    doc.text(
+      `Created At: ${formatDate(voucher.created_at)}`,
+      pageWidth - margin - padding,
+      y,
+      { align: "right" }
+    );
 
     y += 6;
     doc.setDrawColor(0);
@@ -138,7 +190,10 @@ export async function POST(req: Request) {
             signatureBase64 = `data:image/png;base64,${buf.toString("base64")}`;
           }
         }
-        debug.push({ step: "signature.resolve", details: { source: signatureSource, ok: Boolean(signatureBase64) } });
+        debug.push({
+          step: "signature.resolve",
+          details: { source: signatureSource, ok: Boolean(signatureBase64) },
+        });
       } catch {
         debug.push({ step: "signature.resolve.error" });
       }
@@ -163,64 +218,72 @@ export async function POST(req: Request) {
       head: [["Details", "Information"]],
       body,
       margin: { left: margin + padding, right: margin + padding },
-      styles: { fontSize: 11, cellPadding: 4, lineColor: [0, 0, 0], lineWidth: 0.2, textColor: [30, 30, 30] },
-      headStyles: { fillColor: [45, 45, 45], textColor: 255, fontStyle: "bold", halign: "left" },
+      styles: {
+        fontSize: 11,
+        cellPadding: 4,
+        lineColor: [0, 0, 0],
+        lineWidth: 0.2,
+        textColor: [30, 30, 30],
+      },
+      headStyles: {
+        fillColor: [45, 45, 45],
+        textColor: 255,
+        fontStyle: "bold",
+        halign: "left",
+      },
       alternateRowStyles: { fillColor: [246, 246, 246] },
-      columnStyles: { 0: { cellWidth: 60, fontStyle: "bold" }, 1: { cellWidth: pageWidth - (margin + padding) * 2 - 60 } },
+      columnStyles: {
+        0: { cellWidth: 60, fontStyle: "bold" },
+        1: { cellWidth: pageWidth - (margin + padding) * 2 - 60 },
+      },
     });
 
     // Start signature section after the rendered table
-    y = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 15 : y + 15;
+    y = (doc as any).lastAutoTable?.finalY
+      ? (doc as any).lastAutoTable.finalY + 15
+      : y + 15;
 
     // ===== Signature Section =====
-      // Divider above DIGITAL SIGNATURE:
-      doc.setDrawColor(0);
-      doc.setLineWidth(0.2);
-      doc.line(margin + padding, y, pageWidth - margin - padding, y);
+    // Divider above DIGITAL SIGNATURE:
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.2);
+    doc.line(margin + padding, y, pageWidth - margin - padding, y);
 
-      y += 8;
+    y += 8;
 
-      // Section title
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(0, 0, 0);
-      doc.text("DIGITAL SIGNATURE:", margin + padding, y);
+    // Section title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.text("DIGITAL SIGNATURE:", margin + padding, y);
 
-      y += 6;
+    y += 6;
 
-      if (signatureBase64) {
-        try {
-          const maxW = 80; 
-          const maxH = 15;
+    if (signatureBase64) {
+      try {
+        const maxW = 80;
+        const maxH = 15;
 
-          // Add image with preserved aspect ratio
-          doc.addImage(signatureBase64, "PNG", margin + padding + 4, y + 4, maxW, maxH);
+        // Add image with preserved aspect ratio
+        doc.addImage(
+          signatureBase64,
+          "PNG",
+          margin + padding + 4,
+          y + 4,
+          maxW,
+          maxH
+        );
 
-          // Dashed box that wraps the signature (just bigger than image)
-          const boxW = maxW + 8;
-          const boxH = maxH + 8;
-          doc.setLineWidth(0.3);
-          doc.setDrawColor(150);
-          (doc as any).setLineDash?.([2, 2], 0);
-          doc.rect(margin + padding, y, boxW, boxH);
-          (doc as any).setLineDash?.([]);
-        } catch {
-          // If image fails → show dashed placeholder with text
-          const boxW = 120;
-          const boxH = 30;
-          doc.setLineWidth(0.3);
-          doc.setDrawColor(150);
-          (doc as any).setLineDash?.([2, 2], 0);
-          doc.rect(margin + padding, y, boxW, boxH);
-          (doc as any).setLineDash?.([]);
-
-          doc.setFont("helvetica", "italic");
-          doc.setFontSize(10);
-          doc.setTextColor(150, 150, 150);
-          doc.text("Signature unavailable", margin + padding + 6, y + 15);
-        }
-      } else {
-        // No signature at all → placeholder box with text
+        // Dashed box that wraps the signature (just bigger than image)
+        const boxW = maxW + 8;
+        const boxH = maxH + 8;
+        doc.setLineWidth(0.3);
+        doc.setDrawColor(150);
+        (doc as any).setLineDash?.([2, 2], 0);
+        doc.rect(margin + padding, y, boxW, boxH);
+        (doc as any).setLineDash?.([]);
+      } catch {
+        // If image fails → show dashed placeholder with text
         const boxW = 120;
         const boxH = 30;
         doc.setLineWidth(0.3);
@@ -232,14 +295,34 @@ export async function POST(req: Request) {
         doc.setFont("helvetica", "italic");
         doc.setFontSize(10);
         doc.setTextColor(150, 150, 150);
-        doc.text("Signature Not Available", margin + padding + 6, y + 15);
+        doc.text("Signature unavailable", margin + padding + 6, y + 15);
       }
+    } else {
+      // No signature at all → placeholder box with text
+      const boxW = 120;
+      const boxH = 30;
+      doc.setLineWidth(0.3);
+      doc.setDrawColor(150);
+      (doc as any).setLineDash?.([2, 2], 0);
+      doc.rect(margin + padding, y, boxW, boxH);
+      (doc as any).setLineDash?.([]);
+
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(10);
+      doc.setTextColor(150, 150, 150);
+      doc.text("Signature Not Available", margin + padding + 6, y + 15);
+    }
 
     // Footer note
     const bottomFooterY = pageHeight - margin - 14;
     doc.setDrawColor(120);
     doc.setLineWidth(0.2);
-    doc.line(margin + padding, bottomFooterY, pageWidth - margin - padding, bottomFooterY);
+    doc.line(
+      margin + padding,
+      bottomFooterY,
+      pageWidth - margin - padding,
+      bottomFooterY
+    );
     doc.setFont("helvetica", "italic");
     doc.setFontSize(12);
     doc.setTextColor(100, 100, 100);
@@ -255,16 +338,26 @@ export async function POST(req: Request) {
     const arrayBuffer = await pdfBlob.arrayBuffer();
 
     // Upload to storage
-    const key = `${voucher.created_by || "unknown"}/${expense.org_id || "org"}/${voucher.id}.pdf`;
+    const key = `${voucher.created_by || "unknown"}/${
+      expense.org_id || "org"
+    }/${voucher.id}.pdf`;
     const { error: uploadError, data: uploadData } = await supabase.storage
       .from("voucher-pdfs")
-      .upload(key, arrayBuffer, { contentType: "application/pdf", upsert: true });
+      .upload(key, arrayBuffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
 
-
-    debug.push({ step: "storage.upload", details: { key, error: uploadError?.message, path: uploadData?.path } });
+    debug.push({
+      step: "storage.upload",
+      details: { key, error: uploadError?.message, path: uploadData?.path },
+    });
 
     if (uploadError) {
-      return NextResponse.json({ error: uploadError.message, ...(includeDebug ? { debug } : {}) }, { status: 500 });
+      return NextResponse.json(
+        { error: uploadError.message, ...(includeDebug ? { debug } : {}) },
+        { status: 500 }
+      );
     }
 
     // Save path to voucher (ignore if column doesn't exist yet)
@@ -273,11 +366,28 @@ export async function POST(req: Request) {
       .update({ pdf_path: uploadData?.path || key } as any)
       .eq("id", voucherId);
 
-    debug.push({ step: "voucher.update", details: { voucherId, pdf_path: uploadData?.path || key, error: upErr?.message } });
+    debug.push({
+      step: "voucher.update",
+      details: {
+        voucherId,
+        pdf_path: uploadData?.path || key,
+        error: upErr?.message,
+      },
+    });
 
     // If the column is missing (migration not applied), continue without failing
-    if (upErr && !(typeof upErr.message === "string" && upErr.message.toLowerCase().includes("column") && upErr.message.toLowerCase().includes("pdf_path"))) {
-      return NextResponse.json({ error: upErr.message, ...(includeDebug ? { debug } : {}) }, { status: 500 });
+    if (
+      upErr &&
+      !(
+        typeof upErr.message === "string" &&
+        upErr.message.toLowerCase().includes("column") &&
+        upErr.message.toLowerCase().includes("pdf_path")
+      )
+    ) {
+      return NextResponse.json(
+        { error: upErr.message, ...(includeDebug ? { debug } : {}) },
+        { status: 500 }
+      );
     }
 
     // Return signed URL
@@ -285,15 +395,40 @@ export async function POST(req: Request) {
       .from("voucher-pdfs")
       .createSignedUrl(uploadData?.path || key, 3600);
 
-    debug.push({ step: "storage.signedUrl", details: { path: uploadData?.path || key, error: urlErr?.message, ok: Boolean(!urlErr) } });
+    debug.push({
+      step: "storage.signedUrl",
+      details: {
+        path: uploadData?.path || key,
+        error: urlErr?.message,
+        ok: Boolean(!urlErr),
+      },
+    });
 
     if (urlErr) {
-      return NextResponse.json({ success: true, path: uploadData?.path || key, ...(includeDebug ? { debug } : {}) }, { status: 200 });
+      return NextResponse.json(
+        {
+          success: true,
+          path: uploadData?.path || key,
+          ...(includeDebug ? { debug } : {}),
+        },
+        { status: 200 }
+      );
     }
 
-    return NextResponse.json({ success: true, path: uploadData?.path || key, url: signed.signedUrl, ...(includeDebug ? { debug } : {}) });
+    return NextResponse.json({
+      success: true,
+      path: uploadData?.path || key,
+      url: signed.signedUrl,
+      ...(includeDebug ? { debug } : {}),
+    });
   } catch (e: any) {
     debug.push({ step: "unexpected.error", details: { message: e?.message } });
-    return NextResponse.json({ error: e?.message || "Unexpected error", ...(includeDebug ? { debug } : {}) }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: e?.message || "Unexpected error",
+        ...(includeDebug ? { debug } : {}),
+      },
+      { status: 500 }
+    );
   }
 }

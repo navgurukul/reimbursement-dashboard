@@ -1,13 +1,25 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Use Service Role key (ONLY on server, NEVER in client)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
-);
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY or URL missing",
+      },
+      { status: 500 }
+    );
+  }
+
+  // Use Service Role key (ONLY on server, NEVER in client) at runtime
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+  );
   try {
     const formData = await request.formData();
 
@@ -55,10 +67,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: { publicUrl } } = supabase.storage
-      .from("policies-bucket")
-      .getPublicUrl(fileName);
-
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("policies-bucket").getPublicUrl(fileName);
 
     return NextResponse.json({
       success: true,
