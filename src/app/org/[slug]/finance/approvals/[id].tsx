@@ -16,6 +16,7 @@ import {
   TableRow,
   TableHead,
 } from "@/components/ui/table";
+import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -106,14 +107,11 @@ export default function FinanceExpenseDetail() {
       {/* Expense Info Table */}
       <div className="overflow-x-auto border rounded bg-white shadow">
         {loading ? (
-          <div className="p-6 space-y-3">
-            {[...Array(7)].map((_, i) => (
-              <div key={i} className="flex gap-4">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-48" />
-              </div>
-            ))}
-          </div>
+          <Table>
+            <TableBody>
+              <DetailTableSkeleton rows={7} />
+            </TableBody>
+          </Table>
         ) : (
           <Table>
             <TableBody>

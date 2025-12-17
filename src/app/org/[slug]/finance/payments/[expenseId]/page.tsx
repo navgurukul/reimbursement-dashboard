@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Clock } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -271,14 +272,11 @@ export default function PaymentProcessingDetails() {
           <div className="bg-white p-6 rounded shadow border">
             <h2 className="text-lg font-semibold mb-4">Expense Details</h2>
             {loading ? (
-              <div className="space-y-3">
-                {[...Array(12)].map((_, i) => (
-                  <div key={i} className="flex gap-4">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-4 w-48" />
-                  </div>
-                ))}
-              </div>
+              <Table>
+                <TableBody>
+                  <DetailTableSkeleton rows={12} />
+                </TableBody>
+              </Table>
             ) : (
               <Table>
                 <TableBody>

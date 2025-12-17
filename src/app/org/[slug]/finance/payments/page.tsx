@@ -595,7 +595,7 @@ export default function PaymentProcessingOnly() {
               <TableRow>
                 <TableCell
                   colSpan={19}
-                  className="text-center py-6 text-gray-500"
+                  className="text-center py-6 text-muted-foreground"
                 >
                   No expenses in payment processing.
                 </TableCell>
@@ -604,7 +604,7 @@ export default function PaymentProcessingOnly() {
               processingExpenses.map((expense, index) => (
                 <TableRow
                   key={expense.id}
-                  className="hover:bg-gray-50 transition py-3"
+                  className="hover:bg-gray-50 transition-colors"
                 >
                   <TableCell className="px-4 py-3 text-center">
                     {index + 1}

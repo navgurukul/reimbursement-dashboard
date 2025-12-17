@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +48,7 @@ export default function BankDetailsPage() {
     notFound();
   }
   const [data, setData] = useState<BankDetail[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [editing, setEditing] = useState<BankDetail | null>(null);
@@ -46,8 +57,6 @@ export default function BankDetailsPage() {
   const [showVerifyDialog, setShowVerifyDialog] = useState(false);
   // const [password, setPassword] = useState("");
   const [secret, setSecret] = useState("");
-
-
 
   const [form, setForm] = useState<Omit<BankDetail, "id">>({
     account_holder: "",
@@ -64,13 +73,16 @@ export default function BankDetailsPage() {
   }, [search, currentPage]);
 
   async function fetchBankDetails() {
+    setLoading(true);
     let query = supabase
       .from("bank_details")
       .select("*", { count: "exact" })
       .order("id", { ascending: false });
 
     if (search) {
-      query = query.or(`account_holder.ilike.%${search}%,email.ilike.%${search}%`);
+      query = query.or(
+        `account_holder.ilike.%${search}%,email.ilike.%${search}%`
+      );
     }
 
     const from = (currentPage - 1) * PAGE_SIZE;
@@ -81,11 +93,13 @@ export default function BankDetailsPage() {
 
     if (error) {
       toast.error("Failed to fetch data");
+      setLoading(false);
       return;
     }
 
     setData(data || []);
     setTotalCount(count || 0);
+    setLoading(false);
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,7 +112,8 @@ export default function BankDetailsPage() {
       case "account_holder":
         if (!value.trim()) newErrors[name] = "Account holder is required";
         else if (value.length < 2) newErrors[name] = "Minimum 2 characters";
-        else if (/^\d+$/.test(value)) newErrors[name] = "Account holder cannot be only numbers";
+        else if (/^\d+$/.test(value))
+          newErrors[name] = "Account holder cannot be only numbers";
         else delete newErrors[name];
         break;
 
@@ -205,9 +220,9 @@ export default function BankDetailsPage() {
   };
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Bank Details</h2>
+        <h2 className="text-2xl font-semibold">Bank Details</h2>
         <Button
           onClick={() => {
             setEditing(null);
@@ -224,7 +239,7 @@ export default function BankDetailsPage() {
           }}
           className="cursor-pointer"
         >
-          <Plus className="w-4 h-4" /> Add New
+          <Plus className="w-4 h-4 mr-2" /> Add New
         </Button>
       </div>
 
@@ -258,27 +273,32 @@ export default function BankDetailsPage() {
               </div>
             ))}
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit">
-                {editing ? "Update" : "Save"}
-              </Button>
+              <Button type="submit">{editing ? "Update" : "Save"}</Button>
             </div>
-
           </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}>
         <DialogContent className="w-full max-w-xs sm:max-w-xs mx-auto p-4 rounded shadow bg-white">
-          <DialogTitle className="text-lg font-semibold">Verify Identity</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
+            Verify Identity
+          </DialogTitle>
           <p className="text-sm text-gray-600 mt-2">
             Type <strong>CONFIRM UPDATE</strong> below to proceed.
           </p>
           {/* Secret String */}
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">Verification String</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Verification String
+            </label>
             <Input
               type="text"
               placeholder='Type "CONFIRM UPDATE"'
@@ -289,7 +309,10 @@ export default function BankDetailsPage() {
           </div>
 
           <div className="flex justify-end gap-2 mt-6">
-            <Button variant="outline" onClick={() => setShowVerifyDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowVerifyDialog(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -308,11 +331,9 @@ export default function BankDetailsPage() {
             >
               Verify & Update
             </Button>
-
           </div>
         </DialogContent>
       </Dialog>
-
 
       {/* Search */}
       <Input
@@ -323,57 +344,73 @@ export default function BankDetailsPage() {
           setCurrentPage(1);
           setSearch(e.target.value);
         }}
+        className="max-w-md"
       />
 
       {/* Table */}
-      <div className="overflow-auto">
-        <table className="min-w-full border border-gray-300 text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border px-3 py-2">Account Name</th>
-              <th className="border px-3 py-2">Account Number</th>
-              <th className="border px-3 py-2">IFSC Code</th>
-              <th className="border px-3 py-2">Bank Name</th>
-              <th className="border px-3 py-2">Email</th>
-              <th className="border px-3 py-2">Unique ID</th>
-              <th className="border px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.length === 0 && (
-              <tr>
-                <td colSpan={7} className="text-center py-4">
+      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+        <Table className="w-full text-sm">
+          <TableHeader className="bg-gray-300">
+            <TableRow>
+              <TableHead className="px-4 py-3">Account Name</TableHead>
+              <TableHead className="px-4 py-3">Account Number</TableHead>
+              <TableHead className="px-4 py-3">IFSC Code</TableHead>
+              <TableHead className="px-4 py-3">Bank Name</TableHead>
+              <TableHead className="px-4 py-3">Email</TableHead>
+              <TableHead className="px-4 py-3">Unique ID</TableHead>
+              <TableHead className="px-4 py-3 text-center">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableSkeleton colSpan={7} rows={5} />
+            ) : data.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  className="text-center py-6 text-muted-foreground"
+                >
                   No results found
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
+            ) : (
+              data.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className="hover:bg-gray-50 transition-colors"
+                >
+                  <TableCell className="px-4 py-3">
+                    {row.account_holder}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 font-mono">
+                    {row.account_number}
+                  </TableCell>
+                  <TableCell className="px-4 py-3">{row.ifsc_code}</TableCell>
+                  <TableCell className="px-4 py-3">{row.bank_name}</TableCell>
+                  <TableCell className="px-4 py-3">{row.email}</TableCell>
+                  <TableCell className="px-4 py-3 font-mono">
+                    {row.unique_id}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setEditing(row);
+                        setForm({ ...row });
+                        setErrors({});
+                        setDialogOpen(true);
+                      }}
+                      className="h-8 w-8 p-0 cursor-pointer"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
-            {data.map((row) => (
-              <tr key={row.id}>
-                <td className="border px-3 py-2">{row.account_holder}</td>
-                <td className="border px-3 py-2">{row.account_number}</td>
-                <td className="border px-3 py-2">{row.ifsc_code}</td>
-                <td className="border px-3 py-2">{row.bank_name}</td>
-                <td className="border px-3 py-2">{row.email}</td>
-                <td className="border px-3 py-2">{row.unique_id}</td>
-                <td className="border px-3 py-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setEditing(row);
-                      setForm({ ...row });
-                      setErrors({});
-                      setDialogOpen(true);
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Pagination */}

@@ -1044,13 +1044,13 @@ export default function ExpensesPage() {
                   <TableBody>
                     {loading ? (
                       <TableSkeleton
-                        colSpan={columns.filter((c) => c.visible).length + 4}
+                        colSpan={columns.filter((c) => c.visible).length + 5}
                         rows={5}
                       />
                     ) : getCurrent().length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 4}
+                          colSpan={columns.filter((c) => c.visible).length + 5}
                           className="text-center py-4 text-muted-foreground"
                         >
                           No expenses.
@@ -1059,7 +1059,7 @@ export default function ExpensesPage() {
                     ) : filteredData.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={columns.filter((c) => c.visible).length + 4}
+                          colSpan={columns.filter((c) => c.visible).length + 5}
                           className="text-center py-4 text-muted-foreground"
                         >
                           {filters.amountMin || filters.amountMax

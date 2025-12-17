@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PlusCircle, Edit, Trash2, Upload } from "lucide-react";
 import {
   Select,
@@ -559,119 +560,105 @@ export default function PoliciesPage() {
         )}
       </div>
 
-      <div className="rounded-md border overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table className="w-full min-w-[800px]">
-            <TableHeader>
+      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+        <Table className="w-full text-sm">
+          <TableHeader className="bg-gray-300">
+            <TableRow>
+              <TableHead className="px-4 py-3">Expense Type</TableHead>
+              <TableHead className="px-4 py-3">Per Unit Cost</TableHead>
+              <TableHead className="px-4 py-3">Upper Limit</TableHead>
+              <TableHead className="px-4 py-3">Eligibility</TableHead>
+              <TableHead className="px-4 py-3">Conditions</TableHead>
+              <TableHead className="px-4 py-3">Policies</TableHead>
+              {isAdminOrOwner && (
+                <TableHead className="px-4 py-3 text-center">Action</TableHead>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeleton colSpan={isAdminOrOwner ? 7 : 6} rows={5} />
+            ) : policyList.length === 0 ? (
               <TableRow>
-                <TableHead className="w-[120px]">Expense Type</TableHead>
-                <TableHead className="w-[120px]">Per Unit Cost</TableHead>
-                <TableHead className="w-[120px]">Upper Limit</TableHead>
-                <TableHead className="w-[120px]">Eligibility</TableHead>
-                <TableHead className="w-[120px]">Conditions</TableHead>
-                <TableHead className="w-[120px]">Policies</TableHead>
-                {isAdminOrOwner && (
-                  <TableHead className="w-[100px] text-center">
-                    Action
-                  </TableHead>
-                )}
+                <TableCell
+                  colSpan={isAdminOrOwner ? 7 : 6}
+                  className="py-6 text-center text-muted-foreground"
+                >
+                  No policies defined yet.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={isAdminOrOwner ? 7 : 6}>
-                    <div className="space-y-2 py-4">
-                      {[...Array(3)].map((_, i) => (
-                        <div key={i} className="flex gap-4">
-                          <Skeleton className="h-4 w-32" />
-                          <Skeleton className="h-4 w-24" />
-                          <Skeleton className="h-4 w-24" />
-                          <Skeleton className="h-4 w-40" />
-                          <Skeleton className="h-4 w-40" />
-                          <Skeleton className="h-4 w-20" />
-                        </div>
-                      ))}
+            ) : (
+              policyList.map((policy) => (
+                <TableRow
+                  key={policy.id}
+                  className="hover:bg-gray-50 transition-colors"
+                >
+                  <TableCell className="px-4 py-3 font-medium">
+                    {policy.expense_type}
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
+                    {policy.per_unit_cost || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
+                    {policy.upper_limit ? `₹${policy.upper_limit}` : "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 max-w-[200px]">
+                    <div
+                      className="truncate"
+                      title={policy.eligibility || "N/A"}
+                    >
+                      {policy.eligibility || "N/A"}
                     </div>
                   </TableCell>
-                </TableRow>
-              ) : policyList.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={isAdminOrOwner ? 7 : 6}
-                    className="h-24 text-center"
-                  >
-                    No policies defined yet.
+                  <TableCell className="px-4 py-3 max-w-[200px]">
+                    <div
+                      className="truncate"
+                      title={policy.conditions || "N/A"}
+                    >
+                      {policy.conditions || "N/A"}
+                    </div>
                   </TableCell>
-                </TableRow>
-              ) : (
-                policyList.map((policy) => (
-                  <TableRow key={policy.id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">
-                      {policy.expense_type}
-                    </TableCell>
-                    <TableCell>{policy.per_unit_cost || "N/A"}</TableCell>
-                    <TableCell>
-                      {policy.upper_limit ? `₹${policy.upper_limit}` : "N/A"}
-                    </TableCell>
-                    <TableCell className="max-w-[200px]">
-                      <div
-                        className="truncate"
-                        title={policy.eligibility || "N/A"}
+                  <TableCell className="px-4 py-3">
+                    {policy.policy_url ? (
+                      <a
+                        href={policy.policy_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-black hover:text-blue-800 hover:button"
                       >
-                        {policy.eligibility || "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-[200px]">
-                      <div
-                        className="truncate"
-                        title={policy.conditions || "N/A"}
-                      >
-                        {policy.conditions || "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {policy.policy_url ? (
-                        <a
-                          href={policy.policy_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-black hover:text-blue-800 hover:button"
-                        >
-                          View Policy
-                        </a>
-                      ) : (
-                        <span className="text-gray-500 italic">No PDF</span>
-                      )}
-                    </TableCell>
-                    {isAdminOrOwner && (
-                      <TableCell className="text-center">
-                        <div className="flex justify-center items-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenDialog(policy)}
-                            className="h-8 w-8 p-0 cursor-pointer"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeletePolicyId(policy.id)}
-                            className="h-8 w-8 p-0 cursor-pointer"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                        View Policy
+                      </a>
+                    ) : (
+                      <span className="text-gray-500 italic">No PDF</span>
                     )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  </TableCell>
+                  {isAdminOrOwner && (
+                    <TableCell className="px-4 py-3 text-center">
+                      <div className="flex justify-center items-center space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenDialog(policy)}
+                          className="h-8 w-8 p-0 cursor-pointer"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeletePolicyId(policy.id)}
+                          className="h-8 w-8 p-0 cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
 
       {/* Delete Confirmation Dialog - moved outside table */}

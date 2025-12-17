@@ -170,18 +170,26 @@ export default function FinanceReview() {
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300">
             <TableRow>
-              <TableHead className="text-center py-3">S.No.</TableHead>
-              <TableHead className="text-center py-3">Timestamp</TableHead>
-              <TableHead className="text-center py-3">Unique ID</TableHead>
-              <TableHead className="text-center py-3">Expense Type</TableHead>
-              <TableHead className="text-center py-3">Event Name</TableHead>
-              <TableHead className="text-center py-3">Location</TableHead>
-              <TableHead className="text-center py-3">Amount</TableHead>
-              <TableHead className="text-center py-3">Date</TableHead>
-              <TableHead className="text-center py-3">Submitted By</TableHead>
-              <TableHead className="text-center py-3">Approved By</TableHead>
-              <TableHead className="text-center py-3">Status</TableHead>
-              <TableHead className="text-center py-3">Actions</TableHead>
+              <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
+              <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
+              <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Expense Type
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Event Name
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">Location</TableHead>
+              <TableHead className="px-4 py-3 text-center">Amount</TableHead>
+              <TableHead className="px-4 py-3 text-center">Date</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Submitted By
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Approved By
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">Status</TableHead>
+              <TableHead className="px-4 py-3 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -191,7 +199,7 @@ export default function FinanceReview() {
               <TableRow>
                 <TableCell
                   colSpan={12}
-                  className="text-center py-6 text-gray-500"
+                  className="text-center py-6 text-muted-foreground"
                 >
                   No expenses pending finance review
                 </TableCell>
@@ -200,48 +208,48 @@ export default function FinanceReview() {
               expenseList.map((expense, index) => (
                 <TableRow
                   key={expense.id}
-                  className="hover:bg-gray-50 transition-all py-3"
+                  className="hover:bg-gray-50 transition-colors"
                 >
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     {index + 1}
                   </TableCell>
-                  <TableCell className="text-center py-3 whitespace-nowrap">
+                  <TableCell className="px-4 py-3 text-center whitespace-nowrap">
                     {formatDateTime(expense.created_at)}
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     <span className="font-mono">
                       {expense.unique_id || "N/A"}
                     </span>
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     {expense.expense_type}
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     {expense.event_title || "N/A"}
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     {expense.location || "N/A"}
                   </TableCell>
-                  <TableCell className="text-center py-3 font-medium text-green-700">
+                  <TableCell className="px-4 py-3 text-center font-medium text-green-700">
                     {formatCurrency(expense.amount)}
                   </TableCell>
-                  <TableCell className="text-center py-3 whitespace-nowrap">
+                  <TableCell className="px-4 py-3 text-center whitespace-nowrap">
                     {new Date(expense.date).toLocaleDateString("en-IN", {
                       day: "2-digit",
                       month: "short",
                       year: "numeric",
                     })}
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     {expense.creator_name}
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     {expense.approver_name}
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     <ExpenseStatusBadge status="approved" />
                   </TableCell>
-                  <TableCell className="text-center py-3">
+                  <TableCell className="px-4 py-3 text-center">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
