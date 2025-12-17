@@ -30,7 +30,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
 
 const formatCurrency = (amount: number) =>
@@ -131,7 +131,9 @@ export default function FinanceReview() {
 
       const results = await Promise.all(
         expenseList.map((expense) =>
-          expenses.updateByFinance(expense.id, true, "").catch((err) => ({ error: err }))
+          expenses
+            .updateByFinance(expense.id, true, "")
+            .catch((err) => ({ error: err }))
         )
       );
 
@@ -150,8 +152,6 @@ export default function FinanceReview() {
     }
   };
 
-
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -163,7 +163,6 @@ export default function FinanceReview() {
         >
           Approve All
         </Button>
-
       </div>
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
@@ -193,7 +192,10 @@ export default function FinanceReview() {
               </TableRow>
             ) : expenseList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
+                <TableCell
+                  colSpan={12}
+                  className="text-center py-6 text-gray-500"
+                >
                   No expenses pending finance review
                 </TableCell>
               </TableRow>
@@ -203,14 +205,26 @@ export default function FinanceReview() {
                   key={expense.id}
                   className="hover:bg-gray-50 transition-all py-3"
                 >
-                  <TableCell className="text-center py-3">{index + 1}</TableCell>
-                  <TableCell className="text-center py-3 whitespace-nowrap">{formatDateTime(expense.created_at)}</TableCell>
-                    <TableCell className="text-center py-3">
-                      <span className="font-mono">{expense.unique_id || "N/A"}</span>
-                    </TableCell>
-                  <TableCell className="text-center py-3">{expense.expense_type}</TableCell>
-                  <TableCell className="text-center py-3">{expense.event_title || "N/A"}</TableCell>
-                  <TableCell className="text-center py-3">{expense.location || "N/A"}</TableCell>
+                  <TableCell className="text-center py-3">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="text-center py-3 whitespace-nowrap">
+                    {formatDateTime(expense.created_at)}
+                  </TableCell>
+                  <TableCell className="text-center py-3">
+                    <span className="font-mono">
+                      {expense.unique_id || "N/A"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center py-3">
+                    {expense.expense_type}
+                  </TableCell>
+                  <TableCell className="text-center py-3">
+                    {expense.event_title || "N/A"}
+                  </TableCell>
+                  <TableCell className="text-center py-3">
+                    {expense.location || "N/A"}
+                  </TableCell>
                   <TableCell className="text-center py-3 font-medium text-green-700">
                     {formatCurrency(expense.amount)}
                   </TableCell>
@@ -221,10 +235,14 @@ export default function FinanceReview() {
                       year: "numeric",
                     })}
                   </TableCell>
-                  <TableCell className="text-center py-3">{expense.creator_name}</TableCell>
-                  <TableCell className="text-center py-3">{expense.approver_name}</TableCell>
                   <TableCell className="text-center py-3">
-                    <Badge variant="success">Manager Approved</Badge>
+                    {expense.creator_name}
+                  </TableCell>
+                  <TableCell className="text-center py-3">
+                    {expense.approver_name}
+                  </TableCell>
+                  <TableCell className="text-center py-3">
+                    <ExpenseStatusBadge status="approved" />
                   </TableCell>
                   <TableCell className="text-center py-3">
                     <TooltipProvider>
@@ -249,14 +267,20 @@ export default function FinanceReview() {
           </TableBody>
         </Table>
       </div>
-      <Dialog open={confirmApproveAllOpen} onOpenChange={setConfirmApproveAllOpen}>
+      <Dialog
+        open={confirmApproveAllOpen}
+        onOpenChange={setConfirmApproveAllOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Bulk Approval</DialogTitle>
           </DialogHeader>
           <p>Are you sure you want to approve all listed expenses?</p>
           <DialogFooter className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setConfirmApproveAllOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmApproveAllOpen(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -271,7 +295,6 @@ export default function FinanceReview() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

@@ -1,10 +1,16 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenses, expenseHistory, profiles, vouchers, expenseEvents, voucherAttachments } from "@/lib/db";
+import {
+  expenses,
+  expenseHistory,
+  profiles,
+  vouchers,
+  expenseEvents,
+  voucherAttachments,
+} from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +34,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import supabase from "@/lib/supabase";
 import ExpenseHistory from "./history/expense-history";
 import { ExpenseComments } from "./history/expense-comments";
@@ -36,9 +47,10 @@ import SignaturePad from "@/components/SignatureCanvas";
 import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
 import { generateVoucherPdf } from "@/app/actions/generateVoucherPdf";
 import { useAuthStore } from "@/store/useAuthStore";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { formatDate } from "@/lib/utils";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 
 // Utility function to convert image URL to base64
 async function convertImageUrlToBase64(url: string): Promise<string> {
@@ -70,7 +82,7 @@ async function convertImageUrlToBase64(url: string): Promise<string> {
 }
 
 // Add type augmentation for jsPDF
-declare module 'jspdf' {
+declare module "jspdf" {
   interface jsPDF {
     autoTable: typeof autoTable;
     lastAutoTable: {
@@ -146,7 +158,9 @@ export default function ViewExpensePage() {
   const [customAmount, setCustomAmount] = useState<string>("");
   const [showCustomAmountInput, setShowCustomAmountInput] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
-  const [approverSignatureUrl, setApproverSignatureUrl] = useState<string | null>(null);
+  const [approverSignatureUrl, setApproverSignatureUrl] = useState<
+    string | null
+  >(null);
   const [loadingSignature, setLoadingSignature] = useState(true);
   const [savedUserSignature, setSavedUserSignature] = useState<string | null>(
     null
@@ -162,13 +176,21 @@ export default function ViewExpensePage() {
   const [shareLink, setShareLink] = useState<string>("");
   const [sharingReceipt, setSharingReceipt] = useState(false);
   const [sharingVoucher, setSharingVoucher] = useState(false);
-  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(
+    null
+  );
   const [isReceiptPaneOpen, setIsReceiptPaneOpen] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [voucherDetails, setVoucherDetails] = useState<any | null>(null);
-  const [voucherSignatureUrl, setVoucherSignatureUrl] = useState<string | null>(null);
-  const [voucherAttachmentUrl, setVoucherAttachmentUrl] = useState<string | null>(null);
-  const [voucherAttachmentFilename, setVoucherAttachmentFilename] = useState<string | null>(null);
+  const [voucherSignatureUrl, setVoucherSignatureUrl] = useState<string | null>(
+    null
+  );
+  const [voucherAttachmentUrl, setVoucherAttachmentUrl] = useState<
+    string | null
+  >(null);
+  const [voucherAttachmentFilename, setVoucherAttachmentFilename] = useState<
+    string | null
+  >(null);
   const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
 
@@ -238,9 +260,8 @@ export default function ViewExpensePage() {
   // Fetch the current user ID when the component mounts
   useEffect(() => {
     async function getCurrentUser() {
-      const userID = JSON.parse(
-        localStorage.getItem("auth-storage") || "{}"
-      ).state?.user?.id;
+      const userID = JSON.parse(localStorage.getItem("auth-storage") || "{}")
+        .state?.user?.id;
 
       const { data: userData, error } = await profiles.getById(userID);
       if (error) {
@@ -280,7 +301,9 @@ export default function ViewExpensePage() {
         // Fetch related event title if linked
         if (data.event_id) {
           try {
-            const { data: eventData } = await expenseEvents.getById(data.event_id);
+            const { data: eventData } = await expenseEvents.getById(
+              data.event_id
+            );
             if (eventData?.title) {
               setEventTitle(eventData.title);
             }
@@ -293,7 +316,8 @@ export default function ViewExpensePage() {
 
         // Fetch approver signature URL if approver_id exists
         if (data.approver_id) {
-          const { data: approverProfile, error: approverError } = await profiles.getById(data.approver_id);
+          const { data: approverProfile, error: approverError } =
+            await profiles.getById(data.approver_id);
           if (!approverError && approverProfile?.signature_url) {
             const url = await getSignatureUrl(approverProfile.signature_url);
             if (url) {
@@ -301,7 +325,6 @@ export default function ViewExpensePage() {
             }
           }
         }
-
 
         // If expense has signature_url, try to get the signature
         if (data.signature_url) {
@@ -383,7 +406,9 @@ export default function ViewExpensePage() {
 
       try {
         setVoucherPreviewLoading(true);
-        const { data: voucherData, error } = await vouchers.getByExpenseId(expenseId);
+        const { data: voucherData, error } = await vouchers.getByExpenseId(
+          expenseId
+        );
         if (error || !voucherData) {
           if (!cancelled) {
             setVoucherDetails(null);
@@ -398,12 +423,19 @@ export default function ViewExpensePage() {
         setIsVoucherPaneOpen(true); // open by default
 
         if (voucherData.signature_url) {
-          const { url } = await vouchers.getSignatureUrl(voucherData.signature_url);
+          const { url } = await vouchers.getSignatureUrl(
+            voucherData.signature_url
+          );
           if (!cancelled) setVoucherSignatureUrl(url || null);
         }
 
-        if ((voucherData as any).attachment_url || (voucherData as any).attachment) {
-          const attachmentValue = (voucherData as any).attachment_url || (voucherData as any).attachment;
+        if (
+          (voucherData as any).attachment_url ||
+          (voucherData as any).attachment
+        ) {
+          const attachmentValue =
+            (voucherData as any).attachment_url ||
+            (voucherData as any).attachment;
           const [filename, filePath] = String(attachmentValue).split(",");
           if (filePath) {
             const { url, error } = await voucherAttachments.getUrl(filePath);
@@ -449,7 +481,9 @@ export default function ViewExpensePage() {
 
       try {
         setReceiptLoading(true);
-        const { url, error } = await expenses.getReceiptUrl(expense.receipt.path);
+        const { url, error } = await expenses.getReceiptUrl(
+          expense.receipt.path
+        );
 
         if (isCancelled) return;
 
@@ -521,7 +555,9 @@ export default function ViewExpensePage() {
       }
 
       // Save approver signature URL
-      const { data: profileData, error: profileError } = await profiles.getById(currentUserId);
+      const { data: profileData, error: profileError } = await profiles.getById(
+        currentUserId
+      );
       if (!profileError && profileData?.signature_url) {
         await supabase
           .from("expense_new")
@@ -679,13 +715,16 @@ export default function ViewExpensePage() {
       const approverId = authStorage?.state?.user?.id;
 
       if (approverId) {
-        const { data: profileData, error: profileError } = await profiles.getById(approverId);
+        const { data: profileData, error: profileError } =
+          await profiles.getById(approverId);
 
         if (!profileError && profileData?.signature_url) {
           await supabase
             .from("expense_new")
             .update({ approver_signature_url: profileData.signature_url })
-            .eq("id", expenseId).select().single();
+            .eq("id", expenseId)
+            .select()
+            .single();
         }
 
         // Save approver signature to vouchers table
@@ -702,7 +741,6 @@ export default function ViewExpensePage() {
             .eq("id", voucher.id);
         }
       }
-
 
       // Log the approval to history with improved username extraction
       try {
@@ -736,8 +774,8 @@ export default function ViewExpensePage() {
           approvalType === "policy"
             ? "Approved as per policy limit"
             : approvalType === "full"
-              ? "Approved with full amount"
-              : "Expense approved";
+            ? "Approved with full amount"
+            : "Expense approved";
 
         await expenseHistory.addEntry(
           expenseId,
@@ -759,8 +797,8 @@ export default function ViewExpensePage() {
           approvalType === "policy"
             ? "Approved as per policy limit"
             : approvalType === "full"
-              ? "Approved with full amount"
-              : "Expense approved"
+            ? "Approved with full amount"
+            : "Expense approved"
         );
       }
 
@@ -776,8 +814,8 @@ export default function ViewExpensePage() {
         approvalType === "policy"
           ? "Expense approved as per policy limit"
           : approvalType === "full"
-            ? "Expense approved with full amount"
-            : "Expense approved successfully"
+          ? "Expense approved with full amount"
+          : "Expense approved successfully"
       );
 
       // Navigate back after a short delay
@@ -922,9 +960,7 @@ export default function ViewExpensePage() {
     }
   };
 
-
   const handleSaveSignature = async (dataUrl: string) => {
-
     // Only save to profile if this is a new signature (not the saved one)
     try {
       if (!user?.id || !organization?.id) {
@@ -998,7 +1034,6 @@ export default function ViewExpensePage() {
     }
   };
 
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -1061,13 +1096,17 @@ export default function ViewExpensePage() {
     setSharingReceipt(true);
     if (expense.receipt?.path) {
       try {
-        const { url, error } = await expenses.getReceiptUrl(expense.receipt.path);
+        const { url, error } = await expenses.getReceiptUrl(
+          expense.receipt.path
+        );
         if (error || !url) {
           toast.error("Failed to generate shareable link");
           return;
         }
         setShareLink(url); // input box me dikhane ke liye
-        toast.success("Receipt link generated. Copy the link below and share it.");
+        toast.success(
+          "Receipt link generated. Copy the link below and share it."
+        );
       } catch (err) {
         console.error("Receipt share error:", err);
         toast.error("Failed to generate shareable link");
@@ -1083,7 +1122,8 @@ export default function ViewExpensePage() {
     setSharingVoucher(true);
     try {
       // 1) Get voucher for this expense
-      const { data: voucherRow, error: voucherErr } = await vouchers.getByExpenseId(expense.id);
+      const { data: voucherRow, error: voucherErr } =
+        await vouchers.getByExpenseId(expense.id);
 
       if (voucherErr || !voucherRow) {
         toast.error("Voucher not found for this expense");
@@ -1101,7 +1141,9 @@ export default function ViewExpensePage() {
           }
           if (result.url) {
             setShareLink(result.url);
-            toast.success("Voucher link generated. Copy the link below and share it.");
+            toast.success(
+              "Voucher link generated. Copy the link below and share it."
+            );
             return;
           }
           pdfPath = result.path;
@@ -1125,7 +1167,9 @@ export default function ViewExpensePage() {
       }
 
       setShareLink(url);
-      toast.success("Voucher link generated. Copy the link below and share it.");
+      toast.success(
+        "Voucher link generated. Copy the link below and share it."
+      );
     } catch (err) {
       console.error("Voucher share error:", err);
       toast.error("Something went wrong while sharing voucher");
@@ -1137,8 +1181,9 @@ export default function ViewExpensePage() {
   const handleDownloadPDF = async () => {
     try {
       // Fetch voucher data first
-      const { data: voucher, error: voucherError } = await vouchers.getByExpenseId(expenseId);
-      
+      const { data: voucher, error: voucherError } =
+        await vouchers.getByExpenseId(expenseId);
+
       if (voucherError || !voucher) {
         toast.error("Voucher not found for this expense");
         return;
@@ -1148,8 +1193,8 @@ export default function ViewExpensePage() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
-      const margin = 20;      // outer margin
-      const padding = 10;     // inner padding inside border
+      const margin = 20; // outer margin
+      const padding = 10; // inner padding inside border
 
       // ===== Outer rounded border (card) =====
       doc.setDrawColor(0);
@@ -1160,7 +1205,7 @@ export default function ViewExpensePage() {
         pageWidth - margin * 2,
         pageHeight - margin * 2,
         0,
-        0,
+        0
       );
 
       // ===== Header =====
@@ -1216,9 +1261,7 @@ export default function ViewExpensePage() {
         ["Purpose", voucher.purpose || "—"],
         [
           "Signature",
-          signatureUrl
-            ? "Digital signature attached below"
-            : "Not available",
+          signatureUrl ? "Digital signature attached below" : "Not available",
         ],
       ];
 
@@ -1247,7 +1290,11 @@ export default function ViewExpensePage() {
         },
         // Amount in green + bold
         didParseCell: (d) => {
-          if (d.section === "body" && d.row.index === 1 && d.column.index === 1) {
+          if (
+            d.section === "body" &&
+            d.row.index === 1 &&
+            d.column.index === 1
+          ) {
             d.cell.styles.textColor = [0, 0, 0];
             d.cell.styles.fontStyle = "bold";
           }
@@ -1327,7 +1374,12 @@ export default function ViewExpensePage() {
       // Divider line
       doc.setDrawColor(120);
       doc.setLineWidth(0.2);
-      doc.line(margin + padding, bottomFooterY, pageWidth - margin - padding, bottomFooterY);
+      doc.line(
+        margin + padding,
+        bottomFooterY,
+        pageWidth - margin - padding,
+        bottomFooterY
+      );
 
       doc.setFont("helvetica", "italic");
       doc.setFontSize(12);
@@ -1336,7 +1388,7 @@ export default function ViewExpensePage() {
       doc.text(
         "This is a computer-generated voucher and is valid without physical signature.",
         pageWidth / 2,
-        pageHeight - margin - 6,   // always just above bottom border
+        pageHeight - margin - 6, // always just above bottom border
         { align: "center" }
       );
 
@@ -1353,11 +1405,10 @@ export default function ViewExpensePage() {
     <div className="container mx-auto py-6">
       <div className="mb-4">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() => router.push(`/org/${slug}/expenses`)}
-          className="cursor-pointer"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft />
           Back to Expenses
         </Button>
       </div>
@@ -1370,7 +1421,7 @@ export default function ViewExpensePage() {
       )}
 
       {userRole !== "member" && expense.status === "submitted" && (
-        <div className="flex items-center space-x-2 mb-6">
+        <div className="flex items-center space-x-2 mb-6 px-1">
           {showCustomAmountInput ? (
             <div className="flex items-center space-x-2">
               <div className="relative">
@@ -1388,7 +1439,6 @@ export default function ViewExpensePage() {
               <Button
                 onClick={handleApproveCustomAmount}
                 className="bg-[#0353a4] hover:bg-[#02458b] text-white"
-
                 disabled={updateLoading || !customAmount}
               >
                 {updateLoading ? (
@@ -1412,12 +1462,9 @@ export default function ViewExpensePage() {
                 variant="destructive"
                 onClick={handleReject}
                 disabled={updateLoading}
+                size="sm"
               >
-                {updateLoading ? (
-                  <Spinner size="sm" className="mr-2" />
-                ) : (
-                  <X className="mr-2 h-4 w-4" />
-                )}
+                {updateLoading ? <Spinner size="sm" className="mr-2" /> : <X />}
                 Reject
               </Button>
 
@@ -1431,7 +1478,7 @@ export default function ViewExpensePage() {
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
                     ) : (
-                      <Check className="mr-2 h-4 w-4" />
+                      <Check />
                     )}
                     Approve as per policy
                   </Button>
@@ -1444,7 +1491,7 @@ export default function ViewExpensePage() {
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
                     ) : (
-                      <Check className="mr-2 h-4 w-4" />
+                      <Check />
                     )}
                     Approve full amount
                   </Button>
@@ -1452,15 +1499,15 @@ export default function ViewExpensePage() {
                     variant="secondary"
                     onClick={() => handleApprove("custom")}
                     disabled={updateLoading}
+                    size="sm"
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
                     ) : (
-                      <Edit className="mr-2 h-4 w-4" />
+                      <Edit />
                     )}
                     Custom amount
                   </Button>
-
                 </>
               ) : (
                 <>
@@ -1468,11 +1515,12 @@ export default function ViewExpensePage() {
                     onClick={() => handleApprove("full")}
                     variant="default"
                     disabled={updateLoading}
+                    size="sm"
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
                     ) : (
-                      <Check className="mr-2 h-4 w-4" />
+                      <Check />
                     )}
                     Approve
                   </Button>
@@ -1484,7 +1532,7 @@ export default function ViewExpensePage() {
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
                     ) : (
-                      <Edit className="mr-2 h-4 w-4" />
+                      <Edit />
                     )}
                     Custom amount
                   </Button>
@@ -1512,16 +1560,22 @@ export default function ViewExpensePage() {
                   <p>{expense.expense_type}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Event Name</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Event Name
+                  </p>
                   <p>{eventTitle || "N/A"}</p>
                 </div>
                 {/* ✅ Add this block to show Location */}
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Location</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Location
+                  </p>
                   <p>{expense.location || "N/A"}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Unique ID</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Unique ID
+                  </p>
                   <div className="flex items-center space-x-2">
                     <p className="font-mono">{expense.unique_id || "N/A"}</p>
                   </div>
@@ -1560,28 +1614,29 @@ export default function ViewExpensePage() {
                   )}
 
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Date</p>
-                  <p>{new Date(expense.date).toLocaleDateString('en-GB')}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Date
+                  </p>
+                  <p>{new Date(expense.date).toLocaleDateString("en-GB")}</p>
                 </div>
-
 
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
                     Status
                   </p>
                   <p
-                    className={`${expense.status === "approved"
-                      ? "text-green-600"
-                      : expense.status === "rejected"
+                    className={`${
+                      expense.status === "approved"
+                        ? "text-green-600"
+                        : expense.status === "rejected"
                         ? "text-red-600"
                         : "text-amber-600"
-                      }`}
+                    }`}
                   >
                     {expense.status.charAt(0).toUpperCase() +
                       expense.status.slice(1)}
                   </p>
                 </div>
-
 
                 {expense.approver && (
                   <div>
@@ -1607,18 +1662,22 @@ export default function ViewExpensePage() {
                 )}
               </div>
               {/* Finance Rejected Comment */}
-              {expense.status === "finance_rejected" && expense.finance_comment && (
-                <div className="mt-1 text-sm">
-                  <span className="block font-medium text-muted-foreground">Finance Comment</span>
-                  <span>{expense.finance_comment}</span>
-                </div>
-              )}
-
+              {expense.status === "finance_rejected" &&
+                expense.finance_comment && (
+                  <div className="mt-1 text-sm">
+                    <span className="block font-medium text-muted-foreground">
+                      Finance Comment
+                    </span>
+                    <span>{expense.finance_comment}</span>
+                  </div>
+                )}
 
               {/* Receipt section with View Receipt button */}
               <div>
                 {!expense.receipt && !hasVoucher && (
-                  <p className="text-muted-foreground">No receipt or voucher available</p>
+                  <p className="text-muted-foreground">
+                    No receipt or voucher available
+                  </p>
                 )}
 
                 {expense.receipt && (
@@ -1628,7 +1687,9 @@ export default function ViewExpensePage() {
                         <div className="flex items-start gap-3">
                           <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
                           <div>
-                            <p className="text-base font-semibold">Receipt Preview</p>
+                            <p className="text-base font-semibold">
+                              Receipt Preview
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               Opens by default for quick review
                             </p>
@@ -1642,8 +1703,14 @@ export default function ViewExpensePage() {
                                   size="icon"
                                   variant="outline"
                                   className="cursor-pointer"
-                                  onClick={() => setIsReceiptPaneOpen((prev) => !prev)}
-                                  aria-label={isReceiptPaneOpen ? "Hide receipt preview" : "Show receipt preview"}
+                                  onClick={() =>
+                                    setIsReceiptPaneOpen((prev) => !prev)
+                                  }
+                                  aria-label={
+                                    isReceiptPaneOpen
+                                      ? "Hide receipt preview"
+                                      : "Show receipt preview"
+                                  }
                                 >
                                   {isReceiptPaneOpen ? (
                                     <EyeOff className="h-4 w-4" />
@@ -1653,7 +1720,11 @@ export default function ViewExpensePage() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent side="top">
-                                <p>{isReceiptPaneOpen ? "Hide receipt preview" : "Show receipt preview"}</p>
+                                <p>
+                                  {isReceiptPaneOpen
+                                    ? "Hide receipt preview"
+                                    : "Show receipt preview"}
+                                </p>
                               </TooltipContent>
                             </Tooltip>
 
@@ -1685,7 +1756,11 @@ export default function ViewExpensePage() {
                       {/* Share link section for receipt */}
                       {shareLink && (
                         <div className="flex items-center space-x-2 mt-3">
-                          <Input value={shareLink} readOnly className="flex-1" />
+                          <Input
+                            value={shareLink}
+                            readOnly
+                            className="flex-1"
+                          />
                           <Button
                             className="cursor-pointer"
                             variant="outline"
@@ -1717,7 +1792,10 @@ export default function ViewExpensePage() {
                           </div>
                         ) : receiptPreviewUrl ? (
                           isReceiptPdf ? (
-                            <div className="rounded-md border bg-white overflow-hidden" style={{ height: '500px' }}>
+                            <div
+                              className="rounded-md border bg-white overflow-hidden"
+                              style={{ height: "500px" }}
+                            >
                               <iframe
                                 src={`${receiptPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
                                 className="h-full w-full border-none"
@@ -1725,10 +1803,15 @@ export default function ViewExpensePage() {
                               />
                             </div>
                           ) : (
-                            <div className="overflow-y-auto rounded-md border bg-muted" style={{ height: 'auto' }}>
+                            <div
+                              className="overflow-y-auto rounded-md border bg-muted"
+                              style={{ height: "auto" }}
+                            >
                               <img
                                 src={receiptPreviewUrl}
-                                alt={expense.receipt.filename || "Receipt preview"}
+                                alt={
+                                  expense.receipt.filename || "Receipt preview"
+                                }
                                 className="w-full object-contain"
                               />
                             </div>
@@ -1750,7 +1833,9 @@ export default function ViewExpensePage() {
                         <div className="flex items-start gap-3">
                           <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
                           <div>
-                            <p className="text-base font-semibold">Voucher Preview</p>
+                            <p className="text-base font-semibold">
+                              Voucher Preview
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               Opens by default for quick review
                             </p>
@@ -1764,8 +1849,14 @@ export default function ViewExpensePage() {
                                   size="icon"
                                   variant="outline"
                                   className="cursor-pointer"
-                                  onClick={() => setIsVoucherPaneOpen((prev) => !prev)}
-                                  aria-label={isVoucherPaneOpen ? "Hide voucher preview" : "Show voucher preview"}
+                                  onClick={() =>
+                                    setIsVoucherPaneOpen((prev) => !prev)
+                                  }
+                                  aria-label={
+                                    isVoucherPaneOpen
+                                      ? "Hide voucher preview"
+                                      : "Show voucher preview"
+                                  }
                                 >
                                   {isVoucherPaneOpen ? (
                                     <EyeOff className="h-4 w-4" />
@@ -1775,7 +1866,11 @@ export default function ViewExpensePage() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent side="top">
-                                <p>{isVoucherPaneOpen ? "Hide voucher preview" : "Show voucher preview"}</p>
+                                <p>
+                                  {isVoucherPaneOpen
+                                    ? "Hide voucher preview"
+                                    : "Show voucher preview"}
+                                </p>
                               </TooltipContent>
                             </Tooltip>
 
@@ -1824,7 +1919,11 @@ export default function ViewExpensePage() {
                       {/* Share link section - shows below the header when share is clicked */}
                       {shareLink && (
                         <div className="flex items-center space-x-2 mt-3">
-                          <Input value={shareLink} readOnly className="flex-1" />
+                          <Input
+                            value={shareLink}
+                            readOnly
+                            className="flex-1"
+                          />
                           <Button
                             className="cursor-pointer"
                             variant="outline"
@@ -1858,37 +1957,61 @@ export default function ViewExpensePage() {
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <p className="text-sm text-muted-foreground">Your Name</p>
-                                <p className="font-medium">{voucherDetails.your_name || expense.creator?.full_name || "—"}</p>
-                              </div>
-                              <div>
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-sm text-muted-foreground">Amount</p>
-                                  <span
-                                    className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800"
-                                    aria-label="voucher status"
-                                  >
-                                    {expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
-                                  </span>
-                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  Your Name
+                                </p>
                                 <p className="font-medium">
-                                  {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(voucherDetails.amount || expense.amount)}
+                                  {voucherDetails.your_name ||
+                                    expense.creator?.full_name ||
+                                    "—"}
                                 </p>
                               </div>
                               <div>
-                                <p className="text-sm text-muted-foreground">Date</p>
-                                <p className="font-medium">{new Date(expense.date).toLocaleDateString("en-GB")}</p>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    Amount
+                                  </p>
+                                  <ExpenseStatusBadge status={expense.status} />
+                                </div>
+                                <p className="font-medium">
+                                  {new Intl.NumberFormat("en-IN", {
+                                    style: "currency",
+                                    currency: "INR",
+                                  }).format(
+                                    voucherDetails.amount || expense.amount
+                                  )}
+                                </p>
                               </div>
                               <div>
-                                <p className="text-sm text-muted-foreground">Credit Person</p>
-                                <p className="font-medium">{voucherDetails.credit_person || "—"}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Date
+                                </p>
+                                <p className="font-medium">
+                                  {new Date(expense.date).toLocaleDateString(
+                                    "en-GB"
+                                  )}
+                                </p>
                               </div>
                               <div>
-                                <p className="text-sm text-muted-foreground">Approver</p>
-                                <p className="font-medium">{expense.approver?.full_name || "—"}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Credit Person
+                                </p>
+                                <p className="font-medium">
+                                  {voucherDetails.credit_person || "—"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-muted-foreground">
+                                  Approver
+                                </p>
+                                <p className="font-medium">
+                                  {expense.approver?.full_name || "—"}
+                                </p>
                               </div>
                               <div className="md:col-span-2">
-                                <p className="text-sm text-muted-foreground">Purpose</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Purpose
+                                </p>
                                 <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">
                                   {voucherDetails.purpose || "—"}
                                 </div>
@@ -1896,7 +2019,9 @@ export default function ViewExpensePage() {
                             </div>
 
                             <div>
-                              <p className="text-sm text-muted-foreground mb-2">Signature</p>
+                              <p className="text-sm text-muted-foreground mb-2">
+                                Signature
+                              </p>
                               {voucherSignatureUrl ? (
                                 <div className="border rounded-md p-3 bg-white">
                                   <img
@@ -1906,17 +2031,27 @@ export default function ViewExpensePage() {
                                   />
                                 </div>
                               ) : (
-                                <p className="text-sm text-muted-foreground">Signature not available</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Signature not available
+                                </p>
                               )}
                             </div>
 
                             {voucherAttachmentUrl && (
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                  <p className="text-sm font-medium">Attachment</p>
+                                  <p className="text-sm font-medium">
+                                    Attachment
+                                  </p>
                                 </div>
-                                {voucherAttachmentFilename && voucherAttachmentFilename.toLowerCase().endsWith(".pdf") ? (
-                                  <div className="rounded-md border bg-white overflow-hidden" style={{ height: "500px" }}>
+                                {voucherAttachmentFilename &&
+                                voucherAttachmentFilename
+                                  .toLowerCase()
+                                  .endsWith(".pdf") ? (
+                                  <div
+                                    className="rounded-md border bg-white overflow-hidden"
+                                    style={{ height: "500px" }}
+                                  >
                                     <iframe
                                       src={`${voucherAttachmentUrl}#toolbar=0&navpanes=0&scrollbar=1`}
                                       className="h-full w-full border-none"
@@ -1937,8 +2072,12 @@ export default function ViewExpensePage() {
 
                             {!voucherAttachmentUrl && (
                               <div className="flex gap-1">
-                                <p className="text-sm font-medium">Attachment : </p>
-                                <p className="text-sm text-muted-foreground">Not Available</p>
+                                <p className="text-sm font-medium">
+                                  Attachment :{" "}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  Not Available
+                                </p>
                               </div>
                             )}
                           </>
@@ -1948,7 +2087,6 @@ export default function ViewExpensePage() {
                   </div>
                 )}
               </div>
-
 
               {/* Signature Section - Add this section to show the signature */}
               {signatureUrl && (
@@ -2005,7 +2143,9 @@ export default function ViewExpensePage() {
 
                   {loadingSignature ? (
                     <div className="flex items-center justify-center h-32 bg-gray-50 border rounded-lg">
-                      <p className="text-sm text-gray-500">Loading your signature...</p>
+                      <p className="text-sm text-gray-500">
+                        Loading your signature...
+                      </p>
                     </div>
                   ) : (
                     <SignaturePad
@@ -2017,9 +2157,11 @@ export default function ViewExpensePage() {
                   )}
 
                   {savedUserSignature &&
-                    formData.expense_signature_preview !== savedUserSignature && (
+                    formData.expense_signature_preview !==
+                      savedUserSignature && (
                       <p className="text-xs text-blue-600">
-                        * You're using a new signature. This will replace your saved signature when you submit.
+                        * You're using a new signature. This will replace your
+                        saved signature when you submit.
                       </p>
                     )}
                 </div>
@@ -2031,19 +2173,26 @@ export default function ViewExpensePage() {
                 customFields.length > 0 && ( // make sure customFields are loaded
                   <div className="grid grid-cols-2 gap-4 mt-4 break-words">
                     {Object.entries(expense.custom_fields)
-                      .filter(([key]) =>
-                        key !== 'location_of_expense' &&
-                        key !== 'Location of Expense' &&
-                        key.toLowerCase() !== 'location_of_expense'
+                      .filter(
+                        ([key]) =>
+                          key !== "location_of_expense" &&
+                          key !== "Location of Expense" &&
+                          key.toLowerCase() !== "location_of_expense"
                       ) // Exclude Location Of Expense
                       .map(([key, value]) => {
-                        const matchedField = customFields.find((field) => field.key === key);
+                        const matchedField = customFields.find(
+                          (field) => field.key === key
+                        );
                         return (
                           <div key={key}>
                             <p className="text-sm font-medium text-muted-foreground">
                               {matchedField?.label || formatFieldName(key)}
                             </p>
-                            <p>{value !== undefined && value !== "" ? formatFieldValue(value) : "—"}</p>
+                            <p>
+                              {value !== undefined && value !== ""
+                                ? formatFieldValue(value)
+                                : "—"}
+                            </p>
                           </div>
                         );
                       })}

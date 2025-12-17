@@ -2,9 +2,15 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { expenses, expenseEvents, expenseHistory, auth, profiles } from "@/lib/db";
-import { formatDateTime } from '@/lib/utils';
-import { Badge } from "@/components/ui/badge";
+import {
+  expenses,
+  expenseEvents,
+  expenseHistory,
+  auth,
+  profiles,
+} from "@/lib/db";
+import { formatDateTime } from "@/lib/utils";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +31,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import ExpenseHistory from "../../expenses/[id]/history/expense-history"
+import ExpenseHistory from "../../expenses/[id]/history/expense-history";
 import { ExpenseComments } from "../../expenses/[id]/history/expense-comments";
 
 import supabase from "@/lib/supabase"; // Make sure this is correctly imported
@@ -60,7 +66,9 @@ export default function FinanceExpenseDetails() {
       // Fetch related event title if any
       if (expenseData.event_id) {
         try {
-          const { data: ev } = await expenseEvents.getById(expenseData.event_id);
+          const { data: ev } = await expenseEvents.getById(
+            expenseData.event_id
+          );
           setEventTitle(ev?.title || null);
         } catch (e) {
           setEventTitle(null);
@@ -125,7 +133,9 @@ export default function FinanceExpenseDetails() {
         let userName = userData.user?.email || "Unknown User";
         if (currentUserId) {
           const profRes = await profiles.getByUserId(currentUserId);
-          const fullName = (profRes as any)?.data?.full_name as string | undefined;
+          const fullName = (profRes as any)?.data?.full_name as
+            | string
+            | undefined;
           if (fullName) userName = fullName;
         }
         await expenseHistory.addEntry(
@@ -166,7 +176,9 @@ export default function FinanceExpenseDetails() {
         let userName = userData.user?.email || "Unknown User";
         if (currentUserId) {
           const profRes = await profiles.getByUserId(currentUserId);
-          const fullName = (profRes as any)?.data?.full_name as string | undefined;
+          const fullName = (profRes as any)?.data?.full_name as
+            | string
+            | undefined;
           if (fullName) userName = fullName;
         }
         await expenseHistory.addEntry(
@@ -208,7 +220,8 @@ export default function FinanceExpenseDetails() {
   };
 
   if (loading) return <div className="p-6 text-gray-600">Loading...</div>;
-  if (!expense) return <div className="p-6 text-red-600">Expense not found</div>;
+  if (!expense)
+    return <div className="p-6 text-red-600">Expense not found</div>;
 
   return (
     <div className="p-6 space-y-6">
@@ -254,9 +267,7 @@ export default function FinanceExpenseDetails() {
                 </TableRow>
                 <TableRow>
                   <TableHead>Unique ID</TableHead>
-                  <TableCell>
-                    {expense.unique_id || "N/A"}
-                  </TableCell>
+                  <TableCell>{expense.unique_id || "N/A"}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableHead>Location of Expense</TableHead>
@@ -268,7 +279,9 @@ export default function FinanceExpenseDetails() {
                 </TableRow>
                 <TableRow>
                   <TableHead>Expense Type</TableHead>
-                  <TableCell>{expense.expense_type || "Not Provided"}</TableCell>
+                  <TableCell>
+                    {expense.expense_type || "Not Provided"}
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableHead>Amount</TableHead>
@@ -287,7 +300,7 @@ export default function FinanceExpenseDetails() {
                 <TableRow>
                   <TableHead>Status</TableHead>
                   <TableCell>
-                    <Badge className="capitalize">{expense.status}</Badge>
+                    <ExpenseStatusBadge status={expense.status} />
                   </TableCell>
                 </TableRow>
                 <TableRow>
@@ -311,7 +324,9 @@ export default function FinanceExpenseDetails() {
                         variant="outline"
                         className="flex items-center text-blue-600 cursor-pointer"
                         onClick={() =>
-                          router.push(`/org/${slug}/expenses/${expense.id}/voucher?from=approval-queue`)
+                          router.push(
+                            `/org/${slug}/expenses/${expense.id}/voucher?from=approval-queue`
+                          )
                         }
                       >
                         <FileText className="mr-2 h-4 w-4" />
@@ -326,8 +341,9 @@ export default function FinanceExpenseDetails() {
                 </TableRow>
                 <TableRow>
                   <TableHead>Description</TableHead>
-                  <TableCell>{expense.custom_fields?.description || "—"}</TableCell>
-
+                  <TableCell>
+                    {expense.custom_fields?.description || "—"}
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableHead>Signature</TableHead>
@@ -361,7 +377,9 @@ export default function FinanceExpenseDetails() {
             </Table>
           </div>
           <div className="bg-white p-6 rounded shadow border">
-            <ExpenseComments expenseId={typeof expenseId === "string" ? expenseId : ""} />
+            <ExpenseComments
+              expenseId={typeof expenseId === "string" ? expenseId : ""}
+            />
           </div>
         </div>
         {/* Activity History */}
@@ -372,7 +390,9 @@ export default function FinanceExpenseDetails() {
               <CardTitle>Activity History</CardTitle>
             </CardHeader>
             <CardContent className="max-h-[500px] overflow-auto">
-              <ExpenseHistory expenseId={typeof expenseId === "string" ? expenseId : ""} />
+              <ExpenseHistory
+                expenseId={typeof expenseId === "string" ? expenseId : ""}
+              />
             </CardContent>
           </Card>
         </div>
@@ -389,8 +409,7 @@ export default function FinanceExpenseDetails() {
 
           <div className="w-full mt-2">
             <div className="border border-red-300 rounded p-3 space-y-2">
-              <label className="block font-medium">
-              </label>
+              <label className="block font-medium"></label>
               <Textarea
                 rows={4}
                 value={comment}
@@ -402,7 +421,11 @@ export default function FinanceExpenseDetails() {
           </div>
 
           <DialogFooter className="mt-4">
-            <Button variant="outline" className="cursor-pointer" onClick={() => setShowCommentBox(false)}>
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => setShowCommentBox(false)}
+            >
               Cancel
             </Button>
             <Button

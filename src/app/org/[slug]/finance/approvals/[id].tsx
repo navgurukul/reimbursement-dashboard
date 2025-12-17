@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { expenses } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -66,7 +66,11 @@ export default function FinanceExpenseDetail() {
       return;
     }
 
-    const { error } = await expenses.updateByFinance(expense.id, false, comment);
+    const { error } = await expenses.updateByFinance(
+      expense.id,
+      false,
+      comment
+    );
 
     if (error) {
       toast.error("Failed to reject");
@@ -108,7 +112,9 @@ export default function FinanceExpenseDetail() {
             </TableRow>
             <TableRow className="py-3">
               <TableHead>Date</TableHead>
-              <TableCell>{new Date(expense.date).toLocaleDateString("en-IN")}</TableCell>
+              <TableCell>
+                {new Date(expense.date).toLocaleDateString("en-IN")}
+              </TableCell>
             </TableRow>
             <TableRow className="py-3">
               <TableHead>Description</TableHead>
@@ -125,7 +131,7 @@ export default function FinanceExpenseDetail() {
             <TableRow className="py-3">
               <TableHead>Status</TableHead>
               <TableCell>
-                <Badge variant="outline">{expense.status}</Badge>
+                <ExpenseStatusBadge status={expense.status} />
               </TableCell>
             </TableRow>
             {expense.hasVoucher && (

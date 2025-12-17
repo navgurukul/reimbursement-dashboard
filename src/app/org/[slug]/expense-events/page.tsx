@@ -20,7 +20,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { EventStatusBadge } from "@/components/ExpenseStatusBadge";
 import { formatDate, formatCurrency } from "@/lib/utils";
 
 interface ExpenseEvent {
@@ -34,7 +34,6 @@ interface ExpenseEvent {
   custom_fields: Record<string, any>;
   created_at: string;
   approved_amount?: number; // Add this line
-
 }
 
 export default function ExpenseEventsPage() {
@@ -84,7 +83,10 @@ export default function ExpenseEventsPage() {
         const entries = await Promise.all(
           events.map(async (ev) => {
             const { data } = await expenses.getByEventId(ev.id);
-            const total = (data || []).reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+            const total = (data || []).reduce(
+              (sum: number, exp: any) => sum + (exp.amount || 0),
+              0
+            );
             return [ev.id, total] as const;
           })
         );
@@ -111,7 +113,6 @@ export default function ExpenseEventsPage() {
     );
   }
 
-
   const getEventTimelineStatus = (start: string, end: string) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -125,7 +126,6 @@ export default function ExpenseEventsPage() {
     if (startDate > today) return "Upcoming";
     return "Ongoing";
   };
-
 
   return (
     <div className="max-w-[1200px] mx-auto py-6 space-y-6">
@@ -208,23 +208,12 @@ export default function ExpenseEventsPage() {
                     {formatDate(event.start_date)} -{" "}
                     {formatDate(event.end_date)}
                   </TableCell>
-                    <TableCell className="space-x-2">
-                      {(() => {
-                        const status = getEventTimelineStatus(event.start_date, event.end_date);
-                        const badgeColor =
-                          status === "Ongoing"
-                            ? "bg-green-100 text-green-800"
-                            : status === "Upcoming"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-gray-300 text-gray-800";
-
-                        return (
-                          <Badge className={badgeColor} variant="outline">
-                            {status}
-                          </Badge>
-                        );
-                      })()}
-                    </TableCell>
+                  <TableCell className="space-x-2">
+                    <EventStatusBadge
+                      startDate={event.start_date}
+                      endDate={event.end_date}
+                    />
+                  </TableCell>
                   <TableCell>
                     {formatCurrency(eventTotals[event.id] || 0)}
                   </TableCell>

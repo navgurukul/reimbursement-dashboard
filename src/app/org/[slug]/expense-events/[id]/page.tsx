@@ -28,7 +28,10 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import {
+  ExpenseStatusBadge,
+  EventStatusBadge,
+} from "@/components/ExpenseStatusBadge";
 import { formatDate, formatCurrency } from "@/lib/utils";
 
 interface ExpenseEvent {
@@ -49,7 +52,13 @@ interface Expense {
   amount: number;
   approved_amount?: number;
   date: string;
-  status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed" | "approved_as_per_policy";
+  status:
+    | "draft"
+    | "submitted"
+    | "approved"
+    | "rejected"
+    | "reimbursed"
+    | "approved_as_per_policy";
   receipt: any;
   custom_fields: Record<string, any>;
   approver_id?: string;
@@ -150,7 +159,8 @@ export default function ExpenseEventDetailPage() {
         setEventExpenses(
           (expensesData || []).map((exp: any) => ({
             ...exp,
-            approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+            approved_amount:
+              exp.approved_amount === null ? undefined : exp.approved_amount,
           })) as Expense[]
         );
       } catch (error: any) {
@@ -165,19 +175,17 @@ export default function ExpenseEventDetailPage() {
 
     fetchEventDetails();
   }, [eventId, orgId, slug, router]);
-  
+
   const approvedStatuses = [
     "finance_approved",
     "approved",
     "approved_as_per_policy",
     "approve_full_amount",
-    "custom_amount"
+    "custom_amount",
   ];
 
   const approvedTotal = eventExpenses
-    .filter((exp) =>
-      approvedStatuses.includes(exp.status?.toLowerCase())
-    )
+    .filter((exp) => approvedStatuses.includes(exp.status?.toLowerCase()))
     .reduce((sum, exp) => sum + (exp.approved_amount || 0), 0);
 
   // Total of all created expenses linked to this event
@@ -269,7 +277,8 @@ export default function ExpenseEventDetailPage() {
       setEventExpenses(
         (expensesData || []).map((exp: any) => ({
           ...exp,
-          approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+          approved_amount:
+            exp.approved_amount === null ? undefined : exp.approved_amount,
         }))
       );
     } catch (error: any) {
@@ -281,7 +290,6 @@ export default function ExpenseEventDetailPage() {
     }
   };
 
-
   function getEventTimelineStatus(startDate: string, endDate: string): string {
     const today = new Date();
     const start = new Date(startDate);
@@ -291,7 +299,6 @@ export default function ExpenseEventDetailPage() {
     if (today > end) return "Closed";
     return "Ongoing";
   }
-
 
   const handleRemoveExpense = async (expenseId: string) => {
     try {
@@ -307,7 +314,8 @@ export default function ExpenseEventDetailPage() {
       setEventExpenses(
         (data || []).map((exp: any) => ({
           ...exp,
-          approved_amount: exp.approved_amount === null ? undefined : exp.approved_amount,
+          approved_amount:
+            exp.approved_amount === null ? undefined : exp.approved_amount,
         }))
       );
 
@@ -427,19 +435,10 @@ export default function ExpenseEventDetailPage() {
                 <CardTitle className="text-xl">{event.title}</CardTitle>
               )}
               <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4">
-                <Badge
-                  className={(() => {
-                    const status = getEventTimelineStatus(event.start_date, event.end_date);
-                    return status === "Ongoing"
-                      ? "bg-green-100 text-green-800"
-                      : status === "Upcoming"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-gray-300 text-gray-800";
-                  })()}
-                  variant="outline"
-                >
-                  {getEventTimelineStatus(event.start_date, event.end_date)}
-                </Badge>
+                <EventStatusBadge
+                  startDate={event.start_date}
+                  endDate={event.end_date}
+                />
                 <p className="text-sm text-gray-500 mt-1 sm:mt-0 sm:ml-2">
                   {editing ? (
                     <div className="flex flex-col sm:flex-row sm:space-x-2">
@@ -463,7 +462,8 @@ export default function ExpenseEventDetailPage() {
                     </div>
                   ) : (
                     <>
-                      {formatDate(event.start_date)} - {formatDate(event.end_date)}
+                      {formatDate(event.start_date)} -{" "}
+                      {formatDate(event.end_date)}
                     </>
                   )}
                 </p>
@@ -474,7 +474,9 @@ export default function ExpenseEventDetailPage() {
               <p className="text-xl font-bold">
                 {formatCurrency(createdTotal)}
               </p>
-              <p className="text-xl font-medium text-green-600 mt-2">Approved Amount</p>
+              <p className="text-xl font-medium text-green-600 mt-2">
+                Approved Amount
+              </p>
               <p className="text-xl font-bold text-green-600">
                 {formatCurrency(approvedTotal)}
               </p>
@@ -487,7 +489,9 @@ export default function ExpenseEventDetailPage() {
             {editing ? (
               <Textarea
                 value={editedEvent.description || ""}
-                onChange={(e) => handleInputChange("description", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("description", e.target.value)
+                }
                 placeholder="Event description"
                 className="min-h-[100px]"
               />
@@ -552,20 +556,11 @@ export default function ExpenseEventDetailPage() {
                         {expense.custom_fields?.description || "—"}
                       </TableCell>
                       <TableCell>{formatCurrency(expense.amount)}</TableCell>
-                      <TableCell>{formatCurrency(expense.approved_amount || 0)}</TableCell>
                       <TableCell>
-                        <Badge
-                          className={`${["approved", "finance_approved"].includes(expense.status)
-                            ? "bg-green-100 text-green-800 hover:bg-green-700 hover:text-white"
-                            : ["rejected", "finance_rejected"].includes(expense.status)
-                              ? "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white"
-                              : expense.status === "submitted"
-                                ? "bg-amber-100 text-amber-800 hover:bg-amber-700 hover:text-white"
-                                : "bg-gray-100 text-gray-800 hover:bg-gray-700 hover:text-white"
-                            }`}
-                        >
-                          {expense.status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                        </Badge>
+                        {formatCurrency(expense.approved_amount || 0)}
+                      </TableCell>
+                      <TableCell>
+                        <ExpenseStatusBadge status={expense.status} />
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
