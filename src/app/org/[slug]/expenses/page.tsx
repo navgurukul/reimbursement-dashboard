@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings, expenses } from "@/lib/db";
 import { toast } from "sonner";
@@ -80,6 +80,7 @@ const formatCurrency = (amount: number) =>
 export default function ExpensesPage() {
   const router = useRouter();
   const { slug } = useParams();
+  const searchParams = useSearchParams();
   const { organization, userRole } = useOrgStore();
   const { user } = useAuthStore();
 
@@ -205,6 +206,14 @@ export default function ExpensesPage() {
           { value: "pending", label: "Pending Approval" },
           { value: "all", label: "All Expenses" },
         ];
+
+  // Sync activeTab with URL query parameter
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "my" || tabParam === "pending" || tabParam === "all") {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function fetchData() {
@@ -1155,7 +1164,7 @@ export default function ExpensesPage() {
                                       className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                       onClick={() =>
                                         router.push(
-                                          `/org/${slug}/expenses/${exp.id}`
+                                          `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}`
                                         )
                                       }
                                     />

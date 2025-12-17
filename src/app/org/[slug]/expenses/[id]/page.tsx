@@ -147,6 +147,7 @@ export default function ViewExpensePage() {
   const slug = params.slug as string;
   const searchParams = useSearchParams();
   const eventIdFromQuery = searchParams.get("eventId");
+  const fromTab = searchParams.get("fromTab");
 
   const [loading, setLoading] = useState(true);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -640,7 +641,8 @@ export default function ViewExpensePage() {
 
       // Navigate back after a short delay
       setTimeout(() => {
-        router.push(`/org/${slug}/expenses`);
+        const tab = fromTab || "my";
+        router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -820,7 +822,8 @@ export default function ViewExpensePage() {
 
       // Navigate back after a short delay
       setTimeout(() => {
-        router.push(`/org/${slug}/expenses`);
+        const tab = fromTab || "my";
+        router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -919,7 +922,8 @@ export default function ViewExpensePage() {
 
       // Navigate back after a short delay
       setTimeout(() => {
-        router.push(`/org/${slug}/expenses`);
+        const tab = fromTab || "my";
+        router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
       console.error("Rejection error:", error);
