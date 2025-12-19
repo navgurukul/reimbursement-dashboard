@@ -148,6 +148,7 @@ export default function ViewExpensePage() {
   const searchParams = useSearchParams();
   const eventIdFromQuery = searchParams.get("eventId");
   const fromTab = searchParams.get("fromTab");
+  const nextId = searchParams.get("nextId"); // Next pending expense ID for sequential approval
 
   const [loading, setLoading] = useState(true);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -517,10 +518,23 @@ export default function ViewExpensePage() {
     };
   }, [expense?.receipt?.path]);
 
+  // Check if current user is the assigned approver
+  const isAssignedApprover =
+    expense?.approver_id && currentUserId
+      ? expense.approver_id === currentUserId
+      : false;
+
   // Handle custom amount approval
   const handleApproveCustomAmount = async () => {
     try {
       setUpdateLoading(true);
+
+      // Check if user is the assigned approver
+      if (!isAssignedApprover) {
+        toast.error("You are not the assigned approver for this expense.");
+        setUpdateLoading(false);
+        return;
+      }
 
       if (!customAmount || isNaN(Number(customAmount))) {
         toast.error("Please enter a valid amount");
@@ -642,7 +656,12 @@ export default function ViewExpensePage() {
       // Navigate back after a short delay
       setTimeout(() => {
         const tab = fromTab || "my";
-        router.push(`/org/${slug}/expenses?tab=${tab}`);
+        // Streamlined approval flow: if nextId exists and we're in pending tab, go to next expense
+        if (tab === "pending" && nextId) {
+          router.push(`/org/${slug}/expenses/${nextId}?fromTab=${tab}`);
+        } else {
+          router.push(`/org/${slug}/expenses?tab=${tab}`);
+        }
       }, 1000);
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -668,6 +687,13 @@ export default function ViewExpensePage() {
       // Get current user ID
       if (!currentUserId) {
         throw new Error("User ID not found. Please log in again.");
+      }
+
+      // Check if user is the assigned approver
+      if (!isAssignedApprover) {
+        toast.error("You are not the assigned approver for this expense.");
+        setUpdateLoading(false);
+        return;
       }
 
       // Not approving their own expense
@@ -823,7 +849,12 @@ export default function ViewExpensePage() {
       // Navigate back after a short delay
       setTimeout(() => {
         const tab = fromTab || "my";
-        router.push(`/org/${slug}/expenses?tab=${tab}`);
+        // Streamlined approval flow: if nextId exists and we're in pending tab, go to next expense
+        if (tab === "pending" && nextId) {
+          router.push(`/org/${slug}/expenses/${nextId}?fromTab=${tab}`);
+        } else {
+          router.push(`/org/${slug}/expenses?tab=${tab}`);
+        }
       }, 1000);
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -842,6 +873,13 @@ export default function ViewExpensePage() {
       // Get current user ID
       if (!currentUserId) {
         throw new Error("User ID not found. Please log in again.");
+      }
+
+      // Check if user is the assigned approver
+      if (!isAssignedApprover) {
+        toast.error("You are not the assigned approver for this expense.");
+        setUpdateLoading(false);
+        return;
       }
 
       if (expense.user_id === currentUserId) {
@@ -923,6 +961,7 @@ export default function ViewExpensePage() {
       // Navigate back after a short delay
       setTimeout(() => {
         const tab = fromTab || "my";
+        // For rejection, always go back to list (no sequential flow)
         router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
@@ -1426,6 +1465,14 @@ export default function ViewExpensePage() {
 
       {userRole !== "member" && expense.status === "submitted" && (
         <div className="flex items-center space-x-2 mb-6 px-1">
+          {!isAssignedApprover && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
+              <p className="text-sm text-amber-800">
+                ⚠️ You are not the assigned approver for this expense. Only the
+                assigned approver can approve or reject this request.
+              </p>
+            </div>
+          )}
           {showCustomAmountInput ? (
             <div className="flex items-center space-x-2">
               <div className="relative">
@@ -1443,7 +1490,7 @@ export default function ViewExpensePage() {
               <Button
                 onClick={handleApproveCustomAmount}
                 className="bg-[#0353a4] hover:bg-[#02458b] text-white"
-                disabled={updateLoading || !customAmount}
+                disabled={updateLoading || !customAmount || !isAssignedApprover}
               >
                 {updateLoading ? (
                   <Spinner size="sm" className="mr-2" />
@@ -1465,7 +1512,7 @@ export default function ViewExpensePage() {
               <Button
                 variant="destructive"
                 onClick={handleReject}
-                disabled={updateLoading}
+                disabled={updateLoading || !isAssignedApprover}
                 size="sm"
               >
                 {updateLoading ? <Spinner size="sm" className="mr-2" /> : <X />}
@@ -1477,7 +1524,7 @@ export default function ViewExpensePage() {
                   <Button
                     onClick={() => handleApprove("policy")}
                     variant="success"
-                    disabled={updateLoading}
+                    disabled={updateLoading || !isAssignedApprover}
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
@@ -1490,7 +1537,7 @@ export default function ViewExpensePage() {
                   <Button
                     onClick={() => handleApprove("full")}
                     variant="warning"
-                    disabled={updateLoading}
+                    disabled={updateLoading || !isAssignedApprover}
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
@@ -1502,7 +1549,7 @@ export default function ViewExpensePage() {
                   <Button
                     variant="secondary"
                     onClick={() => handleApprove("custom")}
-                    disabled={updateLoading}
+                    disabled={updateLoading || !isAssignedApprover}
                     size="sm"
                   >
                     {updateLoading ? (
@@ -1518,7 +1565,7 @@ export default function ViewExpensePage() {
                   <Button
                     onClick={() => handleApprove("full")}
                     variant="default"
-                    disabled={updateLoading}
+                    disabled={updateLoading || !isAssignedApprover}
                     size="sm"
                   >
                     {updateLoading ? (
@@ -1531,7 +1578,7 @@ export default function ViewExpensePage() {
                   <Button
                     onClick={() => handleApprove("custom")}
                     variant="secondary"
-                    disabled={updateLoading}
+                    disabled={updateLoading || !isAssignedApprover}
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />

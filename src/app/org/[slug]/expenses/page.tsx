@@ -1162,11 +1162,22 @@ export default function ExpensesPage() {
                                   <TooltipTrigger asChild>
                                     <Eye
                                       className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
-                                      onClick={() =>
-                                        router.push(
-                                          `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}`
-                                        )
-                                      }
+                                      onClick={() => {
+                                        // For pending tab, add nextId to enable sequential approval flow
+                                        const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}`;
+                                        if (
+                                          activeTab === "pending" &&
+                                          filteredData[index + 1]
+                                        ) {
+                                          const nextId =
+                                            filteredData[index + 1].id;
+                                          router.push(
+                                            `${baseUrl}&nextId=${nextId}`
+                                          );
+                                        } else {
+                                          router.push(baseUrl);
+                                        }
+                                      }}
                                     />
                                   </TooltipTrigger>
                                   <TooltipContent>
