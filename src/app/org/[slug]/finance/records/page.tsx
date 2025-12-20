@@ -102,7 +102,7 @@ export default function PaymentRecords() {
           .from("expense_new")
           .select("*")
           .eq("payment_status", "paid")
-          .order("updated_at", { ascending: false });
+          .order("updated_at", { ascending: true });
 
         if (error) throw error;
 
