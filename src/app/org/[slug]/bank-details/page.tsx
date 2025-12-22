@@ -25,6 +25,7 @@ import {
   DialogClose,
   DialogClose as DialogCloseButton,
 } from "@/components/ui/dialog";
+import { Pagination, usePagination } from "@/components/pagination";
 import { toast } from "sonner";
 import { useOrgStore } from "@/store/useOrgStore";
 import { notFound, useRouter } from "next/navigation";
@@ -40,8 +41,6 @@ type BankDetail = {
   unique_id: string;
 };
 
-const PAGE_SIZE = 10;
-
 export default function BankDetailsPage() {
   const { userRole } = useOrgStore();
   if (userRole !== "owner" && userRole !== "admin") {
@@ -50,13 +49,19 @@ export default function BankDetailsPage() {
   const [data, setData] = useState<BankDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
   const [editing, setEditing] = useState<BankDetail | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
   const [showVerifyDialog, setShowVerifyDialog] = useState(false);
   // const [password, setPassword] = useState("");
   const [secret, setSecret] = useState("");
+
+  // Use pagination hook
+  const pagination = usePagination(data);
+
+  // Reset page when search changes
+  useEffect(() => {
+    pagination.resetPage();
+  }, [search]);
 
   const [form, setForm] = useState<Omit<BankDetail, "id">>({
     account_holder: "",
@@ -70,7 +75,7 @@ export default function BankDetailsPage() {
 
   useEffect(() => {
     fetchBankDetails();
-  }, [search, currentPage]);
+  }, [search]);
 
   async function fetchBankDetails() {
     setLoading(true);
@@ -85,11 +90,8 @@ export default function BankDetailsPage() {
       );
     }
 
-    const from = (currentPage - 1) * PAGE_SIZE;
-    const to = currentPage * PAGE_SIZE - 1;
-
-    // Run the query with range
-    const { data, count, error } = await query.range(from, to);
+    // Run the query without range - get all matching results
+    const { data, error } = await query;
 
     if (error) {
       toast.error("Failed to fetch data");
@@ -98,7 +100,6 @@ export default function BankDetailsPage() {
     }
 
     setData(data || []);
-    setTotalCount(count || 0);
     setLoading(false);
   }
 
@@ -341,7 +342,6 @@ export default function BankDetailsPage() {
         placeholder="Search by account name or email..."
         value={search}
         onChange={(e) => {
-          setCurrentPage(1);
           setSearch(e.target.value);
         }}
         className="max-w-md"
@@ -374,7 +374,7 @@ export default function BankDetailsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              data.map((row) => (
+              pagination.paginatedData.map((row) => (
                 <TableRow
                   key={row.id}
                   className="hover:bg-gray-50 transition-colors"
@@ -414,23 +414,14 @@ export default function BankDetailsPage() {
       </div>
 
       {/* Pagination */}
-      <div className="flex justify-between items-center mt-4">
-        <Button
-          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-          disabled={currentPage === 1}
-        >
-          Previous
-        </Button>
-        <span>
-          Page {currentPage} of {Math.ceil(totalCount / PAGE_SIZE)}
-        </span>
-        <Button
-          onClick={() => setCurrentPage((p) => p + 1)}
-          disabled={data.length < PAGE_SIZE}
-        >
-          Next
-        </Button>
-      </div>
+      <Pagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.totalItems}
+        onPageChange={pagination.setCurrentPage}
+        isLoading={loading}
+        itemLabel="Bank Details"
+      />
     </div>
   );
 }

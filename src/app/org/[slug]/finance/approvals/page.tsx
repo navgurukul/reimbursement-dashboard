@@ -33,6 +33,7 @@ import { formatDateTime } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
+import { Pagination, usePagination } from "@/components/pagination";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -48,6 +49,9 @@ export default function FinanceReview() {
   const [expenseList, setExpenseList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmApproveAllOpen, setConfirmApproveAllOpen] = useState(false);
+
+  // Use pagination hook
+  const pagination = usePagination(expenseList);
 
   useEffect(() => {
     async function fetchExpenses() {
@@ -204,13 +208,13 @@ export default function FinanceReview() {
                 </TableCell>
               </TableRow>
             ) : (
-              expenseList.map((expense, index) => (
+              pagination.paginatedData.map((expense, index) => (
                 <TableRow
                   key={expense.id}
                   className="hover:bg-gray-50 transition-colors"
                 >
                   <TableCell className="px-4 py-3 text-center">
-                    {index + 1}
+                    {pagination.getItemNumber(index)}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center whitespace-nowrap">
                     {formatDateTime(expense.created_at)}
@@ -271,6 +275,16 @@ export default function FinanceReview() {
           </TableBody>
         </Table>
       </div>
+      {expenseList.length > 0 && (
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          onPageChange={pagination.setCurrentPage}
+          isLoading={loading}
+          itemLabel="Expenses"
+        />
+      )}
       <Dialog
         open={confirmApproveAllOpen}
         onOpenChange={setConfirmApproveAllOpen}

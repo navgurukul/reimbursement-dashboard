@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination, usePagination } from "@/components/pagination";
 import {
   Trash2,
   Copy,
@@ -107,9 +108,6 @@ export default function TeamPage() {
   const [selectedEmailColumn, setSelectedEmailColumn] = useState<number | null>(
     null
   );
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const PER_PAGE = 10;
 
   // Search state (client-side filtering)
   const [search, setSearch] = useState<string>("");
@@ -127,12 +125,12 @@ export default function TeamPage() {
 
   // Reset page when search changes
   useEffect(() => {
-    setCurrentPage(1);
+    pagination.resetPage();
   }, [debouncedSearch]);
 
   // Reset page when role filter changes
   useEffect(() => {
-    setCurrentPage(1);
+    pagination.resetPage();
   }, [roleFilter]);
 
   const filteredMembers = useMemo(() => {
@@ -152,6 +150,9 @@ export default function TeamPage() {
       return name.includes(q) || email.includes(q);
     });
   }, [members, debouncedSearch, roleFilter]);
+
+  // Use pagination hook
+  const pagination = usePagination(filteredMembers);
 
   const detectDelimiter = (line: string) => {
     const candidates = [",", "\t", ";"];
@@ -236,10 +237,10 @@ export default function TeamPage() {
 
           setMembers(formattedMembers);
           // Reset to first page after loading members
-          setCurrentPage(1);
+          pagination.resetPage();
         } else {
           setMembers([]);
-          setCurrentPage(1);
+          pagination.resetPage();
         }
       } catch (error: any) {
         toast.error("Failed to load team members", {
@@ -656,17 +657,11 @@ export default function TeamPage() {
               ))}
             </div>
           ) : (
-            // compute slice for current page
+            // Use pagination hook data
             (() => {
-              const total = filteredMembers.length;
-              const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
-              const start = (currentPage - 1) * PER_PAGE;
-              const end = start + PER_PAGE;
-              const pageMembers = filteredMembers.slice(start, end);
-
               return (
                 <>
-                  {pageMembers.map((m) => (
+                  {pagination.paginatedData.map((m) => (
                     <div
                       key={m.id}
                       className="flex flex-col sm:flex-row sm:items-center sm:justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
@@ -769,33 +764,14 @@ export default function TeamPage() {
                   ))}
 
                   {/* Pagination controls */}
-                  <div className="flex items-center justify-end gap-3 pt-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage <= 1}
-                      className="cursor-pointer caret-transparent"
-                    >
-                      Previous
-                    </Button>
-
-                    <div className="text-sm text-muted-foreground">
-                      {currentPage} of {totalPages}
-                    </div>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() =>
-                        setCurrentPage((p) => Math.min(totalPages, p + 1))
-                      }
-                      disabled={currentPage >= totalPages}
-                      className="cursor-pointer caret-transparent"
-                    >
-                      Next
-                    </Button>
-                  </div>
+                  <Pagination
+                    currentPage={pagination.currentPage}
+                    totalPages={pagination.totalPages}
+                    totalItems={pagination.totalItems}
+                    onPageChange={pagination.setCurrentPage}
+                    isLoading={false}
+                    itemLabel="Members"
+                  />
                 </>
               );
             })()

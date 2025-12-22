@@ -39,6 +39,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Pagination, usePagination } from "@/components/pagination";
 
 const formatCurrency = (amount: number) => {
   if (isNaN(amount) || amount === null || amount === undefined) return "—";
@@ -89,6 +90,9 @@ export default function PaymentProcessingOnly() {
   });
   const [enteredPassword, setEnteredPassword] = useState("");
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+
+  // Use pagination hook
+  const pagination = usePagination(processingExpenses);
 
   useEffect(() => {
     async function fetchExpensesAndBankDetails() {
@@ -595,13 +599,13 @@ export default function PaymentProcessingOnly() {
                 </TableCell>
               </TableRow>
             ) : (
-              processingExpenses.map((expense, index) => (
+              pagination.paginatedData.map((expense, index) => (
                 <TableRow
                   key={expense.id}
                   className="hover:bg-gray-50 transition-colors"
                 >
                   <TableCell className="px-4 py-3 text-center">
-                    {index + 1}
+                    {pagination.getItemNumber(index)}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {formatDateTime(expense.created_at)}
@@ -901,6 +905,16 @@ export default function PaymentProcessingOnly() {
           </TableBody>
         </Table>
       </div>
+      {processingExpenses.length > 0 && (
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          onPageChange={pagination.setCurrentPage}
+          isLoading={loading}
+          itemLabel="Expenses"
+        />
+      )}
 
       {/* Export Modal */}
       <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
