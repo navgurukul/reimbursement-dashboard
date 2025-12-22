@@ -3,7 +3,7 @@
 import React from "react";
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
-import { expenses } from "@/lib/db";
+import { expenses, organizations } from "@/lib/db";
 import { useParams, useRouter } from "next/navigation";
 import {
   IndianRupee,
@@ -40,6 +40,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Pagination, usePagination } from "@/components/pagination";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -78,6 +79,14 @@ export default function PaymentRecords() {
     expenseId: null as null | string,
   });
   const [enteredPassword, setEnteredPassword] = useState("");
+
+  // Use pagination hook
+  const pagination = usePagination(filteredRecords);
+
+  // Reset page when filters change
+  useEffect(() => {
+    pagination.resetPage();
+  }, [filters]);
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;
     id: string | null;
@@ -98,10 +107,22 @@ export default function PaymentRecords() {
       try {
         setLoading(true);
 
+        // Get organization ID from slug
+        const { data: orgData, error: orgError } = await organizations.getBySlug(
+          slug as string
+        );
+
+        if (orgError || !orgData) {
+          throw new Error("Organization not found");
+        }
+
+        const orgId = orgData.id;
+
         const { data, error } = await supabase
           .from("expense_new")
           .select("*")
           .eq("payment_status", "paid")
+          .eq("org_id", orgId)
           .order("updated_at", { ascending: true });
 
         if (error) throw error;
@@ -318,6 +339,11 @@ export default function PaymentRecords() {
     // only apply when records are loaded
     if (!loading) applyFilters();
   }, [filters, records]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    pagination.resetPage();
+  }, [filteredRecords]);
 
   const clearFilters = () => {
     setFilters((prev) => ({
@@ -696,10 +722,10 @@ export default function PaymentRecords() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredRecords.map((record, index) => (
+              pagination.paginatedData.map((record, index) => (
                 <TableRow key={record.id}>
                   <TableCell className="text-center py-2">
-                    {index + 1}
+                    {pagination.getItemNumber(index)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
@@ -928,6 +954,16 @@ export default function PaymentRecords() {
           </TableBody>
         </Table>
       </div>
+      {filteredRecords.length > 0 && (
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          onPageChange={pagination.setCurrentPage}
+          isLoading={loading}
+          itemLabel="Records"
+        />
+      )}
 
       {/* Password Modal for UTR Editing */}
       <Dialog

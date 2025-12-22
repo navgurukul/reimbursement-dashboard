@@ -59,6 +59,7 @@ import {
 import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { Pagination, usePagination } from "@/components/pagination";
 
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
@@ -540,6 +541,14 @@ export default function ExpensesPage() {
     () => filteredCurrent(),
     [filters, expensesData, pendingApprovals, allExpenses, activeTab]
   );
+
+  // Use pagination hook
+  const pagination = usePagination(filteredData);
+
+  // Reset to page 1 when filters or tab changes
+  useEffect(() => {
+    pagination.resetPage();
+  }, [filters, activeTab]);
 
   const handleNew = () => {
     router.push(`/org/${slug}/expenses/new`);
@@ -1069,10 +1078,10 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredData.map((exp, index) => (
+                      pagination.paginatedData.map((exp, index) => (
                         <TableRow key={exp.id}>
                           <TableCell className="w-12 text-center">
-                            {index + 1}
+                            {pagination.getItemNumber(index)}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {formatDateTime(exp.created_at)}
@@ -1165,12 +1174,13 @@ export default function ExpensesPage() {
                                       onClick={() => {
                                         // For pending tab, add nextId to enable sequential approval flow
                                         const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}`;
+                                        const globalIndex = pagination.getItemNumber(index) - 1;
                                         if (
                                           activeTab === "pending" &&
-                                          filteredData[index + 1]
+                                          filteredData[globalIndex + 1]
                                         ) {
                                           const nextId =
-                                            filteredData[index + 1].id;
+                                            filteredData[globalIndex + 1].id;
                                           router.push(
                                             `${baseUrl}&nextId=${nextId}`
                                           );
@@ -1228,6 +1238,18 @@ export default function ExpensesPage() {
                     )}
                   </TableBody>
                 </Table>
+                {filteredData.length > 0 && (
+                  <div className="px-6">
+                    <Pagination
+                      currentPage={pagination.currentPage}
+                      totalPages={pagination.totalPages}
+                      totalItems={pagination.totalItems}
+                      onPageChange={pagination.setCurrentPage}
+                      isLoading={loading}
+                      itemLabel="Expenses"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
