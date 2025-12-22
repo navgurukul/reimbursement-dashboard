@@ -82,7 +82,7 @@ export function LoginForm({
 
       if (membership?.organizations?.slug) {
         toast.success("Welcome back!");
-        router.push(`/org/${membership.organizations.slug}`);
+        router.push(`/org/${membership.organizations.slug}/expenses`);
       } else {
         toast.success("Login successful!");
         router.push("/create-organization");

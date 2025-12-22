@@ -109,14 +109,14 @@ export default function Hero() {
 
   const getDashboardLink = () => {
     if (hasValidOrgSlug) {
-      return `/org/${organization.slug}`;
+      return `/org/${organization.slug}/expenses`;
     }
     return "/create-organization";
   };
 
   const getButtonText = () => {
     if (shouldShowDashboard) {
-      return "Go to Dashboard";
+      return "Go to Expenses";
     }
     return "Create Organization";
   };
@@ -167,7 +167,7 @@ export default function Hero() {
           <div className="flex justify-center gap-4">
             {shouldDisableButton ? (
               <Button size="lg" disabled>
-                Loading Dashboard...
+                Loading...
               </Button>
             ) : (
               <Button asChild size="lg">
