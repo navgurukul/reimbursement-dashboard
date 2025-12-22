@@ -3,7 +3,7 @@
 import React from "react";
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
-import { expenses } from "@/lib/db";
+import { expenses, organizations } from "@/lib/db";
 import { useParams, useRouter } from "next/navigation";
 import {
   IndianRupee,
@@ -107,10 +107,22 @@ export default function PaymentRecords() {
       try {
         setLoading(true);
 
+        // Get organization ID from slug
+        const { data: orgData, error: orgError } = await organizations.getBySlug(
+          slug as string
+        );
+
+        if (orgError || !orgData) {
+          throw new Error("Organization not found");
+        }
+
+        const orgId = orgData.id;
+
         const { data, error } = await supabase
           .from("expense_new")
           .select("*")
           .eq("payment_status", "paid")
+          .eq("org_id", orgId)
           .order("updated_at", { ascending: true });
 
         if (error) throw error;
