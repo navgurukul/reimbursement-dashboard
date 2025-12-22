@@ -109,7 +109,7 @@ export default function NewExpensePage() {
   const eventIdFromQuery = searchParams.get("eventId");
 
   const { organization, userRole } = useOrgStore();
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const orgId = organization?.id!;
   const slug = params.slug as string;
 
@@ -796,6 +796,38 @@ export default function NewExpensePage() {
     }
   };
 
+  const notifyApprover = async (params: {
+    expenseId: string;
+    amount: number;
+    expenseType: string;
+    approverEmail: string;
+    approverName?: string;
+  }) => {
+    const { expenseId, amount, expenseType, approverEmail, approverName } =
+      params;
+
+    if (!approverEmail) return;
+
+    try {
+      await fetch("/api/expenses/notify-approver", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expenseId,
+          approverEmail,
+          approverName,
+          requesterName: profile?.full_name || user?.email || "",
+          orgName: organization?.name,
+          slug,
+          amount,
+          expenseType,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to send approver notification", err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -1059,6 +1091,7 @@ export default function NewExpensePage() {
 
       const approverProfile = await profiles.getById(formData.approver);
       const approverEmail = approverProfile?.data?.email || "";
+      const approverName = approverProfile?.data?.full_name || "";
 
       // Create the base expense
       const baseExpenseData = {
@@ -1092,6 +1125,14 @@ export default function NewExpensePage() {
         setSaving(false);
         return;
       }
+
+      await notifyApprover({
+        expenseId: baseData.id,
+        amount: baseExpenseData.amount,
+        expenseType: baseExpenseData.expense_type,
+        approverEmail,
+        approverName,
+      });
 
       // Log history for main/base expense
       try {
@@ -1233,6 +1274,14 @@ export default function NewExpensePage() {
             console.error("Error creating item:", itemError);
             continue;
           }
+
+          await notifyApprover({
+            expenseId: itemData.id,
+            amount: individualExpenseData.amount,
+            expenseType: individualExpenseData.expense_type,
+            approverEmail,
+            approverName,
+          });
 
           let attachmentData = null;
           const voucherAttachment = voucherDataMap[itemId]?.attachment;
