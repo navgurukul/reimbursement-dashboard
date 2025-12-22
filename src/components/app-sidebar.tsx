@@ -165,11 +165,6 @@ export function AppSidebar() {
 
   const baseRoutes = [
     {
-      title: "Dashboard",
-      href: `/org/${organization?.slug}`,
-      icon: LayoutDashboard,
-    },
-    {
       title: "Expenses",
       href: `/org/${organization?.slug}/expenses`,
       icon: IndianRupee,
@@ -215,7 +210,7 @@ export function AppSidebar() {
         {/* Org name / logo */}
         <div className="flex h-14 items-center border-b px-4">
           <Link
-            href={`/org/${organization?.slug}`}
+            href={`/org/${organization?.slug}/expenses`}
             className="flex items-center gap-2 font-semibold"
           >
             <span className="text-lg">{organization?.name}</span>
