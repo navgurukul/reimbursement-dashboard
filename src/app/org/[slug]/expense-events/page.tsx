@@ -159,7 +159,7 @@ export default function ExpenseEventsPage() {
       {loading ? (
         <PageLoader />
       ) : filteredEvents.length === 0 ? (
-        <Card>
+        <Card className="border-2 border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="mb-4 text-gray-500">No expense events found</p>
             {userRole === "admin" || userRole === "owner" ? (

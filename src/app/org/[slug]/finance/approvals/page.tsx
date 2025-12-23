@@ -147,6 +147,33 @@ export default function FinanceReview() {
         toast.error(`${failed.length} approvals failed`);
       } else {
         toast.success("All expenses approved by Finance");
+        
+        // Send email notifications to all expense creators
+        await Promise.all(
+          expenseList.map((expense) =>
+            // Only send email if creator email exists
+            (expense.creator?.email || expense.creator_email) ? 
+            fetch("/api/expenses/notify-creator", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                expenseId: expense.id,
+                creatorEmail: expense.creator?.email || expense.creator_email,
+                creatorName: expense.creator_name,
+                approverName: "Finance Team",
+                orgName: organization?.name,
+                slug: organization?.slug,
+                amount: expense.amount,
+                expenseType: expense.expense_type,
+                status: "finance_approved",
+                decisionStage: "finance",
+              }),
+            }).catch((err) => {
+              console.error("Failed to send notification for expense:", expense.id, err);
+            })
+            : Promise.resolve()
+          )
+        );
       }
 
       setExpenseList([]);

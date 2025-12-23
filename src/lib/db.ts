@@ -1273,7 +1273,8 @@ export const expenses = {
         `
       *,
       creator:profiles!user_id (
-        full_name
+        full_name,
+        email
       )
     `
       )

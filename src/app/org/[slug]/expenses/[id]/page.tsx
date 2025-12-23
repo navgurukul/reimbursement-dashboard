@@ -638,6 +638,36 @@ export default function ViewExpensePage() {
         );
       }
 
+      // Notify expense creator via email
+      try {
+        const { data: creatorProfile } = await profiles.getById(
+          expense.user_id
+        );
+        const { data: approverProfile } = await profiles.getById(
+          currentUserId
+        );
+        if (creatorProfile?.email) {
+          await fetch("/api/expenses/notify-creator", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              expenseId,
+              creatorEmail: creatorProfile.email,
+              creatorName: creatorProfile.full_name,
+              approverName: approverProfile?.full_name,
+              orgName: organization?.name,
+              slug,
+              amount: expense.amount,
+              approvedAmount,
+              expenseType: expense.expense_type,
+              status: "approved",
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to send creator notification (custom)", e);
+      }
+
       // Update local state
       setExpense({
         ...expense,
@@ -830,6 +860,36 @@ export default function ViewExpensePage() {
         );
       }
 
+      // Notify expense creator via email
+      try {
+        const { data: creatorProfile } = await profiles.getById(
+          expense.user_id
+        );
+        const { data: approverProfile } = await profiles.getById(
+          currentUserId
+        );
+        if (creatorProfile?.email) {
+          await fetch("/api/expenses/notify-creator", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              expenseId,
+              creatorEmail: creatorProfile.email,
+              creatorName: creatorProfile.full_name,
+              approverName: approverProfile?.full_name,
+              orgName: organization?.name,
+              slug,
+              amount: expense.amount,
+              approvedAmount: updateData.approved_amount,
+              expenseType: expense.expense_type,
+              status: "approved",
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to send creator notification (approve)", e);
+      }
+
       // Update local state
       setExpense({
         ...expense,
@@ -947,6 +1007,35 @@ export default function ViewExpensePage() {
           expense.status,
           "rejected"
         );
+      }
+
+      // Notify expense creator via email (rejected)
+      try {
+        const { data: creatorProfile } = await profiles.getById(
+          expense.user_id
+        );
+        const { data: approverProfile } = await profiles.getById(
+          currentUserId
+        );
+        if (creatorProfile?.email) {
+          await fetch("/api/expenses/notify-creator", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              expenseId,
+              creatorEmail: creatorProfile.email,
+              creatorName: creatorProfile.full_name,
+              approverName: approverProfile?.full_name,
+              orgName: organization?.name,
+              slug,
+              amount: expense.amount,
+              expenseType: expense.expense_type,
+              status: "rejected",
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to send creator notification (reject)", e);
       }
 
       // Update local state
