@@ -65,8 +65,6 @@ export default function PaymentProcessingOnly() {
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
 
   const router = useRouter();
-  const params = useParams();
-  const slug = params?.slug as string | undefined;
 
   const [showExportModal, setShowExportModal] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
