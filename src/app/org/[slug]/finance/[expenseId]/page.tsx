@@ -181,7 +181,7 @@ export default function FinanceExpenseDetails() {
         console.error("Failed to log finance_approved entry:", logErr);
       }
       toast.success("Approved by Finance");
-      router.push(`/org/${expense.org_id}/finance`);
+      router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
   };
@@ -253,7 +253,7 @@ export default function FinanceExpenseDetails() {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
       toast.success("Rejected by Finance");
-      router.push(`/org/${expense.org_id}/finance`);
+      router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
   };
@@ -289,7 +289,7 @@ export default function FinanceExpenseDetails() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Button
           variant="outline"
-          onClick={() => router.push(`/org/${expense?.org_id || slug}/finance`)}
+          onClick={() => router.push(`/org/${slug}/finance`)}
           className="text-sm cursor-pointer"
           disabled={loading}
         >
@@ -449,21 +449,9 @@ export default function FinanceExpenseDetails() {
               </Table>
             )}
           </div>
-          <div className="bg-white p-6 rounded shadow border">
-            {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-6 w-32 mb-4" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            ) : (
-              <ExpenseComments
-                expenseId={typeof expenseId === "string" ? expenseId : ""}
-              />
-            )}
-          </div>
         </div>
         {/* Activity History */}
-        <div className="md:col-span-3">
+        <div className="md:col-span-3 space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center">
               <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -481,6 +469,21 @@ export default function FinanceExpenseDetails() {
                 </div>
               ) : (
                 <ExpenseHistory
+                  expenseId={typeof expenseId === "string" ? expenseId : ""}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-32 mb-4" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : (
+                <ExpenseComments
                   expenseId={typeof expenseId === "string" ? expenseId : ""}
                 />
               )}
