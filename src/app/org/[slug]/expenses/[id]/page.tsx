@@ -2252,18 +2252,10 @@ export default function ViewExpensePage() {
             </CardContent>
           </Card>
 
-          {/* Add Comments section directly below Expense Details */}
-          <div className="mt-6">
-            <Card>
-              <CardContent className="p-6">
-                <ExpenseComments expenseId={expense.id} />
-              </CardContent>
-            </Card>
-          </div>
         </div>
 
         {/* Activity History - Takes 2 columns of the 5-column grid to be wider */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center">
               <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -2271,6 +2263,12 @@ export default function ViewExpensePage() {
             </CardHeader>
             <CardContent className="max-h-[500px] overflow-auto">
               <ExpenseHistory expenseId={expenseId} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <ExpenseComments expenseId={expense.id} />
             </CardContent>
           </Card>
         </div>
