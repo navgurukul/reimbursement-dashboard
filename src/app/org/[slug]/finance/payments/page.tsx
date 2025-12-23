@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Eye, Download, Pencil, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
 import {
   Table,
@@ -52,6 +52,8 @@ const formatCurrency = (amount: number) => {
 export default function PaymentProcessingOnly() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
+  const params = useParams();
+  const slug = params.slug as string;
   const [processingExpenses, setProcessingExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   // const [editingFields, setEditingFields] = useState<Record<string, { remarks: boolean; debit: boolean }>>({});
@@ -870,7 +872,7 @@ export default function PaymentProcessingOnly() {
                           <button
                             onClick={() =>
                               router.push(
-                                `/org/${orgId}/finance/payments/${expense.id}`
+                                `/org/${slug}/finance/payments/${expense.id}`
                               )
                             }
                             className="cursor-pointer"

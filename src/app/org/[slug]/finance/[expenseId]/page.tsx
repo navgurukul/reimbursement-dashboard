@@ -153,7 +153,7 @@ export default function FinanceExpenseDetails() {
         console.error("Failed to log finance_approved entry:", logErr);
       }
       toast.success("Approved by Finance");
-      router.push(`/org/${expense.org_id}/finance`);
+      router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
   };
@@ -196,7 +196,7 @@ export default function FinanceExpenseDetails() {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
       toast.success("Rejected by Finance");
-      router.push(`/org/${expense.org_id}/finance`);
+      router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
   };
@@ -232,7 +232,7 @@ export default function FinanceExpenseDetails() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Button
           variant="outline"
-          onClick={() => router.push(`/org/${expense?.org_id || slug}/finance`)}
+          onClick={() => router.push(`/org/${slug}/finance`)}
           className="text-sm cursor-pointer"
           disabled={loading}
         >

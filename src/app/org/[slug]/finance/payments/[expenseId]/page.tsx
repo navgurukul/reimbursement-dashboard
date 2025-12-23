@@ -168,7 +168,7 @@ export default function PaymentProcessingDetails() {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
       toast.success("Rejected by Finance");
-      router.push(`/org/${expense.org_id}/finance`);
+      router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
   };
@@ -221,7 +221,7 @@ export default function PaymentProcessingDetails() {
         console.error("Error updating payment_status:", err);
       }
       toast.success("Approved by Finance");
-      router.push(`/org/${expense.org_id}/finance`);
+      router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
   };
@@ -237,7 +237,7 @@ export default function PaymentProcessingDetails() {
         <Button
           variant="outline"
           onClick={() =>
-            router.push(`/org/${expense?.org_id || slug}/finance?tab=payments`)
+            router.push(`/org/${slug}/finance`)
           }
           className="text-sm cursor-pointer"
           disabled={loading}
