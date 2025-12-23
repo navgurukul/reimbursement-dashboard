@@ -392,21 +392,9 @@ export default function FinanceExpenseDetails() {
               </Table>
             )}
           </div>
-          <div className="bg-white p-6 rounded shadow border">
-            {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-6 w-32 mb-4" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            ) : (
-              <ExpenseComments
-                expenseId={typeof expenseId === "string" ? expenseId : ""}
-              />
-            )}
-          </div>
         </div>
         {/* Activity History */}
-        <div className="md:col-span-3">
+        <div className="md:col-span-3 space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center">
               <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -424,6 +412,21 @@ export default function FinanceExpenseDetails() {
                 </div>
               ) : (
                 <ExpenseHistory
+                  expenseId={typeof expenseId === "string" ? expenseId : ""}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-32 mb-4" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : (
+                <ExpenseComments
                   expenseId={typeof expenseId === "string" ? expenseId : ""}
                 />
               )}

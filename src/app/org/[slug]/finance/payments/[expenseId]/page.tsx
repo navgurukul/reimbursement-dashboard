@@ -400,24 +400,10 @@ export default function PaymentProcessingDetails() {
               </Table>
             )}
           </div>
-          <div className="bg-white p-6 rounded shadow border mt-4">
-            {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-6 w-32 mb-4" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            ) : (
-              <ExpenseComments
-                expenseId={typeof expenseId === "string" ? expenseId : ""}
-              />
-            )}
-          </div>
         </div>
 
         {/* Activity History */}
-        <div className="space-y-6">
-          {/* Activity History */}
-          {/* Activity History */}
+        <div className="space-y-4">
           <div className="md:col-span-3">
             <Card>
               <CardHeader className="flex flex-row items-center">
@@ -442,6 +428,21 @@ export default function PaymentProcessingDetails() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardContent className="p-6">
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-32 mb-4" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : (
+                <ExpenseComments
+                  expenseId={typeof expenseId === "string" ? expenseId : ""}
+                />
+              )}
+            </CardContent>
+          </Card>
         </div>
         <Dialog open={showCommentBox} onOpenChange={setShowCommentBox}>
           <DialogContent>
