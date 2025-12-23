@@ -22,8 +22,10 @@ export async function POST(req: NextRequest) {
       slug,
       amount,
       expenseType,
-      status, // "approved" | "rejected"
+      status, // "approved" | "rejected" | "finance_approved" | "finance_rejected"
       approvedAmount,
+      rejectionReason,
+      decisionStage, // optional override: "manager" | "finance"
     } = await req.json();
 
     if (!expenseId || !creatorEmail || !slug || !status) {
@@ -48,16 +50,62 @@ export async function POST(req: NextRequest) {
     const amountLabel = typeof amount === "number" ? amount.toFixed(2) : amount;
     const approvedAmountLabel =
       typeof approvedAmount === "number" ? approvedAmount.toFixed(2) : approvedAmount;
-    const approverLabel = approverName || "your approver";
+    const normalizedStatus = String(status || "").toLowerCase();
+    const isFinanceStage =
+      decisionStage === "finance" ||
+      normalizedStatus.startsWith("finance_");
+    const isApproved = normalizedStatus.includes("approved");
+    const isCustomAmountApproval =
+      isApproved &&
+      approvedAmount !== undefined &&
+      approvedAmount !== null &&
+      approvedAmountLabel !== undefined &&
+      approvedAmountLabel !== null &&
+      approvedAmount !== amount;
+    const isPaymentProcessed = normalizedStatus.includes("payment_processed");
+    const isPaymentNotProcessed = normalizedStatus.includes("payment_not_processed");
+    const approverLabel =
+      approverName || (isFinanceStage ? "the finance team" : "your manager");
 
-    const isApproved = String(status).toLowerCase() === "approved";
-    const subject = isApproved
-      ? `${expenseTypeLabel} expense approved by ${approverLabel}.`
-      : `${expenseTypeLabel} expense rejected by ${approverLabel}.`;
+    let subject: string;
+    if (isPaymentProcessed) {
+      subject = `Your ${expenseTypeLabel} expense payment suscessfully`;
+    } else if (isPaymentNotProcessed) {
+      subject = `Your ${expenseTypeLabel} expense payment has been rejected`;
+    } else if (isFinanceStage) {
+      subject = `Your ${expenseTypeLabel} expense ${isApproved ? (isCustomAmountApproval ? "approved with custom amount by finance" : "approved by finance") : "rejected by finance"}`;
+    } else {
+      subject = isApproved
+        ? `Your ${expenseTypeLabel} expense ${isCustomAmountApproval ? "approved with custom amount by manager." : "approved by manager."}`
+        : `Your ${expenseTypeLabel} expense rejected by manager.`;
+    }
 
-    const decisionLine = isApproved
-      ? `Your expense has been approved by ${approverLabel}.`
-      : `Your expense has been rejected by ${approverLabel}.`;
+    const decisionLine = isPaymentProcessed
+      ? `Your expense payment successfully by ${approverLabel}.`
+      : isPaymentNotProcessed
+        ? `Your expense payment has been rejected by ${approverLabel}.`
+        : isApproved
+          ? `Your expense has been approved by ${approverLabel}${isCustomAmountApproval ? ` with a custom amount (Approved Amount: ${approvedAmountLabel || amountLabel || "-"})` : "."}`
+          : `Your expense has been rejected by ${approverLabel}.`;
+
+    const rejectionReasonHtml =
+      !isApproved && !isPaymentProcessed && rejectionReason
+        ? `<div class="meta"><strong>Rejection Reason:</strong> ${rejectionReason}</div>`
+        : "";
+    const rejectionReasonText =
+      !isApproved && !isPaymentProcessed && rejectionReason ? `\nRejection Reason: ${rejectionReason}` : "";
+    const statusLabel = isPaymentProcessed
+      ? "Payment successful"
+      : isPaymentNotProcessed
+        ? "Payment has been rejected"
+        : isApproved
+          ? isFinanceStage
+            ? "Approved by finance"
+            : "Approved by manager"
+          : isFinanceStage
+            ? "Rejected by finance"
+            : "Rejected by manager";
+    const statusColor = isPaymentProcessed ? "#0ea5e9" : isPaymentNotProcessed ? "#dc2626" : isApproved ? "#16a34a" : "#dc2626";
 
    
     const mailOptions = {
@@ -66,7 +114,7 @@ export async function POST(req: NextRequest) {
         `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
       to: creatorEmail,
       subject,
-      text: `${creatorGreeting}\n\n${decisionLine}\nOrganization: ${orgLabel}\nType: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}$${
+      text: `${creatorGreeting}\n\n${decisionLine}${rejectionReasonText}\nOrganization: ${orgLabel}\nType: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}${
         isApproved ? `\nApproved Amount: ${approvedAmountLabel || amountLabel || "-"}` : ""
       }\n\nView details: ${expenseUrl}`,
       html: `
@@ -89,14 +137,16 @@ export async function POST(req: NextRequest) {
             <div class="container">
               <div class="header">
                 <div style="font-size: 18px; font-weight: 600;">Organization Name: ${orgLabel}</div>
-                <div style="font-size: 18px; font-weight: 400;">Expense ${isApproved ? "approved" : "rejected"}</div>
+                <div style="font-size: 18px; font-weight: 400;">Expense ${isPaymentProcessed ? "payment successful" : isPaymentNotProcessed ? "payment has been rejected" : isApproved ? (isCustomAmountApproval ? "approved with custom amount" : "approved") : "rejected"}</div>
               </div>
               <div class="content">
                 <p>${creatorGreeting}</p>
                 <p>${decisionLine}</p>
                 <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
                 <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
-                <div class="meta"><strong>Expense Status:</strong> <span style="color: ${isApproved ? '#16a34a' : '#dc2626'}; font-weight: 600;">${isApproved ? 'Approved' : 'Rejected'} by manager</span></div>
+                ${isApproved ? `<div class="meta"><strong>Approved Amount:</strong> ${approvedAmountLabel || amountLabel || "-"}</div>` : ""}
+                <div class="meta"><strong>Expense Status:</strong> <span style="color: ${statusColor}; font-weight: 600;">${statusLabel}</span></div>
+                ${rejectionReasonHtml}
                 <p><a class="cta" href="${expenseUrl}" style="color: white;">View expense</a></p>
                 <p>If the button does not work, copy and paste this link:</p>
                 <p style="word-break: break-all; color: #2563eb;">${expenseUrl}</p>

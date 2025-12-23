@@ -38,12 +38,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { useOrgStore } from "@/store/useOrgStore";
 
 export default function PaymentProcessingDetails() {
   const { expenseId } = useParams();
   const router = useRouter();
   const params = useParams();
   const slug = params.slug as string;
+  const { organization } = useOrgStore();
 
   const [expense, setExpense] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -144,7 +146,7 @@ export default function PaymentProcessingDetails() {
     );
     if (error) toast.error("Rejection failed");
     else {
-      // Log history
+      // Log history and notify creator
       try {
         const { data: userData } = await auth.getUser();
         const currentUserId = userData.user?.id || "";
@@ -164,6 +166,35 @@ export default function PaymentProcessingDetails() {
           null,
           comment || "Rejected by Finance"
         );
+
+        if (expense?.user_id) {
+          const { data: creatorProfile } = await profiles.getById(
+            expense.user_id
+          );
+          const { data: financeProfile } = currentUserId
+            ? await profiles.getById(currentUserId)
+            : { data: null };
+          if (creatorProfile?.email) {
+            await fetch("/api/expenses/notify-creator", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                expenseId,
+                creatorEmail: creatorProfile.email,
+                creatorName: creatorProfile.full_name,
+                approverName: financeProfile?.full_name || userName,
+                orgName: null,
+                slug,
+                amount: expense.amount,
+                approvedAmount: expense.approved_amount ?? expense.amount,
+                expenseType: expense.expense_type,
+                status: "payment_not_processed",
+                rejectionReason: comment,
+                decisionStage: "finance",
+              }),
+            });
+          }
+        }
       } catch (logErr) {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
@@ -184,7 +215,7 @@ export default function PaymentProcessingDetails() {
     if (error) {
       toast.error("Approval failed");
     } else {
-      // Log history
+      // Log history and notify creator
       try {
         const { data: userData } = await auth.getUser();
         const currentUserId = userData.user?.id || "";
@@ -219,6 +250,44 @@ export default function PaymentProcessingDetails() {
         }
       } catch (err) {
         console.error("Error updating payment_status:", err);
+      }
+      // Send payment processed email notification (matches screenshot)
+      try {
+        if (expense?.user_id) {
+          const { data: creatorProfile } = await profiles.getById(
+            expense.user_id
+          );
+          // Resolve current finance user's display name
+          const { data: userData } = await auth.getUser();
+          const currentUserId = userData.user?.id || "";
+          let approverName = userData.user?.email || "Finance Team";
+          if (currentUserId) {
+            const profRes = await profiles.getByUserId(currentUserId);
+            const fullName = (profRes as any)?.data?.full_name as string | undefined;
+            if (fullName) approverName = fullName;
+          }
+          if (creatorProfile?.email) {
+            await fetch("/api/expenses/notify-creator", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                expenseId,
+                creatorEmail: creatorProfile.email,
+                creatorName: creatorProfile.full_name,
+                approverName,
+                orgName: organization?.name || null,
+                slug,
+                amount: expense.amount,
+                approvedAmount: expense.approved_amount ?? expense.amount,
+                expenseType: expense.expense_type,
+                status: "payment_processed",
+                decisionStage: "finance",
+              }),
+            });
+          }
+        }
+      } catch (notifyErr) {
+        console.error("Failed to send payment processed email:", notifyErr);
       }
       toast.success("Approved by Finance");
       router.push(`/org/${expense.org_id}/finance`);

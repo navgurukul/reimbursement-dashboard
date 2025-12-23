@@ -38,6 +38,14 @@ const STATUS_BADGE_META: Record<string, StatusMeta> = {
     label: "Finance Rejected",
     className: "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white",
   },
+  payment_processed: {
+    label: "Payment successful",
+    className: "bg-blue-100 text-blue-800 hover:bg-blue-700 hover:text-white",
+  },
+  payment_not_processed: {
+    label: "Payment has been rejected",
+    className: "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white",
+  },
   ready_for_payment: {
     label: "Ready for Payment",
     className: "bg-blue-100 text-blue-800 hover:bg-blue-700 hover:text-white",

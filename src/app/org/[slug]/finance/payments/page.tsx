@@ -9,7 +9,8 @@ import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Eye, Download, Pencil, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
+import { auth, profiles } from "@/lib/db";
 
 import {
   Table,
@@ -52,6 +53,8 @@ const formatCurrency = (amount: number) => {
 export default function PaymentProcessingOnly() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
+  const params = useParams();
+  const slug = params?.slug as string;
   const [processingExpenses, setProcessingExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   // const [editingFields, setEditingFields] = useState<Record<string, { remarks: boolean; debit: boolean }>>({});
@@ -431,6 +434,54 @@ export default function PaymentProcessingOnly() {
     ? processingExpenses.find((exp) => exp.id === confirmExpenseId)
     : null;
 
+  const sendPaymentProcessedEmail = async (expense: any) => {
+    const creatorEmail =
+      expense.creator_email || expense.email || expense.bank_email || null;
+
+    if (!creatorEmail) {
+      console.warn(
+        `Skipping email for expense ${expense.id}: no creator email available.`
+      );
+      return;
+    }
+
+    const creatorName = expense.creator_name || expense.creator?.full_name;
+
+    const { data: userData } = await auth.getUser();
+    const currentUserId = userData.user?.id || "";
+    let approverName = userData.user?.email || "Finance Team";
+    if (currentUserId) {
+      const profRes = await profiles.getByUserId(currentUserId);
+      const fullName = (profRes as any)?.data?.full_name as string | undefined;
+      if (fullName) approverName = fullName;
+    }
+
+    try {
+      await fetch("/api/expenses/notify-creator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expenseId: expense.id,
+          creatorEmail,
+          creatorName,
+          approverName,
+          orgName: organization?.name || null,
+          slug,
+          amount: expense.amount,
+          approvedAmount: expense.approved_amount ?? expense.amount,
+          expenseType: expense.expense_type,
+          status: "payment_processed",
+          decisionStage: "finance",
+        }),
+      });
+    } catch (notifyErr) {
+      console.error(
+        `Failed to send payment notification for expense ${expense.id}:`,
+        notifyErr
+      );
+    }
+  };
+
   const handleMarkAsPaid = async () => {
     if (!orgId || processingExpenses.length === 0) {
       toast.warning("No expenses to mark as paid.");
@@ -448,6 +499,16 @@ export default function PaymentProcessingOnly() {
         .in("id", ids);
 
       if (error) throw error;
+
+      // Send email notifications to all creators
+      try {
+        await Promise.allSettled(
+          processingExpenses.map((expense) => sendPaymentProcessedEmail(expense))
+        );
+      } catch (notifyErr) {
+        console.error("Failed to send payment notifications:", notifyErr);
+        // Don't fail the mark as paid operation if email fails
+      }
 
       toast.success("All expenses marked as paid.");
       setProcessingExpenses([]); // clear current list (will reload on refresh)
@@ -468,6 +529,17 @@ export default function PaymentProcessingOnly() {
         .eq("id", expenseId);
 
       if (error) throw error;
+
+      // Get the expense details to send notification
+      const expense = processingExpenses.find((exp) => exp.id === expenseId);
+      if (expense) {
+        try {
+          await sendPaymentProcessedEmail(expense);
+        } catch (notifyErr) {
+          console.error("Failed to send payment notification:", notifyErr);
+          // Don't fail the mark as paid operation if email fails
+        }
+      }
 
       toast.success("Expense marked as paid");
 

@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         const amountLabel = typeof amount === "number" ? amount.toFixed(2) : amount;
         const expenseTypeLabel = expenseType || "Expense";
 
-        const subject = `${expenseTypeLabel} expense is pending for your approval`;
+        const subject = `${requesterLabel}'s ${expenseTypeLabel} expense is pending for your approval`;
 
         const mailOptions = {
             from:

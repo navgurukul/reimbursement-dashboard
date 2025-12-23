@@ -129,7 +129,7 @@ export default function FinanceExpenseDetails() {
     );
     if (error) toast.error("Approval failed");
     else {
-      // Log history
+      // Log history and notify creator
       try {
         const { data: userData } = await auth.getUser();
         const currentUserId = userData.user?.id || "";
@@ -149,6 +149,34 @@ export default function FinanceExpenseDetails() {
           null,
           "Approved by Finance"
         );
+
+        if (expense?.user_id) {
+          const { data: creatorProfile } = await profiles.getById(
+            expense.user_id
+          );
+          const { data: financeProfile } = currentUserId
+            ? await profiles.getById(currentUserId)
+            : { data: null };
+          if (creatorProfile?.email) {
+            await fetch("/api/expenses/notify-creator", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                expenseId,
+                creatorEmail: creatorProfile.email,
+                creatorName: creatorProfile.full_name,
+                approverName: financeProfile?.full_name || userName,
+                orgName: null,
+                slug,
+                amount: expense.amount,
+                approvedAmount: expense.approved_amount ?? expense.amount,
+                expenseType: expense.expense_type,
+                status: "finance_approved",
+                decisionStage: "finance",
+              }),
+            });
+          }
+        }
       } catch (logErr) {
         console.error("Failed to log finance_approved entry:", logErr);
       }
@@ -172,7 +200,7 @@ export default function FinanceExpenseDetails() {
     );
     if (error) toast.error("Rejection failed");
     else {
-      // Log history
+      // Log history and notify creator
       try {
         const { data: userData } = await auth.getUser();
         const currentUserId = userData.user?.id || "";
@@ -192,6 +220,35 @@ export default function FinanceExpenseDetails() {
           null,
           comment || "Rejected by Finance"
         );
+
+        if (expense?.user_id) {
+          const { data: creatorProfile } = await profiles.getById(
+            expense.user_id
+          );
+          const { data: financeProfile } = currentUserId
+            ? await profiles.getById(currentUserId)
+            : { data: null };
+          if (creatorProfile?.email) {
+            await fetch("/api/expenses/notify-creator", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                expenseId,
+                creatorEmail: creatorProfile.email,
+                creatorName: creatorProfile.full_name,
+                approverName: financeProfile?.full_name || userName,
+                orgName: null,
+                slug,
+                amount: expense.amount,
+                approvedAmount: expense.approved_amount ?? expense.amount,
+                expenseType: expense.expense_type,
+                status: "finance_rejected",
+                rejectionReason: comment,
+                decisionStage: "finance",
+              }),
+            });
+          }
+        }
       } catch (logErr) {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
