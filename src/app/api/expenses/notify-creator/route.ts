@@ -81,9 +81,9 @@ export async function POST(req: NextRequest) {
     }
 
     const decisionLine = isPaymentProcessed
-      ? `Your expense payment successfully by ${approverLabel}.`
+      ? `Your expense payment successfully by Finance Team.`
       : isPaymentNotProcessed
-        ? `Your expense payment has been rejected by ${approverLabel}.`
+        ? `Your expense payment has been rejected by Finance Team.`
         : isApproved
           ? `Your expense has been approved by ${approverLabel}${isCustomAmountApproval ? ` with a custom amount (Approved Amount: ${approvedAmountLabel || amountLabel || "-"})` : "."}`
           : `Your expense has been rejected by ${approverLabel}.`;
