@@ -146,7 +146,7 @@ export default function FinanceReview() {
       if (failed.length > 0) {
         toast.error(`${failed.length} approvals failed`);
       } else {
-        toast.success("All expenses approved by Finance");
+        toast.success("All expenses have been approved by Finance. Email notification has been sent to the expense creator.");
         
         // Send email notifications to all expense creators
         await Promise.all(

@@ -1388,7 +1388,7 @@ export default function NewExpensePage() {
         }
       }
 
-      toast.success("All expenses and vouchers submitted successfully");
+      toast.success("All expenses and vouchers have been submitted successfully. Email notification has been sent to the expense approver.");
       if (eventIdFromQuery) {
         router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
       } else {

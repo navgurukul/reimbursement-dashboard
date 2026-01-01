@@ -510,7 +510,7 @@ export default function PaymentProcessingOnly() {
         // Don't fail the mark as paid operation if email fails
       }
 
-      toast.success("All expenses marked as paid.");
+      toast.success("All expenses marked as paid. Email notifications have been sent to the expense creators.");
       setProcessingExpenses([]); // clear current list (will reload on refresh)
     } catch (error: any) {
       toast.error("Failed to mark as paid", { description: error.message });
@@ -541,7 +541,7 @@ export default function PaymentProcessingOnly() {
         }
       }
 
-      toast.success("Expense marked as paid");
+      toast.success("Expense has been marked as paid. Email notification has been sent to the expense creator.");
 
       // Remove the paid expense from state
       setProcessingExpenses((prev) =>

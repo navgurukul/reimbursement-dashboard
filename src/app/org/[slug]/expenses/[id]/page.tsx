@@ -677,10 +677,11 @@ export default function ViewExpensePage() {
       });
 
       toast.success(
-        `Expense approved with custom amount: ${new Intl.NumberFormat("en-IN", {
+        `Expense has been approved with a custom amount of ${new Intl.NumberFormat("en-IN", {
           style: "currency",
           currency: "INR",
-        }).format(approvedAmount)}`
+        }).format(approvedAmount)}.
+        Email notification has been sent to the expense creator.`
       );
 
       // Navigate back after a short delay
@@ -900,10 +901,10 @@ export default function ViewExpensePage() {
 
       toast.success(
         approvalType === "policy"
-          ? "Expense approved as per policy limit"
+          ? "Expense has been approved as per the policy limit. Email notification has been sent to the expense creator."
           : approvalType === "full"
-          ? "Expense approved with full amount"
-          : "Expense approved successfully"
+            ? "Expense has been approved for the full amount. Email notification has been sent to the expense creator."
+            : "Expense has been approved successfully."
       );
 
       // Navigate back after a short delay
@@ -1045,7 +1046,7 @@ export default function ViewExpensePage() {
         approver_id: currentUserId,
       });
 
-      toast.success("Expense rejected successfully");
+      toast.success("Expense has been rejected successfully. Email notification has been sent to the expense creator.");
 
       // Navigate back after a short delay
       setTimeout(() => {
