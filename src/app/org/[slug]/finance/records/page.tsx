@@ -81,7 +81,7 @@ export default function PaymentRecords() {
   const [enteredPassword, setEnteredPassword] = useState("");
 
   // Use pagination hook
-  const pagination = usePagination(filteredRecords);
+  const pagination = usePagination(filteredRecords, 100);
 
   // Reset page when filters change
   useEffect(() => {
@@ -978,6 +978,7 @@ export default function PaymentRecords() {
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
+          itemsPerPage={100}
           onPageChange={pagination.setCurrentPage}
           isLoading={loading}
           itemLabel="Records"
