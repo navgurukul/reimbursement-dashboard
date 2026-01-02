@@ -123,7 +123,7 @@ export default function PaymentRecords() {
           .select("*")
           .eq("payment_status", "paid")
           .eq("org_id", orgId)
-          .order("updated_at", { ascending: true });
+          .order("paid_approval_time", { ascending: true, nullsFirst: true });
 
         if (error) throw error;
 

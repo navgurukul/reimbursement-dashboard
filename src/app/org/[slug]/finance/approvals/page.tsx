@@ -71,6 +71,19 @@ export default function FinanceReview() {
             creator_name: exp.creator?.full_name || "—",
           }));
 
+        // Sort by manager_approve_time in ascending order (earliest first)
+        if (managerApprovedExpenses.length > 0) {
+          managerApprovedExpenses.sort((a: any, b: any) => {
+            const timeA = a.manager_approve_time ? new Date(a.manager_approve_time).getTime() : 0;
+            const timeB = b.manager_approve_time ? new Date(b.manager_approve_time).getTime() : 0;
+            // Put null/undefined timestamps at the end
+            if (!timeA && !timeB) return 0;
+            if (!timeA) return 1;
+            if (!timeB) return -1;
+            return timeA - timeB;
+          });
+        }
+
         // Bulk fetch event titles
         const eventIds = [
           ...new Set(

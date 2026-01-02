@@ -554,6 +554,7 @@ export default function ViewExpensePage() {
         status: "approved",
         approver_id: currentUserId,
         approved_amount: approvedAmount,
+        manager_approve_time: new Date().toISOString(),
       };
 
       // Update with Supabase
@@ -743,6 +744,7 @@ export default function ViewExpensePage() {
       let updateData: any = {
         status: "approved",
         approver_id: currentUserId,
+        manager_approve_time: new Date().toISOString(),
       };
 
       // Set the approved_amount based on approval type

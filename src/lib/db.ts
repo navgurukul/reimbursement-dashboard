@@ -1635,6 +1635,7 @@ export const expenses = {
         finance_comment: comment,
         finance_decision_at: new Date().toISOString(),
         payment_status: approved ? "pending" : null,
+        finance_approve_time: approved ? new Date().toISOString() : null,
       };
 
       // Step 1: Update the expense record

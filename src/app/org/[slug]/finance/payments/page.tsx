@@ -124,6 +124,19 @@ export default function PaymentProcessingOnly() {
             // unique_id: exp.unique_id || "N/A",
           }));
 
+        // Sort by finance_approve_time in ascending order (earliest first)
+        if (filteredExpenses.length > 0) {
+          filteredExpenses.sort((a: any, b: any) => {
+            const timeA = a.finance_approve_time ? new Date(a.finance_approve_time).getTime() : 0;
+            const timeB = b.finance_approve_time ? new Date(b.finance_approve_time).getTime() : 0;
+            // Put null/undefined timestamps at the end
+            if (!timeA && !timeB) return 0;
+            if (!timeA) return 1;
+            if (!timeB) return -1;
+            return timeA - timeB;
+          });
+        }
+
         // Bulk fetch event titles for displayed expenses
         const eventIds = [
           ...new Set(
@@ -434,6 +447,33 @@ export default function PaymentProcessingOnly() {
     ? processingExpenses.find((exp) => exp.id === confirmExpenseId)
     : null;
 
+  const markExpensesPaidWithTimestamp = async (ids: string[]) => {
+    const paidAt = new Date().toISOString();
+    const attempts: { payload: Record<string, any>; allowRetry: boolean }[] = [
+      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: true },
+      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: false },
+    ];
+
+    let lastError: any = null;
+
+    for (const attempt of attempts) {
+      const { error } = await supabase
+        .from("expense_new")
+        .update(attempt.payload)
+        .in("id", ids);
+
+      if (!error) return paidAt;
+
+      lastError = error;
+      const message = (error?.message || "").toLowerCase();
+      if (!attempt.allowRetry || !message.includes("paid_approval_time")) {
+        break;
+      }
+    }
+
+    throw lastError;
+  };
+
   const sendPaymentProcessedEmail = async (expense: any) => {
     const creatorEmail =
       expense.creator_email || expense.email || expense.bank_email || null;
@@ -492,13 +532,7 @@ export default function PaymentProcessingOnly() {
       setLoading(true);
       const ids = processingExpenses.map((e) => e.id);
 
-      // Only update payment_status
-      const { error } = await supabase
-        .from("expense_new")
-        .update({ payment_status: "paid" })
-        .in("id", ids);
-
-      if (error) throw error;
+      await markExpensesPaidWithTimestamp(ids);
 
       // Send email notifications to all creators
       try {
@@ -523,12 +557,7 @@ export default function PaymentProcessingOnly() {
     try {
       setLoading(true);
 
-      const { error } = await supabase
-        .from("expense_new")
-        .update({ payment_status: "paid" })
-        .eq("id", expenseId);
-
-      if (error) throw error;
+      await markExpensesPaidWithTimestamp([expenseId]);
 
       // Get the expense details to send notification
       const expense = processingExpenses.find((exp) => exp.id === expenseId);
