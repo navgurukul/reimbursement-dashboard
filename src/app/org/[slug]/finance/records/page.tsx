@@ -181,6 +181,21 @@ export default function PaymentRecords() {
           }
         }
 
+        const sortByPaidApprovalTime = (list: any[]) =>
+          [...list].sort((a, b) => {
+            const aTime = a.paid_approval_time
+              ? new Date(a.paid_approval_time).getTime()
+              : null;
+            const bTime = b.paid_approval_time
+              ? new Date(b.paid_approval_time).getTime()
+              : null;
+
+            if (aTime === null && bTime === null) return 0;
+            if (aTime === null) return -1; // nulls first
+            if (bTime === null) return 1;
+            return aTime - bTime; // ascending for non-nulls
+          });
+
         const withTitles = rows.map((r: any) => ({
           ...r,
           event_title: r.event_id ? eventTitleMap[r.event_id] || "N/A" : "N/A",
@@ -203,6 +218,8 @@ export default function PaymentRecords() {
             };
           });
 
+          const sorted = sortByPaidApprovalTime(enriched);
+
           // compute amount bounds
           const amounts = enriched.map(
             (r: any) => Number(r.approved_amount) || 0
@@ -210,16 +227,18 @@ export default function PaymentRecords() {
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
 
-          setRecords(enriched);
-          setFilteredRecords(enriched);
+          setRecords(sorted);
+          setFilteredRecords(sorted);
           setAmountBounds({ min, max });
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
-          const fallback = withTitles.map((r: any) => ({
-            ...r,
-            unique_id: r.unique_id || "N/A",
-          }));
+          const fallback = sortByPaidApprovalTime(
+            withTitles.map((r: any) => ({
+              ...r,
+              unique_id: r.unique_id || "N/A",
+            }))
+          );
           const amounts = fallback.map(
             (r: any) => Number(r.approved_amount) || 0
           );
