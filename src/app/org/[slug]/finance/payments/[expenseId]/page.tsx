@@ -111,6 +111,33 @@ export default function PaymentProcessingDetails() {
     fetchExpense();
   }, [expenseId]);
 
+  const markExpensePaidWithTimestamp = async (id: string) => {
+    const paidAt = new Date().toISOString();
+    const attempts: { payload: Record<string, any>; allowRetry: boolean }[] = [
+      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: true },
+      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: false },
+    ];
+
+    let lastError: any = null;
+
+    for (const attempt of attempts) {
+      const { error } = await supabase
+        .from("expense_new")
+        .update(attempt.payload)
+        .eq("id", id);
+
+      if (!error) return paidAt;
+
+      lastError = error;
+      const message = (error?.message || "").toLowerCase();
+      if (!attempt.allowRetry || !message.includes("paid_approval_time")) {
+        break;
+      }
+    }
+
+    throw lastError;
+  };
+
   const handleViewReceipt = async () => {
     if (expense.receipt?.path) {
       try {
@@ -198,7 +225,7 @@ export default function PaymentProcessingDetails() {
       } catch (logErr) {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
-      toast.success("Rejected by Finance");
+      toast.success("Expense has been rejected by Finance. Email notification has been sent to the expense creator.");
       router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
@@ -240,14 +267,7 @@ export default function PaymentProcessingDetails() {
       }
       // Also mark as paid so it appears in Payment Records
       try {
-        const { error: payErr } = await supabase
-          .from("expense_new")
-          .update({ payment_status: "paid" })
-          .eq("id", expenseId);
-
-        if (payErr) {
-          console.error("Failed to mark expense as paid:", payErr);
-        }
+        await markExpensePaidWithTimestamp(expenseId as string);
       } catch (err) {
         console.error("Error updating payment_status:", err);
       }
@@ -289,7 +309,7 @@ export default function PaymentProcessingDetails() {
       } catch (notifyErr) {
         console.error("Failed to send payment processed email:", notifyErr);
       }
-      toast.success("Approved by Finance");
+      toast.success("Approved by Finance. Email notification has been sent to the expense creator.");
       router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);

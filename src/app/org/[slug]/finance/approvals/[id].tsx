@@ -58,7 +58,7 @@ export default function FinanceExpenseDetail() {
     if (error) {
       toast.error("Failed to approve");
     } else {
-      toast.success("Approved by Finance");
+      toast.success("Approved by Finance. Email notification has been sent to the expense creator.");
       router.push(`/org/${slug}/finance`);
     }
   };

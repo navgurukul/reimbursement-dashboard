@@ -180,7 +180,7 @@ export default function FinanceExpenseDetails() {
       } catch (logErr) {
         console.error("Failed to log finance_approved entry:", logErr);
       }
-      toast.success("Approved by Finance");
+      toast.success("Approved by Finance. Email notification has been sent to the expense creator.");
       router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
@@ -252,7 +252,7 @@ export default function FinanceExpenseDetails() {
       } catch (logErr) {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
-      toast.success("Rejected by Finance");
+      toast.success("Expense has been rejected by Finance. Email notification has been sent to the expense creator.");
       router.push(`/org/${slug}/finance`);
     }
     setProcessing(false);
