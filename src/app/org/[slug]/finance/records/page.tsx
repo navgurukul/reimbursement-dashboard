@@ -219,6 +219,10 @@ export default function PaymentRecords() {
           });
 
           const sorted = sortByPaidApprovalTime(enriched);
+          const sortedWithSerial = sorted.map((r: any, index: number) => ({
+            ...r,
+            serialNumber: index + 1,
+          }));
 
           // compute amount bounds
           const amounts = enriched.map(
@@ -227,8 +231,8 @@ export default function PaymentRecords() {
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
 
-          setRecords(sorted);
-          setFilteredRecords(sorted);
+          setRecords(sortedWithSerial);
+          setFilteredRecords(sortedWithSerial);
           setAmountBounds({ min, max });
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
@@ -239,14 +243,18 @@ export default function PaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
+          const fallbackWithSerial = fallback.map((r: any, index: number) => ({
+            ...r,
+            serialNumber: index + 1,
+          }));
           const amounts = fallback.map(
             (r: any) => Number(r.approved_amount) || 0
           );
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
 
-          setRecords(fallback);
-          setFilteredRecords(fallback);
+          setRecords(fallbackWithSerial);
+          setFilteredRecords(fallbackWithSerial);
           setAmountBounds({ min, max });
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         }
@@ -744,7 +752,7 @@ export default function PaymentRecords() {
               pagination.paginatedData.map((record, index) => (
                 <TableRow key={record.id}>
                   <TableCell className="text-center py-2">
-                    {pagination.getItemNumber(index)}
+                    {record.serialNumber ?? pagination.getItemNumber(index)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
