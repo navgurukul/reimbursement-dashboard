@@ -226,7 +226,7 @@ export default function PaymentProcessingDetails() {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
       toast.success("Expense has been rejected by Finance. Email notification has been sent to the expense creator.");
-      router.push(`/org/${slug}/finance`);
+      router.push(`/org/${slug}/finance?tab=payments`);
     }
     setProcessing(false);
   };
@@ -310,7 +310,7 @@ export default function PaymentProcessingDetails() {
         console.error("Failed to send payment processed email:", notifyErr);
       }
       toast.success("Approved by Finance. Email notification has been sent to the expense creator.");
-      router.push(`/org/${slug}/finance`);
+      router.push(`/org/${slug}/finance?tab=payments`);
     }
     setProcessing(false);
   };
