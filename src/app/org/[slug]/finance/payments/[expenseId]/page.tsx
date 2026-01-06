@@ -326,7 +326,7 @@ export default function PaymentProcessingDetails() {
         <Button
           variant="outline"
           onClick={() =>
-            router.push(`/org/${slug}/finance`)
+            router.push(`/org/${slug}/finance?tab=payments&highlight=${expenseId}`)
           }
           className="text-sm cursor-pointer"
           disabled={loading}
