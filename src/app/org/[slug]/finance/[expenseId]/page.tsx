@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   expenses,
@@ -42,6 +42,7 @@ import supabase from "@/lib/supabase"; // Make sure this is correctly imported
 export default function FinanceExpenseDetails() {
   const params = useParams();
   const { expenseId } = useParams();
+  const searchParams = useSearchParams();
 
   const slug = params.slug as string;
   const router = useRouter();
@@ -53,6 +54,18 @@ export default function FinanceExpenseDetails() {
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
+
+  const highlightId =
+    searchParams.get("highlight") || (typeof expenseId === "string" ? expenseId : null);
+  const pageParam = searchParams.get("page");
+
+  const backToApprovalQueueUrl = (() => {
+    const params = new URLSearchParams();
+    params.set("tab", "approvals");
+    if (highlightId) params.set("highlight", highlightId);
+    if (pageParam) params.set("page", pageParam);
+    return `/org/${slug}/finance?${params.toString()}`;
+  })();
 
   useEffect(() => {
     const fetchExpense = async () => {
@@ -181,7 +194,7 @@ export default function FinanceExpenseDetails() {
         console.error("Failed to log finance_approved entry:", logErr);
       }
       toast.success("Approved by Finance. Email notification has been sent to the expense creator.");
-      router.push(`/org/${slug}/finance`);
+      router.push(`/org/${slug}/finance?tab=approvals`);
     }
     setProcessing(false);
   };
@@ -253,7 +266,7 @@ export default function FinanceExpenseDetails() {
         console.error("Failed to log finance_rejected entry:", logErr);
       }
       toast.success("Expense has been rejected by Finance. Email notification has been sent to the expense creator.");
-      router.push(`/org/${slug}/finance`);
+      router.push(`/org/${slug}/finance?tab=approvals`);
     }
     setProcessing(false);
   };
@@ -289,7 +302,7 @@ export default function FinanceExpenseDetails() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Button
           variant="outline"
-          onClick={() => router.push(`/org/${slug}/finance`)}
+          onClick={() => router.push(backToApprovalQueueUrl)}
           className="text-sm cursor-pointer"
           disabled={loading}
         >

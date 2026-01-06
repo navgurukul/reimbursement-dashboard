@@ -40,7 +40,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useOrgStore } from "@/store/useOrgStore";
 
-export default function PaymentProcessingDetails() {
+export default function RecordsDetails() {
   const { expenseId } = useParams();
   const router = useRouter();
   const params = useParams();
@@ -111,33 +111,6 @@ export default function PaymentProcessingDetails() {
     fetchExpense();
   }, [expenseId]);
 
-  const markExpensePaidWithTimestamp = async (id: string) => {
-    const paidAt = new Date().toISOString();
-    const attempts: { payload: Record<string, any>; allowRetry: boolean }[] = [
-      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: true },
-      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: false },
-    ];
-
-    let lastError: any = null;
-
-    for (const attempt of attempts) {
-      const { error } = await supabase
-        .from("expense_new")
-        .update(attempt.payload)
-        .eq("id", id);
-
-      if (!error) return paidAt;
-
-      lastError = error;
-      const message = (error?.message || "").toLowerCase();
-      if (!attempt.allowRetry || !message.includes("paid_approval_time")) {
-        break;
-      }
-    }
-
-    throw lastError;
-  };
-
   const handleViewReceipt = async () => {
     if (expense.receipt?.path) {
       try {
@@ -159,162 +132,6 @@ export default function PaymentProcessingDetails() {
     }
   };
 
-  const handleFinanceReject = async () => {
-    if (!comment.trim()) {
-      toast.error("Please add a comment for rejection.");
-      return;
-    }
-
-    setProcessing(true);
-    const { error } = await expenses.updateByFinance(
-      expenseId as string,
-      false,
-      comment
-    );
-    if (error) toast.error("Rejection failed");
-    else {
-      // Log history and notify creator
-      try {
-        const { data: userData } = await auth.getUser();
-        const currentUserId = userData.user?.id || "";
-        let userName = userData.user?.email || "Unknown User";
-        if (currentUserId) {
-          const profRes = await profiles.getByUserId(currentUserId);
-          const fullName = (profRes as any)?.data?.full_name as
-            | string
-            | undefined;
-          if (fullName) userName = fullName;
-        }
-        await expenseHistory.addEntry(
-          expenseId as string,
-          currentUserId,
-          userName,
-          "finance_rejected",
-          null,
-          comment || "Rejected by Finance"
-        );
-
-        if (expense?.user_id) {
-          const { data: creatorProfile } = await profiles.getById(
-            expense.user_id
-          );
-          const { data: financeProfile } = currentUserId
-            ? await profiles.getById(currentUserId)
-            : { data: null };
-          if (creatorProfile?.email) {
-            await fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                expenseId,
-                creatorEmail: creatorProfile.email,
-                creatorName: creatorProfile.full_name,
-                approverName: financeProfile?.full_name || userName,
-                orgName: null,
-                slug,
-                amount: expense.amount,
-                approvedAmount: expense.approved_amount ?? expense.amount,
-                expenseType: expense.expense_type,
-                status: "payment_not_processed",
-                rejectionReason: comment,
-                decisionStage: "finance",
-              }),
-            });
-          }
-        }
-      } catch (logErr) {
-        console.error("Failed to log finance_rejected entry:", logErr);
-      }
-      toast.success("Expense has been rejected by Finance. Email notification has been sent to the expense creator.");
-      router.push(`/org/${slug}/finance?tab=payments`);
-    }
-    setProcessing(false);
-  };
-
-  const handleFinanceApprove = async () => {
-    if (!expenseId) return;
-    setProcessing(true);
-    const { error } = await expenses.updateByFinance(
-      expenseId as string,
-      true,
-      "Approved by Finance"
-    );
-    if (error) {
-      toast.error("Approval failed");
-    } else {
-      // Log history and notify creator
-      try {
-        const { data: userData } = await auth.getUser();
-        const currentUserId = userData.user?.id || "";
-        let userName = userData.user?.email || "Unknown User";
-        if (currentUserId) {
-          const profRes = await profiles.getByUserId(currentUserId);
-          const fullName = (profRes as any)?.data?.full_name as
-            | string
-            | undefined;
-          if (fullName) userName = fullName;
-        }
-        await expenseHistory.addEntry(
-          expenseId as string,
-          currentUserId,
-          userName,
-          "finance_approved",
-          null,
-          "Approved by Finance"
-        );
-      } catch (logErr) {
-        console.error("Failed to log finance_approved entry:", logErr);
-      }
-      // Also mark as paid so it appears in Payment Records
-      try {
-        await markExpensePaidWithTimestamp(expenseId as string);
-      } catch (err) {
-        console.error("Error updating payment_status:", err);
-      }
-      // Send payment processed email notification (matches screenshot)
-      try {
-        if (expense?.user_id) {
-          const { data: creatorProfile } = await profiles.getById(
-            expense.user_id
-          );
-          // Resolve current finance user's display name
-          const { data: userData } = await auth.getUser();
-          const currentUserId = userData.user?.id || "";
-          let approverName = userData.user?.email || "Finance Team";
-          if (currentUserId) {
-            const profRes = await profiles.getByUserId(currentUserId);
-            const fullName = (profRes as any)?.data?.full_name as string | undefined;
-            if (fullName) approverName = fullName;
-          }
-          if (creatorProfile?.email) {
-            await fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                expenseId,
-                creatorEmail: creatorProfile.email,
-                creatorName: creatorProfile.full_name,
-                approverName,
-                orgName: organization?.name || null,
-                slug,
-                amount: expense.amount,
-                approvedAmount: expense.approved_amount ?? expense.amount,
-                expenseType: expense.expense_type,
-                status: "payment_processed",
-                decisionStage: "finance",
-              }),
-            });
-          }
-        }
-      } catch (notifyErr) {
-        console.error("Failed to send payment processed email:", notifyErr);
-      }
-      toast.success("Approved by Finance. Email notification has been sent to the expense creator.");
-      router.push(`/org/${slug}/finance?tab=payments`);
-    }
-    setProcessing(false);
-  };
-
   if (!loading && !expense) {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
@@ -326,33 +143,13 @@ export default function PaymentProcessingDetails() {
         <Button
           variant="outline"
           onClick={() =>
-            router.push(`/org/${slug}/finance?tab=payments&highlight=${expenseId}`)
+            router.push(`/org/${slug}/finance?tab=records&highlight=${expenseId}`)
           }
           className="text-sm cursor-pointer"
           disabled={loading}
         >
-          ← Back to Payment Processing
+          ← Back to Records
         </Button>
-        {!loading && (
-          <div className="flex gap-2 mt-2 md:mt-0">
-            <Button
-              onClick={handleFinanceApprove}
-              disabled={processing}
-              variant="success"
-              className="cursor-pointer"
-            >
-              Approve
-            </Button>
-            <Button
-              onClick={() => setShowCommentBox(true)}
-              disabled={processing}
-              variant="destructive"
-              className="cursor-pointer"
-            >
-              Reject
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Grid Layout */}
@@ -437,7 +234,7 @@ export default function PaymentProcessingDetails() {
                           className="flex items-center text-blue-600 cursor-pointer"
                           onClick={() =>
                             router.push(
-                              `/org/${slug}/expenses/${expense.id}/voucher?from=payment-processing`
+                              `/org/${slug}/expenses/${expense.id}/voucher?from=records`
                             )
                           }
                         >
@@ -552,23 +349,6 @@ export default function PaymentProcessingDetails() {
                 placeholder="Please write reason for rejection..."
               />
             </div>
-
-            <DialogFooter className="mt-4">
-              <Button
-                variant="outline"
-                className="cursor-pointer"
-                onClick={() => setShowCommentBox(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                className="cursor-pointer"
-                onClick={handleFinanceReject}
-              >
-                Submit Rejection
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

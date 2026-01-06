@@ -3,9 +3,9 @@
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
 import supabase from "@/lib/supabase";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye } from "lucide-react";
 import {
   Dialog,
@@ -33,7 +33,7 @@ import { formatDateTime } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
-import { Pagination, usePagination } from "@/components/pagination";
+import { Pagination, PER_PAGE, usePagination } from "@/components/pagination";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -45,13 +45,31 @@ export default function FinanceReview() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [expenseList, setExpenseList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmApproveAllOpen, setConfirmApproveAllOpen] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
+  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
   // Use pagination hook
   const pagination = usePagination(expenseList);
+
+  const highlightQuery = searchParams.get("highlight");
+  const pageQuery = searchParams.get("page");
+
+  useEffect(() => {
+    setHighlightId(highlightQuery);
+    setHasAppliedHighlight(false);
+  }, [highlightQuery]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const timer = window.setTimeout(() => setHighlightId(null), 10000);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
 
   useEffect(() => {
     async function fetchExpenses() {
@@ -133,9 +151,62 @@ export default function FinanceReview() {
     fetchExpenses();
   }, [orgId]);
 
+  useEffect(() => {
+    if (!expenseList.length) return;
+
+    if (pageQuery) {
+      const parsed = parseInt(pageQuery, 10);
+      if (!Number.isNaN(parsed)) {
+        const clamped = Math.min(Math.max(parsed, 1), pagination.totalPages);
+        if (clamped !== pagination.currentPage) {
+          pagination.setCurrentPage(clamped);
+        }
+      }
+      return;
+    }
+
+    if (highlightQuery) {
+      const targetIndex = expenseList.findIndex((item) => item.id === highlightQuery);
+      if (targetIndex !== -1) {
+        const targetPage = Math.floor(targetIndex / PER_PAGE) + 1;
+        if (targetPage !== pagination.currentPage) {
+          pagination.setCurrentPage(targetPage);
+        }
+      }
+    }
+  }, [
+    expenseList,
+    highlightQuery,
+    pageQuery,
+    pagination.currentPage,
+    pagination.setCurrentPage,
+    pagination.totalPages,
+  ]);
+
+  useEffect(() => {
+    if (!highlightId || hasAppliedHighlight) return;
+
+    const isVisible = pagination.paginatedData.some((item) => item.id === highlightId);
+    if (!isVisible) return;
+
+    const timer = window.setTimeout(() => {
+      highlightedRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      setHasAppliedHighlight(true);
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightId, hasAppliedHighlight, pagination.paginatedData]);
+
   const handleViewClick = (expense: any) => {
     if (!organization?.slug || !expense?.id) return;
-    router.push(`/org/${organization.slug}/finance/${expense.id}`);
+    const params = new URLSearchParams();
+    params.set("tab", "approvals");
+    params.set("highlight", expense.id);
+    params.set("page", String(pagination.currentPage));
+    router.push(`/org/${organization.slug}/finance/${expense.id}?${params.toString()}`);
   };
 
   const handleApproveAll = async () => {
@@ -248,11 +319,18 @@ export default function FinanceReview() {
                 </TableCell>
               </TableRow>
             ) : (
-              pagination.paginatedData.map((expense, index) => (
-                <TableRow
-                  key={expense.id}
-                  className="hover:bg-gray-50 transition-colors"
-                >
+              pagination.paginatedData.map((expense, index) => {
+                const isHighlighted = highlightId === expense.id;
+
+                return (
+                  <TableRow
+                    key={expense.id}
+                    ref={isHighlighted ? highlightedRowRef : null}
+                    data-expense-row={expense.id}
+                    className={`hover:bg-gray-50 transition-colors ${
+                      isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""
+                    }`}
+                  >
                   <TableCell className="px-4 py-3 text-center">
                     {pagination.getItemNumber(index)}
                   </TableCell>
@@ -309,8 +387,9 @@ export default function FinanceReview() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableCell>
-                </TableRow>
-              ))
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   IndianRupee,
   Pencil,
@@ -13,6 +13,7 @@ import {
   Funnel,
   Undo2,
   Filter,
+  Eye,
 } from "lucide-react";
 import {
   Table,
@@ -48,6 +49,9 @@ export default function PaymentRecords() {
   const [loading, setLoading] = useState(true);
   const { slug } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+  const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -68,6 +72,12 @@ export default function PaymentRecords() {
 
   const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
   const [filterOpen, setFilterOpen] = useState(false);
+  const [eventTitleLookup, setEventTitleLookup] = useState<
+    Record<string, string>
+  >({});
+  const [eventOptions, setEventOptions] = useState<
+    { id: string; title: string }[]
+  >([]);
 
   // State for UTR editing functionality
   const [editingFields, setEditingFields] = useState<
@@ -87,6 +97,40 @@ export default function PaymentRecords() {
   useEffect(() => {
     pagination.resetPage();
   }, [filters]);
+
+  // Handle highlight from URL parameter
+  useEffect(() => {
+    const highlight = searchParams.get("highlight");
+    if (highlight) {
+      setHighlightedExpenseId(highlight);
+      // Clear the highlight after 10 seconds
+      const timer = setTimeout(() => {
+        setHighlightedExpenseId(null);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
+
+  // Scroll to highlighted row when it's set
+  useEffect(() => {
+    if (highlightedExpenseId && filteredRecords.length > 0) {
+      // Find which page the highlighted expense is on
+      const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
+      if (recordIndex !== -1) {
+        const itemsPerPage = 100;
+        const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
+        pagination.setCurrentPage(pageNumber);
+        
+        // Scroll to the highlighted row after pagination updates
+        setTimeout(() => {
+          highlightedRowRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }, 200);
+      }
+    }
+  }, [highlightedExpenseId, filteredRecords]);
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;
     id: string | null;
@@ -99,6 +143,19 @@ export default function PaymentRecords() {
     id: string | null;
   }>({ open: false, id: null });
   const [sendBackLoading, setSendBackLoading] = useState(false);
+  const [editModal, setEditModal] = useState<{
+    open: boolean;
+    record: any | null;
+  }>({ open: false, record: null });
+  const [editForm, setEditForm] = useState({
+    expense_type: "",
+    event_id: "",
+    location: "",
+    approved_amount: "",
+    utr: "",
+    unique_id: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const ADMIN_PASSWORD = "admin"; // your password
 
@@ -169,12 +226,14 @@ export default function PaymentRecords() {
         ];
 
         let eventTitleMap: Record<string, string> = {};
+        let eventsDataList: { id: string; title: string }[] = [];
         if (eventIds.length > 0) {
           const { data: eventsData, error: evErr } = await supabase
             .from("expense_events")
             .select("id,title")
             .in("id", eventIds);
           if (!evErr && eventsData) {
+            eventsDataList = eventsData;
             eventsData.forEach((ev: { id: string; title: string }) => {
               eventTitleMap[ev.id] = ev.title;
             });
@@ -219,6 +278,10 @@ export default function PaymentRecords() {
           });
 
           const sorted = sortByPaidApprovalTime(enriched);
+          const sortedWithSerial = sorted.map((r: any, index: number) => ({
+            ...r,
+            serialNumber: index + 1,
+          }));
 
           // compute amount bounds
           const amounts = enriched.map(
@@ -227,9 +290,11 @@ export default function PaymentRecords() {
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
 
-          setRecords(sorted);
-          setFilteredRecords(sorted);
+          setRecords(sortedWithSerial);
+          setFilteredRecords(sortedWithSerial);
           setAmountBounds({ min, max });
+          setEventTitleLookup(eventTitleMap);
+          setEventOptions(eventsDataList);
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
@@ -239,15 +304,21 @@ export default function PaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
+          const fallbackWithSerial = fallback.map((r: any, index: number) => ({
+            ...r,
+            serialNumber: index + 1,
+          }));
           const amounts = fallback.map(
             (r: any) => Number(r.approved_amount) || 0
           );
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
 
-          setRecords(fallback);
-          setFilteredRecords(fallback);
+          setRecords(fallbackWithSerial);
+          setFilteredRecords(fallbackWithSerial);
           setAmountBounds({ min, max });
+          setEventTitleLookup(eventTitleMap);
+          setEventOptions(eventsDataList);
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         }
       } catch (err: any) {
@@ -405,6 +476,81 @@ export default function PaymentRecords() {
       toast.error("Failed to send back", { description: err.message });
     } finally {
       setSendBackLoading(false);
+    }
+  };
+
+  const openEditModal = (record: any) => {
+    setEditForm({
+      expense_type: record.expense_type || "",
+      event_id: record.event_id || "",
+      location: record.location || "",
+      approved_amount:
+        record.approved_amount !== undefined
+          ? String(record.approved_amount)
+          : record.amount !== undefined
+            ? String(record.amount)
+            : "",
+      utr: record.utr || "",
+      unique_id: record.unique_id || "",
+    });
+    setEditModal({ open: true, record });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editModal.record) return;
+
+    const parsedAmount = Number(editForm.approved_amount);
+    if (
+      editForm.approved_amount !== "" &&
+      !Number.isFinite(parsedAmount)
+    ) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    const payload = {
+      expense_type:
+        editForm.expense_type || editModal.record.expense_type || null,
+      event_id: editForm.event_id || editModal.record.event_id || null,
+      location: editForm.location || editModal.record.location || null,
+      approved_amount:
+        editForm.approved_amount === ""
+          ? editModal.record.approved_amount ?? null
+          : parsedAmount,
+      utr: editForm.utr.trim() || null,
+      unique_id: editForm.unique_id.trim() || null,
+    };
+
+    const updatedEventTitle = payload.event_id
+      ? eventTitleLookup[payload.event_id] || editModal.record.event_title || "N/A"
+      : editModal.record.event_title || "N/A";
+
+    try {
+      setSavingEdit(true);
+
+      const { error } = await supabase
+        .from("expense_new")
+        .update(payload)
+        .eq("id", editModal.record.id);
+
+      if (error) throw error;
+
+      const updateList = (list: any[]) =>
+        list.map((r: any) =>
+          r.id === editModal.record.id
+            ? { ...r, ...payload, event_title: updatedEventTitle }
+            : r
+        );
+
+      setRecords((prev) => updateList(prev));
+      setFilteredRecords((prev) => updateList(prev));
+
+      toast.success("Record updated");
+      setEditModal({ open: false, record: null });
+    } catch (err: any) {
+      toast.error("Failed to update record", { description: err.message });
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -742,9 +888,17 @@ export default function PaymentRecords() {
               </TableRow>
             ) : (
               pagination.paginatedData.map((record, index) => (
-                <TableRow key={record.id}>
+                <TableRow 
+                  key={record.id}
+                  ref={highlightedExpenseId === record.id ? highlightedRowRef : null}
+                  className={`${
+                    highlightedExpenseId === record.id 
+                      ? "border-2 border-yellow-400 bg-yellow-50" 
+                      : ""
+                  }`}
+                >
                   <TableCell className="text-center py-2">
-                    {pagination.getItemNumber(index)}
+                    {record.serialNumber ?? pagination.getItemNumber(index)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
@@ -943,6 +1097,44 @@ export default function PaymentRecords() {
                               size="sm"
                               variant="outline"
                               onClick={() =>
+                                router.push(
+                                  `/org/${slug}/finance/records/${record.id}`
+                                )
+                              }
+                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>View details</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEditModal(record)}
+                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Edit record</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
                                 setSendBackModal({ open: true, id: record.id })
                               }
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
@@ -984,6 +1176,147 @@ export default function PaymentRecords() {
           itemLabel="Records"
         />
       )}
+
+      {/* Edit record modal */}
+      <Dialog
+        open={editModal.open}
+        onOpenChange={(open) =>
+          setEditModal((prev) => ({ open, record: open ? prev.record : null }))
+        }
+      >
+        <DialogContent className="max-w-xl sm:max-w-1xl">
+          <DialogHeader>
+            <DialogTitle>Edit payment record</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+            <div className="grid gap-3 text-sm">
+              <div>
+                <label className="text-sm font-medium">Unique ID</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={editForm.unique_id}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, unique_id: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Expense Type</label>
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={editForm.expense_type}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      expense_type: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Select expense type</option>
+                  {expenseTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Event Name</label>
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={editForm.event_id}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      event_id: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Select event</option>
+                  {eventOptions.map((ev) => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.title}
+                    </option>
+                  ))}
+                  {editModal.record?.event_id &&
+                    eventOptions.every((ev) => ev.id !== editModal.record?.event_id) && (
+                      <option value={editModal.record.event_id}>
+                        {editModal.record.event_title || "Current event"}
+                      </option>
+                    )}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Location</label>
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={editForm.location}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      location: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Select location</option>
+                  {locations.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Amount</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="mt-1 block w-full border rounded px-3 py-2"
+                  value={editForm.approved_amount}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      approved_amount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">UTR</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border rounded px-3 py-2"
+                  value={editForm.utr}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, utr: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              Finance-only changes here will not alter the creator&apos;s submitted expense fields.
+            </p>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setEditModal({ open: false, record: null })}
+              className="cursor-pointer"
+              disabled={savingEdit}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              className="cursor-pointer"
+              disabled={savingEdit}
+            >
+              {savingEdit ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Password Modal for UTR Editing */}
       <Dialog

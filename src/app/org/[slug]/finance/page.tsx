@@ -20,6 +20,14 @@ export default function FinancePage() {
   }
   const [activeTab, setActiveTab] = useState("approvals");
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", value);
+    params.delete("highlight");
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab) {
@@ -34,7 +42,7 @@ export default function FinancePage() {
       </div>
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
         className="space-y-6"
       >
         <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">

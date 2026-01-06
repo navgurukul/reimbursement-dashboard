@@ -5,11 +5,11 @@ import { expenses } from "@/lib/db";
 import { formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Eye, Download, Pencil, Save } from "lucide-react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { auth, profiles } from "@/lib/db";
 
 import {
@@ -93,6 +93,10 @@ export default function PaymentProcessingOnly() {
   });
   const [enteredPassword, setEnteredPassword] = useState("");
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  
+  const searchParams = useSearchParams();
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+  const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
   // Use pagination hook
   const pagination = usePagination(processingExpenses);
@@ -215,6 +219,40 @@ export default function PaymentProcessingOnly() {
 
     fetchExpensesAndBankDetails();
   }, [orgId]);
+
+  // Handle highlight from URL parameter
+  useEffect(() => {
+    const highlight = searchParams.get("highlight");
+    if (highlight) {
+      setHighlightedExpenseId(highlight);
+      // Clear the highlight after 10 seconds
+      const timer = setTimeout(() => {
+        setHighlightedExpenseId(null);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
+
+  // Scroll to highlighted row when it's set
+  useEffect(() => {
+    if (highlightedExpenseId && processingExpenses.length > 0) {
+      // Find which page the highlighted expense is on
+      const recordIndex = processingExpenses.findIndex(r => r.id === highlightedExpenseId);
+      if (recordIndex !== -1) {
+        const itemsPerPage = 10;
+        const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
+        pagination.setCurrentPage(pageNumber);
+        
+        // Scroll to the highlighted row after pagination updates
+        setTimeout(() => {
+          highlightedRowRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }, 200);
+      }
+    }
+  }, [highlightedExpenseId, processingExpenses]);
 
   const exportToCSV = () => {
     const headers = selectedColumns;
@@ -703,7 +741,12 @@ export default function PaymentProcessingOnly() {
               pagination.paginatedData.map((expense, index) => (
                 <TableRow
                   key={expense.id}
-                  className="hover:bg-gray-50 transition-colors"
+                  ref={highlightedExpenseId === expense.id ? highlightedRowRef : null}
+                  className={`hover:bg-gray-50 transition-colors ${
+                    highlightedExpenseId === expense.id 
+                      ? "border-2 border-yellow-400 bg-yellow-50" 
+                      : ""
+                  }`}
                 >
                   <TableCell className="px-4 py-3 text-center">
                     {pagination.getItemNumber(index)}
