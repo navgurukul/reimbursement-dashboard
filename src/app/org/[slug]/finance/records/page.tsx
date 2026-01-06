@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   IndianRupee,
   Pencil,
@@ -13,6 +13,7 @@ import {
   Funnel,
   Undo2,
   Filter,
+  Eye,
 } from "lucide-react";
 import {
   Table,
@@ -48,6 +49,9 @@ export default function PaymentRecords() {
   const [loading, setLoading] = useState(true);
   const { slug } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+  const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -93,6 +97,40 @@ export default function PaymentRecords() {
   useEffect(() => {
     pagination.resetPage();
   }, [filters]);
+
+  // Handle highlight from URL parameter
+  useEffect(() => {
+    const highlight = searchParams.get("highlight");
+    if (highlight) {
+      setHighlightedExpenseId(highlight);
+      // Clear the highlight after 10 seconds
+      const timer = setTimeout(() => {
+        setHighlightedExpenseId(null);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
+
+  // Scroll to highlighted row when it's set
+  useEffect(() => {
+    if (highlightedExpenseId && filteredRecords.length > 0) {
+      // Find which page the highlighted expense is on
+      const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
+      if (recordIndex !== -1) {
+        const itemsPerPage = 100;
+        const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
+        pagination.setCurrentPage(pageNumber);
+        
+        // Scroll to the highlighted row after pagination updates
+        setTimeout(() => {
+          highlightedRowRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }, 200);
+      }
+    }
+  }, [highlightedExpenseId, filteredRecords]);
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;
     id: string | null;
@@ -847,7 +885,15 @@ export default function PaymentRecords() {
               </TableRow>
             ) : (
               pagination.paginatedData.map((record, index) => (
-                <TableRow key={record.id}>
+                <TableRow 
+                  key={record.id}
+                  ref={highlightedExpenseId === record.id ? highlightedRowRef : null}
+                  className={`${
+                    highlightedExpenseId === record.id 
+                      ? "border-2 border-yellow-400 bg-yellow-50" 
+                      : ""
+                  }`}
+                >
                   <TableCell className="text-center py-2">
                     {record.serialNumber ?? pagination.getItemNumber(index)}
                   </TableCell>
@@ -1041,6 +1087,27 @@ export default function PaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     <div className="flex items-center justify-center gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                router.push(
+                                  `/org/${slug}/finance/records/${record.id}`
+                                )
+                              }
+                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>View details</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
