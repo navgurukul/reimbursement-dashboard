@@ -153,6 +153,7 @@ export default function PaymentRecords() {
     location: "",
     approved_amount: "",
     utr: "",
+    unique_id: "",
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -490,6 +491,7 @@ export default function PaymentRecords() {
             ? String(record.amount)
             : "",
       utr: record.utr || "",
+      unique_id: record.unique_id || "",
     });
     setEditModal({ open: true, record });
   };
@@ -516,6 +518,7 @@ export default function PaymentRecords() {
           ? editModal.record.approved_amount ?? null
           : parsedAmount,
       utr: editForm.utr.trim() || null,
+      unique_id: editForm.unique_id.trim() || null,
     };
 
     const updatedEventTitle = payload.event_id
@@ -1187,6 +1190,17 @@ export default function PaymentRecords() {
           </DialogHeader>
           <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
             <div className="grid gap-3 text-sm">
+              <div>
+                <label className="text-sm font-medium">Unique ID</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={editForm.unique_id}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, unique_id: e.target.value }))
+                  }
+                />
+              </div>
               <div>
                 <label className="text-sm font-medium">Expense Type</label>
                 <select
