@@ -8,8 +8,6 @@ import {
   expenseHistory,
   auth,
   profiles,
-  vouchers,
-  voucherAttachments,
 } from "@/lib/db";
 import { formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
@@ -24,13 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock, Eye, EyeOff } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { FileText, Clock } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
@@ -44,6 +36,8 @@ import {
 } from "@/components/ui/dialog";
 import ExpenseHistory from "../../expenses/[id]/history/expense-history";
 import { ExpenseComments } from "../../expenses/[id]/history/expense-comments";
+import ReceiptPreview from "@/components/ReceiptPreview";
+import VoucherPreview from "@/components/VoucherPreview";
 
 import supabase from "@/lib/supabase"; // Make sure this is correctly imported
 
@@ -62,25 +56,6 @@ export default function FinanceExpenseDetails() {
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
-  const [voucherDetails, setVoucherDetails] = useState<any | null>(null);
-  const [voucherSignatureUrl, setVoucherSignatureUrl] = useState<string | null>(
-    null
-  );
-  const [voucherAttachmentUrl, setVoucherAttachmentUrl] = useState<
-    string | null
-  >(null);
-  const [voucherAttachmentFilename, setVoucherAttachmentFilename] = useState<
-    string | null
-  >(null);
-  const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
-  const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
-  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(
-    null
-  );
-  const [isReceiptPaneOpen, setIsReceiptPaneOpen] = useState(false);
-  const [receiptLoading, setReceiptLoading] = useState(false);
-  const [isReceiptPdf, setIsReceiptPdf] = useState(false);
-
   const highlightId =
     searchParams.get("highlight") || (typeof expenseId === "string" ? expenseId : null);
   const pageParam = searchParams.get("page");
@@ -158,138 +133,6 @@ export default function FinanceExpenseDetails() {
 
     fetchExpense();
   }, [expenseId]);
-
-  // Load voucher preview
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadVoucherPreview = async () => {
-      if (!hasVoucher) {
-        setVoucherDetails(null);
-        setVoucherSignatureUrl(null);
-        setVoucherAttachmentUrl(null);
-        setVoucherAttachmentFilename(null);
-        setIsVoucherPaneOpen(false);
-        return;
-      }
-
-      try {
-        setVoucherPreviewLoading(true);
-        const { data: voucherData, error } = await vouchers.getByExpenseId(
-          expenseId as string
-        );
-        if (error || !voucherData) {
-          if (!cancelled) {
-            setVoucherDetails(null);
-            setIsVoucherPaneOpen(false);
-          }
-          return;
-        }
-
-        if (cancelled) return;
-
-        setVoucherDetails(voucherData);
-        setIsVoucherPaneOpen(true); // open by default
-
-        if (voucherData.signature_url) {
-          const { url } = await vouchers.getSignatureUrl(
-            voucherData.signature_url
-          );
-          if (!cancelled) setVoucherSignatureUrl(url || null);
-        }
-
-        if (
-          (voucherData as any).attachment_url ||
-          (voucherData as any).attachment
-        ) {
-          const attachmentValue =
-            (voucherData as any).attachment_url ||
-            (voucherData as any).attachment;
-          const [filename, filePath] = String(attachmentValue).split(",");
-          if (filePath) {
-            const { url, error } = await voucherAttachments.getUrl(filePath);
-            if (!cancelled) {
-              setVoucherAttachmentUrl(!error ? url || null : null);
-              setVoucherAttachmentFilename(filename || null);
-            }
-          }
-        } else {
-          if (!cancelled) {
-            setVoucherAttachmentFilename(null);
-          }
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.error("Voucher preview load error:", err);
-          setVoucherDetails(null);
-          setIsVoucherPaneOpen(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setVoucherPreviewLoading(false);
-        }
-      }
-    };
-
-    loadVoucherPreview();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hasVoucher, expenseId]);
-
-  // Load receipt preview
-  useEffect(() => {
-    let isCancelled = false;
-
-    const loadReceiptPreview = async () => {
-      if (!expense?.receipt?.path) {
-        setReceiptPreviewUrl(null);
-        setIsReceiptPaneOpen(false);
-        return;
-      }
-
-      try {
-        setReceiptLoading(true);
-        const { url, error } = await expenses.getReceiptUrl(
-          expense.receipt.path
-        );
-
-        if (isCancelled) return;
-
-        if (error || !url) {
-          console.error("Error loading receipt preview:", error);
-          setReceiptPreviewUrl(null);
-          setIsReceiptPaneOpen(false);
-          return;
-        }
-
-        setReceiptPreviewUrl(url);
-        setIsReceiptPaneOpen(true); // open by default for quick access
-
-        // Detect if it's a PDF
-        setIsReceiptPdf(url.toLowerCase().includes(".pdf"));
-      } catch (err) {
-        if (!isCancelled) {
-          console.error("Receipt preview error:", err);
-          setReceiptPreviewUrl(null);
-          setIsReceiptPaneOpen(false);
-        }
-      } finally {
-        if (!isCancelled) {
-          setReceiptLoading(false);
-        }
-      }
-    };
-
-    if (expense) {
-      loadReceiptPreview();
-    }
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [expense?.receipt?.path, expense]);
 
   const handleFinanceApprove = async () => {
     setProcessing(true);
@@ -621,284 +464,12 @@ export default function FinanceExpenseDetails() {
             )}
           </div>
 
-          {/* Receipt Preview */}
-          {expense?.receipt && (
-            <div className="bg-white p-6 rounded shadow border">
-              <div className="border-b pb-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
-                    <div>
-                      <p className="text-base font-semibold">Receipt Preview</p>
-                      <p className="text-sm text-muted-foreground">
-                        Opens by default for quick review
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <TooltipProvider delayDuration={150}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="cursor-pointer"
-                            onClick={() =>
-                              setIsReceiptPaneOpen((prev) => !prev)
-                            }
-                            aria-label={
-                              isReceiptPaneOpen
-                                ? "Hide receipt preview"
-                                : "Show receipt preview"
-                            }
-                          >
-                            {isReceiptPaneOpen ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>
-                            {isReceiptPaneOpen
-                              ? "Hide receipt preview"
-                              : "Show receipt preview"}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </div>
-              </div>
+          {/* Receipt Preview (component) */}
+          {expense?.receipt && <ReceiptPreview expense={expense} />}
 
-              {isReceiptPaneOpen && (
-                <div className="p-4">
-                  {receiptLoading ? (
-                    <div className="flex h-64 items-center justify-center">
-                      <Spinner size="lg" />
-                    </div>
-                  ) : receiptPreviewUrl ? (
-                    isReceiptPdf ? (
-                      <div
-                        className="rounded-md border bg-white overflow-hidden"
-                        style={{ height: "500px" }}
-                      >
-                        <iframe
-                          src={`${receiptPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-                          className="h-full w-full border-none"
-                          title="Receipt PDF Preview"
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className="overflow-y-auto rounded-md border bg-muted"
-                        style={{ height: "auto" }}
-                      >
-                        <img
-                          src={receiptPreviewUrl}
-                          alt={
-                            expense.receipt.filename || "Receipt preview"
-                          }
-                          className="w-full object-contain"
-                        />
-                      </div>
-                    )
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Receipt preview not available right now.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Voucher Preview */}
-          {voucherDetails && (
-            <div className="bg-white p-6 rounded shadow border">
-              <div className="border-b pb-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
-                    <div>
-                      <p className="text-base font-semibold">Voucher Preview</p>
-                      <p className="text-sm text-muted-foreground">
-                        Opens by default for quick review
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <TooltipProvider delayDuration={150}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="cursor-pointer"
-                            onClick={() =>
-                              setIsVoucherPaneOpen((prev) => !prev)
-                            }
-                            aria-label={
-                              isVoucherPaneOpen
-                                ? "Hide voucher preview"
-                                : "Show voucher preview"
-                            }
-                          >
-                            {isVoucherPaneOpen ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>
-                            {isVoucherPaneOpen
-                              ? "Hide voucher preview"
-                              : "Show voucher preview"}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </div>
-              </div>
-
-              {isVoucherPaneOpen && (
-                <div className="space-y-4 p-4">
-                  {voucherPreviewLoading ? (
-                    <div className="flex h-64 items-center justify-center">
-                      <Spinner size="lg" />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Your Name
-                          </p>
-                          <p className="font-medium">
-                            {voucherDetails.your_name ||
-                              expense.creator?.full_name ||
-                              "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm text-muted-foreground">
-                              Amount
-                            </p>
-                            <ExpenseStatusBadge status={expense.status} />
-                          </div>
-                          <p className="font-medium">
-                            {new Intl.NumberFormat("en-IN", {
-                              style: "currency",
-                              currency: "INR",
-                            }).format(
-                              voucherDetails.amount || expense.amount
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Date
-                          </p>
-                          <p className="font-medium">
-                            {new Date(expense.date).toLocaleDateString(
-                              "en-GB"
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Credit Person
-                          </p>
-                          <p className="font-medium">
-                            {voucherDetails.credit_person || "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Approver
-                          </p>
-                          <p className="font-medium">
-                            {expense.approver?.full_name || "—"}
-                          </p>
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className="text-sm text-muted-foreground">
-                            Purpose
-                          </p>
-                          <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">
-                            {voucherDetails.purpose || "—"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Signature
-                        </p>
-                        {voucherSignatureUrl ? (
-                          <div className="border rounded-md p-3 bg-white">
-                            <img
-                              src={voucherSignatureUrl}
-                              alt="Voucher signature"
-                              className="max-h-28 mx-auto"
-                            />
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            Signature not available
-                          </p>
-                        )}
-                      </div>
-
-                      {voucherAttachmentUrl && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">Attachment</p>
-                          </div>
-                          {voucherAttachmentFilename &&
-                            voucherAttachmentFilename
-                              .toLowerCase()
-                              .endsWith(".pdf") ? (
-                            <div
-                              className="rounded-md border bg-white overflow-hidden"
-                              style={{ height: "500px" }}
-                            >
-                              <iframe
-                                src={`${voucherAttachmentUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-                                className="h-full w-full border-none"
-                                title="Attachment PDF Preview"
-                              />
-                            </div>
-                          ) : (
-                            <div className="rounded-md border bg-muted">
-                              <img
-                                src={voucherAttachmentUrl}
-                                alt="Voucher attachment preview"
-                                className="max-h-[500px] w-full object-contain"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {!voucherAttachmentUrl && (
-                        <div className="flex gap-1">
-                          <p className="text-sm font-medium">Attachment : </p>
-                          <p className="text-sm text-muted-foreground">
-                            Not Available
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+          {/* Voucher Preview (component) */}
+          {hasVoucher && (
+            <VoucherPreview expense={expense} expenseId={typeof expenseId === "string" ? expenseId : ""} />
           )}
         </div>
         {/* Activity History */}
