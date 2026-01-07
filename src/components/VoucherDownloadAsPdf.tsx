@@ -10,11 +10,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { vouchers } from "@/lib/db";
+import { vouchers, voucherAttachments } from "@/lib/db";
 import { formatDate } from "@/lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import supabase from "@/lib/supabase";
 
 // Add type augmentation for jsPDF
 declare module "jspdf" {
@@ -139,6 +138,44 @@ export default function VoucherDownloadAsPdf({
       // ===== Table =====
       const startY = y + 8;
       const amountString = `INR ${Number(voucher.amount || 0).toFixed(2)}`;
+      // Attempt to resolve attachment (if present on voucher)
+      let voucherAttachmentUrl: string | null = null;
+      let voucherAttachmentFilename: string | null = null;
+      if ((voucher as any).attachment_url || (voucher as any).attachment) {
+        try {
+          const attachmentValue = (voucher as any).attachment_url || (voucher as any).attachment;
+          const parts = String(attachmentValue).split(",");
+          let filename: string | null = null;
+          let filePath: string | null = null;
+
+          if (parts.length > 1) {
+            filename = parts[0] || null;
+            filePath = parts[1] || null;
+          } else {
+            const single = parts[0];
+            if (single?.startsWith("http")) {
+              voucherAttachmentUrl = single || null;
+              filename = single.split("/").pop() || null;
+            } else {
+              filePath = single || null;
+              filename = single?.split("/").pop() || null;
+            }
+          }
+
+          if (filePath) {
+            const { url, error } = await voucherAttachments.getUrl(filePath);
+            if (!error) {
+              voucherAttachmentUrl = url || null;
+              voucherAttachmentFilename = filename || null;
+            }
+          } else if (voucherAttachmentUrl) {
+            voucherAttachmentFilename = filename || null;
+          }
+        } catch (err) {
+          // ignore attachment resolution errors
+        }
+      }
+
       const body = [
         ["Name", voucher.your_name || expense.creator?.full_name || "—"],
         ["Amount", amountString],
@@ -146,6 +183,7 @@ export default function VoucherDownloadAsPdf({
         ["Credit Person", voucher.credit_person || "—"],
         ["Approver", expense.approver?.full_name || "—"],
         ["Purpose", voucher.purpose || "—"],
+        ["Attachment", voucherAttachmentFilename || "Not available"],
         [
           "Signature",
           signatureUrl
@@ -177,7 +215,6 @@ export default function VoucherDownloadAsPdf({
           0: { cellWidth: 60, fontStyle: "bold" },
           1: { cellWidth: pageWidth - (margin + padding) * 2 - 60 },
         },
-        // Amount in green + bold
         didParseCell: (d) => {
           if (
             d.section === "body" &&
@@ -186,6 +223,46 @@ export default function VoucherDownloadAsPdf({
           ) {
             d.cell.styles.textColor = [0, 0, 0];
             d.cell.styles.fontStyle = "bold";
+          }
+
+          if (
+            d.section === "body" &&
+            d.column.index === 1 &&
+            Array.isArray(d.row.raw) &&
+            String((d.row.raw as any[])[0]).toLowerCase() === "attachment"
+          ) {
+            // so that when no attachment exists the cell still shows "Not available".
+            if (voucherAttachmentUrl) {
+              d.cell.text = [""];
+            }
+          }
+        },
+        didDrawCell: (d) => {
+          try {
+            // clickable 'View Attachment' link when available
+              if (
+              d.section === "body" &&
+              d.column.index === 1 &&
+              Array.isArray(d.row.raw) &&
+              String((d.row.raw as any[])[0]).toLowerCase() === "attachment" &&
+              voucherAttachmentUrl
+            ) {
+              const cellX = d.cell.x;
+              const cellY = d.cell.y;
+              const cellW = d.cell.width;
+              const cellH = d.cell.height;
+              const linkText = "View Attachment";
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(11);
+              doc.setTextColor(0, 102, 204);
+              // vertically center the text roughly
+              const textY = cellY + cellH / 2 + 3;
+              doc.text(linkText, cellX + 4, textY);
+              // add clickable link area over the cell
+              doc.link(cellX, cellY, cellW, cellH, { url: voucherAttachmentUrl });
+            }
+          } catch (err) {
+            // ignore drawing/link errors
           }
         },
       });
