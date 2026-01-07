@@ -12,6 +12,8 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
+import { useOrgStore } from "@/store/useOrgStore";
+import VoucherDownloadAsPdf from "@/components/VoucherDownloadAsPdf";
 
 type Props = {
   expense: any;
@@ -20,6 +22,7 @@ type Props = {
 };
 
 export default function VoucherPreview({ expense, expenseId, defaultOpen = true }: Props) {
+  const { organization } = useOrgStore();
   const [voucherDetails, setVoucherDetails] = React.useState<any | null>(null);
   const [voucherSignatureUrl, setVoucherSignatureUrl] = React.useState<string | null>(null);
   const [voucherAttachmentUrl, setVoucherAttachmentUrl] = React.useState<string | null>(null);
@@ -115,6 +118,15 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
                   <p>{isOpen ? "Hide voucher preview" : "Show voucher preview"}</p>
                 </TooltipContent>
               </Tooltip>
+              {voucherDetails && (
+                <VoucherDownloadAsPdf
+                  expense={expense}
+                  expenseId={expenseId || expense?.id || ""}
+                  voucherDetails={voucherDetails}
+                  voucherSignatureUrl={voucherSignatureUrl}
+                  organization={organization}
+                />
+              )}
             </TooltipProvider>
           </div>
         </div>
