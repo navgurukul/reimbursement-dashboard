@@ -140,27 +140,6 @@ export default function PaymentProcessingDetails() {
     throw lastError;
   };
 
-  const handleViewReceipt = async () => {
-    if (expense.receipt?.path) {
-      try {
-        const { url, error } = await expenses.getReceiptUrl(
-          expense.receipt.path
-        );
-        if (error) {
-          console.error("Error getting receipt URL:", error);
-          toast.error("Failed to load receipt");
-          return;
-        }
-        if (url) {
-          window.open(url, "_blank");
-        }
-      } catch (err) {
-        console.error("Error opening receipt:", err);
-        toast.error("Failed to open receipt");
-      }
-    }
-  };
-
   const handleFinanceReject = async () => {
     if (!comment.trim()) {
       toast.error("Please add a comment for rejection.");
@@ -423,34 +402,11 @@ export default function PaymentProcessingDetails() {
                   <TableRow>
                     <TableHead>Receipt/Voucher</TableHead>
                     <TableCell>
-                      {expense.receipt ? (
-                        <Button
-                          variant="outline"
-                          onClick={handleViewReceipt}
-                          className="flex items-center cursor-pointer"
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Receipt ({expense.receipt.filename || "Document"}
-                          )
-                        </Button>
-                      ) : hasVoucher ? (
-                        <Button
-                          variant="outline"
-                          className="flex items-center text-blue-600 cursor-pointer"
-                          onClick={() =>
-                            router.push(
-                              `/org/${slug}/expenses/${expense.id}/voucher?from=payment-processing`
-                            )
-                          }
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Voucher
-                        </Button>
-                      ) : (
-                        <p className="text-muted-foreground">
-                          No receipt or voucher available
-                        </p>
-                      )}
+                      {hasVoucher
+                        ? "Voucher Preview Below"
+                        : expense?.receipt
+                        ? "Receipt Preview Below"
+                        : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
