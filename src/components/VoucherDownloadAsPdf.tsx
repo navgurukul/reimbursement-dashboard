@@ -298,6 +298,8 @@ export default function VoucherDownloadAsPdf({
 
       y += 6;
 
+      let signatureBlockHeight = 30; // default height when no signature
+
       if (signatureUrl) {
         try {
           const base64 = await convertImageUrlToBase64(signatureUrl);
@@ -319,6 +321,7 @@ export default function VoucherDownloadAsPdf({
           // Dashed box that wraps the signature (just bigger than image)
           const boxW = maxW + 8;
           const boxH = maxH + 8;
+          signatureBlockHeight = boxH;
           doc.setLineWidth(0.3);
           doc.setDrawColor(150);
           (doc as any).setLineDash?.([2, 2], 0);
@@ -355,8 +358,10 @@ export default function VoucherDownloadAsPdf({
         doc.text("Signature Not Available", margin + padding + 6, y + 15);
       }
 
+      // move cursor below the signature block before attachment preview
+      y += signatureBlockHeight + 12;
+
       // ===== Attachment preview (images only) AFTER signature =====
-      y += 14; // spacing below signature block
       if (voucherAttachmentUrl) {
         try {
           const { dataUrl: base64Attachment, mimeType } =
@@ -424,11 +429,11 @@ export default function VoucherDownloadAsPdf({
 
           y += renderHeight + 12;
         } catch {
-          doc.setFont("helvetica", "italic");
+          doc.setFont("helvetica", "bolditalic");
           doc.setFontSize(10);
           doc.setTextColor(120, 120, 120);
           doc.text(
-            "Attachment preview unavailable",
+            "Note: Attachment preview is unavailable because the attachment is in PDF format.\nPlease click View Attachment to open and view it.",
             margin + padding,
             y
           );
