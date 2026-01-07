@@ -33,13 +33,26 @@ type Props = {
   organization: any;
 };
 
-// Utility function to convert image URL to base64
+// Utility: fetch URL -> base64 data URL
 async function convertImageUrlToBase64(url: string): Promise<string> {
+  const { dataUrl } = await fetchImageAsDataUrl(url);
+  return dataUrl;
+}
+
+// Utility: fetch URL -> base64 data URL + mime
+async function fetchImageAsDataUrl(url: string): Promise<{
+  dataUrl: string;
+  mimeType: string;
+}> {
   const response = await fetch(url);
   const blob = await response.blob();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
+    reader.onloadend = () =>
+      resolve({
+        dataUrl: reader.result as string,
+        mimeType: blob.type || "",
+      });
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
@@ -340,6 +353,87 @@ export default function VoucherDownloadAsPdf({
         doc.setFontSize(10);
         doc.setTextColor(150, 150, 150);
         doc.text("Signature Not Available", margin + padding + 6, y + 15);
+      }
+
+      // ===== Attachment preview (images only) AFTER signature =====
+      y += 14; // spacing below signature block
+      if (voucherAttachmentUrl) {
+        try {
+          const { dataUrl: base64Attachment, mimeType } =
+            await fetchImageAsDataUrl(voucherAttachmentUrl);
+          const attachmentExt = (
+            voucherAttachmentFilename || voucherAttachmentUrl || ""
+          )
+            .toLowerCase()
+            .split(".")
+            .pop();
+
+          const mimeLooksLikeImage =
+            mimeType?.startsWith("image/") &&
+            ["image/png", "image/jpeg", "image/webp"].includes(mimeType);
+          const extLooksLikeImage =
+            attachmentExt &&
+            ["png", "jpg", "jpeg", "webp"].includes(attachmentExt);
+
+          if (!mimeLooksLikeImage && !extLooksLikeImage) {
+            throw new Error("not-image");
+          }
+
+          const imgProps = doc.getImageProperties(base64Attachment) as any;
+          const imageFormat =
+            imgProps?.fileType ||
+            imgProps?.format ||
+            mimeType?.replace("image/", "").toUpperCase() ||
+            "PNG";
+          const maxPreviewWidth = pageWidth - (margin + padding) * 2;
+          const maxPreviewHeight = 180;
+
+          let renderWidth = imgProps.width;
+          let renderHeight = imgProps.height;
+          if (renderWidth > maxPreviewWidth) {
+            const scale = maxPreviewWidth / renderWidth;
+            renderWidth = maxPreviewWidth;
+            renderHeight = renderHeight * scale;
+          }
+          if (renderHeight > maxPreviewHeight) {
+            const scale = maxPreviewHeight / renderHeight;
+            renderHeight = maxPreviewHeight;
+            renderWidth = renderWidth * scale;
+          }
+
+          if (y + renderHeight + 24 > pageHeight - margin) {
+            doc.addPage();
+            y = margin + padding;
+          }
+
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(11);
+          doc.setTextColor(0, 0, 0);
+          doc.text("ATTACHMENT PREVIEW:", margin + padding, y);
+
+          y += 8;
+
+          doc.addImage(
+            base64Attachment,
+            imageFormat,
+            margin + padding,
+            y,
+            renderWidth,
+            renderHeight
+          );
+
+          y += renderHeight + 12;
+        } catch {
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(10);
+          doc.setTextColor(120, 120, 120);
+          doc.text(
+            "Attachment preview unavailable",
+            margin + padding,
+            y
+          );
+          y += 10;
+        }
       }
 
       // ===== Footer Note (always at bottom inside border) =====
