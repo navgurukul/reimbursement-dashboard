@@ -57,7 +57,7 @@ export default function FinanceReview() {
   // Use pagination hook
   const pagination = usePagination(expenseList);
 
-  const highlightQuery = searchParams.get("highlight");
+  const highlightQuery = searchParams.get("expID");
   const pageQuery = searchParams.get("page");
 
   useEffect(() => {
@@ -204,7 +204,7 @@ export default function FinanceReview() {
     if (!organization?.slug || !expense?.id) return;
     const params = new URLSearchParams();
     params.set("tab", "approvals");
-    params.set("highlight", expense.id);
+    params.set("expID", expense.id);
     params.set("page", String(pagination.currentPage));
     router.push(`/org/${organization.slug}/finance/${expense.id}?${params.toString()}`);
   };

@@ -57,13 +57,13 @@ export default function FinanceExpenseDetails() {
   const [hasVoucher, setHasVoucher] = useState(false);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
   const highlightId =
-    searchParams.get("highlight") || (typeof expenseId === "string" ? expenseId : null);
+    searchParams.get("expID") || (typeof expenseId === "string" ? expenseId : null);
   const pageParam = searchParams.get("page");
 
   const backToApprovalQueueUrl = (() => {
     const params = new URLSearchParams();
     params.set("tab", "approvals");
-    if (highlightId) params.set("highlight", highlightId);
+    if (highlightId) params.set("expID", highlightId);
     if (pageParam) params.set("page", pageParam);
     return `/org/${slug}/finance?${params.toString()}`;
   })();

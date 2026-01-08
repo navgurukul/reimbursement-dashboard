@@ -131,7 +131,7 @@ export default function RecordsDetails() {
         <Button
           variant="link"
           onClick={() =>
-            router.push(`/org/${slug}/finance?tab=records&highlight=${expenseId}`)
+            router.push(`/org/${slug}/finance?tab=records&expID=${expenseId}`)
           }
           // className="text-sm cursor-pointer"
           // disabled={loading}
