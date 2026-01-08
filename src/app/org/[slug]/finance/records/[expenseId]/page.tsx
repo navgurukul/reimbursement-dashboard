@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useOrgStore } from "@/store/useOrgStore";
+import DownloadAllExpensesAsPdf from "@/components/DownloadAllExpensesAsPdf";
 
 export default function RecordsDetails() {
   const { expenseId } = useParams();
@@ -64,10 +65,12 @@ export default function RecordsDetails() {
       else setExpense(data);
 
       // Fetch related event title if present
+      let eventTitleValue: string | null = null;
       if (data?.event_id) {
         try {
           const { data: ev } = await expenseEvents.getById(data.event_id);
-          setEventTitle(ev?.title || null);
+          eventTitleValue = ev?.title || null;
+          setEventTitle(eventTitleValue);
         } catch (e) {
           setEventTitle(null);
         }
@@ -85,7 +88,12 @@ export default function RecordsDetails() {
         setHasVoucher(true);
       }
 
-      const expenseData = { ...data };
+      const expenseData = { 
+        ...data, 
+        event_title: eventTitleValue,
+        hasVoucher: !voucherError && !!voucherData,
+        voucherId: voucherData?.id || null
+      } as any;
       const signaturePath = expenseData.signature_url;
       if (signaturePath && !signaturePath.startsWith("http")) {
         const { data: sigData } = supabase.storage
@@ -119,7 +127,7 @@ export default function RecordsDetails() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
         <Button
           variant="outline"
           onClick={() =>
@@ -130,6 +138,12 @@ export default function RecordsDetails() {
         >
           ← Back to Records
         </Button>
+        {!loading && expense && organization && (
+          <DownloadAllExpensesAsPdf
+            expensesList={[expense]}
+            organization={organization}
+          />
+        )}
       </div>
 
       {/* Grid Layout */}
