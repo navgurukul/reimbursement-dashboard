@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock } from "lucide-react";
+import { FileText, Clock, ArrowLeft } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
@@ -281,12 +281,13 @@ export default function FinanceExpenseDetails() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() => router.push(backToApprovalQueueUrl)}
           className="text-sm cursor-pointer"
           disabled={loading}
         >
-          ← Back to Approval Queue
+          <ArrowLeft />
+          Back to Approval Queue
         </Button>
         {!loading && (
           <div className="flex gap-2">

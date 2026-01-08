@@ -13,7 +13,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock } from "lucide-react";
+import { FileText, Clock, ArrowLeft } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
@@ -305,14 +305,15 @@ export default function PaymentProcessingDetails() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() =>
             router.push(`/org/${slug}/finance?tab=payments&highlight=${expenseId}`)
           }
-          className="text-sm cursor-pointer"
-          disabled={loading}
+          // className="text-sm cursor-pointer"
+          // disabled={loading}
         >
-          ← Back to Payment Processing
+          <ArrowLeft /> 
+          Back to Payment Processing
         </Button>
         {!loading && (
           <div className="flex gap-2 mt-2 md:mt-0">

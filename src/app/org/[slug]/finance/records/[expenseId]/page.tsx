@@ -13,7 +13,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock } from "lucide-react";
+import { FileText, Clock, ArrowLeft, } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
 import {
@@ -129,14 +129,15 @@ export default function RecordsDetails() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() =>
             router.push(`/org/${slug}/finance?tab=records&highlight=${expenseId}`)
           }
-          className="text-sm cursor-pointer"
-          disabled={loading}
+          // className="text-sm cursor-pointer"
+          // disabled={loading}
         >
-          ← Back to Records
+          <ArrowLeft />
+          Back to Records
         </Button>
         {!loading && expense && organization && (
           <DownloadAllExpensesAsPdf
