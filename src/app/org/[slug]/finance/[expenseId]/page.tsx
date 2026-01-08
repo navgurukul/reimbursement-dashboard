@@ -141,8 +141,11 @@ export default function FinanceExpenseDetails() {
       true,
       "Approved by Finance"
     );
-    if (error) toast.error("Approval failed");
-    else {
+    if (error) {
+      toast.error(error.message || "Approval failed", {
+        description: (error as any).details || undefined,
+      });
+    } else {
       // Log history and notify creator
       try {
         const { data: userData } = await auth.getUser();

@@ -34,6 +34,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -175,6 +176,9 @@ export default function ViewExpensePage() {
     event_id: eventIdFromQuery || "",
   });
   const [customFields, setCustomFields] = useState<any[]>([]);
+  const [descriptionText, setDescriptionText] = useState<string>("");
+  const [savingDescription, setSavingDescription] = useState<boolean>(false);
+  const [descriptionEditing, setDescriptionEditing] = useState<boolean>(false);
   const [shareLink, setShareLink] = useState<string>("");
   const [sharingReceipt, setSharingReceipt] = useState(false);
   const [sharingVoucher, setSharingVoucher] = useState(false);
@@ -299,6 +303,13 @@ export default function ViewExpensePage() {
         }
 
         setExpense(data);
+        // initialize editable description state
+        const d: any = data;
+        const desc =
+          (d.custom_fields && d.custom_fields.description) ||
+          d.description ||
+          "";
+        setDescriptionText(desc);
 
         // Fetch related event title if linked
         if (data.event_id) {
@@ -702,6 +713,53 @@ export default function ViewExpensePage() {
       });
     } finally {
       setUpdateLoading(false);
+    }
+  };
+
+  const handleSaveDescription = async () => {
+    try {
+      if (!currentUserId) {
+        toast.error("User not found. Please sign in again.");
+        return;
+      }
+
+      if (currentUserId !== expense.user_id) {
+        toast.error("Only the expense creator can edit the description.");
+        return;
+      }
+
+      // Do not allow saving once finance approved
+      if (expense.status === "finance_approved") {
+        toast.error("Cannot edit description after finance approval.");
+        return;
+      }
+
+      setSavingDescription(true);
+
+      // Merge into custom_fields if present otherwise update description
+            const newCustomFields = {
+              ...(expense.custom_fields || {}),
+              description: descriptionText,
+            };
+      
+            const { data, error } = await expenses.update(expense.id, {
+              custom_fields: newCustomFields,
+            });
+
+      if (error || !data) {
+        console.error("Failed to save description:", error);
+        toast.error("Failed to save description");
+        return;
+      }
+
+      setExpense(data);
+      toast.success("Description saved");
+      setDescriptionEditing(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save description");
+    } finally {
+      setSavingDescription(false);
     }
   };
   // Main approve function with different approval types
@@ -2311,17 +2369,103 @@ export default function ViewExpensePage() {
               )}
 
               {/* Custom fields section */}
+              {/* Description: editable by creator until finance approves */}
+              <div className="mt-4">
+                <p className="text-sm font-medium text-muted-foreground mb-2">
+                  Description
+                </p>
+                {(() => {
+                  const canEdit =
+                    currentUserId === expense.user_id &&
+                    expense.status !== "finance_approved";
+
+                  if (canEdit) {
+                    if (descriptionEditing) {
+                      return (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={descriptionText}
+                            onChange={(e) => setDescriptionText(e.target.value)}
+                            placeholder="Add a description..."
+                            className="w-full"
+                            rows={4}
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={handleSaveDescription}
+                              disabled={savingDescription}
+                            >
+                              {savingDescription ? (
+                                <Spinner size="sm" className="mr-2" />
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              onClick={() => {
+                                setDescriptionText(
+                                  (expense.custom_fields && expense.custom_fields.description) || expense.description || ""
+                                );
+                                setDescriptionEditing(false);
+                              }}
+                              disabled={savingDescription}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm flex items-start justify-between">
+                        <div className="flex-1 pr-2">{descriptionText || "—"}</div>
+                        <div>
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="cursor-pointer"
+                                  onClick={() => setDescriptionEditing(true)}
+                                  aria-label="Edit description"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Edit description</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">
+                      {descriptionText || "—"}
+                    </div>
+                  );
+                })()}
+                <p className="text-sm text-muted-foreground">
+                  Allow the description to be editable before Finance approves the expense.
+                </p>
+              </div>
               {expense.custom_fields &&
                 Object.keys(expense.custom_fields).length > 0 &&
                 customFields.length > 0 && ( // make sure customFields are loaded
                   <div className="grid grid-cols-2 gap-4 mt-4 break-words">
                     {Object.entries(expense.custom_fields)
-                      .filter(
-                        ([key]) =>
-                          key !== "location_of_expense" &&
-                          key !== "Location of Expense" &&
-                          key.toLowerCase() !== "location_of_expense"
-                      ) // Exclude Location Of Expense
+                          .filter(([key]) =>
+                            key !== "location_of_expense" &&
+                            key !== "Location of Expense" &&
+                            key.toLowerCase() !== "location_of_expense" &&
+                            key.toLowerCase() !== "description"
+                          ) // Exclude Location Of Expense and description
                       .map(([key, value]) => {
                         const matchedField = customFields.find(
                           (field) => field.key === key
