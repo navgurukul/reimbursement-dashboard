@@ -72,7 +72,7 @@ export default function DownloadAllExpensesAsPdf({
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 15;
+      const margin = 10;
       const padding = 10;
 
       // Helper function to add border to current page
@@ -135,6 +135,10 @@ export default function DownloadAllExpensesAsPdf({
                     margin + padding,
                     twoLineY + 6
                 );
+                doc.text('Expense approved by: ' + (expense.approver?.full_name || 'N/A'),
+                    margin + padding,
+                    twoLineY + 12
+                );
 
                 // Right aligned (Created At)
                 doc.text(
@@ -147,6 +151,12 @@ export default function DownloadAllExpensesAsPdf({
                     'Expense creator email: ' + (expense.creator_email || 'N/A'),
                     pageWidth - margin - padding,
                     twoLineY + 6,
+                    { align: "right" }
+                );
+                doc.text(
+                    'Expense approver email: ' + (expense.approver_email || 'N/A'),
+                    pageWidth - margin - padding,
+                    twoLineY + 12,
                     { align: "right" }
                 );
 
@@ -969,9 +979,15 @@ export default function DownloadAllExpensesAsPdf({
                     .replace(/[^a-z0-9]+/g, "_")
                     .replace(/^_+|_+$/g, "");
                 const expenseDate = single.date
-                    ? new Date(single.date).toISOString().split("T")[0]
+                    ? (() => {
+                          const d = new Date(single.date);
+                          const dd = String(d.getDate()).padStart(2, "0");
+                          const mm = String(d.getMonth() + 1).padStart(2, "0");
+                          const yyyy = d.getFullYear();
+                          return `${dd}-${mm}-${yyyy}`;
+                      })()
                     : timestamp;
-                doc.save(`expense_${safeCreator}_${expenseDate}.pdf`);
+                doc.save(`${single.expense_type}_${safeCreator}_${expenseDate}.pdf`);
             } else {
                 doc.save(`all_expenses_${timestamp}.pdf`);
             }
