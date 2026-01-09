@@ -200,6 +200,52 @@ export default function ViewExpensePage() {
   const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
 
+  // Helper: compute the next pending expense id for the current approver
+  const getNextPendingId = async (currentId: string) => {
+    try {
+      if (!orgId || !currentUserId) return null;
+
+      // If we have the current expense's created_at, find the next pending older expense.
+      const createdAt = expense?.created_at;
+      if (createdAt) {
+        try {
+          const { data: nextItem, error } = await supabase
+            .from("expense_new")
+            .select("id")
+            .eq("org_id", orgId)
+            .eq("approver_id", currentUserId)
+            .eq("status", "submitted")
+            .lt("created_at", createdAt)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!error && nextItem?.id) {
+            return nextItem.id as string;
+          }
+        } catch (e) {
+          console.error("Error querying next by created_at:", e);
+        }
+      }
+
+      // Fallback: fetch pending list and attempt to locate currentId then return following item
+      const { data: pending, error } = await expenses.getPendingApprovals(
+        orgId,
+        currentUserId
+      );
+      if (error || !pending) return null;
+
+      const idx = pending.findIndex((p: any) => p.id === currentId);
+      if (idx >= 0 && idx + 1 < pending.length) {
+        return pending[idx + 1].id;
+      }
+      return null;
+    } catch (e) {
+      console.error("Error fetching next pending id:", e);
+      return null;
+    }
+  };
+
   // Load the user's saved signature if it exists
   useEffect(() => {
     // Fetch user's saved signature if it exists
@@ -696,15 +742,17 @@ export default function ViewExpensePage() {
         Email notification has been sent to the expense creator.`
       );
 
-      // Navigate back after a short delay
-      setTimeout(() => {
+      // Navigate back after a short delay. Compute next pending dynamically.
+      setTimeout(async () => {
         const tab = fromTab || "my";
-        // Streamlined approval flow: if nextId exists and we're in pending tab, go to next expense
-        if (tab === "pending" && nextId) {
-          router.push(`/org/${slug}/expenses/${nextId}?fromTab=${tab}`);
-        } else {
-          router.push(`/org/${slug}/expenses?tab=${tab}`);
+        if (tab === "pending") {
+          const next = await getNextPendingId(expenseId);
+          if (next) {
+            router.push(`/org/${slug}/expenses/${next}?fromTab=${tab}`);
+            return;
+          }
         }
+        router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -967,15 +1015,17 @@ export default function ViewExpensePage() {
             : "Expense has been approved successfully."
       );
 
-      // Navigate back after a short delay
-      setTimeout(() => {
+      // Navigate back after a short delay. Compute next pending dynamically.
+      setTimeout(async () => {
         const tab = fromTab || "my";
-        // Streamlined approval flow: if nextId exists and we're in pending tab, go to next expense
-        if (tab === "pending" && nextId) {
-          router.push(`/org/${slug}/expenses/${nextId}?fromTab=${tab}`);
-        } else {
-          router.push(`/org/${slug}/expenses?tab=${tab}`);
+        if (tab === "pending") {
+          const next = await getNextPendingId(expenseId);
+          if (next) {
+            router.push(`/org/${slug}/expenses/${next}?fromTab=${tab}`);
+            return;
+          }
         }
+        router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -1108,10 +1158,16 @@ export default function ViewExpensePage() {
 
       toast.success("Expense has been rejected successfully. Email notification has been sent to the expense creator.");
 
-      // Navigate back after a short delay
-      setTimeout(() => {
+      // Navigate back after a short delay. If we're in pending tab, continue sequential flow.
+      setTimeout(async () => {
         const tab = fromTab || "my";
-        // For rejection, always go back to list (no sequential flow)
+        if (tab === "pending") {
+          const next = await getNextPendingId(expenseId);
+          if (next) {
+            router.push(`/org/${slug}/expenses/${next}?fromTab=${tab}`);
+            return;
+          }
+        }
         router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
