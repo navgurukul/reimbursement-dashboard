@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface CommentProps {
   expenseId: string;
@@ -68,12 +69,14 @@ export function ExpenseComments({ expenseId }: CommentProps) {
 
       if (error) {
         console.error("Error adding comment:", error);
+        toast.error("Failed to add comment");
         return;
       }
 
       if (data) {
         setComments([...comments, data]);
         setNewComment("");
+        toast.success("Send comment email notification.");
       }
     } finally {
       setIsLoading(false);
