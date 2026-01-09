@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import {
@@ -199,6 +199,21 @@ export default function ViewExpensePage() {
   >(null);
   const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
+
+  const approverSigRef = useRef<HTMLDivElement | null>(null);
+  const [approverHighlight, setApproverHighlight] = useState(false);
+
+  const scrollToApproverSignature = () => {
+    try {
+      if (approverSigRef.current) {
+        approverSigRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        setApproverHighlight(true);
+        setTimeout(() => setApproverHighlight(false), 3000);
+      }
+    } catch (e) {
+      console.error("Scroll to approver signature failed:", e);
+    }
+  };
 
   // Helper: compute the next pending expense id for the current approver
   const getNextPendingId = async (currentId: string) => {
@@ -837,6 +852,25 @@ export default function ViewExpensePage() {
       // Not approving their own expense
       if (expense.user_id === currentUserId) {
         toast.error("You cannot approve your own expense.");
+        setUpdateLoading(false);
+        return;
+      }
+
+      // Ensure approver has a signature on file before approving
+      try {
+        const { data: approverProfile, error: approverProfileError } =
+          await profiles.getById(currentUserId);
+
+        if (approverProfileError || !approverProfile?.signature_url) {
+          toast.error("Please add your signature.");
+          scrollToApproverSignature();
+          setUpdateLoading(false);
+          return;
+        }
+      } catch (sigErr) {
+        console.error("Error checking approver signature:", sigErr);
+        toast.error("Please add your signature.");
+        scrollToApproverSignature();
         setUpdateLoading(false);
         return;
       }
@@ -2363,7 +2397,7 @@ export default function ViewExpensePage() {
 
               {/* Show approver signature section only if current user is the approver */}
               {currentUserId === expense.approver_id && (
-                <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
+                <div ref={approverSigRef} className={`p-4 bg-gray-50/50 rounded-lg border space-y-4 ${approverHighlight ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}>
                   <div className="flex items-center space-x-3">
                     <svg
                       className="h-5 w-5 text-gray-500"
