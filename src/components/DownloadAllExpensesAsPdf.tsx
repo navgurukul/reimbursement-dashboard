@@ -114,7 +114,7 @@ export default function DownloadAllExpensesAsPdf({
                 doc.setFontSize(15);
                 doc.setTextColor(80, 80, 80);
                 doc.text(
-                    `Organization: ${organization?.name || "Navgurukul"}`,
+                    `Organization: NavGurukul Foundation for Social Welfare`,
                     pageWidth / 2,
                     y,
                     { align: "center" }
