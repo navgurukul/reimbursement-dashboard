@@ -119,7 +119,7 @@ export default function VoucherDownloadAsPdf({
       doc.setFontSize(15);
       doc.setTextColor(80, 80, 80);
       doc.text(
-        `Organization: ${organization?.name || "Navgurukul"}`,
+        `Organization: NavGurukul Foundation for Social Welfare`,
         pageWidth / 2,
         y,
         { align: "center" }
@@ -464,8 +464,24 @@ export default function VoucherDownloadAsPdf({
         { align: "center" }
       );
 
-      // Save file
-      doc.save(`voucher_${voucher.id}.pdf`);
+      // Save file with expense-type_amount_date
+      const rawType =
+        (voucher as any).expense_type ||
+        (expense && ((expense as any).type || (expense as any).expense_type)) ||
+        (voucher as any).type ||
+        (voucher as any).expenseType ||
+        "expense";
+      const rawName = voucher.your_name || expense.creator?.full_name || "N/A";
+      const rawDateValue =
+        (voucher as any)?.created_at || (voucher as any)?.date || (expense as any)?.date || "N/A";
+      const dateObj = new Date(rawDateValue);
+      const dd = String(dateObj.getDate()).padStart(2, "0");
+      const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const yyyy = dateObj.getFullYear();
+      const rawDate = `${dd}-${mm}-${yyyy}`;
+
+      const filename = `voucher_${rawType}_${rawName}_${rawDate}.pdf`;
+      doc.save(filename);
       toast.success("PDF downloaded successfully");
     } catch (err: any) {
       console.error(err);
