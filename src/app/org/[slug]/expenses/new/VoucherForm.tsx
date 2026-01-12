@@ -137,7 +137,7 @@ export default function VoucherForm({
 
           <div className="space-y-2">
             <Label htmlFor="date" className="text-sm font-medium">
-              Date <span className="text-red-500">*</span>
+              Date Of Expense <span className="text-red-500">*</span>
             </Label>
             <Input
               id="date"
@@ -223,7 +223,7 @@ export default function VoucherForm({
             </p>
           )}
           <p className="text-sm text-gray-500">
-            This should be the person to whom the payment is being made
+            credit person name description should beName of the person or vendor who will receive the payment from NavGurukul.
           </p>
         </div>
 
