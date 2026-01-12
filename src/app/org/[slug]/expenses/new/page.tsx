@@ -1795,6 +1795,9 @@ export default function NewExpensePage() {
                               {errors[col.key]}
                             </p>
                           )}
+                          <p className="text-xs text-gray-600">
+                            Reimbursement bill uploading date / vendor invoice date
+                          </p>
                         </>
                       )}
 
@@ -1971,6 +1974,9 @@ export default function NewExpensePage() {
                         {errors[col.key]}
                       </p>
                     )}
+                    <p className="text-xs text-gray-600">
+                      Purpose of the expense, related activity/program, amount spent, number of people involved etc...
+                    </p>
                   </div>
                 );
               })}

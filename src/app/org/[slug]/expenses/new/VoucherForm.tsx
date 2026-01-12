@@ -239,6 +239,7 @@ export default function VoucherForm({
                 {getError("purpose")}
               </p>
             )}
+            <p className="text-sm text-gray-500">Brief reason for the expense (what the expense was for)</p>
           </div>
         </div>
 
