@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import {
@@ -34,6 +34,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -175,6 +176,9 @@ export default function ViewExpensePage() {
     event_id: eventIdFromQuery || "",
   });
   const [customFields, setCustomFields] = useState<any[]>([]);
+  const [descriptionText, setDescriptionText] = useState<string>("");
+  const [savingDescription, setSavingDescription] = useState<boolean>(false);
+  const [descriptionEditing, setDescriptionEditing] = useState<boolean>(false);
   const [shareLink, setShareLink] = useState<string>("");
   const [sharingReceipt, setSharingReceipt] = useState(false);
   const [sharingVoucher, setSharingVoucher] = useState(false);
@@ -195,6 +199,67 @@ export default function ViewExpensePage() {
   >(null);
   const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
+
+  const approverSigRef = useRef<HTMLDivElement | null>(null);
+  const [approverHighlight, setApproverHighlight] = useState(false);
+
+  const scrollToApproverSignature = () => {
+    try {
+      if (approverSigRef.current) {
+        approverSigRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        setApproverHighlight(true);
+        setTimeout(() => setApproverHighlight(false), 3000);
+      }
+    } catch (e) {
+      console.error("Scroll to approver signature failed:", e);
+    }
+  };
+
+  // Helper: compute the next pending expense id for the current approver
+  const getNextPendingId = async (currentId: string) => {
+    try {
+      if (!orgId || !currentUserId) return null;
+
+      // If we have the current expense's created_at, find the next pending older expense.
+      const createdAt = expense?.created_at;
+      if (createdAt) {
+        try {
+          const { data: nextItem, error } = await supabase
+            .from("expense_new")
+            .select("id")
+            .eq("org_id", orgId)
+            .eq("approver_id", currentUserId)
+            .eq("status", "submitted")
+            .lt("created_at", createdAt)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!error && nextItem?.id) {
+            return nextItem.id as string;
+          }
+        } catch (e) {
+          console.error("Error querying next by created_at:", e);
+        }
+      }
+
+      // Fallback: fetch pending list and attempt to locate currentId then return following item
+      const { data: pending, error } = await expenses.getPendingApprovals(
+        orgId,
+        currentUserId
+      );
+      if (error || !pending) return null;
+
+      const idx = pending.findIndex((p: any) => p.id === currentId);
+      if (idx >= 0 && idx + 1 < pending.length) {
+        return pending[idx + 1].id;
+      }
+      return null;
+    } catch (e) {
+      console.error("Error fetching next pending id:", e);
+      return null;
+    }
+  };
 
   // Load the user's saved signature if it exists
   useEffect(() => {
@@ -299,6 +364,13 @@ export default function ViewExpensePage() {
         }
 
         setExpense(data);
+        // initialize editable description state
+        const d: any = data;
+        const desc =
+          (d.custom_fields && d.custom_fields.description) ||
+          d.description ||
+          "";
+        setDescriptionText(desc);
 
         // Fetch related event title if linked
         if (data.event_id) {
@@ -685,15 +757,17 @@ export default function ViewExpensePage() {
         Email notification has been sent to the expense creator.`
       );
 
-      // Navigate back after a short delay
-      setTimeout(() => {
+      // Navigate back after a short delay. Compute next pending dynamically.
+      setTimeout(async () => {
         const tab = fromTab || "my";
-        // Streamlined approval flow: if nextId exists and we're in pending tab, go to next expense
-        if (tab === "pending" && nextId) {
-          router.push(`/org/${slug}/expenses/${nextId}?fromTab=${tab}`);
-        } else {
-          router.push(`/org/${slug}/expenses?tab=${tab}`);
+        if (tab === "pending") {
+          const next = await getNextPendingId(expenseId);
+          if (next) {
+            router.push(`/org/${slug}/expenses/${next}?fromTab=${tab}`);
+            return;
+          }
         }
+        router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -702,6 +776,53 @@ export default function ViewExpensePage() {
       });
     } finally {
       setUpdateLoading(false);
+    }
+  };
+
+  const handleSaveDescription = async () => {
+    try {
+      if (!currentUserId) {
+        toast.error("User not found. Please sign in again.");
+        return;
+      }
+
+      if (currentUserId !== expense.user_id) {
+        toast.error("Only the expense creator can edit the description.");
+        return;
+      }
+
+      // Do not allow saving once finance approved
+      if (expense.status === "finance_approved") {
+        toast.error("Cannot edit description after finance approval.");
+        return;
+      }
+
+      setSavingDescription(true);
+
+      // Merge into custom_fields if present otherwise update description
+            const newCustomFields = {
+              ...(expense.custom_fields || {}),
+              description: descriptionText,
+            };
+      
+            const { data, error } = await expenses.update(expense.id, {
+              custom_fields: newCustomFields,
+            });
+
+      if (error || !data) {
+        console.error("Failed to save description:", error);
+        toast.error("Failed to save description");
+        return;
+      }
+
+      setExpense(data);
+      toast.success("Description saved");
+      setDescriptionEditing(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save description");
+    } finally {
+      setSavingDescription(false);
     }
   };
   // Main approve function with different approval types
@@ -731,6 +852,25 @@ export default function ViewExpensePage() {
       // Not approving their own expense
       if (expense.user_id === currentUserId) {
         toast.error("You cannot approve your own expense.");
+        setUpdateLoading(false);
+        return;
+      }
+
+      // Ensure approver has a signature on file before approving
+      try {
+        const { data: approverProfile, error: approverProfileError } =
+          await profiles.getById(currentUserId);
+
+        if (approverProfileError || !approverProfile?.signature_url) {
+          toast.error("Please add your signature.");
+          scrollToApproverSignature();
+          setUpdateLoading(false);
+          return;
+        }
+      } catch (sigErr) {
+        console.error("Error checking approver signature:", sigErr);
+        toast.error("Please add your signature.");
+        scrollToApproverSignature();
         setUpdateLoading(false);
         return;
       }
@@ -909,15 +1049,17 @@ export default function ViewExpensePage() {
             : "Expense has been approved successfully."
       );
 
-      // Navigate back after a short delay
-      setTimeout(() => {
+      // Navigate back after a short delay. Compute next pending dynamically.
+      setTimeout(async () => {
         const tab = fromTab || "my";
-        // Streamlined approval flow: if nextId exists and we're in pending tab, go to next expense
-        if (tab === "pending" && nextId) {
-          router.push(`/org/${slug}/expenses/${nextId}?fromTab=${tab}`);
-        } else {
-          router.push(`/org/${slug}/expenses?tab=${tab}`);
+        if (tab === "pending") {
+          const next = await getNextPendingId(expenseId);
+          if (next) {
+            router.push(`/org/${slug}/expenses/${next}?fromTab=${tab}`);
+            return;
+          }
         }
+        router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -1050,10 +1192,16 @@ export default function ViewExpensePage() {
 
       toast.success("Expense has been rejected successfully. Email notification has been sent to the expense creator.");
 
-      // Navigate back after a short delay
-      setTimeout(() => {
+      // Navigate back after a short delay. If we're in pending tab, continue sequential flow.
+      setTimeout(async () => {
         const tab = fromTab || "my";
-        // For rejection, always go back to list (no sequential flow)
+        if (tab === "pending") {
+          const next = await getNextPendingId(expenseId);
+          if (next) {
+            router.push(`/org/${slug}/expenses/${next}?fromTab=${tab}`);
+            return;
+          }
+        }
         router.push(`/org/${slug}/expenses?tab=${tab}`);
       }, 1000);
     } catch (error: any) {
@@ -2249,7 +2397,7 @@ export default function ViewExpensePage() {
 
               {/* Show approver signature section only if current user is the approver */}
               {currentUserId === expense.approver_id && (
-                <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
+                <div ref={approverSigRef} className={`p-4 bg-gray-50/50 rounded-lg border space-y-4 ${approverHighlight ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}>
                   <div className="flex items-center space-x-3">
                     <svg
                       className="h-5 w-5 text-gray-500"
@@ -2311,17 +2459,103 @@ export default function ViewExpensePage() {
               )}
 
               {/* Custom fields section */}
+              {/* Description: editable by creator until finance approves */}
+              <div className="mt-4">
+                <p className="text-sm font-medium text-muted-foreground mb-2">
+                  Description
+                </p>
+                {(() => {
+                  const canEdit =
+                    currentUserId === expense.user_id &&
+                    expense.status !== "finance_approved";
+
+                  if (canEdit) {
+                    if (descriptionEditing) {
+                      return (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={descriptionText}
+                            onChange={(e) => setDescriptionText(e.target.value)}
+                            placeholder="Add a description..."
+                            className="w-full"
+                            rows={4}
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={handleSaveDescription}
+                              disabled={savingDescription}
+                            >
+                              {savingDescription ? (
+                                <Spinner size="sm" className="mr-2" />
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              onClick={() => {
+                                setDescriptionText(
+                                  (expense.custom_fields && expense.custom_fields.description) || expense.description || ""
+                                );
+                                setDescriptionEditing(false);
+                              }}
+                              disabled={savingDescription}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm flex items-start justify-between">
+                        <div className="flex-1 pr-2">{descriptionText || "—"}</div>
+                        <div>
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="cursor-pointer"
+                                  onClick={() => setDescriptionEditing(true)}
+                                  aria-label="Edit description"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Edit description</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">
+                      {descriptionText || "—"}
+                    </div>
+                  );
+                })()}
+                <p className="text-sm text-muted-foreground">
+                  Allow the description to be editable before Finance approves the expense.
+                </p>
+              </div>
               {expense.custom_fields &&
                 Object.keys(expense.custom_fields).length > 0 &&
                 customFields.length > 0 && ( // make sure customFields are loaded
                   <div className="grid grid-cols-2 gap-4 mt-4 break-words">
                     {Object.entries(expense.custom_fields)
-                      .filter(
-                        ([key]) =>
-                          key !== "location_of_expense" &&
-                          key !== "Location of Expense" &&
-                          key.toLowerCase() !== "location_of_expense"
-                      ) // Exclude Location Of Expense
+                          .filter(([key]) =>
+                            key !== "location_of_expense" &&
+                            key !== "Location of Expense" &&
+                            key.toLowerCase() !== "location_of_expense" &&
+                            key.toLowerCase() !== "description"
+                          ) // Exclude Location Of Expense and description
                       .map(([key, value]) => {
                         const matchedField = customFields.find(
                           (field) => field.key === key

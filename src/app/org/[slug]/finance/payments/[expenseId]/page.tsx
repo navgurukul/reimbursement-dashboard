@@ -13,7 +13,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock } from "lucide-react";
+import { FileText, Clock, ArrowLeft } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import ExpenseHistory from "../../../expenses/[id]/history/expense-history";
 import { ExpenseComments } from "../../../expenses/[id]/history/expense-comments";
+import ReceiptPreview from "@/components/ReceiptPreview";
+import VoucherPreview from "@/components/VoucherPreview";
 
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
@@ -136,27 +138,6 @@ export default function PaymentProcessingDetails() {
     }
 
     throw lastError;
-  };
-
-  const handleViewReceipt = async () => {
-    if (expense.receipt?.path) {
-      try {
-        const { url, error } = await expenses.getReceiptUrl(
-          expense.receipt.path
-        );
-        if (error) {
-          console.error("Error getting receipt URL:", error);
-          toast.error("Failed to load receipt");
-          return;
-        }
-        if (url) {
-          window.open(url, "_blank");
-        }
-      } catch (err) {
-        console.error("Error opening receipt:", err);
-        toast.error("Failed to open receipt");
-      }
-    }
   };
 
   const handleFinanceReject = async () => {
@@ -324,14 +305,15 @@ export default function PaymentProcessingDetails() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() =>
-            router.push(`/org/${slug}/finance?tab=payments&highlight=${expenseId}`)
+            router.push(`/org/${slug}/finance?tab=payments&expID=${expenseId}`)
           }
-          className="text-sm cursor-pointer"
-          disabled={loading}
+          // className="text-sm cursor-pointer"
+          // disabled={loading}
         >
-          ← Back to Payment Processing
+          <ArrowLeft /> 
+          Back to Payment Processing
         </Button>
         {!loading && (
           <div className="flex gap-2 mt-2 md:mt-0">
@@ -421,34 +403,11 @@ export default function PaymentProcessingDetails() {
                   <TableRow>
                     <TableHead>Receipt/Voucher</TableHead>
                     <TableCell>
-                      {expense.receipt ? (
-                        <Button
-                          variant="outline"
-                          onClick={handleViewReceipt}
-                          className="flex items-center cursor-pointer"
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Receipt ({expense.receipt.filename || "Document"}
-                          )
-                        </Button>
-                      ) : hasVoucher ? (
-                        <Button
-                          variant="outline"
-                          className="flex items-center text-blue-600 cursor-pointer"
-                          onClick={() =>
-                            router.push(
-                              `/org/${slug}/expenses/${expense.id}/voucher?from=payment-processing`
-                            )
-                          }
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Voucher
-                        </Button>
-                      ) : (
-                        <p className="text-muted-foreground">
-                          No receipt or voucher available
-                        </p>
-                      )}
+                      {hasVoucher
+                        ? "Voucher Preview Below"
+                        : expense?.receipt
+                        ? "Receipt Preview Below"
+                        : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -489,6 +448,13 @@ export default function PaymentProcessingDetails() {
               </Table>
             )}
           </div>
+          {/* Receipt Preview (component) */}
+          {expense?.receipt && <ReceiptPreview expense={expense} />}
+
+          {/* Voucher Preview (component) */}
+          {hasVoucher && (
+            <VoucherPreview expense={expense} expenseId={typeof expenseId === "string" ? expenseId : ""} />
+          )}
         </div>
 
         {/* Activity History */}

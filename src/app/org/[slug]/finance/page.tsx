@@ -24,7 +24,7 @@ export default function FinancePage() {
     setActiveTab(value);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", value);
-    params.delete("highlight");
+    params.delete("expID");
     router.replace(`?${params.toString()}`, { scroll: false });
   };
 

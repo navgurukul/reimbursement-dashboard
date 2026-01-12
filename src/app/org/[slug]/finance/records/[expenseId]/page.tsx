@@ -13,8 +13,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
+import { FileText, Clock, ArrowLeft, } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
 import {
@@ -27,6 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import ExpenseHistory from "../../../expenses/[id]/history/expense-history";
 import { ExpenseComments } from "../../../expenses/[id]/history/expense-comments";
+import ReceiptPreview from "@/components/ReceiptPreview";
+import VoucherPreview from "@/components/VoucherPreview";
 
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useOrgStore } from "@/store/useOrgStore";
+import DownloadAllExpensesAsPdf from "@/components/DownloadAllExpensesAsPdf";
 
 export default function RecordsDetails() {
   const { expenseId } = useParams();
@@ -63,10 +65,12 @@ export default function RecordsDetails() {
       else setExpense(data);
 
       // Fetch related event title if present
+      let eventTitleValue: string | null = null;
       if (data?.event_id) {
         try {
           const { data: ev } = await expenseEvents.getById(data.event_id);
-          setEventTitle(ev?.title || null);
+          eventTitleValue = ev?.title || null;
+          setEventTitle(eventTitleValue);
         } catch (e) {
           setEventTitle(null);
         }
@@ -84,7 +88,12 @@ export default function RecordsDetails() {
         setHasVoucher(true);
       }
 
-      const expenseData = { ...data };
+      const expenseData = { 
+        ...data, 
+        event_title: eventTitleValue,
+        hasVoucher: !voucherError && !!voucherData,
+        voucherId: voucherData?.id || null
+      } as any;
       const signaturePath = expenseData.signature_url;
       if (signaturePath && !signaturePath.startsWith("http")) {
         const { data: sigData } = supabase.storage
@@ -111,27 +120,6 @@ export default function RecordsDetails() {
     fetchExpense();
   }, [expenseId]);
 
-  const handleViewReceipt = async () => {
-    if (expense.receipt?.path) {
-      try {
-        const { url, error } = await expenses.getReceiptUrl(
-          expense.receipt.path
-        );
-        if (error) {
-          console.error("Error getting receipt URL:", error);
-          toast.error("Failed to load receipt");
-          return;
-        }
-        if (url) {
-          window.open(url, "_blank");
-        }
-      } catch (err) {
-        console.error("Error opening receipt:", err);
-        toast.error("Failed to open receipt");
-      }
-    }
-  };
-
   if (!loading && !expense) {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
@@ -139,17 +127,24 @@ export default function RecordsDetails() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() =>
-            router.push(`/org/${slug}/finance?tab=records&highlight=${expenseId}`)
+            router.push(`/org/${slug}/finance?tab=records&expID=${expenseId}`)
           }
-          className="text-sm cursor-pointer"
-          disabled={loading}
+          // className="text-sm cursor-pointer"
+          // disabled={loading}
         >
-          ← Back to Records
+          <ArrowLeft />
+          Back to Records
         </Button>
+        {!loading && expense && organization && (
+          <DownloadAllExpensesAsPdf
+            expensesList={[expense]}
+            organization={organization}
+          />
+        )}
       </div>
 
       {/* Grid Layout */}
@@ -218,34 +213,11 @@ export default function RecordsDetails() {
                   <TableRow>
                     <TableHead>Receipt/Voucher</TableHead>
                     <TableCell>
-                      {expense.receipt ? (
-                        <Button
-                          variant="outline"
-                          onClick={handleViewReceipt}
-                          className="flex items-center cursor-pointer"
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Receipt ({expense.receipt.filename || "Document"}
-                          )
-                        </Button>
-                      ) : hasVoucher ? (
-                        <Button
-                          variant="outline"
-                          className="flex items-center text-blue-600 cursor-pointer"
-                          onClick={() =>
-                            router.push(
-                              `/org/${slug}/expenses/${expense.id}/voucher?from=records`
-                            )
-                          }
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Voucher
-                        </Button>
-                      ) : (
-                        <p className="text-muted-foreground">
-                          No receipt or voucher available
-                        </p>
-                      )}
+                      {hasVoucher
+                        ? "Voucher Preview Below"
+                        : expense?.receipt
+                        ? "Receipt Preview Below"
+                        : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -286,6 +258,13 @@ export default function RecordsDetails() {
               </Table>
             )}
           </div>
+          {/* Receipt Preview (component) */}
+          {expense?.receipt && <ReceiptPreview expense={expense} />}
+
+          {/* Voucher Preview (component) */}
+          {hasVoucher && (
+            <VoucherPreview expense={expense} expenseId={typeof expenseId === "string" ? expenseId : ""} />
+          )}
         </div>
 
         {/* Activity History */}

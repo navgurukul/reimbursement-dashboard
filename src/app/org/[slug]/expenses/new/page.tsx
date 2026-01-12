@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import {
@@ -118,6 +118,20 @@ export default function NewExpensePage() {
   const [saving, setSaving] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const creatorSigRef = useRef<HTMLDivElement | null>(null);
+  const [creatorHighlight, setCreatorHighlight] = useState(false);
+
+  const scrollToCreatorSignature = () => {
+    try {
+      if (creatorSigRef.current) {
+        creatorSigRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        setCreatorHighlight(true);
+        setTimeout(() => setCreatorHighlight(false), 3000);
+      }
+    } catch (e) {
+      console.error("Scroll to creator signature failed:", e);
+    }
+  };
 
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({
@@ -931,6 +945,14 @@ export default function NewExpensePage() {
 
     // Clear previous errors
     setErrors({});
+
+    // Require creator signature for non-voucher expenses
+    if (!voucherModalOpen && !formData.expense_signature_data_url) {
+      toast.error("Please add your signature.");
+      scrollToCreatorSignature();
+      setSaving(false);
+      return;
+    }
 
     try {
       if (!user?.id || !organization) {
@@ -3006,7 +3028,7 @@ export default function NewExpensePage() {
                 Object.values(voucherModalOpenMap).some(Boolean);
               if (!anyVoucherOpen) {
                 return (
-                  <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
+                  <div ref={creatorSigRef} className={`p-4 bg-gray-50/50 rounded-lg border space-y-4 ${creatorHighlight ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}>
                     <div className="flex items-center space-x-3">
                       <svg
                         className="h-5 w-5 text-gray-500"

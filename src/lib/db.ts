@@ -1627,6 +1627,34 @@ export const expenses = {
 
   updateByFinance: async (id: string, approved: boolean, comment: string) => {
     try {
+      // Prevent finance approval if description is missing
+      if (approved) {
+        const { data: existingExpense, error: fetchErr } = await supabase
+          .from("expense_new")
+          .select("custom_fields")
+          .eq("id", id)
+          .single();
+
+        if (fetchErr) {
+          console.error("Error fetching expense before finance update:", fetchErr);
+          return { data: null, error: fetchErr };
+        }
+
+        const desc =
+          (existingExpense?.custom_fields && existingExpense.custom_fields.description) ||
+          "";
+
+        if (!desc || String(desc).trim() === "") {
+          return {
+            data: null,
+            error: {
+              message: "Cannot approve: description is required before finance approval.",
+              details: "Please ask the expense creator to add a description.",
+              code: "MISSING_DESCRIPTION",
+            },
+          };
+        }
+      }
       const status = approved ? "finance_approved" : "finance_rejected";
       // const status = approved ? "approved" : "rejected";
 
