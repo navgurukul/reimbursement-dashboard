@@ -107,6 +107,7 @@ export default function NewExpensePage() {
   const [expenseSignature, setExpenseSignature] = useState<string | undefined>(
     undefined
   );
+  
 
   const [savedUserSignature, setSavedUserSignature] = useState<string | null>(
     null
