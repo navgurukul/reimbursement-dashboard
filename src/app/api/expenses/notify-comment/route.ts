@@ -100,8 +100,36 @@ export async function POST(req: NextRequest) {
       if (creatorProfile && creatorProfile.email) recipients.push({ email: creatorProfile.email, name: creatorProfile.full_name });
     }
 
+    // Include all previous commenters on this expense (participants)
+    try {
+      const { data: commentRows } = await supabaseAdmin
+        .from("expense_comments")
+        .select(`user:profiles!user_id (id, user_id, full_name, email)`)
+        .eq("expense_id", expenseId)
+        .eq("is_deleted", false);
+
+      if (commentRows && Array.isArray(commentRows)) {
+        for (const row of commentRows) {
+          // supabase can return the related record as an array or an object; normalize to an object
+          const u = Array.isArray(row.user) ? row.user[0] : row.user;
+          if (u && u.email) {
+            recipients.push({ email: u.email, name: u.full_name });
+          }
+        }
+      }
+    } catch (e) {
+      // ignore failures to fetch commenters
+    }
+
     // Remove duplicates
-    const uniqueRecipients = recipients.filter((r, idx, arr) => arr.findIndex(x => x.email === r.email) === idx);
+    let uniqueRecipients = recipients.filter((r, idx, arr) => arr.findIndex(x => x.email === r.email) === idx);
+
+    // Exclude the commenter from recipients
+    uniqueRecipients = uniqueRecipients.filter((r) => {
+      if (!r.email) return false;
+      if (commenterEmail && r.email === commenterEmail) return false;
+      return true;
+    });
 
     if (uniqueRecipients.length === 0) {
       return NextResponse.json({ success: true, message: "No recipients for comment notification" });
