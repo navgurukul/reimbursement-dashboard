@@ -3,9 +3,11 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Info } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Info, Edit3, Check } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import SignaturePad from "@/components/SignatureCanvas";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useOrgStore } from "@/store/useOrgStore";
 import { organizations, profiles } from "@/lib/db";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -42,7 +44,10 @@ export default function VoucherForm({
   const [loadingSignature, setLoadingSignature] = useState(false);
 
   const { organization } = useOrgStore();
-  const { user } = useAuthStore();
+  const { user, profile, isLoading: authLoading } = useAuthStore();
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   // inside VoucherForm
   useEffect(() => {
@@ -51,6 +56,14 @@ export default function VoucherForm({
       onInputChange("date", today);
     }
   }, [formData.date, onInputChange]);
+
+  // Prefill Your Name from profile or user when not provided
+  useEffect(() => {
+    if (!formData.yourName) {
+      const prefName = (profile && (profile.full_name as string)) || user?.email || "";
+      if (prefName) onInputChange("yourName", prefName);
+    }
+  }, [formData.yourName, profile, user, onInputChange]);
 
   // Use the saved signature if no voucher signature is set
   useEffect(() => {
@@ -119,15 +132,40 @@ export default function VoucherForm({
             <Label htmlFor="yourName" className="text-sm font-medium">
               Your Name <span className="text-red-500">*</span>
             </Label>
-            <Input
-              id="yourName"
-              name="yourName"
-              value={formData.yourName || ""}
-              onChange={(e) => onInputChange("yourName", e.target.value)}
-              aria-invalid={getError("yourName") ? "true" : "false"}
-              aria-describedby={getError("yourName") ? "yourName-error" : undefined}
-              className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-            />
+            <div className="relative">
+              <Input
+                id="yourName"
+                name="yourName"
+                value={formData.yourName || ""}
+                onChange={(e) => onInputChange("yourName", e.target.value)}
+                aria-invalid={getError("yourName") ? "true" : "false"}
+                aria-describedby={getError("yourName") ? "yourName-error" : undefined}
+                className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingName ? "bg-gray-50" : ""}`}
+                readOnly={!isEditingName}
+                ref={nameInputRef}
+              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={isEditingName ? "Save name" : "Edit name"}
+                    onClick={() => {
+                      if (!isEditingName) {
+                        setIsEditingName(true);
+                        setTimeout(() => nameInputRef.current?.focus(), 50);
+                      } else {
+                        setIsEditingName(false);
+                        onInputChange("yourName", (formData.yourName || "").trim());
+                      }
+                    }}
+                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white"
+                  >
+                    {isEditingName ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={6}>{isEditingName ? "Save" : "Edit Name"}</TooltipContent>
+              </Tooltip>
+            </div>
             {getError("yourName") && (
               <p id="yourName-error" className="text-red-500 text-sm mt-1" role="alert">
                 {getError("yourName")}
