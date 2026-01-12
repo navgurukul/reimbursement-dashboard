@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock } from "lucide-react";
+import { FileText, Clock, ArrowLeft } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/dialog";
 import ExpenseHistory from "../../expenses/[id]/history/expense-history";
 import { ExpenseComments } from "../../expenses/[id]/history/expense-comments";
+import ReceiptPreview from "@/components/ReceiptPreview";
+import VoucherPreview from "@/components/VoucherPreview";
 
 import supabase from "@/lib/supabase"; // Make sure this is correctly imported
 
@@ -54,15 +56,14 @@ export default function FinanceExpenseDetails() {
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
-
   const highlightId =
-    searchParams.get("highlight") || (typeof expenseId === "string" ? expenseId : null);
+    searchParams.get("expID") || (typeof expenseId === "string" ? expenseId : null);
   const pageParam = searchParams.get("page");
 
   const backToApprovalQueueUrl = (() => {
     const params = new URLSearchParams();
     params.set("tab", "approvals");
-    if (highlightId) params.set("highlight", highlightId);
+    if (highlightId) params.set("expID", highlightId);
     if (pageParam) params.set("page", pageParam);
     return `/org/${slug}/finance?${params.toString()}`;
   })();
@@ -140,8 +141,11 @@ export default function FinanceExpenseDetails() {
       true,
       "Approved by Finance"
     );
-    if (error) toast.error("Approval failed");
-    else {
+    if (error) {
+      toast.error(error.message || "Approval failed", {
+        description: (error as any).details || undefined,
+      });
+    } else {
       // Log history and notify creator
       try {
         const { data: userData } = await auth.getUser();
@@ -271,27 +275,6 @@ export default function FinanceExpenseDetails() {
     setProcessing(false);
   };
 
-  const handleViewReceipt = async () => {
-    if (expense.receipt?.path) {
-      try {
-        const { url, error } = await expenses.getReceiptUrl(
-          expense.receipt.path
-        );
-        if (error) {
-          console.error("Error getting receipt URL:", error);
-          toast.error("Failed to load receipt");
-          return;
-        }
-        if (url) {
-          window.open(url, "_blank");
-        }
-      } catch (err) {
-        console.error("Error opening receipt:", err);
-        toast.error("Failed to open receipt");
-      }
-    }
-  };
-
   if (!loading && !expense) {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
@@ -301,12 +284,13 @@ export default function FinanceExpenseDetails() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() => router.push(backToApprovalQueueUrl)}
           className="text-sm cursor-pointer"
           disabled={loading}
         >
-          ← Back to Approval Queue
+          <ArrowLeft />
+          Back to Approval Queue
         </Button>
         {!loading && (
           <div className="flex gap-2">
@@ -394,34 +378,11 @@ export default function FinanceExpenseDetails() {
                   <TableRow>
                     <TableHead>Receipt/Voucher</TableHead>
                     <TableCell>
-                      {expense.receipt ? (
-                        <Button
-                          variant="outline"
-                          onClick={handleViewReceipt}
-                          className="flex items-center cursor-pointer"
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Receipt ({expense.receipt.filename || "Document"}
-                          )
-                        </Button>
-                      ) : hasVoucher ? (
-                        <Button
-                          variant="outline"
-                          className="flex items-center text-blue-600 cursor-pointer"
-                          onClick={() =>
-                            router.push(
-                              `/org/${slug}/expenses/${expense.id}/voucher?from=approval-queue`
-                            )
-                          }
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Voucher
-                        </Button>
-                      ) : (
-                        <p className="text-muted-foreground">
-                          No receipt or voucher available
-                        </p>
-                      )}
+                      {hasVoucher
+                        ? "Voucher Preview Below"
+                        : expense?.receipt
+                        ? "Receipt Preview Below"
+                        : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -462,6 +423,14 @@ export default function FinanceExpenseDetails() {
               </Table>
             )}
           </div>
+
+          {/* Receipt Preview (component) */}
+          {expense?.receipt && <ReceiptPreview expense={expense} />}
+
+          {/* Voucher Preview (component) */}
+          {hasVoucher && (
+            <VoucherPreview expense={expense} expenseId={typeof expenseId === "string" ? expenseId : ""} />
+          )}
         </div>
         {/* Activity History */}
         <div className="md:col-span-3 space-y-4">

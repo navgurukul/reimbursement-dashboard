@@ -220,12 +220,12 @@ export default function PaymentProcessingOnly() {
     fetchExpensesAndBankDetails();
   }, [orgId]);
 
-  // Handle highlight from URL parameter
+  // Handle expID from URL parameter
   useEffect(() => {
-    const highlight = searchParams.get("highlight");
-    if (highlight) {
-      setHighlightedExpenseId(highlight);
-      // Clear the highlight after 10 seconds
+    const expID = searchParams.get("expID");
+    if (expID) {
+      setHighlightedExpenseId(expID);
+      // Clear the expID after 10 seconds
       const timer = setTimeout(() => {
         setHighlightedExpenseId(null);
       }, 10000);
