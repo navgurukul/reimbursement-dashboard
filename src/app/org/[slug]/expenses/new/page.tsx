@@ -1450,7 +1450,7 @@ export default function NewExpensePage() {
     <div className="max-w-[800px] mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() => {
             if (eventIdFromQuery) {
               router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
@@ -1460,7 +1460,7 @@ export default function NewExpensePage() {
           }}
           className="text-gray-600 hover:text-gray-900 cursor-pointer"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
           {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
         </Button>
         <Button
