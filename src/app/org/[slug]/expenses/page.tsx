@@ -113,6 +113,7 @@ export default function ExpensesPage() {
     createdBy: "",
     approver: "",
     status: "",
+    uniqueId: "",
   });
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -167,6 +168,11 @@ export default function ExpensesPage() {
 
   const statusOptions = useMemo(
     () => unique(allDataCombined.map((e: any) => e.status)),
+    [allDataCombined]
+  );
+
+  const uniqueIdOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.unique_id)),
     [allDataCombined]
   );
 
@@ -532,6 +538,10 @@ export default function ExpensesPage() {
       if (filters.approver && approverName !== filters.approver) return false;
 
       if (filters.status && e.status !== filters.status) return false;
+
+      // Filter by Unique ID (exact match via dropdown)
+      if (filters.uniqueId && String(e.unique_id) !== filters.uniqueId)
+        return false;
 
       return true;
     });
@@ -981,6 +991,30 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
+                      <Label>Unique ID</Label>
+                      <Select
+                        value={filters.uniqueId || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({
+                            ...filters,
+                            uniqueId: v === OPTION_ALL ? "" : v,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Unique ID" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>All Unique IDs</SelectItem>
+                          {uniqueIdOptions.map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
                       <Label>Approver</Label>
                       <Select
                         value={filters.approver || OPTION_ALL}
@@ -1022,6 +1056,7 @@ export default function ExpensesPage() {
                           createdBy: "",
                           approver: "",
                           status: "",
+                          uniqueId: "",
                         })
                       }
                     >
