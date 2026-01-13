@@ -48,6 +48,8 @@ export default function VoucherForm({
 
   const [isEditingName, setIsEditingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
+  const amountInputRef = useRef<HTMLInputElement | null>(null);
 
   // inside VoucherForm
   useEffect(() => {
@@ -208,11 +210,37 @@ export default function VoucherForm({
                 name="voucherAmount"
                 type="number"
                 value={formData.voucherAmount || ""}
-                onChange={(e) => onInputChange("voucherAmount", parseFloat(e.target.value))}
+                onChange={(e) => onInputChange("voucherAmount", e.target.value === "" ? "" : parseFloat(e.target.value))}
+                ref={amountInputRef}
+                readOnly={!isEditingAmount}
                 aria-invalid={getError("voucherAmount") ? "true" : "false"}
                 aria-describedby={getError("voucherAmount") ? "voucherAmount-error" : undefined}
-                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingAmount ? "bg-gray-50" : ""}`}
               />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={isEditingAmount ? "Save amount" : "Edit amount"}
+                    onClick={() => {
+                      if (!isEditingAmount) {
+                        setIsEditingAmount(true);
+                        setTimeout(() => amountInputRef.current?.focus(), 50);
+                      } else {
+                        setIsEditingAmount(false);
+                        // ensure we send a number (or empty string) to parent
+                        const raw = formData.voucherAmount;
+                        const num = typeof raw === "number" ? raw : parseFloat(String(raw)) || 0;
+                        onInputChange("voucherAmount", num);
+                      }
+                    }}
+                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white"
+                  >
+                    {isEditingAmount ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={6}>{isEditingAmount ? "Save" : "Edit Amount"}</TooltipContent>
+              </Tooltip>
               {getError("voucherAmount") && (
                 <p id="voucherAmount-error" className="text-red-500 text-sm mt-1" role="alert">
                   {getError("voucherAmount")}
