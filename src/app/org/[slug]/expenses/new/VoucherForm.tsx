@@ -3,9 +3,11 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Info } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Info, Edit3, Check } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import SignaturePad from "@/components/SignatureCanvas";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useOrgStore } from "@/store/useOrgStore";
 import { organizations, profiles } from "@/lib/db";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -22,6 +24,7 @@ interface VoucherFormProps {
   savedUserSignature: string | null;
   selectedEvent?: { start_date: string; end_date: string };
   errors?: Record<string, string>;
+  expenseAmount?: number;
 }
 
 export default function VoucherForm({
@@ -31,6 +34,7 @@ export default function VoucherForm({
   errors,
   savedUserSignature,
   selectedEvent,
+  expenseAmount,
 }: VoucherFormProps) {
   const getError = (field: string) => errors?.[field] || "";
 
@@ -42,7 +46,12 @@ export default function VoucherForm({
   const [loadingSignature, setLoadingSignature] = useState(false);
 
   const { organization } = useOrgStore();
-  const { user } = useAuthStore();
+  const { user, profile, isLoading: authLoading } = useAuthStore();
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
+  const amountInputRef = useRef<HTMLInputElement | null>(null);
 
   // inside VoucherForm
   useEffect(() => {
@@ -51,6 +60,21 @@ export default function VoucherForm({
       onInputChange("date", today);
     }
   }, [formData.date, onInputChange]);
+
+  // Initialize voucher amount from expense amount
+  useEffect(() => {
+    if (expenseAmount && !isNaN(expenseAmount) && (!formData.voucherAmount || formData.voucherAmount === 0)) {
+      onInputChange("voucherAmount", expenseAmount);
+    }
+  }, [expenseAmount, formData.voucherAmount, onInputChange]);
+
+  // Prefill Your Name from profile or user when not provided
+  useEffect(() => {
+    if (!formData.yourName) {
+      const prefName = (profile && (profile.full_name as string)) || user?.email || "";
+      if (prefName) onInputChange("yourName", prefName);
+    }
+  }, [formData.yourName, profile, user, onInputChange]);
 
   // Use the saved signature if no voucher signature is set
   useEffect(() => {
@@ -119,15 +143,40 @@ export default function VoucherForm({
             <Label htmlFor="yourName" className="text-sm font-medium">
               Your Name <span className="text-red-500">*</span>
             </Label>
-            <Input
-              id="yourName"
-              name="yourName"
-              value={formData.yourName || ""}
-              onChange={(e) => onInputChange("yourName", e.target.value)}
-              aria-invalid={getError("yourName") ? "true" : "false"}
-              aria-describedby={getError("yourName") ? "yourName-error" : undefined}
-              className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-            />
+            <div className="relative">
+              <Input
+                id="yourName"
+                name="yourName"
+                value={formData.yourName || ""}
+                onChange={(e) => onInputChange("yourName", e.target.value)}
+                aria-invalid={getError("yourName") ? "true" : "false"}
+                aria-describedby={getError("yourName") ? "yourName-error" : undefined}
+                className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingName ? "bg-gray-50" : ""}`}
+                readOnly={!isEditingName}
+                ref={nameInputRef}
+              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={isEditingName ? "Save name" : "Edit name"}
+                    onClick={() => {
+                      if (!isEditingName) {
+                        setIsEditingName(true);
+                        setTimeout(() => nameInputRef.current?.focus(), 50);
+                      } else {
+                        setIsEditingName(false);
+                        onInputChange("yourName", (formData.yourName || "").trim());
+                      }
+                    }}
+                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white"
+                  >
+                    {isEditingName ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={6}>{isEditingName ? "Save" : "Edit Name"}</TooltipContent>
+              </Tooltip>
+            </div>
             {getError("yourName") && (
               <p id="yourName-error" className="text-red-500 text-sm mt-1" role="alert">
                 {getError("yourName")}
@@ -137,7 +186,7 @@ export default function VoucherForm({
 
           <div className="space-y-2">
             <Label htmlFor="date" className="text-sm font-medium">
-              Date <span className="text-red-500">*</span>
+              Date Of Expense <span className="text-red-500">*</span>
             </Label>
             <Input
               id="date"
@@ -169,12 +218,44 @@ export default function VoucherForm({
                 id="voucherAmount"
                 name="voucherAmount"
                 type="number"
-                value={formData.voucherAmount || ""}
-                onChange={(e) => onInputChange("voucherAmount", parseFloat(e.target.value))}
+                value={
+                  formData.voucherAmount !== undefined && formData.voucherAmount !== null && formData.voucherAmount !== ""
+                    ? String(formData.voucherAmount)
+                    : (expenseAmount !== undefined && expenseAmount !== null && !isNaN(expenseAmount)
+                        ? String(expenseAmount)
+                        : "")
+                }
+                onChange={(e) => onInputChange("voucherAmount", e.target.value === "" ? "" : parseFloat(e.target.value))}
+                ref={amountInputRef}
+                readOnly={!isEditingAmount}
                 aria-invalid={getError("voucherAmount") ? "true" : "false"}
                 aria-describedby={getError("voucherAmount") ? "voucherAmount-error" : undefined}
-                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingAmount ? "bg-gray-50" : ""}`}
               />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={isEditingAmount ? "Save amount" : "Edit amount"}
+                    onClick={() => {
+                      if (!isEditingAmount) {
+                        setIsEditingAmount(true);
+                        setTimeout(() => amountInputRef.current?.focus(), 50);
+                      } else {
+                        setIsEditingAmount(false);
+                        // ensure we send a number (or empty string) to parent
+                        const raw = formData.voucherAmount;
+                        const num = typeof raw === "number" ? raw : parseFloat(String(raw)) || 0;
+                        onInputChange("voucherAmount", num);
+                      }
+                    }}
+                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white"
+                  >
+                    {isEditingAmount ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={6}>{isEditingAmount ? "Save" : "Edit Amount"}</TooltipContent>
+              </Tooltip>
               {getError("voucherAmount") && (
                 <p id="voucherAmount-error" className="text-red-500 text-sm mt-1" role="alert">
                   {getError("voucherAmount")}
@@ -201,6 +282,7 @@ export default function VoucherForm({
                 {getError("purpose")}
               </p>
             )}
+            <p className="text-sm text-gray-500">Brief reason for the expense (what the expense was for)</p>
           </div>
         </div>
 
@@ -223,7 +305,7 @@ export default function VoucherForm({
             </p>
           )}
           <p className="text-sm text-gray-500">
-            This should be the person to whom the payment is being made
+            credit person name description should beName of the person or vendor who will receive the payment from NavGurukul.
           </p>
         </div>
 

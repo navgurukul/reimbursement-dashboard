@@ -2395,6 +2395,31 @@ export const expenseComments = {
         };
       }
 
+      // Fire-and-forget: notify recipients about the new comment via server API
+      try {
+        // Build a payload with enough info for the server to resolve recipients
+        const payload = {
+          expenseId: comment.expense_id,
+          commentId: data.id,
+          commentContent: data.content,
+          commenterProfileId: data.user?.id,
+          commenterUserId: data.user?.user_id,
+          commenterName: data.user?.full_name,
+          commenterEmail: data.user?.email,
+        };
+
+        // Do not block the add call; log any failures
+        fetch("/api/expenses/notify-comment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).catch((err) => {
+          console.error("Failed to send comment notification request:", err);
+        });
+      } catch (err) {
+        console.error("Error initiating comment notification:", err);
+      }
+
       return {
         data: data as ExpenseCommentWithUser,
         error: null,

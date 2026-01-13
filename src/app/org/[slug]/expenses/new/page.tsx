@@ -285,6 +285,17 @@ export default function NewExpensePage() {
         },
       }));
     }
+
+    // If "amount" field is changed, also update voucherDataMap
+    if (key === "amount") {
+      setVoucherDataMap((prev) => ({
+        ...prev,
+        [itemId]: {
+          ...prev[itemId],
+          voucherAmount: value,
+        },
+      }));
+    }
   };
 
   const getExpenseItemValue = (
@@ -609,10 +620,43 @@ export default function NewExpensePage() {
   };
 
   const toggleVoucherModal = (index: number) => {
-    setVoucherModalOpenMap((prev) => ({
-      ...prev,
-      [index]: !prev[index],
-    }));
+    setVoucherModalOpenMap((prev) => {
+      const next = !prev[index];
+      const newMap = { ...prev, [index]: next };
+
+      // If turning voucher ON for this item, prefill voucherDataMap amount from the expense item
+      if (next) {
+        const expenseAmount = expenseItemsData[index]?.amount;
+        const expenseDate = expenseItemsData[index]?.date;
+        
+        // Sanitize amount to ensure it's never NaN
+        const sanitizedAmount = !isNaN(Number(expenseAmount)) ? expenseAmount : 0;
+        
+        setVoucherDataMap((prevData) => ({
+          ...prevData,
+          [index]: {
+            ...(prevData[index] || {}),
+            voucherAmount: sanitizedAmount || prevData[index]?.voucherAmount || 0,
+            date: expenseDate || prevData[index]?.date || new Date().toISOString().split("T")[0],
+          },
+        }));
+      }
+
+      return newMap;
+    });
+  };
+
+  // Handler for top-level voucher toggle to prefill voucher fields from expense amount
+  const handleVoucherToggle = (value: boolean) => {
+    setVoucherModalOpen(value);
+    if (value) {
+      // Prefill top-level voucherAmount from top-level amount
+      const amt =
+        typeof formData.amount === "number"
+          ? formData.amount
+          : parseFloat(formData.amount || "0") || 0;
+      setFormData((prev) => ({ ...prev, voucherAmount: amt }));
+    }
   };
 
   const handleInputChange = (
@@ -645,6 +689,23 @@ export default function NewExpensePage() {
       [key]: value,
     }));
 
+    // If top-level amount is changed and top-level voucher mode is enabled, sync to voucherAmount
+    if (key === "amount") {
+      const amt = typeof value === "number" ? value : parseFloat(String(value)) || 0;
+      if (voucherModalOpen) {
+        setFormData((prev) => ({ ...prev, voucherAmount: amt }));
+      }
+      // Also update any per-item voucher amounts if an item has no explicit voucher amount
+      setVoucherDataMap((prev) => {
+        const next: Record<number, any> = { ...prev };
+        expenseItems.forEach((id) => {
+          if (!next[id] || next[id]?.voucherAmount === undefined) {
+            next[id] = { ...(next[id] || {}), voucherAmount: amt };
+          }
+        });
+        return next;
+      });
+    }
     if (key === "unique_id" && typeof value === "string") {
       // If user types or changes the value, consider it available
       setUniqueIdUnavailable(false);
@@ -1119,9 +1180,9 @@ export default function NewExpensePage() {
       const baseExpenseData = {
         org_id: organization.id,
         user_id: user.id,
-        amount: voucherModalOpen
-          ? parseFloat(formData.voucherAmount || "0")
-          : parseFloat(formData.amount || "0"),
+        // Expense amount should always come from the expense `amount` field.
+        // Voucher has its own `voucherAmount` and will be created separately.
+        amount: parseFloat(formData.amount || "0"),
         expense_type: (formData.expense_type as string) || "Other",
         date: new Date(formData.date).toISOString(),
         custom_fields: custom_fields,
@@ -1331,7 +1392,11 @@ export default function NewExpensePage() {
             const voucherData = {
               expense_id: itemData.id,
               your_name: itemVoucherData.yourName || formData.yourName || null,
-              amount: item.amount,
+                // Use explicit per-item voucher amount if provided, otherwise fall back to the item amount
+                amount:
+                  itemVoucherData.voucherAmount !== undefined
+                    ? parseFloat(itemVoucherData.voucherAmount || "0")
+                    : item.amount,
               purpose:
                 itemVoucherData.purpose || formData.purpose || "Cash Voucher",
               credit_person:
@@ -1450,7 +1515,7 @@ export default function NewExpensePage() {
     <div className="max-w-[800px] mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() => {
             if (eventIdFromQuery) {
               router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
@@ -1460,7 +1525,7 @@ export default function NewExpensePage() {
           }}
           className="text-gray-600 hover:text-gray-900 cursor-pointer"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
           {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
         </Button>
         <Button
@@ -1795,6 +1860,9 @@ export default function NewExpensePage() {
                               {errors[col.key]}
                             </p>
                           )}
+                          <p className="text-xs text-gray-600">
+                            Reimbursement bill uploading date / vendor invoice date
+                          </p>
                         </>
                       )}
 
@@ -1971,6 +2039,9 @@ export default function NewExpensePage() {
                         {errors[col.key]}
                       </p>
                     )}
+                    <p className="text-xs text-gray-600">
+                      Purpose of the expense, related activity/program, amount spent, number of people involved etc...
+                    </p>
                   </div>
                 );
               })}
@@ -2235,7 +2306,7 @@ export default function NewExpensePage() {
                   <Switch
                     checked={voucherModalOpen}
                     className="cursor-pointer"
-                    onCheckedChange={setVoucherModalOpen}
+                    onCheckedChange={handleVoucherToggle}
                     id="voucher-switch"
                   />
                 </div>
@@ -3004,6 +3075,7 @@ export default function NewExpensePage() {
                               : undefined
                           }
                           errors={errors}
+                          expenseAmount={expenseItemsData[id]?.amount}
                         />
                       )}
                     </div>

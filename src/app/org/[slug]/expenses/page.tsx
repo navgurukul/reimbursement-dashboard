@@ -113,6 +113,7 @@ export default function ExpensesPage() {
     createdBy: "",
     approver: "",
     status: "",
+    uniqueId: "",
   });
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -170,6 +171,11 @@ export default function ExpensesPage() {
     [allDataCombined]
   );
 
+  const uniqueIdOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.unique_id)),
+    [allDataCombined]
+  );
+
   // Amount slider from available data
   const amountBounds = useMemo(() => {
     const amounts = allDataCombined
@@ -197,6 +203,23 @@ export default function ExpensesPage() {
     () => (filters.amountMax ? Number(filters.amountMax) : amountBounds.max),
     [filters.amountMax, amountBounds]
   );
+
+  // Local input states so we can show bounds while allowing typing
+  const [amountMinInput, setAmountMinInput] = useState<string>(
+    String(amountBounds.min)
+  );
+  const [amountMaxInput, setAmountMaxInput] = useState<string>(
+    String(amountBounds.max)
+  );
+
+  useEffect(() => {
+    // keep inputs in sync when bounds or filters change
+    setAmountMinInput(filters.amountMin ? String(filters.amountMin) : String(amountBounds.min));
+  }, [filters.amountMin, amountBounds.min]);
+
+  useEffect(() => {
+    setAmountMaxInput(filters.amountMax ? String(filters.amountMax) : String(amountBounds.max));
+  }, [filters.amountMax, amountBounds.max]);
 
   // Determine tabs based on role
   const tabs =
@@ -533,6 +556,10 @@ export default function ExpensesPage() {
 
       if (filters.status && e.status !== filters.status) return false;
 
+      // Filter by Unique ID (exact match via dropdown)
+      if (filters.uniqueId && String(e.unique_id) !== filters.uniqueId)
+        return false;
+
       return true;
     });
   };
@@ -818,73 +845,45 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label>Amount Range</Label>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                        <span className="font-bold text-gray-700">
-                          Min: ₹{currentMinAmount.toLocaleString("en-IN")}
-                        </span>
-                        <span className="font-bold text-gray-700">
-                          Max: ₹{currentMaxAmount.toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                      <div className="relative h-4">
-                        <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-200 rounded-full -translate-y-1/2"></div>
-                        <div
-                          className="absolute top-1/2 h-1 bg-black rounded-full -translate-y-1/2"
-                          style={{
-                            left: `${
-                              ((currentMinAmount - amountBounds.min) /
-                                (amountBounds.max - amountBounds.min)) *
-                              100
-                            }%`,
-                            right: `${
-                              100 -
-                              ((currentMaxAmount - amountBounds.min) /
-                                (amountBounds.max - amountBounds.min)) *
-                                100
-                            }%`,
-                          }}
-                        />
-
-                        {/* Min Slider */}
-                        <input
-                          type="range"
-                          min={amountBounds.min}
-                          max={amountBounds.max}
-                          step={amountStep}
-                          value={currentMinAmount}
-                          onChange={(e) => {
-                            let val = Number(e.target.value);
-                            if (val >= currentMaxAmount) {
-                              val = currentMaxAmount - amountStep; // prevent overlap
-                            }
-                            setFilters((prev) => ({
-                              ...prev,
-                              amountMin: String(val),
-                            }));
-                          }}
-                          className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
-                        />
-
-                        {/* Max Slider */}
-                        <input
-                          type="range"
-                          min={amountBounds.min}
-                          max={amountBounds.max}
-                          step={amountStep}
-                          value={currentMaxAmount}
-                          onChange={(e) => {
-                            let val = Number(e.target.value);
-                            if (val <= currentMinAmount) {
-                              val = currentMinAmount + amountStep; // prevent overlap
-                            }
-                            setFilters((prev) => ({
-                              ...prev,
-                              amountMax: String(val),
-                            }));
-                          }}
-                          className="absolute left-0 w-full appearance-none bg-transparent cursor-pointer"
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-sm">Amount Min</Label>
+                          <Input
+                            type="number"
+                            placeholder="Min Amount"
+                            value={amountMinInput}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setAmountMinInput(v);
+                              setFilters({ ...filters, amountMin: v });
+                            }}
+                            onBlur={() => {
+                              if (!amountMinInput || amountMinInput.trim() === "") {
+                                setAmountMinInput(String(amountBounds.min));
+                                setFilters({ ...filters, amountMin: "" });
+                              }
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">Amount Max</Label>
+                          <Input
+                            type="number"
+                            placeholder="Max Amount"
+                            value={amountMaxInput}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setAmountMaxInput(v);
+                              setFilters({ ...filters, amountMax: v });
+                            }}
+                            onBlur={() => {
+                              if (!amountMaxInput || amountMaxInput.trim() === "") {
+                                setAmountMaxInput(String(amountBounds.max));
+                                setFilters({ ...filters, amountMax: "" });
+                              }
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -981,6 +980,30 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
+                      <Label>Unique ID</Label>
+                      <Select
+                        value={filters.uniqueId || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({
+                            ...filters,
+                            uniqueId: v === OPTION_ALL ? "" : v,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Unique ID" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>All Unique IDs</SelectItem>
+                          {uniqueIdOptions.map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
                       <Label>Approver</Label>
                       <Select
                         value={filters.approver || OPTION_ALL}
@@ -1022,6 +1045,7 @@ export default function ExpensesPage() {
                           createdBy: "",
                           approver: "",
                           status: "",
+                          uniqueId: "",
                         })
                       }
                     >
