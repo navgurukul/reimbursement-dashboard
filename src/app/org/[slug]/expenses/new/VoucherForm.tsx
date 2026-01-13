@@ -24,6 +24,7 @@ interface VoucherFormProps {
   savedUserSignature: string | null;
   selectedEvent?: { start_date: string; end_date: string };
   errors?: Record<string, string>;
+  expenseAmount?: number;
 }
 
 export default function VoucherForm({
@@ -33,6 +34,7 @@ export default function VoucherForm({
   errors,
   savedUserSignature,
   selectedEvent,
+  expenseAmount,
 }: VoucherFormProps) {
   const getError = (field: string) => errors?.[field] || "";
 
@@ -58,6 +60,13 @@ export default function VoucherForm({
       onInputChange("date", today);
     }
   }, [formData.date, onInputChange]);
+
+  // Initialize voucher amount from expense amount
+  useEffect(() => {
+    if (expenseAmount && !isNaN(expenseAmount) && (!formData.voucherAmount || formData.voucherAmount === 0)) {
+      onInputChange("voucherAmount", expenseAmount);
+    }
+  }, [expenseAmount, formData.voucherAmount, onInputChange]);
 
   // Prefill Your Name from profile or user when not provided
   useEffect(() => {
@@ -209,7 +218,13 @@ export default function VoucherForm({
                 id="voucherAmount"
                 name="voucherAmount"
                 type="number"
-                value={formData.voucherAmount || ""}
+                value={
+                  formData.voucherAmount !== undefined && formData.voucherAmount !== null && formData.voucherAmount !== ""
+                    ? String(formData.voucherAmount)
+                    : (expenseAmount !== undefined && expenseAmount !== null && !isNaN(expenseAmount)
+                        ? String(expenseAmount)
+                        : "")
+                }
                 onChange={(e) => onInputChange("voucherAmount", e.target.value === "" ? "" : parseFloat(e.target.value))}
                 ref={amountInputRef}
                 readOnly={!isEditingAmount}

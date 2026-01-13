@@ -285,6 +285,17 @@ export default function NewExpensePage() {
         },
       }));
     }
+
+    // If "amount" field is changed, also update voucherDataMap
+    if (key === "amount") {
+      setVoucherDataMap((prev) => ({
+        ...prev,
+        [itemId]: {
+          ...prev[itemId],
+          voucherAmount: value,
+        },
+      }));
+    }
   };
 
   const getExpenseItemValue = (
@@ -615,19 +626,18 @@ export default function NewExpensePage() {
 
       // If turning voucher ON for this item, prefill voucherDataMap amount from the expense item
       if (next) {
+        const expenseAmount = expenseItemsData[index]?.amount;
+        const expenseDate = expenseItemsData[index]?.date;
+        
+        // Sanitize amount to ensure it's never NaN
+        const sanitizedAmount = !isNaN(Number(expenseAmount)) ? expenseAmount : 0;
+        
         setVoucherDataMap((prevData) => ({
           ...prevData,
           [index]: {
             ...(prevData[index] || {}),
-            voucherAmount:
-              (expenseItemsData[index] && expenseItemsData[index].amount) ||
-              prevData[index]?.voucherAmount ||
-              formData.amount ||
-              0,
-            date:
-              (expenseItemsData[index] && expenseItemsData[index].date) ||
-              prevData[index]?.date ||
-              formData.date,
+            voucherAmount: sanitizedAmount || prevData[index]?.voucherAmount || 0,
+            date: expenseDate || prevData[index]?.date || new Date().toISOString().split("T")[0],
           },
         }));
       }
@@ -3065,6 +3075,7 @@ export default function NewExpensePage() {
                               : undefined
                           }
                           errors={errors}
+                          expenseAmount={expenseItemsData[id]?.amount}
                         />
                       )}
                     </div>
