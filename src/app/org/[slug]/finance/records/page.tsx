@@ -827,7 +827,7 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Location</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">Bills</TableHead>
-              <TableHead className="text-center py-3">Date</TableHead>
+              <TableHead className="text-center py-3">Date of expense</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
               <TableHead className="text-center py-3">
                 <div className="flex items-center justify-center gap-2">
@@ -869,6 +869,7 @@ export default function PaymentRecords() {
                   )}
                 </div>
               </TableHead>
+              <TableHead className="text-center py-3">Paid date</TableHead>
               <TableHead className="text-center py-3">Payment Status</TableHead>
               <TableHead className="text-center py-3">Actions</TableHead>
             </TableRow>
@@ -880,7 +881,7 @@ export default function PaymentRecords() {
             ) : filteredRecords.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={14}
+                  colSpan={15}
                   className="text-center py-6 text-gray-500"
                 >
                   No payment records found.
@@ -1081,6 +1082,9 @@ export default function PaymentRecords() {
                         </div>
                       </div>
                     )}
+                  </TableCell>
+                   <TableCell className="text-center py-2">
+                    {record.paid_approval_time ? new Date(record.paid_approval_time).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     <ExpenseStatusBadge

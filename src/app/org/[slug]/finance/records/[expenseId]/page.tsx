@@ -167,6 +167,12 @@ export default function RecordsDetails() {
                     <TableCell>{formatDateTime(expense.created_at)}</TableCell>
                   </TableRow>
                   <TableRow>
+                    <TableHead>Paid Date</TableHead>
+                    <TableCell>
+                      {expense.paid_approval_time ? new Date(expense.paid_approval_time).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
                     <TableHead>Payment Unique ID</TableHead>
                     <TableCell className="font-mono">
                       {expense.unique_id || expense.uniqueId || expense.id}
