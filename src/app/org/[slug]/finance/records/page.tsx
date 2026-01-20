@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import * as XLSX from "xlsx";
 import {
   IndianRupee,
   Pencil,
@@ -14,6 +15,7 @@ import {
   Undo2,
   Filter,
   Eye,
+  Download,
 } from "lucide-react";
 import {
   Table,
@@ -42,6 +44,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Pagination, usePagination } from "@/components/pagination";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -120,7 +123,7 @@ export default function PaymentRecords() {
         const itemsPerPage = 100;
         const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
         pagination.setCurrentPage(pageNumber);
-        
+
         // Scroll to the highlighted row after pagination updates
         setTimeout(() => {
           highlightedRowRef.current?.scrollIntoView({
@@ -156,6 +159,28 @@ export default function PaymentRecords() {
     unique_id: "",
   });
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Export state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showFormatModal, setShowFormatModal] = useState(false);
+
+  const allColumns = [
+    "Timestamp",
+    "Email",
+    "Unique ID",
+    "Expense Type",
+    "Event Name",
+    "Location",
+    "Amount",
+    "Date of Expense",
+    "Status",
+    "UTR",
+    "Paid Date",
+    "Payment Status",
+  ];
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([
+    ...allColumns,
+  ]);
 
   const ADMIN_PASSWORD = "admin"; // your password
 
@@ -554,10 +579,189 @@ export default function PaymentRecords() {
     }
   };
 
+  const exportToCSV = () => {
+    const headers = selectedColumns;
+
+    const rows = filteredRecords.map((record) => {
+      const row: any[] = [];
+
+      for (const col of headers) {
+        switch (col) {
+          case "Timestamp":
+            row.push(formatDateTime(record.updated_at || record.created_at) || "—");
+            break;
+          case "Email":
+            row.push(record.creator_email || "—");
+            break;
+          case "Unique ID":
+            row.push(record.unique_id || "N/A");
+            break;
+          case "Expense Type":
+            row.push(record.expense_type || "—");
+            break;
+          case "Event Name":
+            row.push(record.event_title || "N/A");
+            break;
+          case "Location":
+            row.push(record.location || "—");
+            break;
+          case "Amount":
+            row.push(record.approved_amount || record.amount || "—");
+            break;
+          case "Date of Expense":
+            row.push(
+              record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
+            );
+            break;
+          case "Status":
+            row.push(record.status || "—");
+            break;
+          case "UTR":
+            row.push(record.utr || "—");
+            break;
+          case "Paid Date":
+            row.push(
+              record.paid_approval_time
+                ? new Date(record.paid_approval_time).toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+                : "—"
+            );
+            break;
+          case "Payment Status":
+            row.push(record.payment_status || "—");
+            break;
+          default:
+            row.push("—");
+        }
+      }
+
+      return row;
+    });
+
+    const csvRows: string[] = [];
+    csvRows.push(headers.map((h) => `"${h}"`).join(","));
+    csvRows.push(
+      ...rows.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      )
+    );
+    const csvContent = csvRows.join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "payment_records.csv");
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToXLSX = () => {
+    const headers = selectedColumns;
+
+    const rows = filteredRecords.map((record) => {
+      const row: any[] = [];
+
+      for (const col of headers) {
+        switch (col) {
+          case "Email":
+            row.push(record.creator_email || "—");
+            break;
+          case "Unique ID":
+            row.push(record.unique_id || "N/A");
+            break;
+          case "Expense Type":
+            row.push(record.expense_type || "—");
+            break;
+          case "Event Name":
+            row.push(record.event_title || "N/A");
+            break;
+          case "Location":
+            row.push(record.location || "—");
+            break;
+          case "Amount":
+            row.push(record.approved_amount || record.amount || "—");
+            break;
+          case "Date of Expense":
+            row.push(
+              record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
+            );
+            break;
+          case "Status":
+            row.push(record.status || "—");
+            break;
+          case "UTR":
+            row.push(record.utr || "—");
+            break;
+          case "Paid Date":
+            row.push(
+              record.paid_approval_time
+                ? new Date(record.paid_approval_time).toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+                : "—"
+            );
+            break;
+          case "Payment Status":
+            row.push(record.payment_status || "—");
+            break;
+          case "Timestamp":
+            row.push(formatDateTime(record.updated_at || record.created_at) || "—");
+            break;
+          default:
+            row.push("—");
+        }
+      }
+
+      return row;
+    });
+
+    const data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+
+    // Set column widths
+    ws["!cols"] = headers.map(() => ({ wch: 20 }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Payment Records");
+
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "payment_records.xlsx";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportXLSX = () => {
+    exportToXLSX();
+    setShowFormatModal(false);
+  };
+
+  const handleExportCSV = () => {
+    exportToCSV();
+    setShowFormatModal(false);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end">
-        <div className="mt-2 sm:mt-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            onClick={() => setShowExportModal(true)}
+            className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
+            variant="outline"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </Button>
           <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters
@@ -889,14 +1093,13 @@ export default function PaymentRecords() {
               </TableRow>
             ) : (
               pagination.paginatedData.map((record, index) => (
-                <TableRow 
+                <TableRow
                   key={record.id}
                   ref={highlightedExpenseId === record.id ? highlightedRowRef : null}
-                  className={`${
-                    highlightedExpenseId === record.id 
-                      ? "border-2 border-yellow-400 bg-yellow-50" 
+                  className={`${highlightedExpenseId === record.id
+                      ? "border-2 border-yellow-400 bg-yellow-50"
                       : ""
-                  }`}
+                    }`}
                 >
                   <TableCell className="text-center py-2">
                     {record.serialNumber ?? pagination.getItemNumber(index)}
@@ -1083,7 +1286,7 @@ export default function PaymentRecords() {
                       </div>
                     )}
                   </TableCell>
-                   <TableCell className="text-center py-2">
+                  <TableCell className="text-center py-2">
                     {record.paid_approval_time ? new Date(record.paid_approval_time).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                   </TableCell>
                   <TableCell className="text-center py-2">
@@ -1481,6 +1684,86 @@ export default function PaymentRecords() {
               className="cursor-pointer"
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Column Selection Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Columns to Export</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+            {allColumns.map((col) => (
+              <div key={col} className="flex items-center space-x-2">
+                <Checkbox
+                  id={col}
+                  checked={selectedColumns.includes(col)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedColumns((prev) => [...prev, col]);
+                    } else {
+                      setSelectedColumns((prev) =>
+                        prev.filter((c) => c !== col)
+                      );
+                    }
+                  }}
+                />
+                <label
+                  htmlFor={col}
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  {col}
+                </label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowExportModal(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowExportModal(false);
+                setShowFormatModal(true);
+              }}
+              className="cursor-pointer"
+            >
+              Next
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Format Selection Modal */}
+      <Dialog open={showFormatModal} onOpenChange={setShowFormatModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Export Format</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Choose the format for your export file:
+            </p>
+          </div>
+          <DialogFooter className="mt-4 flex gap-2">
+            <Button
+              onClick={handleExportCSV}
+              className="cursor-pointer"
+            >
+              Export as CSV
+            </Button>
+            <Button
+              onClick={handleExportXLSX}
+              className="cursor-pointer"
+            >
+              Export as XLSX
             </Button>
           </DialogFooter>
         </DialogContent>
