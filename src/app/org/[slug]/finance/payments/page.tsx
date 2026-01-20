@@ -875,7 +875,7 @@ export default function PaymentProcessingOnly() {
                           ? new Date(expense.value_date)
                               .toISOString()
                               .split("T")[0]
-                          : ""
+                          : new Date().toISOString().split("T")[0]
                       }
                       onChange={(e) => {
                         const updated = processingExpenses.map((exp) =>
