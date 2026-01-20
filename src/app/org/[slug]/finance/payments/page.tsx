@@ -191,6 +191,9 @@ export default function PaymentProcessingOnly() {
             ? exp.unique_id
             : matchedBank?.unique_id || "N/A";
 
+          // Initialize value_date to today's date if not already set
+          const defaultDate = new Date().toISOString().split("T")[0];
+
           return {
             ...exp,
             beneficiary_name:
@@ -201,6 +204,7 @@ export default function PaymentProcessingOnly() {
             debit_account: exp.debit_account || "10064244213",
             utr: exp.utr || "N/A",
             unique_id: displayUniqueId || "N/A",
+            value_date: exp.value_date || defaultDate,
             // Prefer bank's email when we matched bank details (especially when matched by unique_id)
             bank_email:
               bankByUnique?.email || matchedBank?.email || exp.email || "-",
@@ -454,9 +458,9 @@ export default function PaymentProcessingOnly() {
   // Validate that if Transaction Date column is selected, all rows have a value_date
   const validateTransactionDatesForExport = () => {
     if (selectedColumns.includes("Transaction Date")) {
-      const missing = processingExpenses.filter(
-        (exp) => !exp.value_date || exp.value_date === ""
-      );
+      const missing = processingExpenses.filter((exp) => {
+        return !exp.value_date || exp.value_date.trim() === "";
+      });
       if (missing.length > 0) {
         // Show a clear notification and prevent the export
         toast.error(
