@@ -39,6 +39,7 @@ type BankDetail = {
   bank_name: string;
   email: string;
   unique_id: string;
+  advance_unique_id: string;
 };
 
 export default function BankDetailsPage() {
@@ -70,6 +71,7 @@ export default function BankDetailsPage() {
     bank_name: "",
     email: "",
     unique_id: "",
+    advance_unique_id: "",
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -214,6 +216,7 @@ export default function BankDetailsPage() {
       bank_name: "",
       email: "",
       unique_id: "",
+      advance_unique_id: "",
     });
     setErrors({});
     fetchBankDetails();
@@ -234,6 +237,7 @@ export default function BankDetailsPage() {
               bank_name: "",
               email: "",
               unique_id: "",
+              advance_unique_id: "",
             });
             setErrors({});
             setDialogOpen(true);
@@ -258,6 +262,7 @@ export default function BankDetailsPage() {
               { name: "bank_name", label: "Bank Name" },
               { name: "email", label: "Email" },
               { name: "unique_id", label: "Unique ID" },
+              { name: "advance_unique_id", label: "Advance Unique ID" },
             ].map(({ name, label }) => (
               <div key={name}>
                 <label className="block text-sm font-medium mb-1">
@@ -358,6 +363,7 @@ export default function BankDetailsPage() {
               <TableHead className="px-4 py-3">Bank Name</TableHead>
               <TableHead className="px-4 py-3">Email</TableHead>
               <TableHead className="px-4 py-3">Unique ID</TableHead>
+              <TableHead className="px-4 py-3">Advance Unique ID</TableHead>
               <TableHead className="px-4 py-3 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -391,13 +397,24 @@ export default function BankDetailsPage() {
                   <TableCell className="px-4 py-3 font-mono">
                     {row.unique_id}
                   </TableCell>
+                  <TableCell className="px-4 py-3 font-mono">
+                    {row.advance_unique_id || "Not Available"}
+                  </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
                         setEditing(row);
-                        setForm({ ...row });
+                        setForm({
+                          account_holder: row.account_holder || "",
+                          account_number: row.account_number || "",
+                          ifsc_code: row.ifsc_code || "",
+                          bank_name: row.bank_name || "",
+                          email: row.email || "",
+                          unique_id: row.unique_id || "",
+                          advance_unique_id: row.advance_unique_id || "",
+                        });
                         setErrors({});
                         setDialogOpen(true);
                       }}
