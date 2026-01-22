@@ -309,10 +309,10 @@ export default function PaymentProcessingDetails() {
           onClick={() =>
             router.push(`/org/${slug}/finance?tab=payments&expID=${expenseId}`)
           }
-          // className="text-sm cursor-pointer"
-          // disabled={loading}
+        // className="text-sm cursor-pointer"
+        // disabled={loading}
         >
-          <ArrowLeft /> 
+          <ArrowLeft />
           Back to Payment Processing
         </Button>
         {!loading && (
@@ -336,6 +336,17 @@ export default function PaymentProcessingDetails() {
           </div>
         )}
       </div>
+
+      {/* Show message if expense is created using Advance Unique ID */}
+      {expense && expense.unique_id &&
+        (expense.unique_id.toLowerCase().startsWith("advance_") ||
+          expense.unique_id.startsWith("Advance_")) && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-sm text-black-800">
+              ℹ️ This expense was created using Advance Unique ID: <span className="font-mono font-semibold">{expense.unique_id}</span>
+            </p>
+          </div>
+        )}
 
       {/* Grid Layout */}
       <div className="grid md:grid-cols-3 gap-8">
@@ -406,8 +417,8 @@ export default function PaymentProcessingDetails() {
                       {hasVoucher
                         ? "Voucher Preview Below"
                         : expense?.receipt
-                        ? "Receipt Preview Below"
-                        : "N/A"}
+                          ? "Receipt Preview Below"
+                          : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
