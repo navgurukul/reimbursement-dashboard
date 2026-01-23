@@ -40,6 +40,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { Pagination, usePagination } from "@/components/pagination";
 
 const formatCurrency = (amount: number) => {
@@ -68,7 +70,9 @@ export default function PaymentProcessingOnly() {
   const router = useRouter();
 
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
+  const [selectedBankType, setSelectedBankType] = useState<"NGIDC" | "FCIDCF" | "">("");
 
   const allColumns = [
     "beneficiary name",
@@ -457,7 +461,6 @@ export default function PaymentProcessingOnly() {
   };
 
   // Validate that if Transaction Date column is selected, all rows have a value_date
-  // Also validate that all expenses have a bank selected
   const validateTransactionDatesForExport = () => {
     if (selectedColumns.includes("Transaction Date")) {
       const missing = processingExpenses.filter((exp) => {
@@ -473,13 +476,6 @@ export default function PaymentProcessingOnly() {
       }
     }
 
-    // Check if all expenses have a bank selected
-    const missingBank = processingExpenses.filter((exp) => !paidByBank[exp.id] || paidByBank[exp.id] === "");
-    if (missingBank.length > 0) {
-      toast.error("Please select a bank from the “Paid By Bank” column before marking the expense as paid.");
-      return false;
-    }
-
     return true;
   };
 
@@ -487,12 +483,14 @@ export default function PaymentProcessingOnly() {
     if (!validateTransactionDatesForExport()) return;
     exportToXLSX();
     setShowFormatModal(false);
+    // setSelectedBankType("");
   };
 
   const handleExportCSV = () => {
     if (!validateTransactionDatesForExport()) return;
     exportToCSV();
     setShowFormatModal(false);
+    // setSelectedBankType("");
   };
 
   const expenseToConfirm = confirmExpenseId
@@ -1122,38 +1120,94 @@ export default function PaymentProcessingOnly() {
         />
       )}
 
-      {/* Export Modal */}
+      {/* Export Modal - Bank Type Selection */}
       <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Account Type</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Bank Type Selection */}
+            <div className="space-y-3">
+              <RadioGroup value={selectedBankType} onValueChange={(value) => setSelectedBankType(value as "NGIDC" | "FCIDCF")}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="NGIDC" id="ngidc" />
+                  <Label htmlFor="ngidc" className="font-normal cursor-pointer">NGIDFC Current</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="FCIDCF" id="fcidcf" />
+                  <Label htmlFor="fcidcf" className="font-normal cursor-pointer">FCIDCF Current</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowExportModal(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowExportModal(false);
+                setShowColumnsModal(true);
+              }}
+              disabled={!selectedBankType}
+              className="cursor-pointer"
+            >
+              Next
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Columns Selection Modal */}
+      <Dialog open={showColumnsModal} onOpenChange={setShowColumnsModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Select Columns to Export</DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-3 max-h-[300px] overflow-auto mt-2">
-            {allColumns.map((col) => (
-              <div key={col} className="flex items-center gap-2">
-                <Checkbox
-                  checked={selectedColumns.includes(col)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedColumns((prev) => [...prev, col]);
-                    } else {
-                      setSelectedColumns((prev) =>
-                        prev.filter((c) => c !== col)
-                      );
-                    }
-                  }}
-                />
-                <span>{col}</span>
-              </div>
-            ))}
+          <div className="space-y-3">
+            <div className="grid gap-3 max-h-[300px] overflow-auto">
+              {allColumns.map((col) => (
+                <div key={col} className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedColumns.includes(col)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedColumns((prev) => [...prev, col]);
+                      } else {
+                        setSelectedColumns((prev) =>
+                          prev.filter((c) => c !== col)
+                        );
+                      }
+                    }}
+                  />
+                  <span>{col}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           <DialogFooter className="mt-4">
             <Button
+              variant="outline"
               onClick={() => {
-                // Close columns modal and open format chooser
-                setShowExportModal(false);
+                setShowColumnsModal(false);
+                setShowExportModal(true);
+              }}
+              className="cursor-pointer"
+            >
+              Back
+            </Button>
+            <Button
+              onClick={() => {
+                setShowColumnsModal(false);
                 setShowFormatModal(true);
               }}
               disabled={selectedColumns.length === 0}
