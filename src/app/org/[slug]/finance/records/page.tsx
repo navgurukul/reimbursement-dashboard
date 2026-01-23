@@ -844,9 +844,9 @@ export default function PaymentRecords() {
         <div className="flex items-center justify-start">
           <Tabs value={bankTab} onValueChange={(v) => setBankTab(v as any)}>
             <TabsList>
-              <TabsTrigger value="all">All expense</TabsTrigger>
-              <TabsTrigger value="ngidfc">NGIDFC Current</TabsTrigger>
-              <TabsTrigger value="fcidfc">FCIDCF Current</TabsTrigger>
+              <TabsTrigger value="all">All Records</TabsTrigger>
+              <TabsTrigger value="ngidfc">NG Records</TabsTrigger>
+              <TabsTrigger value="fcidfc">FC Records</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
