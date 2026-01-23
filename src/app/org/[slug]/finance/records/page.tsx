@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Pagination, usePagination } from "@/components/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -94,6 +95,13 @@ export default function PaymentRecords() {
     expenseId: null as null | string,
   });
   const [enteredPassword, setEnteredPassword] = useState("");
+
+  // Bank filter tabs: All, NGIDFC Current, FCIDFC Current
+  const [bankTab, setBankTab] = useState<"all" | "ngidfc" | "fcidfc">("all");
+  const BANK_STRING_MAP: Record<"ngidfc" | "fcidfc", string> = {
+    ngidfc: "NGIDFC Current",
+    fcidfc: "FCIDFC Current",
+  };
 
   // Use pagination hook
   const pagination = usePagination(filteredRecords, 100);
@@ -392,6 +400,11 @@ export default function PaymentRecords() {
 
   const applyFilters = () => {
     const fr = records.filter((r: any) => {
+      // Bank tab filtering via expense_new.paid_by_bank
+      if (bankTab !== "all") {
+        const expected = BANK_STRING_MAP[bankTab];
+        if ((r.paid_by_bank || "") !== expected) return false;
+      }
       if (
         filters.expenseType !== "All Expense Type" &&
         r.expense_type !== filters.expenseType
@@ -460,7 +473,7 @@ export default function PaymentRecords() {
   useEffect(() => {
     // only apply when records are loaded
     if (!loading) applyFilters();
-  }, [filters, records]);
+  }, [filters, records, bankTab]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -527,7 +540,7 @@ export default function PaymentRecords() {
       // Update unique_id to start with "advance_" if it doesn't already
       const currentUniqueId = (record.unique_id || "").trim();
       let newUniqueId: string;
-      
+
       if (currentUniqueId.toLowerCase().startsWith("advance_")) {
         // Already marked as advance, keep it as is
         newUniqueId = currentUniqueId;
@@ -550,7 +563,7 @@ export default function PaymentRecords() {
 
       const { error } = await supabase
         .from("expense_new")
-        .update({ 
+        .update({
           unique_id: newUniqueId,
           custom_fields: updatedCustomFields,
         })
@@ -825,7 +838,18 @@ export default function PaymentRecords() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Bank Tabs */}
+        <div className="flex items-center justify-start">
+          <Tabs value={bankTab} onValueChange={(v) => setBankTab(v as any)}>
+            <TabsList>
+              <TabsTrigger value="all">All expense</TabsTrigger>
+              <TabsTrigger value="ngidfc">NGIDFC Current</TabsTrigger>
+              <TabsTrigger value="fcidfc">FCIDCF Current</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
         <div className="flex gap-2 flex-wrap">
           <Button
             onClick={() => setShowExportModal(true)}
@@ -1171,8 +1195,8 @@ export default function PaymentRecords() {
                   key={record.id}
                   ref={highlightedExpenseId === record.id ? highlightedRowRef : null}
                   className={`${highlightedExpenseId === record.id
-                      ? "border-2 border-yellow-400 bg-yellow-50"
-                      : ""
+                    ? "border-2 border-yellow-400 bg-yellow-50"
+                    : ""
                     }`}
                 >
                   <TableCell className="text-center py-2">
@@ -1371,7 +1395,7 @@ export default function PaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {record.unique_id?.toLowerCase().startsWith("advance_") ||
-                    record.unique_id?.startsWith("Advance_") ? (
+                      record.unique_id?.startsWith("Advance_") ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>

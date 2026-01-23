@@ -72,7 +72,7 @@ export default function PaymentProcessingOnly() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
-  const [selectedBankType, setSelectedBankType] = useState<"NGIDC" | "FCIDCF" | "">("");
+  const [selectedBankType, setSelectedBankType] = useState<"NGIDFC" | "FCIDCF" | "">("");
 
   const allColumns = [
     "beneficiary name",
@@ -1130,10 +1130,10 @@ export default function PaymentProcessingOnly() {
           <div className="space-y-6">
             {/* Bank Type Selection */}
             <div className="space-y-3">
-              <RadioGroup value={selectedBankType} onValueChange={(value) => setSelectedBankType(value as "NGIDC" | "FCIDCF")}>
+              <RadioGroup value={selectedBankType} onValueChange={(value) => setSelectedBankType(value as "NGIDFC" | "FCIDCF")}>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="NGIDC" id="ngidc" />
-                  <Label htmlFor="ngidc" className="font-normal cursor-pointer">NGIDFC Current</Label>
+                  <RadioGroupItem value="NGIDFC" id="ngidfc" />
+                  <Label htmlFor="ngidfc" className="font-normal cursor-pointer">NGIDFC Current</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="FCIDCF" id="fcidcf" />
