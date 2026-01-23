@@ -192,6 +192,7 @@ export default function PaymentRecords() {
     "UTR",
     "Paid Date",
     "Payment Status",
+    "Paid by bank",
   ];
   const [selectedColumns, setSelectedColumns] = useState<string[]>([
     ...allColumns,
@@ -719,6 +720,9 @@ export default function PaymentRecords() {
           case "Payment Status":
             row.push(record.payment_status || "—");
             break;
+          case "Paid by bank":
+            row.push(record.paid_by_bank || "—");
+            break;
           default:
             row.push("—");
         }
@@ -798,6 +802,9 @@ export default function PaymentRecords() {
             break;
           case "Timestamp":
             row.push(formatDateTime(record.updated_at || record.created_at) || "—");
+            break;
+          case "Paid by bank":
+            row.push(record.paid_by_bank || "—");
             break;
           default:
             row.push("—");
@@ -1172,6 +1179,7 @@ export default function PaymentRecords() {
               </TableHead>
               <TableHead className="text-center py-3">Paid date</TableHead>
               <TableHead className="text-center py-3">Payment Status</TableHead>
+              <TableHead className="text-center py-3">Paid by bank</TableHead>
               <TableHead className="text-center py-3">Advance Payment</TableHead>
               <TableHead className="text-center py-3">Actions</TableHead>
             </TableRow>
@@ -1392,6 +1400,9 @@ export default function PaymentRecords() {
                       status={record.payment_status}
                       className="text-xs"
                     />
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.paid_by_bank || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {record.unique_id?.toLowerCase().startsWith("advance_") ||

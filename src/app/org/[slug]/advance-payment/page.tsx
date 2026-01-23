@@ -179,6 +179,7 @@ export default function AdvancePaymentRecords() {
     "UTR",
     "Paid Date",
     "Payment Status",
+    "Paid by bank",
   ];
   const [selectedColumns, setSelectedColumns] = useState<string[]>([
     ...allColumns,
@@ -643,6 +644,9 @@ export default function AdvancePaymentRecords() {
           case "Payment Status":
             row.push(record.payment_status || "—");
             break;
+          case "Paid by bank":
+            row.push(record.paid_by_bank || "—");
+            break;
           default:
             row.push("—");
         }
@@ -723,6 +727,9 @@ export default function AdvancePaymentRecords() {
           case "Timestamp":
             row.push(formatDateTime(record.updated_at || record.created_at) || "—");
             break;
+          case "Paid by bank":
+            row.push(record.paid_by_bank || "—");
+            break;
           default:
             row.push("—");
         }
@@ -762,8 +769,8 @@ export default function AdvancePaymentRecords() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold flex flex-col sm:flex-row sm:items-center justify-start">Advance Payment Expenses</h1>
+      <h1 className="text-2xl font-bold flex flex-col sm:flex-row sm:items-center justify-start">Advance Payment Records</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
         <div className="flex gap-2 flex-wrap">
           <Button
             onClick={() => setShowExportModal(true)}
@@ -1086,17 +1093,18 @@ export default function AdvancePaymentRecords() {
               </TableHead>
               <TableHead className="text-center py-3">Paid date</TableHead>
               <TableHead className="text-center py-3">Payment Status</TableHead>
+              <TableHead className="text-center py-3">Paid by bank</TableHead>
               <TableHead className="text-center py-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={15} rows={5} />
+              <TableSkeleton colSpan={16} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={15}
+                  colSpan={16}
                   className="text-center py-12 text-gray-500"
                 >
                   <div className="flex flex-col items-center gap-2">
@@ -1312,6 +1320,9 @@ export default function AdvancePaymentRecords() {
                       status={record.payment_status}
                       className="text-xs"
                     />
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {record.paid_by_bank || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     <div className="flex items-center justify-center gap-2">
