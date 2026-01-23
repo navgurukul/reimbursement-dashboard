@@ -47,10 +47,12 @@ import {
 } from "@/components/ui/tooltip";
 import { Pagination, usePagination } from "@/components/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdvancePaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(true);
   const { slug } = useParams();
   const router = useRouter();
@@ -219,27 +221,27 @@ export default function AdvancePaymentRecords() {
         const advanceRows = rows.filter((r: any) => {
           const uniqueId = (r.unique_id || "").trim();
           if (!uniqueId) return false;
-          
+
           const lowerUniqueId = uniqueId.toLowerCase();
-          
+
           // Must start with "advance_" and have content after it
           if (!lowerUniqueId.startsWith("advance_") || uniqueId.length <= "advance_".length) {
             return false;
           }
-          
+
           // Check if this expense was marked as advance from Records tab
           // We set a flag in custom_fields when marking as advance
           const customFields = r.custom_fields || {};
           if (customFields.marked_as_advance === true) {
             return true; // This was explicitly marked as advance from Records tab
           }
-          
+
           // Also check if it matches the pattern "advance_<expenseId>" 
           // This pattern is set when marking as advance with empty unique_id
           if (uniqueId.toLowerCase() === `advance_${r.id.toLowerCase()}`) {
             return true; // This was marked as advance from Records tab
           }
-          
+
           // Exclude expenses that might have been created with advance_unique_id from bank_details
           // Only include if we're confident it was marked from Records tab
           return false;
@@ -417,8 +419,8 @@ export default function AdvancePaymentRecords() {
     )
   );
 
-  const applyFilters = () => {
-    const fr = records.filter((r: any) => {
+  const applyFilters = (sourceRecords: any[] = records) => {
+    const fr = sourceRecords.filter((r: any) => {
       if (
         filters.expenseType !== "All Expense Type" &&
         r.expense_type !== filters.expenseType
@@ -486,8 +488,16 @@ export default function AdvancePaymentRecords() {
   // Auto-apply filters when filter values change or when records update
   useEffect(() => {
     // only apply when records are loaded
-    if (!loading) applyFilters();
-  }, [filters, records]);
+    if (!loading) {
+      let tabFiltered = records;
+      if (activeTab === "ngidfc") {
+        tabFiltered = records.filter(r => (r.paid_by_bank || "").includes("NGIDFC"));
+      } else if (activeTab === "fcidfc") {
+        tabFiltered = records.filter(r => (r.paid_by_bank || "").includes("FCIDFC"));
+      }
+      applyFilters(tabFiltered);
+    }
+  }, [filters, records, activeTab]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -511,7 +521,14 @@ export default function AdvancePaymentRecords() {
       minAmount: amountBounds.min,
       maxAmount: amountBounds.max,
     }));
-    setFilteredRecords(records);
+
+    let tabFiltered = records;
+    if (activeTab === "ngidfc") {
+      tabFiltered = records.filter(r => r.paid_by_bank === "NGIDFC");
+    } else if (activeTab === "fcidfc") {
+      tabFiltered = records.filter(r => r.paid_by_bank === "FCIDFC");
+    }
+    setFilteredRecords(tabFiltered);
   };
 
 
@@ -770,18 +787,31 @@ export default function AdvancePaymentRecords() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold flex flex-col sm:flex-row sm:items-center justify-start">Advance Payment Records</h1>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="bg-muted rounded-lg">
+            <TabsTrigger value="all">All Expense</TabsTrigger>
+            <TabsTrigger value="ngidfc">NGIDFC Record</TabsTrigger>
+            <TabsTrigger value="fcidfc">FCIDFC Records</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {/* Actions */}
+        <div className="flex items-center gap-2">
           <Button
             onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
             variant="outline"
+            className="flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
             Export
           </Button>
-          <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
-            <Filter className="mr-2 h-4 w-4" />
+          <Button
+            variant="outline"
+            onClick={() => setFilterOpen((s) => !s)}
+            className="flex items-center gap-2"
+          >
+            <Filter className="w-4 h-4" />
             Filters
           </Button>
         </div>
@@ -1123,8 +1153,8 @@ export default function AdvancePaymentRecords() {
                   key={record.id}
                   ref={highlightedExpenseId === record.id ? highlightedRowRef : null}
                   className={`${highlightedExpenseId === record.id
-                      ? "border-2 border-yellow-400 bg-yellow-50"
-                      : ""
+                    ? "border-2 border-yellow-400 bg-yellow-50"
+                    : ""
                     }`}
                 >
                   <TableCell className="text-center py-2">
