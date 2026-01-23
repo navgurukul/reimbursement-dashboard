@@ -61,6 +61,7 @@ export default function PaymentProcessingOnly() {
   const [editingFields, setEditingFields] = useState<
     Record<string, { utr?: boolean; debit?: boolean }>
   >({});
+  const [paidByBank, setPaidByBank] = useState<Record<string, string>>({});
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
 
@@ -456,6 +457,7 @@ export default function PaymentProcessingOnly() {
   };
 
   // Validate that if Transaction Date column is selected, all rows have a value_date
+  // Also validate that all expenses have a bank selected
   const validateTransactionDatesForExport = () => {
     if (selectedColumns.includes("Transaction Date")) {
       const missing = processingExpenses.filter((exp) => {
@@ -470,6 +472,14 @@ export default function PaymentProcessingOnly() {
         return false;
       }
     }
+
+    // Check if all expenses have a bank selected
+    const missingBank = processingExpenses.filter((exp) => !paidByBank[exp.id] || paidByBank[exp.id] === "");
+    if (missingBank.length > 0) {
+      toast.error("Please select a bank from the “Paid By Bank” column before marking the expense as paid.");
+      return false;
+    }
+
     return true;
   };
 
@@ -489,31 +499,41 @@ export default function PaymentProcessingOnly() {
     ? processingExpenses.find((exp) => exp.id === confirmExpenseId)
     : null;
 
-  const markExpensesPaidWithTimestamp = async (ids: string[]) => {
+  const markExpensesPaidWithTimestamp = async (ids: string[], bankData?: Record<string, string>) => {
     const paidAt = new Date().toISOString();
-    const attempts: { payload: Record<string, any>; allowRetry: boolean }[] = [
-      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: true },
-      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: false },
-    ];
+    
+    // Create update payload with paid_by_bank for each expense
+    const updatePromises = ids.map((id) => {
+      const payload = {
+        payment_status: "paid",
+        paid_approval_time: paidAt,
+        paid_by_bank: bankData?.[id] || null,
+      };
+
+      return supabase
+        .from("expense_new")
+        .update(payload)
+        .eq("id", id);
+    });
 
     let lastError: any = null;
 
-    for (const attempt of attempts) {
-      const { error } = await supabase
-        .from("expense_new")
-        .update(attempt.payload)
-        .in("id", ids);
-
-      if (!error) return paidAt;
-
-      lastError = error;
-      const message = (error?.message || "").toLowerCase();
-      if (!attempt.allowRetry || !message.includes("paid_approval_time")) {
+    // Execute all updates
+    const results = await Promise.all(updatePromises);
+    
+    // Check for errors
+    for (const result of results) {
+      if (result.error) {
+        lastError = result.error;
         break;
       }
     }
 
-    throw lastError;
+    if (lastError) {
+      throw lastError;
+    }
+
+    return paidAt;
   };
 
   const sendPaymentProcessedEmail = async (expense: any) => {
@@ -570,11 +590,18 @@ export default function PaymentProcessingOnly() {
       return;
     }
 
+    // Check if all expenses have a bank selected
+    const missingBank = processingExpenses.filter((exp) => !paidByBank[exp.id] || paidByBank[exp.id] === "");
+    if (missingBank.length > 0) {
+      toast.error("Please select a bank from the “Paid By Bank” column before marking the expense as paid.");
+      return;
+    }
+
     try {
       setLoading(true);
       const ids = processingExpenses.map((e) => e.id);
 
-      await markExpensesPaidWithTimestamp(ids);
+      await markExpensesPaidWithTimestamp(ids, paidByBank);
 
       // Send email notifications to all creators
       try {
@@ -588,6 +615,7 @@ export default function PaymentProcessingOnly() {
 
       toast.success("All expenses marked as paid. Email notifications have been sent to the expense creators.");
       setProcessingExpenses([]); // clear current list (will reload on refresh)
+      setPaidByBank({}); // clear paid by bank data
     } catch (error: any) {
       toast.error("Failed to mark as paid", { description: error.message });
     } finally {
@@ -596,10 +624,16 @@ export default function PaymentProcessingOnly() {
   };
 
   const handleMarkAsPaidIndividual = async (expenseId: string) => {
+    // Check if bank is selected for this expense
+    if (!paidByBank[expenseId] || paidByBank[expenseId] === "") {
+      toast.error("Please select a bank from the “Paid By Bank” column before marking the expense as paid.");
+      return;
+    }
+
     try {
       setLoading(true);
 
-      await markExpensesPaidWithTimestamp([expenseId]);
+      await markExpensesPaidWithTimestamp([expenseId], paidByBank);
 
       // Get the expense details to send notification
       const expense = processingExpenses.find((exp) => exp.id === expenseId);
@@ -618,6 +652,12 @@ export default function PaymentProcessingOnly() {
       setProcessingExpenses((prev) =>
         prev.filter((exp) => exp.id !== expenseId)
       );
+      // Remove from paidByBank state
+      setPaidByBank((prev) => {
+        const updated = { ...prev };
+        delete updated[expenseId];
+        return updated;
+      });
     } catch (error: any) {
       toast.error("Failed to mark as paid", {
         description: error.message,
@@ -723,6 +763,7 @@ export default function PaymentProcessingOnly() {
                   )}
                 </div>
               </TableHead>
+              <TableHead className="px-4 py-3 text-center">Paid by Bank</TableHead>
               <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
               <TableHead className="px-4 py-3 text-center">Status</TableHead>
               <TableHead className="px-4 py-3 text-center">Actions</TableHead>
@@ -1000,6 +1041,23 @@ export default function PaymentProcessingOnly() {
                         </div>
                       </div>
                     )}
+                  </TableCell>
+
+                  <TableCell className="px-4 py-3 text-center">
+                    <select
+                      className="border px-2 py-1 rounded bg-white text-sm"
+                      value={paidByBank[expense.id] || ""}
+                      onChange={(e) => {
+                        setPaidByBank((prev) => ({
+                          ...prev,
+                          [expense.id]: e.target.value,
+                        }));
+                      }}
+                    >
+                      <option value="">Select Bank</option>
+                      <option value="NGIDFC Current">NGIDFC Current</option>
+                      <option value="FCIDFC Current">FCIDFC Current</option>
+                    </select>
                   </TableCell>
 
                   <TableCell className="px-4 py-3 text-center">
