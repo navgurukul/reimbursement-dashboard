@@ -1426,20 +1426,31 @@ export default function PaymentRecords() {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setMarkAdvanceModal({ open: true, id: record.id })
-                              }
-                              className="flex items-center gap-2 border border-gray-300 text-black hover:bg-blue-50 cursor-pointer"
-                            >
-                              <CheckCircle className="w-5 h-5 " />
-                              Mark as Advance
-                            </Button>
+                            <div className="inline-flex">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setMarkAdvanceModal({ open: true, id: record.id })
+                                }
+                                disabled={record.custom_fields?.marked_as_advance === true}
+                                className={`flex items-center gap-2 border ${
+                                  record.custom_fields?.marked_as_advance === true
+                                    ? "border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
+                                    : "border-gray-300 text-black hover:bg-blue-50 cursor-pointer"
+                                }`}
+                              >
+                                <CheckCircle className="w-5 h-5 " />
+                                Mark as Advance
+                              </Button>
+                            </div>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Mark as Advance Payment</p>
+                            <p>
+                              {record.custom_fields?.marked_as_advance === true
+                                ? "Added on Advance Payment"
+                                : "Mark as Advance Payment"}
+                            </p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
