@@ -50,8 +50,8 @@ export default function RecordsDetails() {
   const slug = params.slug as string;
   const { organization } = useOrgStore();
 
-  const bankTabParam = searchParams.get("bankTab");
-  const bankTab =
+  const bankTabParam = searchParams.get("activeTab");
+  const activeTab =
     bankTabParam === "ngidfc" || bankTabParam === "fcidfc" ? bankTabParam : "all";
 
   const [expense, setExpense] = useState<any>(null);
@@ -138,7 +138,7 @@ export default function RecordsDetails() {
           onClick={() => {
             const query = new URLSearchParams();
             query.set("tab", "records");
-            query.set("bankTab", bankTab);
+            query.set("activeTab", activeTab);
             if (expenseId) query.set("expID", expenseId as string);
             router.push(`/org/${slug}/finance?${query.toString()}`);
           }}

@@ -97,24 +97,24 @@ export default function PaymentRecords() {
   const [enteredPassword, setEnteredPassword] = useState("");
 
   // Bank filter tabs: All, NGIDFC Current, FCIDFC Current
-  const [bankTab, setBankTab] = useState<"all" | "ngidfc" | "fcidfc">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "ngidfc" | "fcidfc">("all");
   const BANK_STRING_MAP: Record<"ngidfc" | "fcidfc", string> = {
     ngidfc: "NGIDFC Current",
     fcidfc: "FCIDFC Current",
   };
 
   useEffect(() => {
-    const tabParam = searchParams.get("bankTab");
+    const tabParam = searchParams.get("activeTab");
     if (tabParam === "ngidfc" || tabParam === "fcidfc" || tabParam === "all") {
-      setBankTab(tabParam);
+      setActiveTab(tabParam);
     }
   }, [searchParams]);
 
   const handleBankTabChange = (value: "all" | "ngidfc" | "fcidfc") => {
-    setBankTab(value);
+    setActiveTab(value);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", params.get("tab") || "records");
-    params.set("bankTab", value);
+    params.set("activeTab", value);
     params.delete("expID");
     router.replace(`?${params.toString()}`, { scroll: false });
   };
@@ -418,8 +418,8 @@ export default function PaymentRecords() {
   const applyFilters = () => {
     const fr = records.filter((r: any) => {
       // Bank tab filtering via expense_new.paid_by_bank
-      if (bankTab !== "all") {
-        const expected = BANK_STRING_MAP[bankTab];
+      if (activeTab !== "all") {
+        const expected = BANK_STRING_MAP[activeTab];
         if ((r.paid_by_bank || "") !== expected) return false;
       }
       if (
@@ -490,7 +490,7 @@ export default function PaymentRecords() {
   useEffect(() => {
     // only apply when records are loaded
     if (!loading) applyFilters();
-  }, [filters, records, bankTab]);
+  }, [filters, records, activeTab]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -865,7 +865,7 @@ export default function PaymentRecords() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Bank Tabs */}
         <div className="flex items-center justify-start">
-          <Tabs value={bankTab} onValueChange={(v) => handleBankTabChange(v as any)}>
+          <Tabs value={activeTab} onValueChange={(v) => handleBankTabChange(v as any)}>
             <TabsList>
               <TabsTrigger value="all">All Records</TabsTrigger>
               <TabsTrigger value="ngidfc">NG Records</TabsTrigger>
@@ -1459,7 +1459,7 @@ export default function PaymentRecords() {
                               variant="outline"
                               onClick={() => {
                                 const params = new URLSearchParams();
-                                params.set("bankTab", bankTab);
+                                params.set("activeTab", activeTab);
                                 router.push(
                                   `/org/${slug}/finance/records/${record.id}?${params.toString()}`
                                 );
