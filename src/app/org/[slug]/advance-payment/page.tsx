@@ -57,7 +57,9 @@ export default function AdvancePaymentRecords() {
   const { slug } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isInitialized, setIsInitialized] = useState(false);
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+  const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
   // Filter state
@@ -100,6 +102,35 @@ export default function AdvancePaymentRecords() {
   // Use pagination hook
   const pagination = usePagination(filteredRecords, 100);
 
+  // Initialize activeTab from URL and listen for URL changes
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") || "all";
+    setActiveTab(tabParam);
+    setIsInitialized(true);
+  }, []);
+
+  // Update URL when activeTab changes
+  useEffect(() => {
+    if (isInitialized) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", activeTab);
+      router.push(`?${params.toString()}`);
+    }
+  }, [activeTab, isInitialized]);
+
+  // Handle tab change - remove expID parameter
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    
+    // Remove expID from URL params if it exists
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.has("expID")) {
+      params.delete("expID");
+      params.set("tab", value);
+      router.push(`?${params.toString()}`);
+    }
+  };
+
   // Reset page when filters change
   useEffect(() => {
     pagination.resetPage();
@@ -108,36 +139,63 @@ export default function AdvancePaymentRecords() {
   // Handle expID from URL parameter
   useEffect(() => {
     const expID = searchParams.get("expID");
-    if (expID) {
-      setHighlightedExpenseId(expID);
-      // Clear the expID after 10 seconds
-      const timer = setTimeout(() => {
-        setHighlightedExpenseId(null);
-      }, 10000);
-      return () => clearTimeout(timer);
-    }
-  }, [searchParams]);
+    setHighlightedExpenseId(expID);
+    setHasAppliedHighlight(false);
+  }, [searchParams.get("expID")]);
 
-  // Scroll to highlighted row when it's set
+  // Auto-clear highlight after 10 seconds and remove expID from URL
   useEffect(() => {
-    if (highlightedExpenseId && filteredRecords.length > 0) {
-      // Find which page the highlighted expense is on
-      const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
-      if (recordIndex !== -1) {
-        const itemsPerPage = 100;
-        const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
-        pagination.setCurrentPage(pageNumber);
+    if (!highlightedExpenseId) return;
+    const timer = window.setTimeout(() => {
+      setHighlightedExpenseId(null);
+      
+      // Remove expID from URL params
+      const params = new URLSearchParams(searchParams.toString());
+      if (params.has("expID")) {
+        params.delete("expID");
+        router.push(`?${params.toString()}`);
+      }
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId, searchParams, router]);
 
-        // Scroll to the highlighted row after pagination updates
-        setTimeout(() => {
-          highlightedRowRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }, 200);
+  // Navigate to page containing highlighted expense
+  useEffect(() => {
+    if (!filteredRecords.length) return;
+    const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
+    if (recordIndex !== -1) {
+      const itemsPerPage = 100;
+      const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
+      if (pageNumber !== pagination.currentPage) {
+        pagination.setCurrentPage(pageNumber);
       }
     }
-  }, [highlightedExpenseId, filteredRecords]);
+  }, [
+    highlightedExpenseId,
+    filteredRecords,
+    pagination.currentPage,
+    pagination.setCurrentPage,
+  ]);
+
+  // Scroll to highlighted row when visible on current page
+  useEffect(() => {
+    if (!highlightedExpenseId || hasAppliedHighlight) return;
+
+    const isVisible = pagination.paginatedData.some(
+      (item) => item.id === highlightedExpenseId
+    );
+    if (!isVisible) return;
+
+    const timer = window.setTimeout(() => {
+      highlightedRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      setHasAppliedHighlight(true);
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId, hasAppliedHighlight, pagination.paginatedData]);
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;
     id: string | null;
@@ -789,7 +847,7 @@ export default function AdvancePaymentRecords() {
       <h1 className="text-2xl font-bold flex flex-col sm:flex-row sm:items-center justify-start">Advance Payment Records</h1>
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="bg-muted rounded-lg">
             <TabsTrigger value="all">All Expense</TabsTrigger>
             <TabsTrigger value="ngidfc">NGIDFC Record</TabsTrigger>
@@ -1364,7 +1422,7 @@ export default function AdvancePaymentRecords() {
                               variant="outline"
                               onClick={() =>
                                 router.push(
-                                  `/org/${slug}/advance-payment/${record.id}`
+                                  `/org/${slug}/advance-payment/${record.id}?tab=${activeTab}`
                                 )
                               }
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"

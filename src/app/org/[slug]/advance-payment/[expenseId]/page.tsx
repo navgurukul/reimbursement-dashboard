@@ -1,7 +1,7 @@
 "use client";
 
 import supabase from "@/lib/supabase";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   expenses,
@@ -45,6 +45,7 @@ import DownloadAllExpensesAsPdf from "@/components/DownloadAllExpensesAsPdf";
 export default function RecordsDetails() {
   const { expenseId } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const params = useParams();
   const slug = params.slug as string;
   const { organization } = useOrgStore();
@@ -130,11 +131,10 @@ export default function RecordsDetails() {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
         <Button
           variant="link"
-          onClick={() =>
-            router.push(`/org/${slug}/advance-payment?tab=advance-payment&expID=${expenseId}`)
-          }
-          // className="text-sm cursor-pointer"
-          // disabled={loading}
+          onClick={() => {
+            const currentTab = searchParams.get("tab") || "all";
+            router.push(`/org/${slug}/advance-payment?tab=${currentTab}&expID=${expenseId}`);
+          }}
         >
           <ArrowLeft />
           Back to advance payment
