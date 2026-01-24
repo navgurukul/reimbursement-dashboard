@@ -1,7 +1,7 @@
 "use client";
 
 import supabase from "@/lib/supabase";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   expenses,
@@ -44,10 +44,15 @@ import DownloadAllExpensesAsPdf from "@/components/DownloadAllExpensesAsPdf";
 
 export default function RecordsDetails() {
   const { expenseId } = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const params = useParams();
   const slug = params.slug as string;
   const { organization } = useOrgStore();
+
+  const bankTabParam = searchParams.get("bankTab");
+  const bankTab =
+    bankTabParam === "ngidfc" || bankTabParam === "fcidfc" ? bankTabParam : "all";
 
   const [expense, setExpense] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -130,9 +135,13 @@ export default function RecordsDetails() {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
         <Button
           variant="link"
-          onClick={() =>
-            router.push(`/org/${slug}/finance?tab=records&expID=${expenseId}`)
-          }
+          onClick={() => {
+            const query = new URLSearchParams();
+            query.set("tab", "records");
+            query.set("bankTab", bankTab);
+            if (expenseId) query.set("expID", expenseId as string);
+            router.push(`/org/${slug}/finance?${query.toString()}`);
+          }}
           // className="text-sm cursor-pointer"
           // disabled={loading}
         >

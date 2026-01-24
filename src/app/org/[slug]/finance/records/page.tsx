@@ -103,6 +103,22 @@ export default function PaymentRecords() {
     fcidfc: "FCIDFC Current",
   };
 
+  useEffect(() => {
+    const tabParam = searchParams.get("bankTab");
+    if (tabParam === "ngidfc" || tabParam === "fcidfc" || tabParam === "all") {
+      setBankTab(tabParam);
+    }
+  }, [searchParams]);
+
+  const handleBankTabChange = (value: "all" | "ngidfc" | "fcidfc") => {
+    setBankTab(value);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", params.get("tab") || "records");
+    params.set("bankTab", value);
+    params.delete("expID");
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
   // Use pagination hook
   const pagination = usePagination(filteredRecords, 100);
 
@@ -849,7 +865,7 @@ export default function PaymentRecords() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Bank Tabs */}
         <div className="flex items-center justify-start">
-          <Tabs value={bankTab} onValueChange={(v) => setBankTab(v as any)}>
+          <Tabs value={bankTab} onValueChange={(v) => handleBankTabChange(v as any)}>
             <TabsList>
               <TabsTrigger value="all">All Records</TabsTrigger>
               <TabsTrigger value="ngidfc">NG Records</TabsTrigger>
@@ -1441,11 +1457,13 @@ export default function PaymentRecords() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() =>
+                              onClick={() => {
+                                const params = new URLSearchParams();
+                                params.set("bankTab", bankTab);
                                 router.push(
-                                  `/org/${slug}/finance/records/${record.id}`
-                                )
-                              }
+                                  `/org/${slug}/finance/records/${record.id}?${params.toString()}`
+                                );
+                              }}
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
                             >
                               <Eye className="w-4 h-4" />
