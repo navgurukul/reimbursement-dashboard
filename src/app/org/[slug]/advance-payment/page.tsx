@@ -1216,7 +1216,7 @@ export default function AdvancePaymentRecords() {
                     }`}
                 >
                   <TableCell className="text-center py-2">
-                    {record.serialNumber ?? pagination.getItemNumber(index)}
+                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : pagination.getItemNumber(index)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
