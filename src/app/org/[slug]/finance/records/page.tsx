@@ -180,7 +180,10 @@ export default function PaymentRecords() {
           .select("*")
           .eq("payment_status", "paid")
           .eq("org_id", orgId)
-          .order("paid_approval_time", { ascending: true, nullsFirst: true });
+          // Show records with missing paid_approval_time first, then the rest ascending
+          .order("paid_approval_time", { ascending: true, nullsFirst: true })
+          // Stable tie-breaker to prevent random ordering when timestamps match
+          .order("created_at", { ascending: true });
 
         if (error) throw error;
 
@@ -249,10 +252,24 @@ export default function PaymentRecords() {
               ? new Date(b.paid_approval_time).getTime()
               : null;
 
-            if (aTime === null && bTime === null) return 0;
-            if (aTime === null) return -1; // nulls first
+            // nulls first (show items missing paid_approval_time at the top)
+            if (aTime === null && bTime === null) {
+              // stable fallback to avoid random shuffles
+              const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+              const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
+              if (aCreated !== bCreated) return aCreated - bCreated;
+              return String(a.id || "").localeCompare(String(b.id || ""));
+            }
+            // nulls first => missing paid_approval_time appears at top
+            if (aTime === null) return -1;
             if (bTime === null) return 1;
-            return aTime - bTime; // ascending for non-nulls
+            if (aTime !== bTime) return aTime - bTime; // ascending
+
+            // stable tie-breaker when paid timestamps match
+            const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
+            if (aCreated !== bCreated) return aCreated - bCreated;
+            return String(a.id || "").localeCompare(String(b.id || ""));
           });
 
         const withTitles = rows.map((r: any) => ({
