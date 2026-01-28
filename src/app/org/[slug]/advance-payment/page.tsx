@@ -397,10 +397,16 @@ export default function AdvancePaymentRecords() {
           });
 
           const sorted = sortByPaidApprovalTime(enriched);
-          const sortedWithSerial = sorted.map((r: any, index: number) => ({
-            ...r,
-            serialNumber: index + 1,
-          }));
+          const sortedWithSerial = sorted.map((r: any, index: number) => {
+            // Use the original serial number from records tab if available, otherwise use index-based
+            const originalSerialNumber = r.custom_fields?.original_serial_number;
+            return {
+              ...r,
+              serialNumber: originalSerialNumber !== null && originalSerialNumber !== undefined 
+                ? originalSerialNumber 
+                : index + 1,
+            };
+          });
 
           // compute amount bounds
           const amounts = enriched.map(
@@ -423,10 +429,16 @@ export default function AdvancePaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
-          const fallbackWithSerial = fallback.map((r: any, index: number) => ({
-            ...r,
-            serialNumber: index + 1,
-          }));
+          const fallbackWithSerial = fallback.map((r: any, index: number) => {
+            // Use the original serial number from records tab if available, otherwise use index-based
+            const originalSerialNumber = r.custom_fields?.original_serial_number;
+            return {
+              ...r,
+              serialNumber: originalSerialNumber !== null && originalSerialNumber !== undefined 
+                ? originalSerialNumber 
+                : index + 1,
+            };
+          });
           const amounts = fallback.map(
             (r: any) => Number(r.approved_amount) || 0
           );
@@ -552,6 +564,8 @@ export default function AdvancePaymentRecords() {
         tabFiltered = records.filter(r => (r.paid_by_bank || "").includes("NGIDFC"));
       } else if (activeTab === "fcidfc") {
         tabFiltered = records.filter(r => (r.paid_by_bank || "").includes("FCIDFC"));
+      } else if (activeTab === "kotak") {
+        tabFiltered = records.filter(r => (r.paid_by_bank || "").includes("KOTAK"));
       }
       applyFilters(tabFiltered);
     }
@@ -582,9 +596,11 @@ export default function AdvancePaymentRecords() {
 
     let tabFiltered = records;
     if (activeTab === "ngidfc") {
-      tabFiltered = records.filter(r => r.paid_by_bank === "NGIDFC");
+      tabFiltered = records.filter((r) => (r.paid_by_bank || "").includes("NGIDFC"));
     } else if (activeTab === "fcidfc") {
-      tabFiltered = records.filter(r => r.paid_by_bank === "FCIDFC");
+      tabFiltered = records.filter((r) => (r.paid_by_bank || "").includes("FCIDFC"));
+    } else if (activeTab === "kotak") {
+      tabFiltered = records.filter((r) => (r.paid_by_bank || "").includes("KOTAK"));
     }
     setFilteredRecords(tabFiltered);
   };
@@ -852,6 +868,7 @@ export default function AdvancePaymentRecords() {
             <TabsTrigger value="all">All Expense</TabsTrigger>
             <TabsTrigger value="ngidfc">NGIDFC Record</TabsTrigger>
             <TabsTrigger value="fcidfc">FCIDFC Records</TabsTrigger>
+            <TabsTrigger value="kotak">KOTAK Records</TabsTrigger>
           </TabsList>
         </Tabs>
         {/* Actions */}
@@ -1216,7 +1233,7 @@ export default function AdvancePaymentRecords() {
                     }`}
                 >
                   <TableCell className="text-center py-2">
-                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : pagination.getItemNumber(index)}
+                    {record.serialNumber ?? pagination.getItemNumber(index)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}

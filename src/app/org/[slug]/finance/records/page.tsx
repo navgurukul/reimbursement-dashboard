@@ -354,10 +354,18 @@ export default function PaymentRecords() {
           });
 
           const sorted = sortByPaidApprovalTime(enriched);
-          const sortedWithSerial = sorted.map((r: any, index: number) => ({
-            ...r,
-            serialNumber: index + 1,
-          }));
+          const sortedWithSerial = sorted.map((r: any, index: number) => {
+            // If expense is already marked as advance payment, use the stored original serial number
+            // This ensures the S.No. matches between records tab and advance payment records page
+            const isMarkedAsAdvance = r.custom_fields?.marked_as_advance === true;
+            const originalSerialNumber = r.custom_fields?.original_serial_number;
+            return {
+              ...r,
+              serialNumber: isMarkedAsAdvance && originalSerialNumber !== null && originalSerialNumber !== undefined
+                ? originalSerialNumber
+                : index + 1,
+            };
+          });
 
           // compute amount bounds
           const amounts = enriched.map(
@@ -380,10 +388,18 @@ export default function PaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
-          const fallbackWithSerial = fallback.map((r: any, index: number) => ({
-            ...r,
-            serialNumber: index + 1,
-          }));
+          const fallbackWithSerial = fallback.map((r: any, index: number) => {
+            // If expense is already marked as advance payment, use the stored original serial number
+            // This ensures the S.No. matches between records tab and advance payment records page
+            const isMarkedAsAdvance = r.custom_fields?.marked_as_advance === true;
+            const originalSerialNumber = r.custom_fields?.original_serial_number;
+            return {
+              ...r,
+              serialNumber: isMarkedAsAdvance && originalSerialNumber !== null && originalSerialNumber !== undefined
+                ? originalSerialNumber
+                : index + 1,
+            };
+          });
           const amounts = fallback.map(
             (r: any) => Number(r.approved_amount) || 0
           );
@@ -599,11 +615,14 @@ export default function PaymentRecords() {
 
       // Update unique_id and add a flag in custom_fields to mark this as advance payment
       // This helps distinguish expenses marked as advance from Records tab vs those created with advance_unique_id
+      // Store the original serial number so it can be displayed on the Advance Payment Records page
       const currentCustomFields = record.custom_fields || {};
+      const originalSerialNumber = record.serialNumber || null;
       const updatedCustomFields = {
         ...currentCustomFields,
         marked_as_advance: true,
         marked_as_advance_at: new Date().toISOString(),
+        original_serial_number: originalSerialNumber, // Store the original S.No. from records tab
       };
 
       const { error } = await supabase
