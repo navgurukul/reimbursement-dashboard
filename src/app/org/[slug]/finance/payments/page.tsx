@@ -72,7 +72,7 @@ export default function PaymentProcessingOnly() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
-  const [selectedBankType, setSelectedBankType] = useState<"NGIDFC" | "FCIDCF" | "">("");
+  const [selectedBankType, setSelectedBankType] = useState<"NGIDFC" | "FCIDCF" | "KOTAK" | "">("");
 
   const allColumns = [
     "beneficiary name",
@@ -1055,6 +1055,7 @@ export default function PaymentProcessingOnly() {
                       <option value="">Select Bank</option>
                       <option value="NGIDFC Current">NGIDFC Current</option>
                       <option value="FCIDFC Current">FCIDFC Current</option>
+                      <option value="KOTAK">KOTAK</option>
                     </select>
                   </TableCell>
 
@@ -1130,7 +1131,7 @@ export default function PaymentProcessingOnly() {
           <div className="space-y-6">
             {/* Bank Type Selection */}
             <div className="space-y-3">
-              <RadioGroup value={selectedBankType} onValueChange={(value) => setSelectedBankType(value as "NGIDFC" | "FCIDCF")}>
+              <RadioGroup value={selectedBankType} onValueChange={(value) => setSelectedBankType(value as "NGIDFC" | "FCIDCF" | "KOTAK")}>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="NGIDFC" id="ngidfc" />
                   <Label htmlFor="ngidfc" className="font-normal cursor-pointer">NGIDFC Current</Label>
@@ -1138,6 +1139,10 @@ export default function PaymentProcessingOnly() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="FCIDCF" id="fcidcf" />
                   <Label htmlFor="fcidcf" className="font-normal cursor-pointer">FCIDCF Current</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="KOTAK" id="kotak" />
+                  <Label htmlFor="kotak" className="font-normal cursor-pointer">KOTAK</Label>
                 </div>
               </RadioGroup>
             </div>

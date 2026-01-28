@@ -97,20 +97,21 @@ export default function PaymentRecords() {
   const [enteredPassword, setEnteredPassword] = useState("");
 
   // Bank filter tabs: All, NGIDFC Current, FCIDFC Current
-  const [activeTab, setActiveTab] = useState<"all" | "ngidfc" | "fcidfc">("all");
-  const BANK_STRING_MAP: Record<"ngidfc" | "fcidfc", string> = {
+  const [activeTab, setActiveTab] = useState<"all" | "ngidfc" | "fcidfc" | "kotak">("all");
+  const BANK_STRING_MAP: Record<"ngidfc" | "fcidfc" | "kotak", string> = {
     ngidfc: "NGIDFC Current",
     fcidfc: "FCIDFC Current",
+    kotak: "KOTAK",
   };
 
   useEffect(() => {
     const tabParam = searchParams.get("activeTab");
-    if (tabParam === "ngidfc" || tabParam === "fcidfc" || tabParam === "all") {
+    if (tabParam === "ngidfc" || tabParam === "fcidfc" || tabParam === "kotak" || tabParam === "all") {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
 
-  const handleBankTabChange = (value: "all" | "ngidfc" | "fcidfc") => {
+  const handleBankTabChange = (value: "all" | "ngidfc" | "fcidfc" | "kotak") => {
     setActiveTab(value);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", params.get("tab") || "records");
@@ -884,9 +885,10 @@ export default function PaymentRecords() {
         <div className="flex items-center justify-start">
           <Tabs value={activeTab} onValueChange={(v) => handleBankTabChange(v as any)}>
             <TabsList>
-              <TabsTrigger value="all">All Records</TabsTrigger>
-              <TabsTrigger value="ngidfc">NG Records</TabsTrigger>
-              <TabsTrigger value="fcidfc">FC Records</TabsTrigger>
+              <TabsTrigger value="all" className="cursor-pointer">All Records</TabsTrigger>
+              <TabsTrigger value="ngidfc" className="cursor-pointer">NG Records</TabsTrigger>
+              <TabsTrigger value="fcidfc" className="cursor-pointer">FC Records</TabsTrigger>
+              <TabsTrigger value="kotak" className="cursor-pointer">KOTAK Records</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
