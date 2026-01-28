@@ -74,6 +74,7 @@ export default function PaymentRecords() {
     dateMode: "All Dates",
     minAmount: 0,
     maxAmount: 0,
+    paidByBank: "All Banks",
   });
 
   const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
@@ -422,6 +423,9 @@ export default function PaymentRecords() {
   const uniqueIds = Array.from(
     new Set(records.map((r: any) => r.unique_id).filter(Boolean))
   );
+  const paidByBankOptions = Array.from(
+    new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
+  );
   const utrValues = Array.from(
     new Set(
       (filters.uniqueId && filters.uniqueId !== "All Unique IDs"
@@ -471,6 +475,11 @@ export default function PaymentRecords() {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
+      if (
+        filters.paidByBank !== "All Banks" &&
+        (r.paid_by_bank || "") !== filters.paidByBank
+      )
+        return false;
       if (filters.utr && filters.utr !== "All UTRs") {
         if (filters.utr === "Has" && !r.utr) return false;
         if (filters.utr === "None" && r.utr) return false;
@@ -531,6 +540,7 @@ export default function PaymentRecords() {
       endDate: "",
       minAmount: amountBounds.min,
       maxAmount: amountBounds.max,
+      paidByBank: "All Banks",
     }));
     setFilteredRecords(records);
   };
@@ -1016,6 +1026,26 @@ export default function PaymentRecords() {
                 <option>Voucher</option>
               </select>
             </div>
+
+            {paidByBankOptions.length > 0 && (
+              <div className="col-span-3 sm:col-span-1">
+                <label className="text-sm font-medium">Paid by bank</label>
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2"
+                  value={filters.paidByBank}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, paidByBank: e.target.value }))
+                  }
+                >
+                  <option>All Banks</option>
+                  {paidByBankOptions.map((bank) => (
+                    <option key={bank} value={bank}>
+                      {bank}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {utrValues.length > 0 && (
               <div className="col-span-3 sm:col-span-1">
