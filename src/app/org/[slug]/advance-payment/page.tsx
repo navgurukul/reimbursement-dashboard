@@ -72,6 +72,7 @@ export default function AdvancePaymentRecords() {
     location: "All Locations",
     bills: "All Bills",
     utr: "All UTRs",
+    paidByBank: "All Banks",
     startDate: "",
     endDate: "",
     dateMode: "All Dates",
@@ -478,6 +479,9 @@ export default function AdvancePaymentRecords() {
   const uniqueIds = Array.from(
     new Set(records.map((r: any) => r.unique_id).filter(Boolean))
   );
+  const bankOptions = Array.from(
+    new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
+  );
   const utrValues = Array.from(
     new Set(
       (filters.uniqueId && filters.uniqueId !== "All Unique IDs"
@@ -522,6 +526,11 @@ export default function AdvancePaymentRecords() {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
+      if (
+        filters.paidByBank !== "All Banks" &&
+        (r.paid_by_bank || "") !== filters.paidByBank
+      )
+        return false;
       if (filters.utr && filters.utr !== "All UTRs") {
         if (filters.utr === "Has" && !r.utr) return false;
         if (filters.utr === "None" && r.utr) return false;
@@ -587,6 +596,7 @@ export default function AdvancePaymentRecords() {
       location: "All Locations",
       bills: "All Bills",
       utr: "All UTRs",
+      paidByBank: "All Banks",
       dateMode: "All Dates",
       startDate: "",
       endDate: "",
@@ -1000,6 +1010,26 @@ export default function AdvancePaymentRecords() {
                 <option>Voucher</option>
               </select>
             </div>
+
+            {bankOptions.length > 0 && (
+              <div className="col-span-3 sm:col-span-1">
+                <label className="text-sm font-medium">Paid by Bank</label>
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2"
+                  value={filters.paidByBank}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, paidByBank: e.target.value }))
+                  }
+                >
+                  <option>All Banks</option>
+                  {bankOptions.map((bank) => (
+                    <option key={bank} value={bank}>
+                      {bank}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {utrValues.length > 0 && (
               <div className="col-span-3 sm:col-span-1">
