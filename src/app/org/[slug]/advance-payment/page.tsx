@@ -865,10 +865,10 @@ export default function AdvancePaymentRecords() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="bg-muted rounded-lg">
-            <TabsTrigger value="all">All Expense</TabsTrigger>
-            <TabsTrigger value="ngidfc">NGIDFC Record</TabsTrigger>
-            <TabsTrigger value="fcidfc">FCIDFC Records</TabsTrigger>
-            <TabsTrigger value="kotak">KOTAK Records</TabsTrigger>
+            <TabsTrigger value="all" className="cursor-pointer">All Expense</TabsTrigger>
+            <TabsTrigger value="ngidfc" className="cursor-pointer">NGIDFC Record</TabsTrigger>
+            <TabsTrigger value="fcidfc" className="cursor-pointer">FCIDFC Records</TabsTrigger>
+            <TabsTrigger value="kotak" className="cursor-pointer">KOTAK Records</TabsTrigger>
           </TabsList>
         </Tabs>
         {/* Actions */}
