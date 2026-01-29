@@ -277,33 +277,10 @@ export default function AdvancePaymentRecords() {
         const rows = data || [];
 
         // Filter for advance payments only
+        // Check if expense was marked as advance from Records tab using the flag
         const advanceRows = rows.filter((r: any) => {
-          const uniqueId = (r.unique_id || "").trim();
-          if (!uniqueId) return false;
-
-          const lowerUniqueId = uniqueId.toLowerCase();
-
-          // Must start with "advance_" and have content after it
-          if (!lowerUniqueId.startsWith("advance_") || uniqueId.length <= "advance_".length) {
-            return false;
-          }
-
-          // Check if this expense was marked as advance from Records tab
-          // We set a flag in custom_fields when marking as advance
           const customFields = r.custom_fields || {};
-          if (customFields.marked_as_advance === true) {
-            return true; // This was explicitly marked as advance from Records tab
-          }
-
-          // Also check if it matches the pattern "advance_<expenseId>" 
-          // This pattern is set when marking as advance with empty unique_id
-          if (uniqueId.toLowerCase() === `advance_${r.id.toLowerCase()}`) {
-            return true; // This was marked as advance from Records tab
-          }
-
-          // Exclude expenses that might have been created with advance_unique_id from bank_details
-          // Only include if we're confident it was marked from Records tab
-          return false;
+          return customFields.marked_as_advance === true;
         });
 
         // Fetch vouchers for these records (if any)
@@ -360,19 +337,19 @@ export default function AdvancePaymentRecords() {
           }
         }
 
-        const sortByPaidApprovalTime = (list: any[]) =>
+        const sortByMarkedAsAdvanceTime = (list: any[]) =>
           [...list].sort((a, b) => {
-            const aTime = a.paid_approval_time
-              ? new Date(a.paid_approval_time).getTime()
+            const aTime = a.custom_fields?.marked_as_advance_at
+              ? new Date(a.custom_fields.marked_as_advance_at).getTime()
               : null;
-            const bTime = b.paid_approval_time
-              ? new Date(b.paid_approval_time).getTime()
+            const bTime = b.custom_fields?.marked_as_advance_at
+              ? new Date(b.custom_fields.marked_as_advance_at).getTime()
               : null;
 
             if (aTime === null && bTime === null) return 0;
-            if (aTime === null) return -1; // nulls first
-            if (bTime === null) return 1;
-            return aTime - bTime; // ascending for non-nulls
+            if (aTime === null) return 1; // nulls last
+            if (bTime === null) return -1;
+            return aTime - bTime; // ascending for non-nulls (oldest first)
           });
 
         const withTitles = advanceRows.map((r: any) => ({
@@ -397,7 +374,7 @@ export default function AdvancePaymentRecords() {
             };
           });
 
-          const sorted = sortByPaidApprovalTime(enriched);
+          const sorted = sortByMarkedAsAdvanceTime(enriched);
           const sortedWithSerial = sorted.map((r: any, index: number) => {
             // Use the original serial number from records tab if available, otherwise use index-based
             const originalSerialNumber = r.custom_fields?.original_serial_number;
@@ -424,7 +401,7 @@ export default function AdvancePaymentRecords() {
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
-          const fallback = sortByPaidApprovalTime(
+          const fallback = sortByMarkedAsAdvanceTime(
             withTitles.map((r: any) => ({
               ...r,
               unique_id: r.unique_id || "N/A",

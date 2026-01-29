@@ -48,6 +48,13 @@ import {
 import { Pagination, usePagination } from "@/components/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -598,23 +605,8 @@ export default function PaymentRecords() {
         return;
       }
 
-      // Update unique_id to start with "advance_" if it doesn't already
-      const currentUniqueId = (record.unique_id || "").trim();
-      let newUniqueId: string;
-
-      if (currentUniqueId.toLowerCase().startsWith("advance_")) {
-        // Already marked as advance, keep it as is
-        newUniqueId = currentUniqueId;
-      } else if (!currentUniqueId || currentUniqueId === "N/A" || currentUniqueId === "") {
-        // If unique_id is empty or N/A, use expense ID to create a unique advance ID
-        newUniqueId = `advance_${id}`;
-      } else {
-        // Add "advance_" prefix to existing unique_id
-        newUniqueId = `advance_${currentUniqueId}`;
-      }
-
-      // Update unique_id and add a flag in custom_fields to mark this as advance payment
-      // This helps distinguish expenses marked as advance from Records tab vs those created with advance_unique_id
+      // Keep the original unique_id - DO NOT change it
+      // Only add a flag in custom_fields to mark this as advance payment
       // Store the original serial number so it can be displayed on the Advance Payment Records page
       const currentCustomFields = record.custom_fields || {};
       const originalSerialNumber = record.serialNumber || null;
@@ -628,17 +620,16 @@ export default function PaymentRecords() {
       const { error } = await supabase
         .from("expense_new")
         .update({
-          unique_id: newUniqueId,
           custom_fields: updatedCustomFields,
         })
         .eq("id", id);
 
       if (error) throw error;
 
-      // Update local state
+      // Update local state with the marked_as_advance flag
       const updateList = (list: any[]) =>
         list.map((r: any) =>
-          r.id === id ? { ...r, unique_id: newUniqueId } : r
+          r.id === id ? { ...r, custom_fields: updatedCustomFields } : r
         );
 
       setRecords((prev) => updateList(prev));
@@ -1489,44 +1480,78 @@ export default function PaymentRecords() {
                     {record.paid_by_bank || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    {record.unique_id?.toLowerCase().startsWith("advance_") ||
-                      record.unique_id?.startsWith("Advance_") ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="inline-flex">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  setMarkAdvanceModal({ open: true, id: record.id })
-                                }
-                                disabled={record.custom_fields?.marked_as_advance === true}
-                                className={`flex items-center gap-2 border ${
-                                  record.custom_fields?.marked_as_advance === true
-                                    ? "border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
-                                    : "border-gray-300 text-black hover:bg-blue-50 cursor-pointer"
-                                }`}
-                              >
-                                <CheckCircle className="w-5 h-5 " />
-                                Mark as Advance
-                              </Button>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>
-                              {record.custom_fields?.marked_as_advance === true
-                                ? "Added on Advance Payment"
-                                : "Mark as Advance Payment"}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <span className="text-sm text-gray-500">
-                        Regular Payment
-                      </span>
-                    )}
+                    {(() => {
+                      const hasAdvancePrefix =
+                        record.unique_id?.toLowerCase().startsWith("advance_") ||
+                        record.unique_id?.startsWith("Advance_");
+                      const isMarkedAsAdvance = record.custom_fields?.marked_as_advance === true;
+                      const isAdvance = isMarkedAsAdvance || hasAdvancePrefix;
+
+                      if (isAdvance) {
+                        // If marked as advance (green button) or has advance prefix but not marked (blue button)
+                        return (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="inline-flex">
+                                  <Button
+                                    size="sm"
+                                    variant={isMarkedAsAdvance ? "outline" : "default"}
+                                    onClick={() =>
+                                      setMarkAdvanceModal({ open: true, id: record.id })
+                                    }
+                                    disabled={isMarkedAsAdvance}
+                                    className={`flex items-center gap-2 ${
+                                      isMarkedAsAdvance
+                                        ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
+                                        : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
+                                    }`}
+                                  >
+                                    {isMarkedAsAdvance && <CheckCircle className="w-5 h-5 " />}
+                                    {isMarkedAsAdvance ? "Mark as Advance" : "Mark as Advance"}
+                                  </Button>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>
+                                  {isMarkedAsAdvance ? "Added on Advance Payment" : "Mark as Advance"}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      }
+
+                      return (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="inline-flex">
+                                <Select
+                                  value={"regular"}
+                                  onValueChange={(val) => {
+                                    if (val === "advance") {
+                                      setMarkAdvanceModal({ open: true, id: record.id });
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger size="sm" className="w-40">
+                                    <SelectValue placeholder="Regular Payment" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="regular">Regular Payment</SelectItem>
+                                    <SelectItem value="advance">Mark as Advance</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Mark as Advance Payment</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     <div className="flex items-center justify-center gap-2">
@@ -1877,7 +1902,6 @@ export default function PaymentRecords() {
           <div>
             <p>
               Are you sure you want to mark this expense as an advance payment?
-              This will update the unique ID to start with &quot;advance_&quot;.
             </p>
           </div>
           <DialogFooter className="mt-4">
