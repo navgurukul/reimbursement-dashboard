@@ -47,23 +47,19 @@ import {
 } from "@/components/ui/tooltip";
 import { Pagination, usePagination } from "@/components/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function PaymentRecords() {
+export default function AdvancePaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(true);
   const { slug } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isInitialized, setIsInitialized] = useState(false);
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+  const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
   // Filter state
@@ -76,12 +72,12 @@ export default function PaymentRecords() {
     location: "All Locations",
     bills: "All Bills",
     utr: "All UTRs",
+    paidByBank: "All Banks",
     startDate: "",
     endDate: "",
     dateMode: "All Dates",
     minAmount: 0,
     maxAmount: 0,
-    paidByBank: "All Banks",
   });
 
   const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
@@ -104,32 +100,37 @@ export default function PaymentRecords() {
   });
   const [enteredPassword, setEnteredPassword] = useState("");
 
-  // Bank filter tabs: All, NGIDFC Current, FCIDFC Current
-  const [activeTab, setActiveTab] = useState<"all" | "ngidfc" | "fcidfc" | "kotak">("all");
-  const BANK_STRING_MAP: Record<"ngidfc" | "fcidfc" | "kotak", string> = {
-    ngidfc: "NGIDFC Current",
-    fcidfc: "FCIDFC Current",
-    kotak: "KOTAK",
-  };
-
-  useEffect(() => {
-    const tabParam = searchParams.get("activeTab");
-    if (tabParam === "ngidfc" || tabParam === "fcidfc" || tabParam === "kotak" || tabParam === "all") {
-      setActiveTab(tabParam);
-    }
-  }, [searchParams]);
-
-  const handleBankTabChange = (value: "all" | "ngidfc" | "fcidfc" | "kotak") => {
-    setActiveTab(value);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", params.get("tab") || "records");
-    params.set("activeTab", value);
-    params.delete("expID");
-    router.replace(`?${params.toString()}`, { scroll: false });
-  };
-
   // Use pagination hook
   const pagination = usePagination(filteredRecords, 100);
+
+  // Initialize activeTab from URL and listen for URL changes
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") || "all";
+    setActiveTab(tabParam);
+    setIsInitialized(true);
+  }, []);
+
+  // Update URL when activeTab changes
+  useEffect(() => {
+    if (isInitialized) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", activeTab);
+      router.push(`?${params.toString()}`);
+    }
+  }, [activeTab, isInitialized]);
+
+  // Handle tab change - remove expID parameter
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    
+    // Remove expID from URL params if it exists
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.has("expID")) {
+      params.delete("expID");
+      params.set("tab", value);
+      router.push(`?${params.toString()}`);
+    }
+  };
 
   // Reset page when filters change
   useEffect(() => {
@@ -139,36 +140,63 @@ export default function PaymentRecords() {
   // Handle expID from URL parameter
   useEffect(() => {
     const expID = searchParams.get("expID");
-    if (expID) {
-      setHighlightedExpenseId(expID);
-      // Clear the expID after 10 seconds
-      const timer = setTimeout(() => {
-        setHighlightedExpenseId(null);
-      }, 10000);
-      return () => clearTimeout(timer);
-    }
-  }, [searchParams]);
+    setHighlightedExpenseId(expID);
+    setHasAppliedHighlight(false);
+  }, [searchParams.get("expID")]);
 
-  // Scroll to highlighted row when it's set
+  // Auto-clear highlight after 10 seconds and remove expID from URL
   useEffect(() => {
-    if (highlightedExpenseId && filteredRecords.length > 0) {
-      // Find which page the highlighted expense is on
-      const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
-      if (recordIndex !== -1) {
-        const itemsPerPage = 100;
-        const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
-        pagination.setCurrentPage(pageNumber);
+    if (!highlightedExpenseId) return;
+    const timer = window.setTimeout(() => {
+      setHighlightedExpenseId(null);
+      
+      // Remove expID from URL params
+      const params = new URLSearchParams(searchParams.toString());
+      if (params.has("expID")) {
+        params.delete("expID");
+        router.push(`?${params.toString()}`);
+      }
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId, searchParams, router]);
 
-        // Scroll to the highlighted row after pagination updates
-        setTimeout(() => {
-          highlightedRowRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }, 200);
+  // Navigate to page containing highlighted expense
+  useEffect(() => {
+    if (!filteredRecords.length) return;
+    const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
+    if (recordIndex !== -1) {
+      const itemsPerPage = 100;
+      const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
+      if (pageNumber !== pagination.currentPage) {
+        pagination.setCurrentPage(pageNumber);
       }
     }
-  }, [highlightedExpenseId, filteredRecords]);
+  }, [
+    highlightedExpenseId,
+    filteredRecords,
+    pagination.currentPage,
+    pagination.setCurrentPage,
+  ]);
+
+  // Scroll to highlighted row when visible on current page
+  useEffect(() => {
+    if (!highlightedExpenseId || hasAppliedHighlight) return;
+
+    const isVisible = pagination.paginatedData.some(
+      (item) => item.id === highlightedExpenseId
+    );
+    if (!isVisible) return;
+
+    const timer = window.setTimeout(() => {
+      highlightedRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      setHasAppliedHighlight(true);
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId, hasAppliedHighlight, pagination.paginatedData]);
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;
     id: string | null;
@@ -181,11 +209,6 @@ export default function PaymentRecords() {
     id: string | null;
   }>({ open: false, id: null });
   const [sendBackLoading, setSendBackLoading] = useState(false);
-  const [markAdvanceModal, setMarkAdvanceModal] = useState<{
-    open: boolean;
-    id: string | null;
-  }>({ open: false, id: null });
-  const [markAdvanceLoading, setMarkAdvanceLoading] = useState(false);
   const [editModal, setEditModal] = useState<{
     open: boolean;
     record: any | null;
@@ -241,23 +264,28 @@ export default function PaymentRecords() {
 
         const orgId = orgData.id;
 
+        // Fetch all paid expenses
         const { data, error } = await supabase
           .from("expense_new")
           .select("*")
           .eq("payment_status", "paid")
           .eq("org_id", orgId)
-          // Show records with missing paid_approval_time first, then the rest ascending
-          .order("paid_approval_time", { ascending: true, nullsFirst: true })
-          // Stable tie-breaker to prevent random ordering when timestamps match
-          .order("created_at", { ascending: true });
+          .order("paid_approval_time", { ascending: true, nullsFirst: true });
 
         if (error) throw error;
 
         const rows = data || [];
 
+        // Filter for advance payments only
+        // Check if expense was marked as advance from Records tab using the flag
+        const advanceRows = rows.filter((r: any) => {
+          const customFields = r.custom_fields || {};
+          return customFields.marked_as_advance === true;
+        });
+
         // Fetch vouchers for these records (if any)
         try {
-          const expenseIds = rows.map((r: any) => r.id).filter(Boolean);
+          const expenseIds = advanceRows.map((r: any) => r.id).filter(Boolean);
           if (expenseIds.length > 0) {
             const { data: allVouchers, error: voucherError } = await supabase
               .from("vouchers")
@@ -272,7 +300,7 @@ export default function PaymentRecords() {
             }
 
             // attach voucher info to rows
-            rows.forEach((r: any) => {
+            advanceRows.forEach((r: any) => {
               const voucher = voucherMap[r.id];
               if (voucher) {
                 r.hasVoucher = true;
@@ -288,7 +316,7 @@ export default function PaymentRecords() {
         // Bulk fetch event titles
         const eventIds = [
           ...new Set(
-            rows
+            advanceRows
               .map((r: any) => r.event_id)
               .filter((id: any) => typeof id === "string" && id.length > 0)
           ),
@@ -309,36 +337,22 @@ export default function PaymentRecords() {
           }
         }
 
-        const sortByPaidApprovalTime = (list: any[]) =>
+        const sortByMarkedAsAdvanceTime = (list: any[]) =>
           [...list].sort((a, b) => {
-            const aTime = a.paid_approval_time
-              ? new Date(a.paid_approval_time).getTime()
+            const aTime = a.custom_fields?.marked_as_advance_at
+              ? new Date(a.custom_fields.marked_as_advance_at).getTime()
               : null;
-            const bTime = b.paid_approval_time
-              ? new Date(b.paid_approval_time).getTime()
+            const bTime = b.custom_fields?.marked_as_advance_at
+              ? new Date(b.custom_fields.marked_as_advance_at).getTime()
               : null;
 
-            // nulls first (show items missing paid_approval_time at the top)
-            if (aTime === null && bTime === null) {
-              // stable fallback to avoid random shuffles
-              const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
-              const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
-              if (aCreated !== bCreated) return aCreated - bCreated;
-              return String(a.id || "").localeCompare(String(b.id || ""));
-            }
-            // nulls first => missing paid_approval_time appears at top
-            if (aTime === null) return -1;
-            if (bTime === null) return 1;
-            if (aTime !== bTime) return aTime - bTime; // ascending
-
-            // stable tie-breaker when paid timestamps match
-            const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
-            if (aCreated !== bCreated) return aCreated - bCreated;
-            return String(a.id || "").localeCompare(String(b.id || ""));
+            if (aTime === null && bTime === null) return 0;
+            if (aTime === null) return 1; // nulls last
+            if (bTime === null) return -1;
+            return aTime - bTime; // ascending for non-nulls (oldest first)
           });
 
-        const withTitles = rows.map((r: any) => ({
+        const withTitles = advanceRows.map((r: any) => ({
           ...r,
           event_title: r.event_id ? eventTitleMap[r.event_id] || "N/A" : "N/A",
         }));
@@ -360,16 +374,14 @@ export default function PaymentRecords() {
             };
           });
 
-          const sorted = sortByPaidApprovalTime(enriched);
+          const sorted = sortByMarkedAsAdvanceTime(enriched);
           const sortedWithSerial = sorted.map((r: any, index: number) => {
-            // If expense is already marked as advance payment, use the stored original serial number
-            // This ensures the S.No. matches between records tab and advance payment records page
-            const isMarkedAsAdvance = r.custom_fields?.marked_as_advance === true;
+            // Use the original serial number from records tab if available, otherwise use index-based
             const originalSerialNumber = r.custom_fields?.original_serial_number;
             return {
               ...r,
-              serialNumber: isMarkedAsAdvance && originalSerialNumber !== null && originalSerialNumber !== undefined
-                ? originalSerialNumber
+              serialNumber: originalSerialNumber !== null && originalSerialNumber !== undefined 
+                ? originalSerialNumber 
                 : index + 1,
             };
           });
@@ -389,21 +401,19 @@ export default function PaymentRecords() {
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
-          const fallback = sortByPaidApprovalTime(
+          const fallback = sortByMarkedAsAdvanceTime(
             withTitles.map((r: any) => ({
               ...r,
               unique_id: r.unique_id || "N/A",
             }))
           );
           const fallbackWithSerial = fallback.map((r: any, index: number) => {
-            // If expense is already marked as advance payment, use the stored original serial number
-            // This ensures the S.No. matches between records tab and advance payment records page
-            const isMarkedAsAdvance = r.custom_fields?.marked_as_advance === true;
+            // Use the original serial number from records tab if available, otherwise use index-based
             const originalSerialNumber = r.custom_fields?.original_serial_number;
             return {
               ...r,
-              serialNumber: isMarkedAsAdvance && originalSerialNumber !== null && originalSerialNumber !== undefined
-                ? originalSerialNumber
+              serialNumber: originalSerialNumber !== null && originalSerialNumber !== undefined 
+                ? originalSerialNumber 
                 : index + 1,
             };
           });
@@ -421,7 +431,7 @@ export default function PaymentRecords() {
           setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         }
       } catch (err: any) {
-        toast.error("Failed to load records", { description: err.message });
+        toast.error("Failed to load advance payment records", { description: err.message });
       } finally {
         setLoading(false);
       }
@@ -446,7 +456,7 @@ export default function PaymentRecords() {
   const uniqueIds = Array.from(
     new Set(records.map((r: any) => r.unique_id).filter(Boolean))
   );
-  const paidByBankOptions = Array.from(
+  const bankOptions = Array.from(
     new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
   );
   const utrValues = Array.from(
@@ -460,13 +470,8 @@ export default function PaymentRecords() {
     )
   );
 
-  const applyFilters = () => {
-    const fr = records.filter((r: any) => {
-      // Bank tab filtering via expense_new.paid_by_bank
-      if (activeTab !== "all") {
-        const expected = BANK_STRING_MAP[activeTab];
-        if ((r.paid_by_bank || "") !== expected) return false;
-      }
+  const applyFilters = (sourceRecords: any[] = records) => {
+    const fr = sourceRecords.filter((r: any) => {
       if (
         filters.expenseType !== "All Expense Type" &&
         r.expense_type !== filters.expenseType
@@ -539,7 +544,17 @@ export default function PaymentRecords() {
   // Auto-apply filters when filter values change or when records update
   useEffect(() => {
     // only apply when records are loaded
-    if (!loading) applyFilters();
+    if (!loading) {
+      let tabFiltered = records;
+      if (activeTab === "ngidfc") {
+        tabFiltered = records.filter(r => (r.paid_by_bank || "").includes("NGIDFC"));
+      } else if (activeTab === "fcidfc") {
+        tabFiltered = records.filter(r => (r.paid_by_bank || "").includes("FCIDFC"));
+      } else if (activeTab === "kotak") {
+        tabFiltered = records.filter(r => (r.paid_by_bank || "").includes("KOTAK"));
+      }
+      applyFilters(tabFiltered);
+    }
   }, [filters, records, activeTab]);
 
   // Reset to page 1 when filters change
@@ -558,92 +573,25 @@ export default function PaymentRecords() {
       location: "All Locations",
       bills: "All Bills",
       utr: "All UTRs",
+      paidByBank: "All Banks",
       dateMode: "All Dates",
       startDate: "",
       endDate: "",
       minAmount: amountBounds.min,
       maxAmount: amountBounds.max,
-      paidByBank: "All Banks",
     }));
-    setFilteredRecords(records);
-  };
 
-  const sendBackToPaymentProcessing = async () => {
-    const id = sendBackModal.id;
-    if (!id) return;
-    try {
-      setSendBackLoading(true);
-
-      const { error } = await supabase
-        .from("expense_new")
-        .update({ payment_status: "pending" })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setRecords((prev) => prev.filter((r) => r.id !== id));
-      setFilteredRecords((prev) => prev.filter((r: any) => r.id !== id));
-      toast.success("Sent back to Payment Processing");
-      setSendBackModal({ open: false, id: null });
-    } catch (err: any) {
-      toast.error("Failed to send back", { description: err.message });
-    } finally {
-      setSendBackLoading(false);
+    let tabFiltered = records;
+    if (activeTab === "ngidfc") {
+      tabFiltered = records.filter((r) => (r.paid_by_bank || "").includes("NGIDFC"));
+    } else if (activeTab === "fcidfc") {
+      tabFiltered = records.filter((r) => (r.paid_by_bank || "").includes("FCIDFC"));
+    } else if (activeTab === "kotak") {
+      tabFiltered = records.filter((r) => (r.paid_by_bank || "").includes("KOTAK"));
     }
+    setFilteredRecords(tabFiltered);
   };
 
-  const markAsAdvancePayment = async () => {
-    const id = markAdvanceModal.id;
-    if (!id) return;
-    try {
-      setMarkAdvanceLoading(true);
-
-      // Get the current record
-      const record = records.find((r) => r.id === id);
-      if (!record) {
-        toast.error("Record not found");
-        return;
-      }
-
-      // Keep the original unique_id - DO NOT change it
-      // Only add a flag in custom_fields to mark this as advance payment
-      // Store the original serial number so it can be displayed on the Advance Payment Records page
-      const currentCustomFields = record.custom_fields || {};
-      const originalSerialNumber = record.serialNumber || null;
-      const updatedCustomFields = {
-        ...currentCustomFields,
-        marked_as_advance: true,
-        marked_as_advance_at: new Date().toISOString(),
-        original_serial_number: originalSerialNumber, // Store the original S.No. from records tab
-      };
-
-      const { error } = await supabase
-        .from("expense_new")
-        .update({
-          custom_fields: updatedCustomFields,
-        })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      // Update local state with the marked_as_advance flag
-      const updateList = (list: any[]) =>
-        list.map((r: any) =>
-          r.id === id ? { ...r, custom_fields: updatedCustomFields } : r
-        );
-
-      setRecords((prev) => updateList(prev));
-      setFilteredRecords((prev) => updateList(prev));
-      toast.success("Marked as Advance Payment");
-      setMarkAdvanceModal({ open: false, id: null });
-    } catch (err: any) {
-      toast.error("Failed to mark as advance payment", {
-        description: err.message,
-      });
-    } finally {
-      setMarkAdvanceLoading(false);
-    }
-  };
 
   const openEditModal = (record: any) => {
     setEditForm({
@@ -798,7 +746,7 @@ export default function PaymentRecords() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "payment_records.csv");
+    link.setAttribute("download", "advance_payment_records.csv");
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -875,14 +823,14 @@ export default function PaymentRecords() {
     ws["!cols"] = headers.map(() => ({ wch: 20 }));
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Payment Records");
+    XLSX.utils.book_append_sheet(wb, ws, "Advance Payment Records");
 
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "payment_records.xlsx";
+    link.download = "advance_payment_records.xlsx";
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -899,30 +847,33 @@ export default function PaymentRecords() {
 
   return (
     <div className="space-y-4">
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Bank Tabs */}
-        <div className="flex items-center justify-start">
-          <Tabs value={activeTab} onValueChange={(v) => handleBankTabChange(v as any)}>
-            <TabsList>
-              <TabsTrigger value="all" className="cursor-pointer">All Records</TabsTrigger>
-              <TabsTrigger value="ngidfc" className="cursor-pointer">NG Records</TabsTrigger>
-              <TabsTrigger value="fcidfc" className="cursor-pointer">FC Records</TabsTrigger>
-              <TabsTrigger value="kotak" className="cursor-pointer">KOTAK Records</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        <div className="flex gap-2 flex-wrap">
+      <h1 className="text-2xl font-bold flex flex-col sm:flex-row sm:items-center justify-start">Advance Payment Records</h1>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <TabsList className="bg-muted rounded-lg">
+            <TabsTrigger value="all" className="cursor-pointer">All Expense</TabsTrigger>
+            <TabsTrigger value="ngidfc" className="cursor-pointer">NGIDFC Record</TabsTrigger>
+            <TabsTrigger value="fcidfc" className="cursor-pointer">FCIDFC Records</TabsTrigger>
+            <TabsTrigger value="kotak" className="cursor-pointer">KOTAK Records</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {/* Actions */}
+        <div className="flex items-center gap-2">
           <Button
             onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
             variant="outline"
+            className="flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
             Export
           </Button>
-          <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
-            <Filter className="mr-2 h-4 w-4" />
+          <Button
+            variant="outline"
+            onClick={() => setFilterOpen((s) => !s)}
+            className="flex items-center gap-2"
+          >
+            <Filter className="w-4 h-4" />
             Filters
           </Button>
         </div>
@@ -1037,9 +988,9 @@ export default function PaymentRecords() {
               </select>
             </div>
 
-            {paidByBankOptions.length > 0 && (
+            {bankOptions.length > 0 && (
               <div className="col-span-3 sm:col-span-1">
-                <label className="text-sm font-medium">Paid by bank</label>
+                <label className="text-sm font-medium">Paid by Bank</label>
                 <select
                   className="mt-1 block w-full border rounded px-3 py-2"
                   value={filters.paidByBank}
@@ -1048,7 +999,7 @@ export default function PaymentRecords() {
                   }
                 >
                   <option>All Banks</option>
-                  {paidByBankOptions.map((bank) => (
+                  {bankOptions.map((bank) => (
                     <option key={bank} value={bank}>
                       {bank}
                     </option>
@@ -1255,7 +1206,6 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Paid date</TableHead>
               <TableHead className="text-center py-3">Payment Status</TableHead>
               <TableHead className="text-center py-3">Paid by bank</TableHead>
-              <TableHead className="text-center py-3">Advance Payment</TableHead>
               <TableHead className="text-center py-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -1267,9 +1217,16 @@ export default function PaymentRecords() {
               <TableRow>
                 <TableCell
                   colSpan={16}
-                  className="text-center py-6 text-gray-500"
+                  className="text-center py-12 text-gray-500"
                 >
-                  No payment records found.
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-lg font-medium text-gray-700">
+                      No Advance Payment Records Found
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Mark expenses as advance payment from the Records tab to see them here.
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
@@ -1283,7 +1240,7 @@ export default function PaymentRecords() {
                     }`}
                 >
                   <TableCell className="text-center py-2">
-                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : pagination.getItemNumber(index)}
+                    {record.serialNumber ?? pagination.getItemNumber(index)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
@@ -1339,7 +1296,7 @@ export default function PaymentRecords() {
                         className="p-0 h-auto font-normal cursor-pointer text-blue-600"
                         onClick={() =>
                           router.push(
-                            `/org/${slug}/expenses/${record.id}/voucher?from=records`
+                            `/org/${slug}/expenses/${record.id}/voucher?from=advance-payment`
                           )
                         }
                       >
@@ -1480,80 +1437,6 @@ export default function PaymentRecords() {
                     {record.paid_by_bank || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    {(() => {
-                      const hasAdvancePrefix =
-                        record.unique_id?.toLowerCase().startsWith("advance_") ||
-                        record.unique_id?.startsWith("Advance_");
-                      const isMarkedAsAdvance = record.custom_fields?.marked_as_advance === true;
-                      const isAdvance = isMarkedAsAdvance || hasAdvancePrefix;
-
-                      if (isAdvance) {
-                        // If marked as advance (green button) or has advance prefix but not marked (blue button)
-                        return (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="inline-flex">
-                                  <Button
-                                    size="sm"
-                                    variant={isMarkedAsAdvance ? "outline" : "default"}
-                                    onClick={() =>
-                                      setMarkAdvanceModal({ open: true, id: record.id })
-                                    }
-                                    disabled={isMarkedAsAdvance}
-                                    className={`flex items-center gap-2 ${
-                                      isMarkedAsAdvance
-                                        ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
-                                        : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
-                                    }`}
-                                  >
-                                    {isMarkedAsAdvance && <CheckCircle className="w-5 h-5 " />}
-                                    {isMarkedAsAdvance ? "Mark as Advance" : "Mark as Advance"}
-                                  </Button>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>
-                                  {isMarkedAsAdvance ? "Added on Advance Payment" : "Mark as Advance"}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      }
-
-                      return (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="inline-flex">
-                                <Select
-                                  value={"regular"}
-                                  onValueChange={(val) => {
-                                    if (val === "advance") {
-                                      setMarkAdvanceModal({ open: true, id: record.id });
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger size="sm" className="w-40">
-                                    <SelectValue placeholder="Regular Payment" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="regular">Regular Payment</SelectItem>
-                                    <SelectItem value="advance">Mark as Advance</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Mark as Advance Payment</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell className="text-center py-2">
                     <div className="flex items-center justify-center gap-2">
                       <TooltipProvider>
                         <Tooltip>
@@ -1561,13 +1444,11 @@ export default function PaymentRecords() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                const params = new URLSearchParams();
-                                params.set("activeTab", activeTab);
+                              onClick={() =>
                                 router.push(
-                                  `/org/${slug}/finance/records/${record.id}?${params.toString()}`
-                                );
-                              }}
+                                  `/org/${slug}/advance-payment/${record.id}?tab=${activeTab}`
+                                )
+                              }
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
                             >
                               <Eye className="w-4 h-4" />
@@ -1595,35 +1476,6 @@ export default function PaymentRecords() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setSendBackModal({ open: true, id: record.id })
-                              }
-                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
-                            >
-                              <Undo2 className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Back to Payment Processing</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          setDeleteModal({ open: true, id: record.id })
-                        }
-                        className="flex items-center gap-2 border border-gray-300 hover:bg-red-100 text-red-600 cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1653,7 +1505,7 @@ export default function PaymentRecords() {
       >
         <DialogContent className="max-w-xl sm:max-w-1xl">
           <DialogHeader>
-            <DialogTitle>Edit payment record</DialogTitle>
+            <DialogTitle>Edit advance payment record</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
             <div className="grid gap-3 text-sm">
@@ -1850,134 +1702,6 @@ export default function PaymentRecords() {
               }}
             >
               Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send back to Payment Processing modal */}
-      <Dialog
-        open={sendBackModal.open}
-        onOpenChange={() => setSendBackModal({ open: false, id: null })}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Send back to Payment Processing</DialogTitle>
-          </DialogHeader>
-          <div>
-            <p>
-              Move this record back to Payment Processing? It will be removed
-              from Payment Records.
-            </p>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setSendBackModal({ open: false, id: null })}
-              className="cursor-pointer"
-              disabled={sendBackLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={sendBackToPaymentProcessing}
-              className="cursor-pointer"
-              disabled={sendBackLoading}
-            >
-              {sendBackLoading ? "Sending..." : "Confirm"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Mark as Advance Payment modal */}
-      <Dialog
-        open={markAdvanceModal.open}
-        onOpenChange={() => setMarkAdvanceModal({ open: false, id: null })}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mark as Advance Payment</DialogTitle>
-          </DialogHeader>
-          <div>
-            <p>
-              Are you sure you want to mark this expense as an advance payment?
-            </p>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setMarkAdvanceModal({ open: false, id: null })}
-              className="cursor-pointer"
-              disabled={markAdvanceLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={markAsAdvancePayment}
-              className="cursor-pointer"
-              disabled={markAdvanceLoading}
-            >
-              {markAdvanceLoading ? "Marking..." : "Confirm"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete confirmation modal */}
-      <Dialog
-        open={deleteModal.open}
-        onOpenChange={() => setDeleteModal({ open: false, id: null })}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Payment Record</DialogTitle>
-          </DialogHeader>
-          <div>
-            <p>
-              Are you sure you want to delete this payment record? This action
-              cannot be undone.
-            </p>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setDeleteModal({ open: false, id: null })}
-              className="cursor-pointer"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                const id = deleteModal.id;
-                if (!id) return;
-                try {
-                  // Mark the record as removed so it doesn't reappear in Payment Processing
-                  const { error } = await supabase
-                    .from("expense_new")
-                    .update({ payment_status: "removed" })
-                    .eq("id", id);
-
-                  if (error) throw error;
-
-                  // Remove from local UI list
-                  setRecords((prev) => prev.filter((r) => r.id !== id));
-                  setFilteredRecords((prev) =>
-                    prev.filter((r: any) => r.id !== id)
-                  );
-                  toast.success("Record removed from Payment Records");
-                } catch (err: any) {
-                  toast.error("Failed to remove record", {
-                    description: err.message,
-                  });
-                } finally {
-                  setDeleteModal({ open: false, id: null });
-                }
-              }}
-              className="cursor-pointer"
-            >
-              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

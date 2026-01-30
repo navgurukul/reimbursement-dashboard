@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   ChevronsUpDownIcon,
+  Wallet,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -186,6 +187,11 @@ export function AppSidebar() {
           title: "Finance Management",
           href: `/org/${organization?.slug}/finance`,
           icon: Landmark,
+        },
+        {
+          title: "Advance Payment",
+          href: `/org/${organization?.slug}/advance-payment`,
+          icon: Wallet,
         },
         {
           title: "Bank Details",

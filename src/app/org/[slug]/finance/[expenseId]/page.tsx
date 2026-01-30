@@ -314,6 +314,17 @@ export default function FinanceExpenseDetails() {
         )}
       </div>
 
+      {/* Show message if expense is created using Advance Unique ID */}
+      {expense && expense.unique_id &&
+        (expense.unique_id.toLowerCase().startsWith("advance_") ||
+          expense.unique_id.startsWith("Advance_")) && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-sm text-black-800">
+              ℹ️ This expense was created using Advance Unique ID: <span className="font-mono font-semibold">{expense.unique_id}</span>
+            </p>
+          </div>
+        )}
+
       {/* Grid Layout */}
       <div className="grid grid-cols-1 md:grid-cols-7 gap-6">
         {/* Expense Details */}
@@ -381,8 +392,8 @@ export default function FinanceExpenseDetails() {
                       {hasVoucher
                         ? "Voucher Preview Below"
                         : expense?.receipt
-                        ? "Receipt Preview Below"
-                        : "N/A"}
+                          ? "Receipt Preview Below"
+                          : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>

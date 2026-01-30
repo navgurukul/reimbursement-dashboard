@@ -100,6 +100,8 @@ interface BankDetailRecord {
   bank_name?: string | null;
   account_number?: string | null;
   ifsc_code?: string | null;
+  advance_unique_id?: string | null;
+  bankDetails?: { advanceUniqueId?: string | null } | null;
 }
 
 export default function NewExpensePage() {
@@ -749,7 +751,7 @@ export default function NewExpensePage() {
         const { data, error } = await supabase
           .from("bank_details")
           .select(
-            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code"
+            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id"
           )
           .eq("email", user.email)
           .limit(1);
@@ -786,6 +788,17 @@ export default function NewExpensePage() {
     setUniqueIdModalOpen(false);
   };
 
+  const handleAdvanceUniqueIdSelect = (
+    detail: BankDetailRecord,
+    advanceId: string
+  ) => {
+    handleInputChange("unique_id", advanceId);
+    setSelectedUniqueIdUser(detail);
+    setPrefilledUniqueId(advanceId || null);
+    setUniqueIdUnavailable(false);
+    setUniqueIdModalOpen(false);
+  };
+
   // Search bank details when the modal is open
   useEffect(() => {
     if (!uniqueIdModalOpen) {
@@ -805,7 +818,7 @@ export default function NewExpensePage() {
         let query = supabase
           .from("bank_details")
           .select(
-            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code"
+            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id"
           )
           .order("account_holder", { ascending: true });
         // .limit(20);
@@ -1710,33 +1723,63 @@ export default function NewExpensePage() {
                       </p>
                     ) : (
                       <div className="divide-y">
-                        {bankSearchResults.map((row) => (
-                          <button
-                            type="button"
-                            key={row.id}
-                            onClick={() => handleUniqueIdSelect(row)}
-                            className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-white cursor-pointer"
-                          >
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">
-                                {row.account_holder || "Unnamed account"}
-                              </p>
-                              <p className="text-xs text-gray-600">
-                                {row.email || "No email available"}
-                              </p>
+                        {bankSearchResults.map((row) => {
+                          const advanceUniqueId =
+                            row.advance_unique_id ||
+                            row.bankDetails?.advanceUniqueId ||
+                            null;
+
+                          return (
+                            <div key={row.id} className="w-full px-3 py-3">
+                              <div className="space-y-3">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUniqueIdSelect(row)}
+                                  className="flex w-full items-center justify-between gap-3 rounded-lg border bg-white px-3 py-3 text-left shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer"
+                                >
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-900">
+                                      {row.account_holder || "Unnamed account"}
+                                    </p>
+                                    <p className="text-xs text-gray-600">
+                                      {row.email || "No email available"}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-mono text-sm text-gray-900">
+                                      {row.unique_id || "—"}
+                                    </p>
+                                    {row.bank_name && (
+                                      <p className="text-[11px] text-gray-500">
+                                        {row.bank_name}
+                                      </p>
+                                    )}
+                                  </div>
+                                </button>
+
+                                {advanceUniqueId && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleAdvanceUniqueIdSelect(
+                                        row,
+                                        advanceUniqueId
+                                      )
+                                    }
+                                    className="flex w-full flex-col rounded-lg border bg-white px-3 py-3 text-left shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer"
+                                  >
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-700">
+                                      Advance Unique ID
+                                    </p>
+                                    <p className="mt-2 inline-flex items-center rounded-md bg-blue-50 px-2 py-1 font-mono text-sm font-semibold text-blue-800 ring-1 ring-inset ring-blue-100">
+                                      {advanceUniqueId}
+                                    </p>
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p className="font-mono text-sm text-gray-900">
-                                {row.unique_id || "—"}
-                              </p>
-                              {row.bank_name && (
-                                <p className="text-[11px] text-gray-500">
-                                  {row.bank_name}
-                                </p>
-                              )}
-                            </div>
-                          </button>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import supabase from "@/lib/supabase";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   expenses,
@@ -13,8 +13,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock, ArrowLeft } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
+import { FileText, Clock, ArrowLeft, } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
 import {
@@ -25,8 +24,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import ExpenseHistory from "../../../expenses/[id]/history/expense-history";
-import { ExpenseComments } from "../../../expenses/[id]/history/expense-comments";
+import ExpenseHistory from "../../expenses/[id]/history/expense-history";
+import { ExpenseComments } from "../../expenses/[id]/history/expense-comments";
 import ReceiptPreview from "@/components/ReceiptPreview";
 import VoucherPreview from "@/components/VoucherPreview";
 
@@ -41,10 +40,12 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useOrgStore } from "@/store/useOrgStore";
+import DownloadAllExpensesAsPdf from "@/components/DownloadAllExpensesAsPdf";
 
-export default function PaymentProcessingDetails() {
+export default function RecordsDetails() {
   const { expenseId } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const params = useParams();
   const slug = params.slug as string;
   const { organization } = useOrgStore();
@@ -65,10 +66,12 @@ export default function PaymentProcessingDetails() {
       else setExpense(data);
 
       // Fetch related event title if present
+      let eventTitleValue: string | null = null;
       if (data?.event_id) {
         try {
           const { data: ev } = await expenseEvents.getById(data.event_id);
-          setEventTitle(ev?.title || null);
+          eventTitleValue = ev?.title || null;
+          setEventTitle(eventTitleValue);
         } catch (e) {
           setEventTitle(null);
         }
@@ -86,7 +89,12 @@ export default function PaymentProcessingDetails() {
         setHasVoucher(true);
       }
 
-      const expenseData = { ...data };
+      const expenseData = { 
+        ...data, 
+        event_title: eventTitleValue,
+        hasVoucher: !voucherError && !!voucherData,
+        voucherId: voucherData?.id || null
+      } as any;
       const signaturePath = expenseData.signature_url;
       if (signaturePath && !signaturePath.startsWith("http")) {
         const { data: sigData } = supabase.storage
@@ -113,189 +121,6 @@ export default function PaymentProcessingDetails() {
     fetchExpense();
   }, [expenseId]);
 
-  const markExpensePaidWithTimestamp = async (id: string) => {
-    const paidAt = new Date().toISOString();
-    const attempts: { payload: Record<string, any>; allowRetry: boolean }[] = [
-      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: true },
-      { payload: { payment_status: "paid", paid_approval_time: paidAt }, allowRetry: false },
-    ];
-
-    let lastError: any = null;
-
-    for (const attempt of attempts) {
-      const { error } = await supabase
-        .from("expense_new")
-        .update(attempt.payload)
-        .eq("id", id);
-
-      if (!error) return paidAt;
-
-      lastError = error;
-      const message = (error?.message || "").toLowerCase();
-      if (!attempt.allowRetry || !message.includes("paid_approval_time")) {
-        break;
-      }
-    }
-
-    throw lastError;
-  };
-
-  const handleFinanceReject = async () => {
-    if (!comment.trim()) {
-      toast.error("Please add a comment for rejection.");
-      return;
-    }
-
-    setProcessing(true);
-    const { error } = await expenses.updateByFinance(
-      expenseId as string,
-      false,
-      comment
-    );
-    if (error) toast.error("Rejection failed");
-    else {
-      // Log history and notify creator
-      try {
-        const { data: userData } = await auth.getUser();
-        const currentUserId = userData.user?.id || "";
-        let userName = userData.user?.email || "Unknown User";
-        if (currentUserId) {
-          const profRes = await profiles.getByUserId(currentUserId);
-          const fullName = (profRes as any)?.data?.full_name as
-            | string
-            | undefined;
-          if (fullName) userName = fullName;
-        }
-        await expenseHistory.addEntry(
-          expenseId as string,
-          currentUserId,
-          userName,
-          "finance_rejected",
-          null,
-          comment || "Rejected by Finance"
-        );
-
-        if (expense?.user_id) {
-          const { data: creatorProfile } = await profiles.getById(
-            expense.user_id
-          );
-          const { data: financeProfile } = currentUserId
-            ? await profiles.getById(currentUserId)
-            : { data: null };
-          if (creatorProfile?.email) {
-            await fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                expenseId,
-                creatorEmail: creatorProfile.email,
-                creatorName: creatorProfile.full_name,
-                approverName: financeProfile?.full_name || userName,
-                orgName: null,
-                slug,
-                amount: expense.amount,
-                approvedAmount: expense.approved_amount ?? expense.amount,
-                expenseType: expense.expense_type,
-                status: "payment_not_processed",
-                rejectionReason: comment,
-                decisionStage: "finance",
-              }),
-            });
-          }
-        }
-      } catch (logErr) {
-        console.error("Failed to log finance_rejected entry:", logErr);
-      }
-      toast.success("Expense has been rejected by Finance. Email notification has been sent to the expense creator.");
-      router.push(`/org/${slug}/finance?tab=payments`);
-    }
-    setProcessing(false);
-  };
-
-  const handleFinanceApprove = async () => {
-    if (!expenseId) return;
-    setProcessing(true);
-    const { error } = await expenses.updateByFinance(
-      expenseId as string,
-      true,
-      "Approved by Finance"
-    );
-    if (error) {
-      toast.error("Approval failed");
-    } else {
-      // Log history and notify creator
-      try {
-        const { data: userData } = await auth.getUser();
-        const currentUserId = userData.user?.id || "";
-        let userName = userData.user?.email || "Unknown User";
-        if (currentUserId) {
-          const profRes = await profiles.getByUserId(currentUserId);
-          const fullName = (profRes as any)?.data?.full_name as
-            | string
-            | undefined;
-          if (fullName) userName = fullName;
-        }
-        await expenseHistory.addEntry(
-          expenseId as string,
-          currentUserId,
-          userName,
-          "finance_approved",
-          null,
-          "Approved by Finance"
-        );
-      } catch (logErr) {
-        console.error("Failed to log finance_approved entry:", logErr);
-      }
-      // Also mark as paid so it appears in Payment Records
-      try {
-        await markExpensePaidWithTimestamp(expenseId as string);
-      } catch (err) {
-        console.error("Error updating payment_status:", err);
-      }
-      // Send payment processed email notification (matches screenshot)
-      try {
-        if (expense?.user_id) {
-          const { data: creatorProfile } = await profiles.getById(
-            expense.user_id
-          );
-          // Resolve current finance user's display name
-          const { data: userData } = await auth.getUser();
-          const currentUserId = userData.user?.id || "";
-          let approverName = userData.user?.email || "Finance Team";
-          if (currentUserId) {
-            const profRes = await profiles.getByUserId(currentUserId);
-            const fullName = (profRes as any)?.data?.full_name as string | undefined;
-            if (fullName) approverName = fullName;
-          }
-          if (creatorProfile?.email) {
-            await fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                expenseId,
-                creatorEmail: creatorProfile.email,
-                creatorName: creatorProfile.full_name,
-                approverName,
-                orgName: organization?.name || null,
-                slug,
-                amount: expense.amount,
-                approvedAmount: expense.approved_amount ?? expense.amount,
-                expenseType: expense.expense_type,
-                status: "payment_processed",
-                decisionStage: "finance",
-              }),
-            });
-          }
-        }
-      } catch (notifyErr) {
-        console.error("Failed to send payment processed email:", notifyErr);
-      }
-      toast.success("Approved by Finance. Email notification has been sent to the expense creator.");
-      router.push(`/org/${slug}/finance?tab=payments`);
-    }
-    setProcessing(false);
-  };
-
   if (!loading && !expense) {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
@@ -303,50 +128,24 @@ export default function PaymentProcessingDetails() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
         <Button
           variant="link"
-          onClick={() =>
-            router.push(`/org/${slug}/finance?tab=payments&expID=${expenseId}`)
-          }
-        // className="text-sm cursor-pointer"
-        // disabled={loading}
+          onClick={() => {
+            const currentTab = searchParams.get("tab") || "all";
+            router.push(`/org/${slug}/advance-payment?tab=${currentTab}&expID=${expenseId}`);
+          }}
         >
           <ArrowLeft />
-          Back to Payment Processing
+          Back to advance payment
         </Button>
-        {!loading && (
-          <div className="flex gap-2 mt-2 md:mt-0">
-            <Button
-              onClick={handleFinanceApprove}
-              disabled={processing}
-              variant="success"
-              className="cursor-pointer"
-            >
-              Approve
-            </Button>
-            <Button
-              onClick={() => setShowCommentBox(true)}
-              disabled={processing}
-              variant="destructive"
-              className="cursor-pointer"
-            >
-              Reject
-            </Button>
-          </div>
+        {!loading && expense && organization && (
+          <DownloadAllExpensesAsPdf
+            expensesList={[expense]}
+            organization={organization}
+          />
         )}
       </div>
-
-      {/* Show message if expense is created using Advance Unique ID */}
-      {expense && expense.unique_id &&
-        (expense.unique_id.toLowerCase().startsWith("advance_") ||
-          expense.unique_id.startsWith("Advance_")) && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-sm text-black-800">
-              ℹ️ This expense was created using Advance Unique ID: <span className="font-mono font-semibold">{expense.unique_id}</span>
-            </p>
-          </div>
-        )}
 
       {/* Grid Layout */}
       <div className="grid md:grid-cols-3 gap-8">
@@ -366,6 +165,12 @@ export default function PaymentProcessingDetails() {
                   <TableRow>
                     <TableHead>Timestamp</TableHead>
                     <TableCell>{formatDateTime(expense.created_at)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Paid Date</TableHead>
+                    <TableCell>
+                      {expense.paid_approval_time ? new Date(expense.paid_approval_time).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Payment Unique ID</TableHead>
@@ -417,8 +222,8 @@ export default function PaymentProcessingDetails() {
                       {hasVoucher
                         ? "Voucher Preview Below"
                         : expense?.receipt
-                          ? "Receipt Preview Below"
-                          : "N/A"}
+                        ? "Receipt Preview Below"
+                        : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -529,23 +334,6 @@ export default function PaymentProcessingDetails() {
                 placeholder="Please write reason for rejection..."
               />
             </div>
-
-            <DialogFooter className="mt-4">
-              <Button
-                variant="outline"
-                className="cursor-pointer"
-                onClick={() => setShowCommentBox(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                className="cursor-pointer"
-                onClick={handleFinanceReject}
-              >
-                Submit Rejection
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

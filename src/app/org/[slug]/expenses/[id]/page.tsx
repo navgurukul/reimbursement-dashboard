@@ -800,14 +800,14 @@ export default function ViewExpensePage() {
       setSavingDescription(true);
 
       // Merge into custom_fields if present otherwise update description
-            const newCustomFields = {
-              ...(expense.custom_fields || {}),
-              description: descriptionText,
-            };
-      
-            const { data, error } = await expenses.update(expense.id, {
-              custom_fields: newCustomFields,
-            });
+      const newCustomFields = {
+        ...(expense.custom_fields || {}),
+        description: descriptionText,
+      };
+
+      const { data, error } = await expenses.update(expense.id, {
+        custom_fields: newCustomFields,
+      });
 
       if (error || !data) {
         console.error("Failed to save description:", error);
@@ -975,8 +975,8 @@ export default function ViewExpensePage() {
           approvalType === "policy"
             ? "Approved as per policy limit"
             : approvalType === "full"
-            ? "Approved with full amount"
-            : "Expense approved";
+              ? "Approved with full amount"
+              : "Expense approved";
 
         await expenseHistory.addEntry(
           expenseId,
@@ -998,8 +998,8 @@ export default function ViewExpensePage() {
           approvalType === "policy"
             ? "Approved as per policy limit"
             : approvalType === "full"
-            ? "Approved with full amount"
-            : "Expense approved"
+              ? "Approved with full amount"
+              : "Expense approved"
         );
       }
 
@@ -1696,6 +1696,17 @@ export default function ViewExpensePage() {
         </Button>
       </div>
 
+      {/* Show message if expense is created using Advance Unique ID */}
+      {expense.unique_id &&
+        (expense.unique_id.toLowerCase().startsWith("advance_") ||
+          expense.unique_id.startsWith("Advance_")) && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-sm text-black-800">
+              ℹ️ This expense was created using Advance Unique ID: <span className="font-mono font-semibold">{expense.unique_id}</span>
+            </p>
+          </div>
+        )}
+
       {/* Added more margin to the policy alert banner */}
       {isOverPolicy && relevantPolicy && (
         <div className="mb-6">
@@ -1916,13 +1927,12 @@ export default function ViewExpensePage() {
                     Status
                   </p>
                   <p
-                    className={`${
-                      expense.status === "approved"
+                    className={`${expense.status === "approved"
                         ? "text-green-600"
                         : expense.status === "rejected"
-                        ? "text-red-600"
-                        : "text-amber-600"
-                    }`}
+                          ? "text-red-600"
+                          : "text-amber-600"
+                      }`}
                   >
                     {expense.status.charAt(0).toUpperCase() +
                       expense.status.slice(1)}
@@ -2336,9 +2346,9 @@ export default function ViewExpensePage() {
                                   </p>
                                 </div>
                                 {voucherAttachmentFilename &&
-                                voucherAttachmentFilename
-                                  .toLowerCase()
-                                  .endsWith(".pdf") ? (
+                                  voucherAttachmentFilename
+                                    .toLowerCase()
+                                    .endsWith(".pdf") ? (
                                   <div
                                     className="rounded-md border bg-white overflow-hidden"
                                     style={{ height: "500px" }}
@@ -2449,7 +2459,7 @@ export default function ViewExpensePage() {
 
                   {savedUserSignature &&
                     formData.expense_signature_preview !==
-                      savedUserSignature && (
+                    savedUserSignature && (
                       <p className="text-xs text-blue-600">
                         * You're using a new signature. This will replace your
                         saved signature when you submit.
@@ -2550,12 +2560,12 @@ export default function ViewExpensePage() {
                 customFields.length > 0 && ( // make sure customFields are loaded
                   <div className="grid grid-cols-2 gap-4 mt-4 break-words">
                     {Object.entries(expense.custom_fields)
-                          .filter(([key]) =>
-                            key !== "location_of_expense" &&
-                            key !== "Location of Expense" &&
-                            key.toLowerCase() !== "location_of_expense" &&
-                            key.toLowerCase() !== "description"
-                          ) // Exclude Location Of Expense and description
+                      .filter(([key]) =>
+                        key !== "location_of_expense" &&
+                        key !== "Location of Expense" &&
+                        key.toLowerCase() !== "location_of_expense" &&
+                        key.toLowerCase() !== "description"
+                      ) // Exclude Location Of Expense and description
                       .map(([key, value]) => {
                         const matchedField = customFields.find(
                           (field) => field.key === key
