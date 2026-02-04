@@ -448,13 +448,15 @@ export default function EditExpensePage() {
         </CardContent>
       </Card>
 
-      {/* Current Receipt Preview */}
-      {expense.receipt && !receiptFile && (
+      {/* Current Receipt Preview - only show if expense has receipt */}
+      {expense.receipt && !receiptFile && !hasVoucher && (
         <ReceiptPreview expense={expense} defaultOpen={true} />
       )}
 
-      {/* Voucher Preview */}
-      <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} />
+      {/* Voucher Preview - only show if expense has voucher */}
+      {hasVoucher && (
+        <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} />
+      )}
     </div>
   );
 }
