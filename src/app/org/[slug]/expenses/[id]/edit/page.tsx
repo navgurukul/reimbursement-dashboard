@@ -360,7 +360,11 @@ export default function EditExpensePage() {
             {/* Custom fields */}
             {Object.entries(expense.custom_fields).map(([key, value]) => {
               // Check if this field is location_of_expense and has options
-              const isLocationField = key === "location_of_expense" || key === "location";
+              const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+              const isLocationField =
+                normalizedKey === "location" ||
+                normalizedKey === "location of expense" ||
+                normalizedKey === "location_of_expense";
               const hasLocationOptions = isLocationField && locationOptions.length > 0;
 
               return (
