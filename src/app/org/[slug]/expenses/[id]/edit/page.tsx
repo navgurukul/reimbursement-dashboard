@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses, expenseHistory } from "@/lib/db";
+import { orgSettings, expenses, expenseHistory, vouchers } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Save, Upload, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import supabase from "@/lib/supabase";
+import ReceiptPreview from "@/components/ReceiptPreview";
+import VoucherPreview from "@/components/VoucherPreview";
 
 export default function EditExpensePage() {
   const router = useRouter();
@@ -35,10 +37,15 @@ export default function EditExpensePage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [columns, setColumns] = useState<any[]>([]);
+  const [expenseTypeOptions, setExpenseTypeOptions] = useState<string[]>([]);
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [hasVoucher, setHasVoucher] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
       try {
+        // Fetch expense data
         const { data, error } = await expenses.getById(expenseId);
         if (error) {
           toast.error("Failed to load expense", {
@@ -54,6 +61,54 @@ export default function EditExpensePage() {
           date: new Date(data.date).toISOString().split("T")[0],
           ...data.custom_fields,
         });
+
+        // Check if expense has voucher
+        const { data: voucherData } = await vouchers.getByExpenseId(expenseId);
+        setHasVoucher(!!voucherData);
+
+        // Fetch organization settings for dropdowns
+        const { data: settings, error: settingsError } = await orgSettings.getByOrgId(orgId);
+        if (!settingsError && settings && settings.expense_columns) {
+          setColumns(settings.expense_columns);
+
+          // Extract expense type options
+          const expenseTypeCol = settings.expense_columns.find(
+            (col: any) => col.key === "expense_type"
+          );
+          if (expenseTypeCol && expenseTypeCol.options) {
+            const options = expenseTypeCol.options;
+            if (Array.isArray(options) && options.length > 0) {
+              if (typeof options[0] === "object") {
+                setExpenseTypeOptions(
+                  (options as Array<{ value: string; label: string }>).map(
+                    (opt) => opt.label || opt.value
+                  )
+                );
+              } else {
+                setExpenseTypeOptions(options as string[]);
+              }
+            }
+          }
+
+          // Extract location options
+          const locationCol = settings.expense_columns.find(
+            (col: any) => col.key === "location" || col.key === "location_of_expense"
+          );
+          if (locationCol && locationCol.options) {
+            const options = locationCol.options;
+            if (Array.isArray(options) && options.length > 0) {
+              if (typeof options[0] === "object") {
+                setLocationOptions(
+                  (options as Array<{ value: string; label: string }>).map(
+                    (opt) => opt.label || opt.value
+                  )
+                );
+              } else {
+                setLocationOptions(options as string[]);
+              }
+            }
+          }
+        }
       } catch (error) {
         console.error("Error fetching expense:", error);
         toast.error("An unexpected error occurred");
@@ -63,7 +118,7 @@ export default function EditExpensePage() {
     }
 
     fetchData();
-  }, [expenseId, router, slug]);
+  }, [expenseId, router, slug, orgId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -247,14 +302,34 @@ export default function EditExpensePage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="expense_type">Expense Type</Label>
-                <Input
-                  id="expense_type"
-                  value={formData.expense_type || ""}
-                  onChange={(e) =>
-                    handleInputChange("expense_type", e.target.value)
-                  }
-                  required
-                />
+                {expenseTypeOptions.length > 0 ? (
+                  <Select
+                    value={formData.expense_type || ""}
+                    onValueChange={(value: string) =>
+                      handleInputChange("expense_type", value)
+                    }
+                  >
+                    <SelectTrigger id="expense_type" className="w-full">
+                      <SelectValue placeholder="Select expense type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {expenseTypeOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="expense_type"
+                    value={formData.expense_type || ""}
+                    onChange={(e) =>
+                      handleInputChange("expense_type", e.target.value)
+                    }
+                    required
+                  />
+                )}
               </div>
 
               <div className="space-y-2">
@@ -283,67 +358,103 @@ export default function EditExpensePage() {
             </div>
 
             {/* Custom fields */}
-            {Object.entries(expense.custom_fields).map(([key, value]) => (
-              <div key={key} className="space-y-2">
-                <Label htmlFor={key}>{key}</Label>
-                <Input
-                  id={key}
-                  value={formData[key] || ""}
-                  onChange={(e) => handleInputChange(key, e.target.value)}
-                />
-              </div>
-            ))}
+            {Object.entries(expense.custom_fields).map(([key, value]) => {
+              // Check if this field is location_of_expense and has options
+              const isLocationField = key === "location_of_expense" || key === "location";
+              const hasLocationOptions = isLocationField && locationOptions.length > 0;
 
-            {/* Receipt upload section */}
-            <div className="space-y-2">
-              <Label htmlFor="receipt">Receipt</Label>
-              <div className="flex items-center space-x-2">
-                <Input
-                  id="receipt"
-                  type="file"
-                  onChange={handleFileChange}
-                  accept="image/*,.pdf"
-                />
-                {receiptFile && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setReceiptFile(null);
-                      setReceiptPreview(null);
-                    }}
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Clear
-                  </Button>
-                )}
-              </div>
-              {receiptPreview && (
-                <div className="mt-2">
-                  {receiptPreview.startsWith("data:image") ? (
-                    <img
-                      src={receiptPreview}
-                      alt="Receipt preview"
-                      className="max-h-40 rounded-md"
-                    />
+              return (
+                <div key={key} className="space-y-2">
+                  <Label htmlFor={key}>{key}</Label>
+                  {hasLocationOptions ? (
+                    <Select
+                      value={formData[key] || ""}
+                      onValueChange={(value: string) =>
+                        handleInputChange(key, value)
+                      }
+                    >
+                      <SelectTrigger id={key} className="w-full">
+                        <SelectValue placeholder={`Select ${key}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locationOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
-                    <div className="p-2 border rounded-md">
-                      <p className="text-sm">PDF receipt selected</p>
-                    </div>
+                    <Input
+                      id={key}
+                      value={formData[key] || ""}
+                      onChange={(e) => handleInputChange(key, e.target.value)}
+                    />
                   )}
                 </div>
-              )}
-              {expense.receipt && !receiptPreview && (
-                <div className="mt-2">
-                  <p className="text-sm text-muted-foreground">
-                    Current receipt: {expense.receipt.filename}
-                  </p>
+              );
+            })}
+
+            {/* Receipt upload section - only show if no voucher exists */}
+            {!hasVoucher && (
+              <div className="space-y-2">
+                <Label htmlFor="receipt">Receipt</Label>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    id="receipt"
+                    type="file"
+                    onChange={handleFileChange}
+                    accept="image/*,.pdf"
+                  />
+                  {receiptFile && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setReceiptFile(null);
+                        setReceiptPreview(null);
+                      }}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Clear
+                    </Button>
+                  )}
                 </div>
-              )}
-            </div>
+                {receiptPreview && (
+                  <div className="mt-2">
+                    {receiptPreview.startsWith("data:image") ? (
+                      <img
+                        src={receiptPreview}
+                        alt="Receipt preview"
+                        className="max-h-40 rounded-md"
+                      />
+                    ) : (
+                      <div className="p-2 border rounded-md">
+                        <p className="text-sm">PDF receipt selected</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {expense.receipt && !receiptPreview && (
+                  <div className="mt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Current receipt: {expense.receipt.filename}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
+
+      {/* Current Receipt Preview */}
+      {expense.receipt && !receiptFile && (
+        <ReceiptPreview expense={expense} defaultOpen={true} />
+      )}
+
+      {/* Voucher Preview */}
+      <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} />
     </div>
   );
 }
