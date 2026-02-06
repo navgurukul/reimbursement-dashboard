@@ -1684,6 +1684,13 @@ export default function ViewExpensePage() {
     }
   };
 
+  const tdsPercentage = expense.tds_deduction_percentage;
+  const tdsBaseAmount = expense.approved_amount ?? expense.amount;
+  const tdsAmount = tdsPercentage
+    ? expense.tds_deduction_amount ??
+      Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
+    : null;
+
   return (
     <div className="container mx-auto py-6">
       <div className="mb-4">
@@ -1914,6 +1921,22 @@ export default function ViewExpensePage() {
                       </p>
                     </div>
                   )}
+
+                {tdsPercentage ? (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      TDS Deduction
+                    </p>
+                    <p className="text-amber-600 font-medium">
+                      {tdsPercentage}% (
+                      {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR",
+                      }).format(tdsAmount ?? 0)}
+                      )
+                    </p>
+                  </div>
+                ) : null}
 
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">

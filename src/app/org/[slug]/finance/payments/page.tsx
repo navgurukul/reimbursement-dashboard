@@ -52,6 +52,15 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+const calculateTdsAmount = (
+  baseAmount: number | null | undefined,
+  percentage: number | null | undefined
+) => {
+  if (!percentage || !baseAmount) return null;
+  const amount = (baseAmount * percentage) / 100;
+  return Number(amount.toFixed(2));
+};
+
 export default function PaymentProcessingOnly() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
@@ -213,6 +222,8 @@ export default function PaymentProcessingOnly() {
             // Prefer bank's email when we matched bank details (especially when matched by unique_id)
             bank_email:
               bankByUnique?.email || matchedBank?.email || exp.email || "-",
+            tds_deduction_percentage: exp.tds_deduction_percentage ?? null,
+            tds_deduction_amount: exp.tds_deduction_amount ?? null,
           };
         });
 
@@ -479,6 +490,41 @@ export default function PaymentProcessingOnly() {
     return true;
   };
 
+  const handleTdsChange = async (expenseId: string, value: string) => {
+    const percentage = value ? Number.parseInt(value, 10) : null;
+    const updatedExpenses = processingExpenses.map((exp) => {
+      if (exp.id !== expenseId) return exp;
+      const baseAmount = exp.approved_amount ?? exp.amount ?? 0;
+      const tdsAmount = calculateTdsAmount(baseAmount, percentage);
+      const actualAmount = baseAmount - (tdsAmount ?? 0);
+      return {
+        ...exp,
+        tds_deduction_percentage: percentage,
+        tds_deduction_amount: tdsAmount,
+        actual_amount: actualAmount,
+      };
+    });
+
+    setProcessingExpenses(updatedExpenses);
+
+    const expense = updatedExpenses.find((exp) => exp.id === expenseId);
+    const tdsAmount = expense?.tds_deduction_amount ?? null;
+    const actualAmount = expense?.actual_amount ?? null;
+
+    const { error } = await supabase
+      .from("expense_new")
+      .update({
+        tds_deduction_percentage: percentage,
+        tds_deduction_amount: tdsAmount,
+        actual_amount: actualAmount,
+      })
+      .eq("id", expenseId);
+
+    if (error) {
+      toast.error("Failed to update TDS deduction");
+    }
+  };
+
   const handleExportXLSX = () => {
     if (!validateTransactionDatesForExport()) return;
     exportToXLSX();
@@ -502,10 +548,13 @@ export default function PaymentProcessingOnly() {
     
     // Create update payload with paid_by_bank for each expense
     const updatePromises = ids.map((id) => {
+      const expense = processingExpenses.find((exp) => exp.id === id);
       const payload = {
         payment_status: "paid",
         paid_approval_time: paidAt,
         paid_by_bank: bankData?.[id] || null,
+        tds_deduction_percentage: expense?.tds_deduction_percentage ?? null,
+        tds_deduction_amount: expense?.tds_deduction_amount ?? null,
       };
 
       return supabase
@@ -720,6 +769,12 @@ export default function PaymentProcessingOnly() {
                 Transaction Date
               </TableHead>
               <TableHead className="px-4 py-3 text-center">Amount</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                TDS Deduction
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Actual Amount
+              </TableHead>
               <TableHead className="px-4 py-3 text-center">Currency</TableHead>
               <TableHead className="px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-2">
@@ -770,11 +825,11 @@ export default function PaymentProcessingOnly() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={19} rows={5} />
+              <TableSkeleton colSpan={20} rows={5} />
             ) : processingExpenses.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={19}
+                  colSpan={20}
                   className="text-center py-6 text-muted-foreground"
                 >
                   No expenses in payment processing.
@@ -932,6 +987,53 @@ export default function PaymentProcessingOnly() {
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {formatCurrency(expense.approved_amount)}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <select
+                        className="border px-2 py-1 rounded bg-white text-sm"
+                        value={
+                          expense.tds_deduction_percentage
+                            ? String(expense.tds_deduction_percentage)
+                            : ""
+                        }
+                        onChange={(e) => handleTdsChange(expense.id, e.target.value)}
+                      >
+                        <option value="">Select %</option>
+                        {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                          (percent) => (
+                            <option key={percent} value={percent}>
+                              {percent}%
+                            </option>
+                          )
+                        )}
+                      </select>
+                      <span className="text-xs text-muted-foreground">
+                        {expense.tds_deduction_percentage
+                          ? formatCurrency(
+                              expense.tds_deduction_amount ??
+                                calculateTdsAmount(
+                                  expense.approved_amount ?? expense.amount ??
+                                    0,
+                                  expense.tds_deduction_percentage
+                                ) ??
+                                0
+                            )
+                          : "—"}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {formatCurrency(
+                      (expense.approved_amount ?? 0) -
+                        (expense.tds_deduction_amount ??
+                          (expense.tds_deduction_percentage
+                            ? calculateTdsAmount(
+                                expense.approved_amount ?? expense.amount ?? 0,
+                                expense.tds_deduction_percentage
+                              ) ?? 0
+                            : 0))
+                    )}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {expense.currency || "INR"}
