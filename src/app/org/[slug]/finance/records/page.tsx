@@ -234,6 +234,28 @@ export default function PaymentRecords() {
     return base - (tdsAmount ?? 0);
   };
 
+  const formatKotakVoucherDate = (dateValue?: string | Date | null) => {
+    if (!dateValue) return "—";
+    try {
+      const d = new Date(dateValue);
+      const month = d.toLocaleString("en-US", {
+        month: "short",
+        timeZone: "Asia/Kolkata",
+      });
+      const day = d.toLocaleString("en-US", {
+        day: "numeric",
+        timeZone: "Asia/Kolkata",
+      });
+      const year = d.toLocaleString("en-US", {
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
+      });
+      return `${month}-${day}-${year}`;
+    } catch (err) {
+      return "—";
+    }
+  };
+
   useEffect(() => {
     const fetchRecords = async () => {
       try {
@@ -737,15 +759,26 @@ export default function PaymentRecords() {
   };
 
   const exportToCSV = () => {
-    const headers = [
-      "Voucher Date",
-      "Voucher Type Name",
-      "Voucher Number",
-      "Ledger Name",
-      "TDS Amount",
-      "Ledger Amount Dr/Cr",
-      "Ledger Narration",
-    ];
+    const isKotakExport = exportBankType === "KOTAK";
+    const headers = isKotakExport
+      ? [
+          "Voucher Date",
+          "Voucher Type Name",
+          "Voucher Number",
+          "Ledger Name",
+          "Ledger Amount",
+          "Ledger Amount Dr/Cr",
+          "Ledger Narration",
+        ]
+      : [
+          "Voucher Date",
+          "Voucher Type Name",
+          "Voucher Number",
+          "Ledger Name",
+          "TDS Amount",
+          "Ledger Amount Dr/Cr",
+          "Ledger Narration",
+        ];
 
     const exportRecords = exportBankType
       ? filteredRecords.filter(
@@ -768,11 +801,40 @@ export default function PaymentRecords() {
         record.creator?.full_name ||
         record.creator_email ||
         "N/A";
+      const expenseCreditPerson = record.expense_credit_person || "N/A";
       const tdsPercent = record.tds_deduction_percentage;
       const tdsLine =
         tdsAmount !== null || tdsPercent
           ? `TDS${tdsPercent ? ` ${tdsPercent}%` : ""}`
           : "";
+
+      if (isKotakExport) {
+        const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
+        const serialNumber = record.serialNumber ?? index + 1;
+        const narration = `Being paid to for ${expenseCreditPerson} PD Row no. ${serialNumber}`;
+        const ledgerAmount = formatAmountValue(actualAmount ?? baseAmount);
+
+        return [
+          [
+            voucherDate,
+            "Expense",
+            "",
+            record.expense_type || "—",
+            ledgerAmount,
+            "Dr",
+            narration,
+          ],
+          [
+            "",
+            "",
+            "",
+            expenseCreditPerson,
+            ledgerAmount,
+            "Cr",
+            "",
+          ],
+        ];
+      }
 
       const voucherDate = record.paid_approval_time
         ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
@@ -838,15 +900,26 @@ export default function PaymentRecords() {
   };
 
   const exportToXLSX = () => {
-    const headers = [
-      "Voucher Date",
-      "Voucher Type Name",
-      "Voucher Number",
-      "Ledger Name",
-      "TDS Amount",
-      "Ledger Amount Dr/Cr",
-      "Ledger Narration",
-    ];
+    const isKotakExport = exportBankType === "KOTAK";
+    const headers = isKotakExport
+      ? [
+          "Voucher Date",
+          "Voucher Type Name",
+          "Voucher Number",
+          "Ledger Name",
+          "Ledger Amount",
+          "Ledger Amount Dr/Cr",
+          "Ledger Narration",
+        ]
+      : [
+          "Voucher Date",
+          "Voucher Type Name",
+          "Voucher Number",
+          "Ledger Name",
+          "TDS Amount",
+          "Ledger Amount Dr/Cr",
+          "Ledger Narration",
+        ];
 
     const exportRecords = exportBankType
       ? filteredRecords.filter(
@@ -869,11 +942,40 @@ export default function PaymentRecords() {
         record.creator?.full_name ||
         record.creator_email ||
         "N/A";
+      const expenseCreditPerson = record.expense_credit_person || "N/A";
       const tdsPercent = record.tds_deduction_percentage;
       const tdsLine =
         tdsAmount !== null || tdsPercent
           ? `TDS${tdsPercent ? ` ${tdsPercent}%` : ""}`
           : "";
+
+      if (isKotakExport) {
+        const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
+        const serialNumber = record.serialNumber ?? index + 1;
+        const narration = `Being paid to for ${expenseCreditPerson} PD Row no. ${serialNumber}`;
+        const ledgerAmount = formatAmountValue(actualAmount ?? baseAmount);
+
+        return [
+          [
+            voucherDate,
+            "Expense",
+            "",
+            record.expense_type || "—",
+            ledgerAmount,
+            "Dr",
+            narration,
+          ],
+          [
+            "",
+            "",
+            "",
+            expenseCreditPerson,
+            ledgerAmount,
+            "Cr",
+            "",
+          ],
+        ];
+      }
 
       const voucherDate = record.paid_approval_time
         ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
