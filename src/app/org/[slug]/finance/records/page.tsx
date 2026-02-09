@@ -919,8 +919,20 @@ export default function PaymentRecords() {
     const data = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(data);
 
-    // Set column widths
-    ws["!cols"] = headers.map(() => ({ wch: 20 }));
+    const minWidth = 12;
+    const maxWidth = 80;
+    const padding = 2;
+
+    ws["!cols"] = headers.map((_, colIndex) => {
+      const maxLen = data.reduce((acc, row) => {
+        const cellValue = row?.[colIndex];
+        const cellText = cellValue === null || cellValue === undefined ? "" : String(cellValue);
+        return Math.max(acc, cellText.length);
+      }, 0);
+
+      const width = Math.min(Math.max(maxLen + padding, minWidth), maxWidth);
+      return { wch: width };
+    });
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Payment Records");
