@@ -203,27 +203,9 @@ export default function PaymentRecords() {
   // Export state
   const [showExportModal, setShowExportModal] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
-
-  const allColumns = [
-    "Timestamp",
-    "Email",
-    "Unique ID",
-    "Expense Type",
-    "Event Name",
-    "Location",
-    "Amount",
-    "TDS Deduction",
-    "Actual Amount",
-    "Date of Expense",
-    "Status",
-    "UTR",
-    "Paid Date",
-    "Payment Status",
-    "Paid by bank",
-  ];
-  const [selectedColumns, setSelectedColumns] = useState<string[]>([
-    ...allColumns,
-  ]);
+  const [exportBankType, setExportBankType] = useState<
+    "NGIDFC Current" | "FCIDFC Current" | "KOTAK" | ""
+  >("");
 
   const ADMIN_PASSWORD = "admin"; // your password
 
@@ -384,6 +366,13 @@ export default function PaymentRecords() {
             return {
               ...r,
               unique_id: r.unique_id || matched?.unique_id || "N/A",
+              beneficiary_name:
+                r.beneficiary_name ||
+                matched?.account_holder ||
+                r.creator_name ||
+                r.creator?.full_name ||
+                r.creator_email ||
+                "N/A",
             };
           });
 
@@ -748,96 +737,93 @@ export default function PaymentRecords() {
   };
 
   const exportToCSV = () => {
-    const headers = selectedColumns;
+    const headers = [
+      "Voucher Date",
+      "Voucher Type Name",
+      "Voucher Number",
+      "Ledger Name",
+      "TDS Amount",
+      "Ledger Amount Dr/Cr",
+      "Ledger Narration",
+    ];
 
-    const rows = filteredRecords.map((record) => {
-      const row: any[] = [];
+    const exportRecords = exportBankType
+      ? filteredRecords.filter(
+          (r) => (r.paid_by_bank || "") === exportBankType
+        )
+      : filteredRecords;
 
-      for (const col of headers) {
-        switch (col) {
-          case "Timestamp":
-            row.push(formatDateTime(record.updated_at || record.created_at) || "—");
-            break;
-          case "Email":
-            row.push(record.creator_email || "—");
-            break;
-          case "Unique ID":
-            row.push(record.unique_id || "N/A");
-            break;
-          case "Expense Type":
-            row.push(record.expense_type || "—");
-            break;
-          case "Event Name":
-            row.push(record.event_title || "N/A");
-            break;
-          case "Location":
-            row.push(record.location || "—");
-            break;
-          case "Amount":
-            row.push(record.approved_amount || record.amount || "—");
-            break;
-          case "TDS Deduction": {
-            const tdsPercent = record.tds_deduction_percentage;
-            const tdsAmount = getTdsAmount(record);
-            if (tdsPercent) {
-              row.push(
-                tdsAmount !== null
-                  ? `${tdsPercent}% (${formatCurrency(tdsAmount)})`
-                  : `${tdsPercent}%`
-              );
-            } else if (tdsAmount !== null) {
-              row.push(formatCurrency(tdsAmount));
-            } else {
-              row.push("—");
-            }
-            break;
-          }
-          case "Actual Amount": {
-            const actualAmount = getActualAmount(record);
-            row.push(actualAmount !== null ? actualAmount : "—");
-            break;
-          }
-          case "Date of Expense":
-            row.push(
-              record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
-            );
-            break;
-          case "Status":
-            row.push(record.status || "—");
-            break;
-          case "UTR":
-            row.push(record.utr || "—");
-            break;
-          case "Paid Date":
-            row.push(
-              record.paid_approval_time
-                ? new Date(record.paid_approval_time).toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
-                : "—"
-            );
-            break;
-          case "Payment Status":
-            row.push(record.payment_status || "—");
-            break;
-          case "Paid by bank":
-            row.push(record.paid_by_bank || "—");
-            break;
-          default:
-            row.push("—");
-        }
+    const formatAmountValue = (value: number | null | undefined) => {
+      if (value === null || value === undefined || isNaN(Number(value))) return "";
+      return Number(value).toFixed(2);
+    };
+
+    const rows = exportRecords.flatMap((record, index) => {
+      const baseAmount = getBaseAmount(record);
+      const tdsAmount = getTdsAmount(record);
+      const actualAmount = getActualAmount(record);
+      const beneficiaryName =
+        record.beneficiary_name ||
+        record.creator_name ||
+        record.creator?.full_name ||
+        record.creator_email ||
+        "N/A";
+      const tdsPercent = record.tds_deduction_percentage;
+      const tdsLine =
+        tdsAmount !== null || tdsPercent
+          ? `TDS${tdsPercent ? ` ${tdsPercent}%` : ""}`
+          : "";
+
+      const voucherDate = record.paid_approval_time
+        ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
+        : "—";
+      const narration = `Being paid to for ${beneficiaryName}`;
+
+      const rowsForRecord: any[] = [
+        [
+          voucherDate,
+          "Expense",
+          "",
+          record.expense_type || "—",
+          formatAmountValue(baseAmount),
+          "Dr",
+          narration,
+        ],
+        [
+          "",
+          "",
+          "",
+          beneficiaryName,
+          formatAmountValue(actualAmount ?? baseAmount),
+          "Cr",
+          "",
+        ],
+      ];
+
+      if (tdsLine && tdsAmount !== null) {
+        rowsForRecord.push([
+          "",
+          "",
+          "",
+          tdsLine,
+          formatAmountValue(tdsAmount),
+          "Cr",
+          "",
+        ]);
       }
 
-      return row;
+      return rowsForRecord;
     });
 
     const csvRows: string[] = [];
     csvRows.push(headers.map((h) => `"${h}"`).join(","));
     csvRows.push(
-      ...rows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      ...rows.map((row: Array<string | number>) =>
+        row
+          .map((cell: string | number) =>
+            `"${String(cell).replace(/"/g, '""')}"`
+          )
+          .join(",")
       )
     );
     const csvContent = csvRows.join("\n");
@@ -852,68 +838,82 @@ export default function PaymentRecords() {
   };
 
   const exportToXLSX = () => {
-    const headers = selectedColumns;
+    const headers = [
+      "Voucher Date",
+      "Voucher Type Name",
+      "Voucher Number",
+      "Ledger Name",
+      "TDS Amount",
+      "Ledger Amount Dr/Cr",
+      "Ledger Narration",
+    ];
 
-    const rows = filteredRecords.map((record) => {
-      const row: any[] = [];
+    const exportRecords = exportBankType
+      ? filteredRecords.filter(
+          (r) => (r.paid_by_bank || "") === exportBankType
+        )
+      : filteredRecords;
 
-      for (const col of headers) {
-        switch (col) {
-          case "Email":
-            row.push(record.creator_email || "—");
-            break;
-          case "Unique ID":
-            row.push(record.unique_id || "N/A");
-            break;
-          case "Expense Type":
-            row.push(record.expense_type || "—");
-            break;
-          case "Event Name":
-            row.push(record.event_title || "N/A");
-            break;
-          case "Location":
-            row.push(record.location || "—");
-            break;
-          case "Amount":
-            row.push(record.approved_amount || record.amount || "—");
-            break;
-          case "Date of Expense":
-            row.push(
-              record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
-            );
-            break;
-          case "Status":
-            row.push(record.status || "—");
-            break;
-          case "UTR":
-            row.push(record.utr || "—");
-            break;
-          case "Paid Date":
-            row.push(
-              record.paid_approval_time
-                ? new Date(record.paid_approval_time).toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
-                : "—"
-            );
-            break;
-          case "Payment Status":
-            row.push(record.payment_status || "—");
-            break;
-          case "Timestamp":
-            row.push(formatDateTime(record.updated_at || record.created_at) || "—");
-            break;
-          case "Paid by bank":
-            row.push(record.paid_by_bank || "—");
-            break;
-          default:
-            row.push("—");
-        }
+    const formatAmountValue = (value: number | null | undefined) => {
+      if (value === null || value === undefined || isNaN(Number(value))) return "";
+      return Number(value).toFixed(2);
+    };
+
+    const rows = exportRecords.flatMap((record, index) => {
+      const baseAmount = getBaseAmount(record);
+      const tdsAmount = getTdsAmount(record);
+      const actualAmount = getActualAmount(record);
+      const beneficiaryName =
+        record.beneficiary_name ||
+        record.creator_name ||
+        record.creator?.full_name ||
+        record.creator_email ||
+        "N/A";
+      const tdsPercent = record.tds_deduction_percentage;
+      const tdsLine =
+        tdsAmount !== null || tdsPercent
+          ? `TDS${tdsPercent ? ` ${tdsPercent}%` : ""}`
+          : "";
+
+      const voucherDate = record.paid_approval_time
+        ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
+        : "—";
+      const narration = `Being paid to for ${beneficiaryName}`;
+
+      const rowsForRecord: any[] = [
+        [
+          voucherDate,
+          "Expense",
+          "",
+          record.expense_type || "—",
+          formatAmountValue(baseAmount),
+          "Dr",
+          narration,
+        ],
+        [
+          "",
+          "",
+          "",
+          beneficiaryName,
+          formatAmountValue(actualAmount ?? baseAmount),
+          "Cr",
+          "",
+        ],
+      ];
+
+      if (tdsLine && tdsAmount !== null) {
+        rowsForRecord.push([
+          "",
+          "",
+          "",
+          tdsLine,
+          formatAmountValue(tdsAmount),
+          "Cr",
+          "",
+        ]);
       }
 
-      return row;
+      return rowsForRecord;
     });
 
     const data = [headers, ...rows];
@@ -2066,36 +2066,49 @@ export default function PaymentRecords() {
         </DialogContent>
       </Dialog>
 
-      {/* Column Selection Modal */}
+      {/* Export Modal - Bank Type Selection */}
       <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Select Columns to Export</DialogTitle>
+            <DialogTitle>Select Records to Export</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 max-h-[50vh] overflow-y-auto">
-            {allColumns.map((col) => (
-              <div key={col} className="flex items-center space-x-2">
-                <Checkbox
-                  id={col}
-                  checked={selectedColumns.includes(col)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedColumns((prev) => [...prev, col]);
-                    } else {
-                      setSelectedColumns((prev) =>
-                        prev.filter((c) => c !== col)
-                      );
-                    }
-                  }}
-                />
-                <label
-                  htmlFor={col}
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  {col}
-                </label>
-              </div>
-            ))}
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="export-ng"
+                checked={exportBankType === "NGIDFC Current"}
+                onCheckedChange={(checked) =>
+                  setExportBankType(checked ? "NGIDFC Current" : "")
+                }
+              />
+              <label htmlFor="export-ng" className="text-sm font-medium cursor-pointer">
+                NG Records (NGIDFC Current)
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="export-fc"
+                checked={exportBankType === "FCIDFC Current"}
+                onCheckedChange={(checked) =>
+                  setExportBankType(checked ? "FCIDFC Current" : "")
+                }
+              />
+              <label htmlFor="export-fc" className="text-sm font-medium cursor-pointer">
+                FC Records (FCIDFC Current)
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="export-kotak"
+                checked={exportBankType === "KOTAK"}
+                onCheckedChange={(checked) =>
+                  setExportBankType(checked ? "KOTAK" : "")
+                }
+              />
+              <label htmlFor="export-kotak" className="text-sm font-medium cursor-pointer">
+                KOTAK Records
+              </label>
+            </div>
           </div>
           <DialogFooter className="mt-4">
             <Button
@@ -2110,6 +2123,7 @@ export default function PaymentRecords() {
                 setShowExportModal(false);
                 setShowFormatModal(true);
               }}
+              disabled={!exportBankType}
               className="cursor-pointer"
             >
               Next
