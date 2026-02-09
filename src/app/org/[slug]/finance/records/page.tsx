@@ -27,7 +27,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { toast } from "sonner";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
@@ -212,6 +212,8 @@ export default function PaymentRecords() {
     "Event Name",
     "Location",
     "Amount",
+    "TDS Deduction",
+    "Actual Amount",
     "Date of Expense",
     "Status",
     "UTR",
@@ -224,6 +226,31 @@ export default function PaymentRecords() {
   ]);
 
   const ADMIN_PASSWORD = "admin"; // your password
+
+  const getBaseAmount = (record: any) =>
+    Number(record.approved_amount ?? record.amount ?? 0);
+
+  const getTdsAmount = (record: any) => {
+    const stored = record.tds_deduction_amount;
+    if (stored !== null && stored !== undefined && stored !== "") {
+      return Number(stored);
+    }
+    const percentage = Number(record.tds_deduction_percentage ?? 0);
+    if (!percentage) return null;
+    const base = getBaseAmount(record);
+    return Number(((base * percentage) / 100).toFixed(2));
+  };
+
+  const getActualAmount = (record: any) => {
+    const stored = record.actual_amount;
+    if (stored !== null && stored !== undefined && stored !== "") {
+      return Number(stored);
+    }
+    const base = getBaseAmount(record);
+    const tdsAmount = getTdsAmount(record);
+    if (!base && !tdsAmount && !record.tds_deduction_percentage) return null;
+    return base - (tdsAmount ?? 0);
+  };
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -749,6 +776,27 @@ export default function PaymentRecords() {
           case "Amount":
             row.push(record.approved_amount || record.amount || "—");
             break;
+          case "TDS Deduction": {
+            const tdsPercent = record.tds_deduction_percentage;
+            const tdsAmount = getTdsAmount(record);
+            if (tdsPercent) {
+              row.push(
+                tdsAmount !== null
+                  ? `${tdsPercent}% (${formatCurrency(tdsAmount)})`
+                  : `${tdsPercent}%`
+              );
+            } else if (tdsAmount !== null) {
+              row.push(formatCurrency(tdsAmount));
+            } else {
+              row.push("—");
+            }
+            break;
+          }
+          case "Actual Amount": {
+            const actualAmount = getActualAmount(record);
+            row.push(actualAmount !== null ? actualAmount : "—");
+            break;
+          }
           case "Date of Expense":
             row.push(
               record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
@@ -1209,6 +1257,8 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Location</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
+              <TableHead className="text-center py-3">TDS Deduction</TableHead>
+              <TableHead className="text-center py-3">Actual Amount</TableHead>
               <TableHead className="text-center py-3">Bills</TableHead>
               <TableHead className="text-center py-3">Date of expense</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
@@ -1262,11 +1312,11 @@ export default function PaymentRecords() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={16} rows={5} />
+              <TableSkeleton colSpan={19} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={16}
+                  colSpan={19}
                   className="text-center py-6 text-gray-500"
                 >
                   No payment records found.
@@ -1305,6 +1355,39 @@ export default function PaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     ₹{record.approved_amount}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const tdsPercent = record.tds_deduction_percentage;
+                      const tdsAmount = getTdsAmount(record);
+
+                      if (tdsPercent) {
+                        return (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm">{tdsPercent}%</span>
+                            <span className="text-xs text-muted-foreground">
+                              {tdsAmount !== null
+                                ? formatCurrency(tdsAmount)
+                                : "—"}
+                            </span>
+                          </div>
+                        );
+                      }
+
+                      if (tdsAmount !== null) {
+                        return formatCurrency(tdsAmount);
+                      }
+
+                      return "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const actualAmount = getActualAmount(record);
+                      return actualAmount !== null
+                        ? formatCurrency(actualAmount)
+                        : "—";
+                    })()}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {record.receipt ? (
