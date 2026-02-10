@@ -41,6 +41,23 @@ import VoucherPreview from "@/components/VoucherPreview";
 
 import supabase from "@/lib/supabase"; // Make sure this is correctly imported
 
+const formatCurrency = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined || Number.isNaN(amount)) return "—";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount);
+};
+
+const calculateTdsAmount = (
+  baseAmount: number | null | undefined,
+  percentage: number | null | undefined
+) => {
+  if (!percentage || baseAmount === null || baseAmount === undefined) return null;
+  const amount = (baseAmount * percentage) / 100;
+  return Number(amount.toFixed(2));
+};
+
 export default function FinanceExpenseDetails() {
   const params = useParams();
   const { expenseId } = useParams();
@@ -279,6 +296,18 @@ export default function FinanceExpenseDetails() {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
 
+  const tdsPercentage = expense?.tds_deduction_percentage ?? null;
+  const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? null;
+  const tdsAmount = tdsPercentage
+    ? expense?.tds_deduction_amount ??
+      calculateTdsAmount(tdsBaseAmount, tdsPercentage)
+    : expense?.tds_deduction_amount ?? null;
+  const actualAmount =
+    expense?.actual_amount ??
+    (tdsBaseAmount !== null && tdsBaseAmount !== undefined
+      ? Number(tdsBaseAmount) - (tdsAmount ?? 0)
+      : null);
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -368,7 +397,21 @@ export default function FinanceExpenseDetails() {
                   </TableRow>
                   <TableRow>
                     <TableHead>Approved Amount</TableHead>
-                    <TableCell>₹{expense.approved_amount}</TableCell>
+                    <TableCell>{formatCurrency(expense.approved_amount)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>TDS Deduction</TableHead>
+                    <TableCell>
+                      {tdsPercentage
+                        ? `${tdsPercentage}% (${formatCurrency(tdsAmount)})`
+                        : tdsAmount
+                          ? formatCurrency(tdsAmount)
+                          : "N/A"}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Actual Amount</TableHead>
+                    <TableCell>{formatCurrency(actualAmount)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Date</TableHead>
