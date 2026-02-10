@@ -893,6 +893,13 @@ export default function PaymentRecords() {
 
   const exportToCSV = () => {
     const isKotakExport = exportBankType === "KOTAK";
+    const kotakRefNoMap = isKotakExport
+      ? new Map(
+          filteredRecords
+            .filter((record) => (record.paid_by_bank || "") === "KOTAK")
+            .map((record, idx) => [record.id, idx + 1])
+        )
+      : null;
     const headers = isKotakExport
       ? [
           "Voucher Date",
@@ -940,7 +947,8 @@ export default function PaymentRecords() {
       if (isKotakExport) {
         const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
         const serialNumber = record.serialNumber ?? index + 1;
-        const narration = `Being paid to for ${expenseCreditPerson} PD Row no. ${serialNumber}`;
+        const refNo = kotakRefNoMap?.get(record.id) ?? serialNumber;
+        const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
         const ledgerAmount = formatAmountValue(actualAmount ?? baseAmount);
 
         return [
@@ -1030,6 +1038,13 @@ export default function PaymentRecords() {
 
   const exportToXLSX = () => {
     const isKotakExport = exportBankType === "KOTAK";
+    const kotakRefNoMap = isKotakExport
+      ? new Map(
+          filteredRecords
+            .filter((record) => (record.paid_by_bank || "") === "KOTAK")
+            .map((record, idx) => [record.id, idx + 1])
+        )
+      : null;
     const headers = isKotakExport
       ? [
           "Voucher Date",
@@ -1077,7 +1092,8 @@ export default function PaymentRecords() {
       if (isKotakExport) {
         const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
         const serialNumber = record.serialNumber ?? index + 1;
-        const narration = `Being paid to for ${expenseCreditPerson} PD Row no. ${serialNumber}`;
+        const refNo = kotakRefNoMap?.get(record.id) ?? serialNumber;
+        const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
         const ledgerAmount = formatAmountValue(actualAmount ?? baseAmount);
 
         return [
