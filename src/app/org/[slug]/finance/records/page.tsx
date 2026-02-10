@@ -202,10 +202,19 @@ export default function PaymentRecords() {
 
   // Export state
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showExportDateModal, setShowExportDateModal] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
   const [exportBankType, setExportBankType] = useState<
     "NGIDFC Current" | "FCIDFC Current" | "KOTAK" | ""
   >("");
+  const [exportDateFilters, setExportDateFilters] = useState({
+    expenseDateMode: "All Dates",
+    expenseStartDate: "",
+    expenseEndDate: "",
+    paidDateMode: "All Dates",
+    paidStartDate: "",
+    paidEndDate: "",
+  });
 
   const ADMIN_PASSWORD = "admin"; // your password
 
@@ -254,6 +263,102 @@ export default function PaymentRecords() {
     } catch (err) {
       return "—";
     }
+  };
+
+  const toDateOnly = (value?: string | Date | null) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    const year = d.getFullYear();
+    const month = `${d.getMonth() + 1}`.padStart(2, "0");
+    const day = `${d.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const isDateWithinRange = (
+    value: string | Date | null | undefined,
+    mode: string,
+    start: string,
+    end: string
+  ) => {
+    if (mode === "All Dates") return true;
+    const dateValue = toDateOnly(value);
+    if (!dateValue) return false;
+    if (mode === "Single Date") {
+      return dateValue === start;
+    }
+    if (mode === "Custom Date") {
+      if (!start || !end) return false;
+      return dateValue >= start && dateValue <= end;
+    }
+    return true;
+  };
+
+  const validateExportDateFilters = () => {
+    const {
+      expenseDateMode,
+      expenseStartDate,
+      expenseEndDate,
+      paidDateMode,
+      paidStartDate,
+      paidEndDate,
+    } = exportDateFilters;
+
+    if (expenseDateMode === "Single Date" && !expenseStartDate) {
+      toast.error("Please select a single expense date");
+      return false;
+    }
+    if (expenseDateMode === "Custom Date") {
+      if (!expenseStartDate || !expenseEndDate) {
+        toast.error("Please select both expense date range values");
+        return false;
+      }
+      if (expenseStartDate > expenseEndDate) {
+        toast.error("Expense date range is invalid");
+        return false;
+      }
+    }
+
+    if (paidDateMode === "Single Date" && !paidStartDate) {
+      toast.error("Please select a single paid date");
+      return false;
+    }
+    if (paidDateMode === "Custom Date") {
+      if (!paidStartDate || !paidEndDate) {
+        toast.error("Please select both paid date range values");
+        return false;
+      }
+      if (paidStartDate > paidEndDate) {
+        toast.error("Paid date range is invalid");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const getExportRecords = () => {
+    const baseRecords = exportBankType
+      ? filteredRecords.filter(
+          (r) => (r.paid_by_bank || "") === exportBankType
+        )
+      : filteredRecords;
+
+    return baseRecords.filter((record) => {
+      const matchesExpenseDate = isDateWithinRange(
+        record.date,
+        exportDateFilters.expenseDateMode,
+        exportDateFilters.expenseStartDate,
+        exportDateFilters.expenseEndDate
+      );
+      const matchesPaidDate = isDateWithinRange(
+        record.paid_approval_time,
+        exportDateFilters.paidDateMode,
+        exportDateFilters.paidStartDate,
+        exportDateFilters.paidEndDate
+      );
+      return matchesExpenseDate && matchesPaidDate;
+    });
   };
 
   useEffect(() => {
@@ -780,11 +885,7 @@ export default function PaymentRecords() {
           "Ledger Narration",
         ];
 
-    const exportRecords = exportBankType
-      ? filteredRecords.filter(
-          (r) => (r.paid_by_bank || "") === exportBankType
-        )
-      : filteredRecords;
+    const exportRecords = getExportRecords();
 
     const formatAmountValue = (value: number | null | undefined) => {
       if (value === null || value === undefined || isNaN(Number(value))) return "";
@@ -921,11 +1022,7 @@ export default function PaymentRecords() {
           "Ledger Narration",
         ];
 
-    const exportRecords = exportBankType
-      ? filteredRecords.filter(
-          (r) => (r.paid_by_bank || "") === exportBankType
-        )
-      : filteredRecords;
+    const exportRecords = getExportRecords();
 
     const formatAmountValue = (value: number | null | undefined) => {
       if (value === null || value === undefined || isNaN(Number(value))) return "";
@@ -1057,6 +1154,12 @@ export default function PaymentRecords() {
   const handleExportCSV = () => {
     exportToCSV();
     setShowFormatModal(false);
+  };
+
+  const handleExportDateNext = () => {
+    if (!validateExportDateFilters()) return;
+    setShowExportDateModal(false);
+    setShowFormatModal(true);
   };
 
   return (
@@ -2235,9 +2338,220 @@ export default function PaymentRecords() {
             <Button
               onClick={() => {
                 setShowExportModal(false);
-                setShowFormatModal(true);
+                setShowExportDateModal(true);
               }}
               disabled={!exportBankType}
+              className="cursor-pointer"
+            >
+              Next
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Date Selection Modal */}
+      <Dialog open={showExportDateModal} onOpenChange={setShowExportDateModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Date Range</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date of Expense</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                value={exportDateFilters.expenseDateMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setExportDateFilters((prev) => {
+                    if (mode === "Single Date") {
+                      return {
+                        ...prev,
+                        expenseDateMode: mode,
+                        expenseStartDate: prev.expenseStartDate || "",
+                        expenseEndDate: prev.expenseStartDate || "",
+                      };
+                    }
+                    if (mode === "Custom Date") {
+                      return {
+                        ...prev,
+                        expenseDateMode: mode,
+                      };
+                    }
+                    return {
+                      ...prev,
+                      expenseDateMode: mode,
+                      expenseStartDate: "",
+                      expenseEndDate: "",
+                    };
+                  });
+                }}
+              >
+                <option>All Dates</option>
+                <option>Single Date</option>
+                <option>Custom Date</option>
+              </select>
+
+              <div className="mt-2">
+                {exportDateFilters.expenseDateMode === "Single Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Select Date</label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={exportDateFilters.expenseStartDate}
+                      onChange={(e) =>
+                        setExportDateFilters((prev) => ({
+                          ...prev,
+                          expenseStartDate: e.target.value,
+                          expenseEndDate: e.target.value,
+                        }))
+                      }
+                    />
+                  </>
+                ) : exportDateFilters.expenseDateMode === "Custom Date" ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-sm font-medium">From</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full border rounded px-3 py-2"
+                        value={exportDateFilters.expenseStartDate}
+                        onChange={(e) =>
+                          setExportDateFilters((prev) => ({
+                            ...prev,
+                            expenseStartDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">To</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full border rounded px-3 py-2"
+                        value={exportDateFilters.expenseEndDate}
+                        onChange={(e) =>
+                          setExportDateFilters((prev) => ({
+                            ...prev,
+                            expenseEndDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Paid Date</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                value={exportDateFilters.paidDateMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setExportDateFilters((prev) => {
+                    if (mode === "Single Date") {
+                      return {
+                        ...prev,
+                        paidDateMode: mode,
+                        paidStartDate: prev.paidStartDate || "",
+                        paidEndDate: prev.paidStartDate || "",
+                      };
+                    }
+                    if (mode === "Custom Date") {
+                      return {
+                        ...prev,
+                        paidDateMode: mode,
+                      };
+                    }
+                    return {
+                      ...prev,
+                      paidDateMode: mode,
+                      paidStartDate: "",
+                      paidEndDate: "",
+                    };
+                  });
+                }}
+              >
+                <option>All Dates</option>
+                <option>Single Date</option>
+                <option>Custom Date</option>
+              </select>
+
+              <div className="mt-2">
+                {exportDateFilters.paidDateMode === "Single Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Select Date</label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={exportDateFilters.paidStartDate}
+                      onChange={(e) =>
+                        setExportDateFilters((prev) => ({
+                          ...prev,
+                          paidStartDate: e.target.value,
+                          paidEndDate: e.target.value,
+                        }))
+                      }
+                    />
+                  </>
+                ) : exportDateFilters.paidDateMode === "Custom Date" ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-sm font-medium">From</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full border rounded px-3 py-2"
+                        value={exportDateFilters.paidStartDate}
+                        onChange={(e) =>
+                          setExportDateFilters((prev) => ({
+                            ...prev,
+                            paidStartDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">To</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full border rounded px-3 py-2"
+                        value={exportDateFilters.paidEndDate}
+                        onChange={(e) =>
+                          setExportDateFilters((prev) => ({
+                            ...prev,
+                            paidEndDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowExportDateModal(false);
+                setShowExportModal(true);
+              }}
+              className="cursor-pointer"
+            >
+              Back
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowExportDateModal(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleExportDateNext}
               className="cursor-pointer"
             >
               Next
