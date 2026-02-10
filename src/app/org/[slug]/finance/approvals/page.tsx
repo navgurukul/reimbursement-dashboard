@@ -41,6 +41,15 @@ const formatCurrency = (amount: number) =>
     currency: "INR",
   }).format(amount);
 
+const calculateTdsAmount = (
+  baseAmount: number | null | undefined,
+  percentage: number | null | undefined
+) => {
+  if (!percentage || baseAmount === null || baseAmount === undefined) return null;
+  const amount = (baseAmount * percentage) / 100;
+  return Number(amount.toFixed(2));
+};
+
 export default function FinanceReview() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
@@ -87,6 +96,9 @@ export default function FinanceReview() {
             expense_type: exp.category || exp.type || exp.expense_type || "—",
             approver_name: exp.approver?.full_name || "—",
             creator_name: exp.creator?.full_name || "—",
+            tds_deduction_percentage: exp.tds_deduction_percentage ?? null,
+            tds_deduction_amount: exp.tds_deduction_amount ?? null,
+            actual_amount: exp.actual_amount ?? null,
           }));
 
         // Sort by manager_approve_time in ascending order (earliest first)
@@ -268,6 +280,41 @@ export default function FinanceReview() {
     }
   };
 
+  const handleTdsChange = async (expenseId: string, value: string) => {
+    const percentage = value ? Number.parseInt(value, 10) : null;
+    const updatedExpenses = expenseList.map((exp) => {
+      if (exp.id !== expenseId) return exp;
+      const baseAmount = exp.approved_amount ?? exp.amount ?? 0;
+      const tdsAmount = calculateTdsAmount(baseAmount, percentage);
+      const actualAmount = baseAmount - (tdsAmount ?? 0);
+      return {
+        ...exp,
+        tds_deduction_percentage: percentage,
+        tds_deduction_amount: tdsAmount,
+        actual_amount: actualAmount,
+      };
+    });
+
+    setExpenseList(updatedExpenses);
+
+    const expense = updatedExpenses.find((exp) => exp.id === expenseId);
+    const tdsAmount = expense?.tds_deduction_amount ?? null;
+    const actualAmount = expense?.actual_amount ?? null;
+
+    const { error } = await supabase
+      .from("expense_new")
+      .update({
+        tds_deduction_percentage: percentage,
+        tds_deduction_amount: tdsAmount,
+        actual_amount: actualAmount,
+      })
+      .eq("id", expenseId);
+
+    if (error) {
+      toast.error("Failed to update TDS deduction");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
@@ -295,6 +342,12 @@ export default function FinanceReview() {
               </TableHead>
               <TableHead className="px-4 py-3 text-center">Location</TableHead>
               <TableHead className="px-4 py-3 text-center">Amount</TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                TDS Deduction
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Actual Amount
+              </TableHead>
               <TableHead className="px-4 py-3 text-center">Date</TableHead>
               <TableHead className="px-4 py-3 text-center">
                 Submitted By
@@ -308,11 +361,11 @@ export default function FinanceReview() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={12} rows={5} />
+              <TableSkeleton colSpan={14} rows={5} />
             ) : expenseList.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={12}
+                  colSpan={14}
                   className="text-center py-6 text-muted-foreground"
                 >
                   No expenses pending finance review
@@ -353,6 +406,53 @@ export default function FinanceReview() {
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center font-medium text-green-700">
                     {formatCurrency(expense.amount)}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <select
+                        className="border px-2 py-1 rounded bg-white text-sm"
+                        value={
+                          expense.tds_deduction_percentage
+                            ? String(expense.tds_deduction_percentage)
+                            : ""
+                        }
+                        onChange={(e) => handleTdsChange(expense.id, e.target.value)}
+                      >
+                        <option value="">Select %</option>
+                        {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                          (percent) => (
+                            <option key={percent} value={percent}>
+                              {percent}%
+                            </option>
+                          )
+                        )}
+                      </select>
+                      <span className="text-xs text-muted-foreground">
+                        {expense.tds_deduction_percentage
+                          ? formatCurrency(
+                              expense.tds_deduction_amount ??
+                                calculateTdsAmount(
+                                  expense.approved_amount ?? expense.amount ??
+                                    0,
+                                  expense.tds_deduction_percentage
+                                ) ??
+                                0
+                            )
+                          : "—"}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {formatCurrency(
+                      (expense.approved_amount ?? expense.amount ?? 0) -
+                        (expense.tds_deduction_amount ??
+                          (expense.tds_deduction_percentage
+                            ? calculateTdsAmount(
+                                expense.approved_amount ?? expense.amount ?? 0,
+                                expense.tds_deduction_percentage
+                              ) ?? 0
+                            : 0))
+                    )}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center whitespace-nowrap">
                     {new Date(expense.date).toLocaleDateString("en-IN", {

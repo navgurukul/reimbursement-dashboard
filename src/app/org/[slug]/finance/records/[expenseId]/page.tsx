@@ -10,7 +10,7 @@ import {
   auth,
   profiles,
 } from "@/lib/db";
-import { formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Clock, ArrowLeft, } from "lucide-react";
@@ -129,6 +129,18 @@ export default function RecordsDetails() {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
 
+  const tdsPercentage = expense?.tds_deduction_percentage ?? null;
+  const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? 0;
+  const tdsAmount = tdsPercentage
+    ? expense?.tds_deduction_amount ??
+      Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
+    : expense?.tds_deduction_amount ?? null;
+  const actualAmount =
+    expense?.actual_amount ??
+    (tdsBaseAmount !== null && tdsBaseAmount !== undefined
+      ? Number(tdsBaseAmount) - (tdsAmount ?? 0)
+      : null);
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -208,6 +220,30 @@ export default function RecordsDetails() {
                   <TableRow>
                     <TableHead>Approved Amount</TableHead>
                     <TableCell>₹{expense.approved_amount}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>TDS Deduction</TableHead>
+                    <TableCell>
+                      {tdsPercentage ? (
+                        <span className="text-amber-600 font-medium">
+                          {tdsPercentage}% ({formatCurrency(tdsAmount ?? 0)})
+                        </span>
+                      ) : tdsAmount !== null && tdsAmount !== undefined ? (
+                        <span className="text-amber-600 font-medium">
+                          {formatCurrency(tdsAmount)}
+                        </span>
+                      ) : (
+                        "N/A"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Actual Amount</TableHead>
+                    <TableCell>
+                      {actualAmount !== null && actualAmount !== undefined
+                        ? formatCurrency(Number(actualAmount))
+                        : "—"}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Date</TableHead>

@@ -190,6 +190,8 @@ export interface Expense {
   signature_url?: string;
   updated_at: string;
   approved_amount?: number | null;
+  tds_deduction_percentage?: number | null;
+  tds_deduction_amount?: number | null;
   approver_signature_url?: string | null; // Added approver signature URL
 }
 

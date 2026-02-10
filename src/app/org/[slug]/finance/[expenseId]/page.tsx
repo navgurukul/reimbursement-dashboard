@@ -41,6 +41,23 @@ import VoucherPreview from "@/components/VoucherPreview";
 
 import supabase from "@/lib/supabase"; // Make sure this is correctly imported
 
+const formatCurrency = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined || Number.isNaN(amount)) return "—";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount);
+};
+
+const calculateTdsAmount = (
+  baseAmount: number | null | undefined,
+  percentage: number | null | undefined
+) => {
+  if (!percentage || baseAmount === null || baseAmount === undefined) return null;
+  const amount = (baseAmount * percentage) / 100;
+  return Number(amount.toFixed(2));
+};
+
 export default function FinanceExpenseDetails() {
   const params = useParams();
   const { expenseId } = useParams();
@@ -52,6 +69,7 @@ export default function FinanceExpenseDetails() {
   const [expense, setExpense] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [tdsUpdating, setTdsUpdating] = useState(false);
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
@@ -275,9 +293,56 @@ export default function FinanceExpenseDetails() {
     setProcessing(false);
   };
 
+  const handleTdsChange = async (value: string) => {
+    if (!expense || typeof expenseId !== "string") return;
+    const percentage = value ? Number.parseInt(value, 10) : null;
+    const baseAmount = expense.approved_amount ?? expense.amount ?? 0;
+    const tdsAmount = calculateTdsAmount(baseAmount, percentage);
+    const actualAmount = baseAmount - (tdsAmount ?? 0);
+
+    const prevExpense = expense;
+    const updatedExpense = {
+      ...expense,
+      tds_deduction_percentage: percentage,
+      tds_deduction_amount: tdsAmount,
+      actual_amount: actualAmount,
+    };
+
+    setExpense(updatedExpense);
+    setTdsUpdating(true);
+
+    const { error } = await supabase
+      .from("expense_new")
+      .update({
+        tds_deduction_percentage: percentage,
+        tds_deduction_amount: tdsAmount,
+        actual_amount: actualAmount,
+      })
+      .eq("id", expenseId);
+
+    if (error) {
+      setExpense(prevExpense);
+      toast.error("Failed to update TDS deduction");
+    }
+
+    setTdsUpdating(false);
+  };
+
   if (!loading && !expense) {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
+
+  const tdsPercentage = expense?.tds_deduction_percentage ?? null;
+  const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? null;
+  const tdsAmount = tdsPercentage
+    ? expense?.tds_deduction_amount ??
+      calculateTdsAmount(tdsBaseAmount, tdsPercentage)
+    : expense?.tds_deduction_amount ?? null;
+  const actualAmount =
+    expense?.actual_amount ??
+    (tdsBaseAmount !== null && tdsBaseAmount !== undefined
+      ? Number(tdsBaseAmount) - (tdsAmount ?? 0)
+      : null);
 
   return (
     <div className="p-6 space-y-6">
@@ -368,7 +433,40 @@ export default function FinanceExpenseDetails() {
                   </TableRow>
                   <TableRow>
                     <TableHead>Approved Amount</TableHead>
-                    <TableCell>₹{expense.approved_amount}</TableCell>
+                    <TableCell>{formatCurrency(expense.approved_amount)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>TDS Deduction</TableHead>
+                    <TableCell>
+                      <div className="flex flex-col items-start gap-2">
+                        <select
+                          className="border px-2 py-1 rounded bg-white text-sm"
+                          value={tdsPercentage ? String(tdsPercentage) : ""}
+                          onChange={(e) => handleTdsChange(e.target.value)}
+                          disabled={tdsUpdating || processing}
+                        >
+                          <option value="">Select %</option>
+                          {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                            (percent) => (
+                              <option key={percent} value={percent}>
+                                {percent}%
+                              </option>
+                            )
+                          )}
+                        </select>
+                        <span className="text-xs text-muted-foreground">
+                          {tdsPercentage
+                            ? `${tdsPercentage}% (${formatCurrency(tdsAmount)})`
+                            : tdsAmount
+                              ? formatCurrency(tdsAmount)
+                              : "N/A"}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Actual Amount</TableHead>
+                    <TableCell>{formatCurrency(actualAmount)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Date</TableHead>
