@@ -892,6 +892,53 @@ export default function PaymentRecords() {
   };
 
   const exportToCSV = () => {
+    const formatExportDateForName = (dateValue?: string) => {
+      if (!dateValue) return "";
+      const [year, month, day] = dateValue.split("-");
+      if (!year || !month || !day) return dateValue;
+      return `${day}-${month}-${year}`;
+    };
+
+    const getExportFileBaseName = () => {
+      const bankLabel = exportBankType
+        ? exportBankType === "NGIDFC Current"
+          ? "NG Records"
+          : exportBankType === "FCIDFC Current"
+            ? "FC Records"
+            : "KOTAK Records"
+        : "All Records";
+
+      const segments: string[] = [bankLabel];
+
+      if (exportDateFilters.expenseDateMode !== "All Dates") {
+        const dateLabel = "Date-of-Expense";
+        const dateValue =
+          exportDateFilters.expenseDateMode === "Single Date"
+            ? formatExportDateForName(exportDateFilters.expenseStartDate)
+            : `${formatExportDateForName(
+                exportDateFilters.expenseStartDate
+              )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
+        segments.push(`${dateLabel}_${dateValue}`);
+      }
+
+      if (exportDateFilters.paidDateMode !== "All Dates") {
+        const dateLabel = "Paid-Date";
+        const dateValue =
+          exportDateFilters.paidDateMode === "Single Date"
+            ? formatExportDateForName(exportDateFilters.paidStartDate)
+            : `${formatExportDateForName(
+                exportDateFilters.paidStartDate
+              )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
+        segments.push(`${dateLabel}_${dateValue}`);
+      }
+
+      if (segments.length === 1) {
+        segments.push("All-Dates");
+      }
+
+      return segments.join("_");
+    };
+
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType
       ? new Map(
@@ -1033,12 +1080,59 @@ export default function PaymentRecords() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "payment_records.csv");
+    link.setAttribute("download", `${getExportFileBaseName()}.csv`);
     link.click();
     URL.revokeObjectURL(url);
   };
 
   const exportToXLSX = () => {
+    const formatExportDateForName = (dateValue?: string) => {
+      if (!dateValue) return "";
+      const [year, month, day] = dateValue.split("-");
+      if (!year || !month || !day) return dateValue;
+      return `${day}-${month}-${year}`;
+    };
+
+    const getExportFileBaseName = () => {
+      const bankLabel = exportBankType
+        ? exportBankType === "NGIDFC Current"
+          ? "NG Records"
+          : exportBankType === "FCIDFC Current"
+            ? "FC Records"
+            : "KOTAK Records"
+        : "All Records";
+
+      const segments: string[] = [bankLabel];
+
+      if (exportDateFilters.expenseDateMode !== "All Dates") {
+        const dateLabel = "Date-of-Expense";
+        const dateValue =
+          exportDateFilters.expenseDateMode === "Single Date"
+            ? formatExportDateForName(exportDateFilters.expenseStartDate)
+            : `${formatExportDateForName(
+                exportDateFilters.expenseStartDate
+              )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
+        segments.push(`${dateLabel}_${dateValue}`);
+      }
+
+      if (exportDateFilters.paidDateMode !== "All Dates") {
+        const dateLabel = "Paid-Date";
+        const dateValue =
+          exportDateFilters.paidDateMode === "Single Date"
+            ? formatExportDateForName(exportDateFilters.paidStartDate)
+            : `${formatExportDateForName(
+                exportDateFilters.paidStartDate
+              )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
+        segments.push(`${dateLabel}_${dateValue}`);
+      }
+
+      if (segments.length === 1) {
+        segments.push("All-Dates");
+      }
+
+      return segments.join("_");
+    };
+
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType
       ? new Map(
@@ -1189,7 +1283,7 @@ export default function PaymentRecords() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "payment_records.xlsx";
+    link.download = `${getExportFileBaseName()}.xlsx`;
     link.click();
     URL.revokeObjectURL(url);
   };
