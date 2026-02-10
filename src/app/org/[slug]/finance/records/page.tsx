@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -360,6 +360,34 @@ export default function PaymentRecords() {
       return matchesExpenseDate && matchesPaidDate;
     });
   };
+
+  const expenseDateOptions = useMemo(() => {
+    const baseRecords = exportBankType
+      ? filteredRecords.filter(
+          (record) => (record.paid_by_bank || "") === exportBankType
+        )
+      : filteredRecords;
+    const uniqueDates = new Set<string>();
+    baseRecords.forEach((record) => {
+      const dateOnly = toDateOnly(record.date);
+      if (dateOnly) uniqueDates.add(dateOnly);
+    });
+    return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
+  }, [filteredRecords, exportBankType]);
+
+  const paidDateOptions = useMemo(() => {
+    const baseRecords = exportBankType
+      ? filteredRecords.filter(
+          (record) => (record.paid_by_bank || "") === exportBankType
+        )
+      : filteredRecords;
+    const uniqueDates = new Set<string>();
+    baseRecords.forEach((record) => {
+      const dateOnly = toDateOnly(record.paid_approval_time);
+      if (dateOnly) uniqueDates.add(dateOnly);
+    });
+    return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
+  }, [filteredRecords, exportBankType]);
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -2396,9 +2424,8 @@ export default function PaymentRecords() {
                 {exportDateFilters.expenseDateMode === "Single Date" ? (
                   <>
                     <label className="text-sm font-medium">Select Date</label>
-                    <input
-                      type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                    <select
+                      className="mt-1 block w-full border rounded px-3 py-2 bg-white"
                       value={exportDateFilters.expenseStartDate}
                       onChange={(e) =>
                         setExportDateFilters((prev) => ({
@@ -2407,7 +2434,14 @@ export default function PaymentRecords() {
                           expenseEndDate: e.target.value,
                         }))
                       }
-                    />
+                    >
+                      <option value="">Select Date</option>
+                      {expenseDateOptions.map((date) => (
+                        <option key={date} value={date}>
+                          {date}
+                        </option>
+                      ))}
+                    </select>
                   </>
                 ) : exportDateFilters.expenseDateMode === "Custom Date" ? (
                   <div className="grid grid-cols-2 gap-2">
@@ -2484,9 +2518,8 @@ export default function PaymentRecords() {
                 {exportDateFilters.paidDateMode === "Single Date" ? (
                   <>
                     <label className="text-sm font-medium">Select Date</label>
-                    <input
-                      type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                    <select
+                      className="mt-1 block w-full border rounded px-3 py-2 bg-white"
                       value={exportDateFilters.paidStartDate}
                       onChange={(e) =>
                         setExportDateFilters((prev) => ({
@@ -2495,7 +2528,14 @@ export default function PaymentRecords() {
                           paidEndDate: e.target.value,
                         }))
                       }
-                    />
+                    >
+                      <option value="">Select Date</option>
+                      {paidDateOptions.map((date) => (
+                        <option key={date} value={date}>
+                          {date}
+                        </option>
+                      ))}
+                    </select>
                   </>
                 ) : exportDateFilters.paidDateMode === "Custom Date" ? (
                   <div className="grid grid-cols-2 gap-2">
