@@ -69,6 +69,7 @@ export default function FinanceExpenseDetails() {
   const [expense, setExpense] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [tdsUpdating, setTdsUpdating] = useState(false);
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
@@ -292,6 +293,41 @@ export default function FinanceExpenseDetails() {
     setProcessing(false);
   };
 
+  const handleTdsChange = async (value: string) => {
+    if (!expense || typeof expenseId !== "string") return;
+    const percentage = value ? Number.parseInt(value, 10) : null;
+    const baseAmount = expense.approved_amount ?? expense.amount ?? 0;
+    const tdsAmount = calculateTdsAmount(baseAmount, percentage);
+    const actualAmount = baseAmount - (tdsAmount ?? 0);
+
+    const prevExpense = expense;
+    const updatedExpense = {
+      ...expense,
+      tds_deduction_percentage: percentage,
+      tds_deduction_amount: tdsAmount,
+      actual_amount: actualAmount,
+    };
+
+    setExpense(updatedExpense);
+    setTdsUpdating(true);
+
+    const { error } = await supabase
+      .from("expense_new")
+      .update({
+        tds_deduction_percentage: percentage,
+        tds_deduction_amount: tdsAmount,
+        actual_amount: actualAmount,
+      })
+      .eq("id", expenseId);
+
+    if (error) {
+      setExpense(prevExpense);
+      toast.error("Failed to update TDS deduction");
+    }
+
+    setTdsUpdating(false);
+  };
+
   if (!loading && !expense) {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
@@ -402,11 +438,30 @@ export default function FinanceExpenseDetails() {
                   <TableRow>
                     <TableHead>TDS Deduction</TableHead>
                     <TableCell>
-                      {tdsPercentage
-                        ? `${tdsPercentage}% (${formatCurrency(tdsAmount)})`
-                        : tdsAmount
-                          ? formatCurrency(tdsAmount)
-                          : "N/A"}
+                      <div className="flex flex-col items-start gap-2">
+                        <select
+                          className="border px-2 py-1 rounded bg-white text-sm"
+                          value={tdsPercentage ? String(tdsPercentage) : ""}
+                          onChange={(e) => handleTdsChange(e.target.value)}
+                          disabled={tdsUpdating || processing}
+                        >
+                          <option value="">Select %</option>
+                          {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                            (percent) => (
+                              <option key={percent} value={percent}>
+                                {percent}%
+                              </option>
+                            )
+                          )}
+                        </select>
+                        <span className="text-xs text-muted-foreground">
+                          {tdsPercentage
+                            ? `${tdsPercentage}% (${formatCurrency(tdsAmount)})`
+                            : tdsAmount
+                              ? formatCurrency(tdsAmount)
+                              : "N/A"}
+                        </span>
+                      </div>
                     </TableCell>
                   </TableRow>
                   <TableRow>
