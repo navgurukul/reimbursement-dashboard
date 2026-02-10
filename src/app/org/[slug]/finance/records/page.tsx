@@ -893,10 +893,10 @@ export default function PaymentRecords() {
 
   const exportToCSV = () => {
     const isKotakExport = exportBankType === "KOTAK";
-    const kotakRefNoMap = isKotakExport
+    const bankRefNoMap = exportBankType
       ? new Map(
           filteredRecords
-            .filter((record) => (record.paid_by_bank || "") === "KOTAK")
+            .filter((record) => (record.paid_by_bank || "") === exportBankType)
             .map((record, idx) => [record.id, idx + 1])
         )
       : null;
@@ -947,7 +947,7 @@ export default function PaymentRecords() {
       if (isKotakExport) {
         const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
         const serialNumber = record.serialNumber ?? index + 1;
-        const refNo = kotakRefNoMap?.get(record.id) ?? serialNumber;
+        const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
         const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
         const ledgerAmount = formatAmountValue(actualAmount ?? baseAmount);
 
@@ -976,7 +976,9 @@ export default function PaymentRecords() {
       const voucherDate = record.paid_approval_time
         ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
         : "—";
-      const narration = `Being paid to for ${beneficiaryName}`;
+      const serialNumber = record.serialNumber ?? index + 1;
+      const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
+      const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
       const rowsForRecord: any[] = [
         [
@@ -1038,10 +1040,10 @@ export default function PaymentRecords() {
 
   const exportToXLSX = () => {
     const isKotakExport = exportBankType === "KOTAK";
-    const kotakRefNoMap = isKotakExport
+    const bankRefNoMap = exportBankType
       ? new Map(
           filteredRecords
-            .filter((record) => (record.paid_by_bank || "") === "KOTAK")
+            .filter((record) => (record.paid_by_bank || "") === exportBankType)
             .map((record, idx) => [record.id, idx + 1])
         )
       : null;
@@ -1092,7 +1094,7 @@ export default function PaymentRecords() {
       if (isKotakExport) {
         const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
         const serialNumber = record.serialNumber ?? index + 1;
-        const refNo = kotakRefNoMap?.get(record.id) ?? serialNumber;
+        const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
         const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
         const ledgerAmount = formatAmountValue(actualAmount ?? baseAmount);
 
@@ -1121,7 +1123,9 @@ export default function PaymentRecords() {
       const voucherDate = record.paid_approval_time
         ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
         : "—";
-      const narration = `Being paid to for ${beneficiaryName}`;
+      const serialNumber = record.serialNumber ?? index + 1;
+      const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
+      const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
       const rowsForRecord: any[] = [
         [
