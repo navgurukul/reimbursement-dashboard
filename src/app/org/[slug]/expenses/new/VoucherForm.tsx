@@ -198,7 +198,7 @@ export default function VoucherForm({
               max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
               aria-invalid={getError("date") ? "true" : "false"}
               aria-describedby={getError("date") ? "date-error" : undefined}
-              className={getError("date") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
+              className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${getError("date") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
               required
             />
             {getError("date") && (

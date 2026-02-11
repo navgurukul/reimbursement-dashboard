@@ -1903,7 +1903,7 @@ export default function NewExpensePage() {
                             onChange={(e) =>
                               handleInputChange(col.key, e.target.value)
                             }
-                            className={`w-full ${
+                            className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
                               errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
@@ -2188,7 +2188,7 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`w-full ${
+                        className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
                           errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
@@ -2478,19 +2478,33 @@ export default function NewExpensePage() {
                       </Button>
                     </div>
 
-                    {/* Expense Type, Date, Amount */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {columns.map((col) => {
-                        if (
-                          !col.visible ||
-                          !["dropdown", "date", "number"].includes(col.type) ||
-                          col.key === "approver" ||
-                          !defaultSystemFields.includes(col.key)
+                    {/* Expense Type, Amount, Date */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {columns
+                        .filter(
+                          (col) =>
+                            col.visible &&
+                            ["dropdown", "date", "number"].includes(col.type) &&
+                            col.key !== "approver" &&
+                            defaultSystemFields.includes(col.key)
                         )
-                          return null;
-
-                        return (
-                          <div key={col.key} className="space-y-2">
+                        .sort((a, b) => {
+                          const order: Record<string, number> = {
+                            expense_type: 0,
+                            amount: 1,
+                            date: 2,
+                          };
+                          const aOrder = order[a.key] ?? 99;
+                          const bOrder = order[b.key] ?? 99;
+                          return aOrder - bOrder;
+                        })
+                        .map((col) => (
+                          <div
+                            key={col.key}
+                            className={`space-y-2 ${
+                              col.key === "date" ? "md:col-span-2" : ""
+                            }`}
+                          >
                             <Label
                               htmlFor={col.key}
                               className="text-sm font-medium text-gray-700"
@@ -2579,7 +2593,7 @@ export default function NewExpensePage() {
                                       e.target.value
                                     )
                                   }
-                                  className={`w-full ${
+                                  className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
                                     errors[col.key]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
@@ -2600,6 +2614,10 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
+                                <p className="text-xs text-gray-500 mb-5">
+                                  Reimbursement bill uploading date / vendor
+                                  invoice date
+                                </p>
                               </>
                             )}
 
@@ -2633,8 +2651,7 @@ export default function NewExpensePage() {
                               </>
                             )}
                           </div>
-                        );
-                      })}
+                        ))}
                     </div>
 
                     {/* Description (full width) */}
@@ -2678,6 +2695,10 @@ export default function NewExpensePage() {
                             }`}
                             placeholder="Brief description of this expense report..."
                           />
+                          <p className="text-xs text-gray-500">
+                            Purpose of the expense, related activity/program,
+                            amount spent, number of people involved etc...
+                          </p>
                           {errors[col.key] && (
                             <p className="text-red-500 text-sm">
                               {errors[col.key]}
