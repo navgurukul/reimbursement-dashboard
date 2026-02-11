@@ -2575,7 +2575,7 @@ export default function ViewExpensePage() {
                   );
                 })()}
                 <p className="text-sm text-muted-foreground">
-                  Allow the description to be editable before Finance approves the expense.
+                  Description can only be edited till Finance approves the expense.
                 </p>
               </div>
               {expense.custom_fields &&
