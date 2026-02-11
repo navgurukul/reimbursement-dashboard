@@ -205,7 +205,7 @@ export default function PaymentRecords() {
   const [showExportDateModal, setShowExportDateModal] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
   const [exportBankType, setExportBankType] = useState<
-    "NGIDFC Current" | "FCIDFC Current" | "KOTAK" | ""
+    "NGIDFC Current" | "FCIDFC Current" | "KOTAK" | "NO_BANK" | ""
   >("");
   const [exportDateFilters, setExportDateFilters] = useState({
     expenseDateMode: "All Dates",
@@ -339,8 +339,10 @@ export default function PaymentRecords() {
 
   const getExportRecords = () => {
     const baseRecords = exportBankType
-      ? filteredRecords.filter(
-          (r) => (r.paid_by_bank || "") === exportBankType
+      ? filteredRecords.filter((r) =>
+          exportBankType === "NO_BANK"
+            ? !(r.paid_by_bank || "").trim()
+            : (r.paid_by_bank || "") === exportBankType
         )
       : filteredRecords;
 
@@ -363,8 +365,10 @@ export default function PaymentRecords() {
 
   const expenseDateOptions = useMemo(() => {
     const baseRecords = exportBankType
-      ? filteredRecords.filter(
-          (record) => (record.paid_by_bank || "") === exportBankType
+      ? filteredRecords.filter((record) =>
+          exportBankType === "NO_BANK"
+            ? !(record.paid_by_bank || "").trim()
+            : (record.paid_by_bank || "") === exportBankType
         )
       : filteredRecords;
     const uniqueDates = new Set<string>();
@@ -377,8 +381,10 @@ export default function PaymentRecords() {
 
   const paidDateOptions = useMemo(() => {
     const baseRecords = exportBankType
-      ? filteredRecords.filter(
-          (record) => (record.paid_by_bank || "") === exportBankType
+      ? filteredRecords.filter((record) =>
+          exportBankType === "NO_BANK"
+            ? !(record.paid_by_bank || "").trim()
+            : (record.paid_by_bank || "") === exportBankType
         )
       : filteredRecords;
     const uniqueDates = new Set<string>();
@@ -905,7 +911,9 @@ export default function PaymentRecords() {
           ? "NG Records"
           : exportBankType === "FCIDFC Current"
             ? "FC Records"
-            : "KOTAK Records"
+            : exportBankType === "NO_BANK"
+              ? "No Bank Records"
+              : "KOTAK Records"
         : "All Records";
 
       const segments: string[] = [bankLabel];
@@ -1024,7 +1032,10 @@ export default function PaymentRecords() {
         ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
         : "—";
       const serialNumber = record.serialNumber ?? index + 1;
-      const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
+      const refNo =
+        exportBankType === "NO_BANK"
+          ? "N/A"
+          : bankRefNoMap?.get(record.id) ?? serialNumber;
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
       const rowsForRecord: any[] = [
@@ -1099,7 +1110,9 @@ export default function PaymentRecords() {
           ? "NG Records"
           : exportBankType === "FCIDFC Current"
             ? "FC Records"
-            : "KOTAK Records"
+            : exportBankType === "NO_BANK"
+              ? "No Bank Records"
+              : "KOTAK Records"
         : "All Records";
 
       const segments: string[] = [bankLabel];
@@ -1218,7 +1231,10 @@ export default function PaymentRecords() {
         ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
         : "—";
       const serialNumber = record.serialNumber ?? index + 1;
-      const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
+      const refNo =
+        exportBankType === "NO_BANK"
+          ? "N/A"
+          : bankRefNoMap?.get(record.id) ?? serialNumber;
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
       const rowsForRecord: any[] = [
@@ -2466,6 +2482,18 @@ export default function PaymentRecords() {
               />
               <label htmlFor="export-kotak" className="text-sm font-medium cursor-pointer">
                 KOTAK Records
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="export-no-bank"
+                checked={exportBankType === "NO_BANK"}
+                onCheckedChange={(checked) =>
+                  setExportBankType(checked ? "NO_BANK" : "")
+                }
+              />
+              <label htmlFor="export-no-bank" className="text-sm font-medium cursor-pointer">
+                No Bank Records (Not paid by bank)
               </label>
             </div>
           </div>
