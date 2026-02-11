@@ -82,6 +82,7 @@ interface ExpenseData {
   event_id?: string | null;
   signature_url?: string;
   unique_id?: string;
+  expense_credit_person?: string | null;
 }
 
 interface ExpenseItemData {
@@ -89,6 +90,7 @@ interface ExpenseItemData {
   amount: number;
   date: string;
   description: string;
+  expense_credit_person?: string;
   [key: string]: string | number | string[] | undefined;
 }
 
@@ -140,6 +142,13 @@ export default function NewExpensePage() {
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
   });
+
+  const isDirectPaymentValue = (value: string | number | boolean | string[]) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase() === "direct payment";
+
+  const isDirectPayment = isDirectPaymentValue(formData.unique_id || "");
 
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
@@ -233,6 +242,9 @@ export default function NewExpensePage() {
         date: new Date().toISOString().split("T")[0],
         description: "",
         unique_id: formData.unique_id || "",
+        expense_credit_person: isDirectPayment
+          ? formData.expense_credit_person || ""
+          : "",
         ...customFieldValues, // ✅ Add label-based custom fields
       },
     }));
@@ -723,6 +735,7 @@ export default function NewExpensePage() {
     // If the top-level Payment Unique ID is changed, propagate it to all expense items
     if (key === "unique_id") {
       const v = typeof value === "string" ? value : String(value);
+      const isDirect = isDirectPaymentValue(v);
       setExpenseItemsData((prev) => {
         const updated: Record<number, ExpenseItemData> = { ...prev };
         expenseItems.forEach((id) => {
@@ -730,10 +743,16 @@ export default function NewExpensePage() {
           updated[id] = {
             ...item,
             unique_id: v,
+            expense_credit_person: isDirect
+              ? item.expense_credit_person || formData.expense_credit_person || ""
+              : "",
           };
         });
         return updated;
       });
+      if (!isDirect) {
+        setFormData((prev) => ({ ...prev, expense_credit_person: "" }));
+      }
     }
     // If changing the event, update the selected event
     if (key === "event_id" && value) {
@@ -949,9 +968,23 @@ export default function NewExpensePage() {
       newErrors["unique_id"] = "Payment Unique ID is required";
     }
 
+    const isDirectPaymentSelected = isDirectPaymentValue(
+      formData.unique_id || ""
+    );
+    if (
+      isDirectPaymentSelected &&
+      !String(formData.expense_credit_person || "").trim()
+    ) {
+      newErrors["expense_credit_person"] =
+        "Expense credit person is required";
+    }
+
     // Validate expense items
     for (const itemId of expenseItems) {
       const item = expenseItemsData[itemId];
+      const itemIsDirectPayment = isDirectPaymentValue(
+        item?.unique_id || formData.unique_id || ""
+      );
       if (!item.expense_type)
         newErrors[`expense_type-${itemId}`] = "Expense Type is required";
       if (!item.amount || isNaN(item.amount))
@@ -977,6 +1010,14 @@ export default function NewExpensePage() {
           newErrors[`${col.key}-${itemId}`] = `${col.label} is required`;
         }
       });
+
+      if (
+        itemIsDirectPayment &&
+        !String(item.expense_credit_person || "").trim()
+      ) {
+        newErrors[`expense_credit_person-${itemId}`] =
+          "Expense credit person is required";
+      }
 
       if (voucherModalOpenMap[itemId]) {
         const voucherData = voucherDataMap[itemId] || {};
@@ -1213,6 +1254,11 @@ export default function NewExpensePage() {
         approver_id,
         // include top-level Payment Unique ID if provided
         unique_id: formData.unique_id || undefined,
+        expense_credit_person: isDirectPaymentValue(
+          formData.unique_id || ""
+        )
+          ? formData.expense_credit_person || null
+          : null,
         signature_url: signature_url_to_use ?? undefined,
         receipt: null,
         creator_email: user.email,
@@ -1336,6 +1382,9 @@ export default function NewExpensePage() {
         for (const itemId of expenseItems) {
           const item = expenseItemsData[itemId];
           const isVoucher = voucherModalOpenMap[itemId] || voucherModalOpen;
+          const itemIsDirectPayment = isDirectPaymentValue(
+            item?.unique_id || formData.unique_id || ""
+          );
 
           // Prepare custom fields for the item
           const itemCustomFields: Record<string, any> = {
@@ -1361,6 +1410,9 @@ export default function NewExpensePage() {
             approver_id: formData.approver || null,
             // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
             unique_id: item.unique_id || formData.unique_id || undefined,
+            expense_credit_person: itemIsDirectPayment
+              ? item.expense_credit_person || null
+              : null,
             signature_url: isVoucher
               ? signature_url_to_use ?? undefined
               : expense_signature_url ?? undefined,
@@ -2346,6 +2398,52 @@ export default function NewExpensePage() {
               })}
             </div>
 
+            
+            {isDirectPayment && (
+              <div className="space-y-2">
+                <Label
+                  htmlFor="expense_credit_person"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Expense Credit Person
+                  <span className="text-red-500 ml-1 text-sm">*</span>
+                </Label>
+                <Input
+                  id="expense_credit_person"
+                  name="expense_credit_person"
+                  type="text"
+                  value={formData.expense_credit_person || ""}
+                  onChange={(e) =>
+                    handleInputChange("expense_credit_person", e.target.value)
+                  }
+                  required
+                  aria-invalid={
+                    errors["expense_credit_person"] ? "true" : "false"
+                  }
+                  aria-describedby={
+                    errors["expense_credit_person"]
+                      ? "expense_credit_person-error"
+                      : undefined
+                  }
+                  placeholder="Enter expense credit person"
+                  className={`w-full border ${
+                    errors["expense_credit_person"]
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                      : "border-gray-300"
+                  }`}
+                />
+                {errors["expense_credit_person"] && (
+                  <p
+                    className="text-red-500 text-sm mt-1"
+                    role="alert"
+                    id="expense_credit_person-error"
+                  >
+                    {errors["expense_credit_person"]}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
                 <div className="flex items-center justify-between">
@@ -3023,6 +3121,66 @@ export default function NewExpensePage() {
                       );
                       return null;
                     })}
+                    
+                    {isDirectPaymentValue(
+                      expenseItemsData[id]?.unique_id ||
+                        formData.unique_id ||
+                        ""
+                    ) && (
+                      <div className="space-y-2 mt-5 mb-5">
+                        <Label
+                          htmlFor={`expense_credit_person-${id}`}
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Expense Credit Person
+                          <span className="text-red-500 ml-1 text-sm">*</span>
+                        </Label>
+                        <Input
+                          id={`expense_credit_person-${id}`}
+                          name={`expense_credit_person-${id}`}
+                          type="text"
+                          value={
+                            getExpenseItemValue(
+                              id,
+                              "expense_credit_person"
+                            ) || ""
+                          }
+                          onChange={(e) =>
+                            handleExpenseItemChange(
+                              id,
+                              "expense_credit_person",
+                              e.target.value
+                            )
+                          }
+                          required
+                          aria-invalid={
+                            errors[`expense_credit_person-${id}`]
+                              ? "true"
+                              : "false"
+                          }
+                          aria-describedby={
+                            errors[`expense_credit_person-${id}`]
+                              ? `expense_credit_person-${id}-error`
+                              : undefined
+                          }
+                          placeholder="Enter expense credit person"
+                          className={`w-full ${
+                            errors[`expense_credit_person-${id}`]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                          }`}
+                        />
+                        {errors[`expense_credit_person-${id}`] && (
+                          <p
+                            className="text-red-500 text-sm"
+                            role="alert"
+                            id={`expense_credit_person-${id}-error`}
+                          >
+                            {errors[`expense_credit_person-${id}`]}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Receipt Upload */}
                     <div className="space-y-2 mt-5">
