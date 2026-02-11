@@ -101,6 +101,7 @@ interface BankDetailRecord {
   account_number?: string | null;
   ifsc_code?: string | null;
   advance_unique_id?: string | null;
+  direct_payment?: boolean | null;
   bankDetails?: { advanceUniqueId?: string | null } | null;
 }
 
@@ -751,7 +752,7 @@ export default function NewExpensePage() {
         const { data, error } = await supabase
           .from("bank_details")
           .select(
-            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id"
+            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id,direct_payment"
           )
           .eq("email", user.email)
           .limit(1);
@@ -799,6 +800,15 @@ export default function NewExpensePage() {
     setUniqueIdModalOpen(false);
   };
 
+  const handleDirectPaymentSelect = (detail: BankDetailRecord) => {
+    const value = "Direct Payment";
+    handleInputChange("unique_id", value);
+    setSelectedUniqueIdUser(detail);
+    setPrefilledUniqueId(value);
+    setUniqueIdUnavailable(false);
+    setUniqueIdModalOpen(false);
+  };
+
   // Search bank details when the modal is open
   useEffect(() => {
     if (!uniqueIdModalOpen) {
@@ -818,7 +828,7 @@ export default function NewExpensePage() {
         let query = supabase
           .from("bank_details")
           .select(
-            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id"
+            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id,direct_payment"
           )
           .order("account_holder", { ascending: true });
         // .limit(20);
@@ -1756,6 +1766,21 @@ export default function NewExpensePage() {
                                     )}
                                   </div>
                                 </button>
+
+                                {row.direct_payment && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDirectPaymentSelect(row)}
+                                    className="flex w-full flex-col rounded-lg border bg-white px-3 py-3 text-left shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-700">
+                                      Direct Payment
+                                    </p>
+                                    <p className="mt-2 inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 font-mono text-sm font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-100">
+                                      {row.direct_payment|| "Direct payment not available"}
+                                    </p>
+                                  </button>
+                                )}
 
                                 {advanceUniqueId && (
                                   <button
