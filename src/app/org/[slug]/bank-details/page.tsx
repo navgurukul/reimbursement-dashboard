@@ -42,6 +42,7 @@ type BankDetail = {
   email: string;
   unique_id: string;
   advance_unique_id: string;
+  direct_payment?: boolean | null;
 };
 
 export default function BankDetailsPage() {
@@ -561,16 +562,17 @@ export default function BankDetailsPage() {
               <TableHead className="px-4 py-3">Email</TableHead>
               <TableHead className="px-4 py-3">Unique ID</TableHead>
               <TableHead className="px-4 py-3">Advance Unique ID</TableHead>
+              <TableHead className="px-4 py-3">Direct Payment</TableHead>
               <TableHead className="px-4 py-3 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={7} rows={5} />
+              <TableSkeleton colSpan={9} rows={5} />
             ) : data.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={9}
                   className="text-center py-6 text-muted-foreground"
                 >
                   No results found
@@ -596,6 +598,9 @@ export default function BankDetailsPage() {
                   </TableCell>
                   <TableCell className="px-4 py-3 font-mono">
                     {row.advance_unique_id || "Not Available"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
+                    {row.direct_payment || "Not Available"} 
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <Button

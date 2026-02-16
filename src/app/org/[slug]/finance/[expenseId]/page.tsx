@@ -333,6 +333,11 @@ export default function FinanceExpenseDetails() {
   }
 
   const tdsPercentage = expense?.tds_deduction_percentage ?? null;
+  const isDirectPayment =
+    String(expense?.unique_id || "")
+      .trim()
+      .toLowerCase()
+      .includes("direct payment");
   const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? null;
   const tdsAmount = tdsPercentage
     ? expense?.tds_deduction_amount ??
@@ -413,6 +418,16 @@ export default function FinanceExpenseDetails() {
                     <TableHead>Unique ID</TableHead>
                     <TableCell>{expense.unique_id || "N/A"}</TableCell>
                   </TableRow>
+                  {isDirectPayment && (
+                    <TableRow>
+                      <TableHead>Expense Credit Person</TableHead>
+                      <TableCell>
+                        {expense.expense_credit_person ||
+                          expense.custom_fields?.expense_credit_person ||
+                          "—"}
+                      </TableCell>
+                    </TableRow>
+                  )}
                   <TableRow>
                     <TableHead>Location of Expense</TableHead>
                     <TableCell>{expense.location || "N/A"}</TableCell>

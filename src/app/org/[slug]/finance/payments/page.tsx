@@ -61,6 +61,9 @@ const calculateTdsAmount = (
   return Number(amount.toFixed(2));
 };
 
+const isDirectPaymentUniqueId = (value: unknown) =>
+  String(value || "").trim().toLowerCase().includes("direct payment");
+
 export default function PaymentProcessingOnly() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
@@ -228,6 +231,15 @@ export default function PaymentProcessingOnly() {
         });
 
         setProcessingExpenses(enrichedExpenses);
+        setPaidByBank((prev) => {
+          const next = { ...prev };
+          enrichedExpenses.forEach((exp) => {
+            if (!next[exp.id] && isDirectPaymentUniqueId(exp.unique_id)) {
+              next[exp.id] = "KOTAK";
+            }
+          });
+          return next;
+        });
       } catch (error: any) {
         toast.error("Failed to load data", {
           description: error.message,

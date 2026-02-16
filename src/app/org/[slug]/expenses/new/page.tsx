@@ -82,6 +82,7 @@ interface ExpenseData {
   event_id?: string | null;
   signature_url?: string;
   unique_id?: string;
+  expense_credit_person?: string | null;
 }
 
 interface ExpenseItemData {
@@ -89,6 +90,7 @@ interface ExpenseItemData {
   amount: number;
   date: string;
   description: string;
+  expense_credit_person?: string;
   [key: string]: string | number | string[] | undefined;
 }
 
@@ -101,6 +103,7 @@ interface BankDetailRecord {
   account_number?: string | null;
   ifsc_code?: string | null;
   advance_unique_id?: string | null;
+  direct_payment?: boolean | null;
   bankDetails?: { advanceUniqueId?: string | null } | null;
 }
 
@@ -140,6 +143,9 @@ export default function NewExpensePage() {
     event_id: eventIdFromQuery || "",
   });
 
+  const [events, setEvents] = useState<ExpenseEvent[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
+
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [receiptFiles, setReceiptFiles] = useState<Record<number, File | null>>(
@@ -154,8 +160,43 @@ export default function NewExpensePage() {
     Record<number, boolean>
   >({});
 
-  const [events, setEvents] = useState<ExpenseEvent[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
+  const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getAllowedMonthBounds = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { start: formatDateInput(start), end: formatDateInput(end) };
+  };
+
+  const getDateBounds = (event: ExpenseEvent | null) => {
+    const { start, end } = getAllowedMonthBounds();
+    let min = start;
+    let max = end;
+
+    if (event) {
+      const eventStart = event.start_date.split("T")[0];
+      const eventEnd = event.end_date.split("T")[0];
+      if (eventStart > min) min = eventStart;
+      if (eventEnd < max) max = eventEnd;
+    }
+
+    return { min, max };
+  };
+
+  const dateBounds = getDateBounds(selectedEvent);
+
+  const isDirectPaymentValue = (value: string | number | boolean | string[]) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase() === "direct payment";
+
+  const isDirectPayment = isDirectPaymentValue(formData.unique_id || "");
 
   // Separate signature states for expense and voucher
   const [expenseSignature, setExpenseSignature] = useState<string | undefined>(
@@ -232,6 +273,7 @@ export default function NewExpensePage() {
         date: new Date().toISOString().split("T")[0],
         description: "",
         unique_id: formData.unique_id || "",
+        expense_credit_person: "",
         ...customFieldValues, // ✅ Add label-based custom fields
       },
     }));
@@ -722,6 +764,7 @@ export default function NewExpensePage() {
     // If the top-level Payment Unique ID is changed, propagate it to all expense items
     if (key === "unique_id") {
       const v = typeof value === "string" ? value : String(value);
+      const isDirect = isDirectPaymentValue(v);
       setExpenseItemsData((prev) => {
         const updated: Record<number, ExpenseItemData> = { ...prev };
         expenseItems.forEach((id) => {
@@ -729,10 +772,16 @@ export default function NewExpensePage() {
           updated[id] = {
             ...item,
             unique_id: v,
+            expense_credit_person: isDirect
+              ? item.expense_credit_person || ""
+              : "",
           };
         });
         return updated;
       });
+      if (!isDirect) {
+        setFormData((prev) => ({ ...prev, expense_credit_person: "" }));
+      }
     }
     // If changing the event, update the selected event
     if (key === "event_id" && value) {
@@ -751,7 +800,7 @@ export default function NewExpensePage() {
         const { data, error } = await supabase
           .from("bank_details")
           .select(
-            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id"
+            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id,direct_payment"
           )
           .eq("email", user.email)
           .limit(1);
@@ -799,6 +848,15 @@ export default function NewExpensePage() {
     setUniqueIdModalOpen(false);
   };
 
+  const handleDirectPaymentSelect = (detail: BankDetailRecord) => {
+    const value = "Direct Payment";
+    handleInputChange("unique_id", value);
+    setSelectedUniqueIdUser(detail);
+    setPrefilledUniqueId(value);
+    setUniqueIdUnavailable(false);
+    setUniqueIdModalOpen(false);
+  };
+
   // Search bank details when the modal is open
   useEffect(() => {
     if (!uniqueIdModalOpen) {
@@ -818,7 +876,7 @@ export default function NewExpensePage() {
         let query = supabase
           .from("bank_details")
           .select(
-            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id"
+            "id,account_holder,email,unique_id,bank_name,account_number,ifsc_code,advance_unique_id,direct_payment"
           )
           .order("account_holder", { ascending: true });
         // .limit(20);
@@ -939,9 +997,23 @@ export default function NewExpensePage() {
       newErrors["unique_id"] = "Payment Unique ID is required";
     }
 
+    const isDirectPaymentSelected = isDirectPaymentValue(
+      formData.unique_id || ""
+    );
+    if (
+      isDirectPaymentSelected &&
+      !String(formData.expense_credit_person || "").trim()
+    ) {
+      newErrors["expense_credit_person"] =
+        "Expense credit person is required";
+    }
+
     // Validate expense items
     for (const itemId of expenseItems) {
       const item = expenseItemsData[itemId];
+      const itemIsDirectPayment = isDirectPaymentValue(
+        item?.unique_id || formData.unique_id || ""
+      );
       if (!item.expense_type)
         newErrors[`expense_type-${itemId}`] = "Expense Type is required";
       if (!item.amount || isNaN(item.amount))
@@ -967,6 +1039,14 @@ export default function NewExpensePage() {
           newErrors[`${col.key}-${itemId}`] = `${col.label} is required`;
         }
       });
+
+      if (
+        itemIsDirectPayment &&
+        !String(item.expense_credit_person || "").trim()
+      ) {
+        newErrors[`expense_credit_person-${itemId}`] =
+          "Expense credit person is required";
+      }
 
       if (voucherModalOpenMap[itemId]) {
         const voucherData = voucherDataMap[itemId] || {};
@@ -1203,6 +1283,11 @@ export default function NewExpensePage() {
         approver_id,
         // include top-level Payment Unique ID if provided
         unique_id: formData.unique_id || undefined,
+        expense_credit_person: isDirectPaymentValue(
+          formData.unique_id || ""
+        )
+          ? formData.expense_credit_person || null
+          : null,
         signature_url: signature_url_to_use ?? undefined,
         receipt: null,
         creator_email: user.email,
@@ -1222,7 +1307,7 @@ export default function NewExpensePage() {
         return;
       }
 
-      await notifyApprover({
+      void notifyApprover({
         expenseId: baseData.id,
         amount: baseExpenseData.amount,
         expenseType: baseExpenseData.expense_type,
@@ -1231,40 +1316,42 @@ export default function NewExpensePage() {
       });
 
       // Log history for main/base expense
-      try {
-        const authRaw = localStorage.getItem("auth-storage");
-        const authStorage = JSON.parse(authRaw || "{}");
-        let userName = "Unknown User";
-        if (authStorage?.state?.user?.profile?.full_name) {
-          userName = authStorage.state.user.profile.full_name;
-        } else if (
-          typeof authRaw === "string" &&
-          authRaw.includes("full_name")
-        ) {
-          const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
-          if (match && match[1]) {
-            userName = match[1];
+      void (async () => {
+        try {
+          const authRaw = localStorage.getItem("auth-storage");
+          const authStorage = JSON.parse(authRaw || "{}");
+          let userName = "Unknown User";
+          if (authStorage?.state?.user?.profile?.full_name) {
+            userName = authStorage.state.user.profile.full_name;
+          } else if (
+            typeof authRaw === "string" &&
+            authRaw.includes("full_name")
+          ) {
+            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+            if (match && match[1]) {
+              userName = match[1];
+            }
           }
+          await expenseHistory.addEntry(
+            baseData.id,
+            user.id,
+            userName,
+            "created",
+            null,
+            baseData.amount.toString()
+          );
+        } catch (logError) {
+          console.error("Error logging base expense creation:", logError);
+          await expenseHistory.addEntry(
+            baseData.id,
+            user.id,
+            "Unknown User",
+            "created",
+            null,
+            baseData.amount.toString()
+          );
         }
-        await expenseHistory.addEntry(
-          baseData.id,
-          user.id,
-          userName,
-          "created",
-          null,
-          baseData.amount.toString()
-        );
-      } catch (logError) {
-        console.error("Error logging base expense creation:", logError);
-        await expenseHistory.addEntry(
-          baseData.id,
-          user.id,
-          "Unknown User",
-          "created",
-          null,
-          baseData.amount.toString()
-        );
-      }
+      })();
 
       let attachmentData = null;
       if (formData.attachment) {
@@ -1321,11 +1408,14 @@ export default function NewExpensePage() {
         }
       }
 
-      // Process additional expense items
+      // Process additional expense items (parallelized for faster saves)
       if (expenseItems.length > 0) {
-        for (const itemId of expenseItems) {
+        const processItem = async (itemId: number) => {
           const item = expenseItemsData[itemId];
           const isVoucher = voucherModalOpenMap[itemId] || voucherModalOpen;
+          const itemIsDirectPayment = isDirectPaymentValue(
+            item?.unique_id || formData.unique_id || ""
+          );
 
           // Prepare custom fields for the item
           const itemCustomFields: Record<string, any> = {
@@ -1351,6 +1441,9 @@ export default function NewExpensePage() {
             approver_id: formData.approver || null,
             // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
             unique_id: item.unique_id || formData.unique_id || undefined,
+            expense_credit_person: itemIsDirectPayment
+              ? item.expense_credit_person || null
+              : null,
             signature_url: isVoucher
               ? signature_url_to_use ?? undefined
               : expense_signature_url ?? undefined,
@@ -1366,12 +1459,11 @@ export default function NewExpensePage() {
           );
 
           if (itemError) {
-            toast.error(`Failed to create expense item: ${itemError.message}`);
             console.error("Error creating item:", itemError);
-            continue;
+            throw new Error(`Failed to create expense item: ${itemError.message}`);
           }
 
-          await notifyApprover({
+          void notifyApprover({
             expenseId: itemData.id,
             amount: individualExpenseData.amount,
             expenseType: individualExpenseData.expense_type,
@@ -1389,9 +1481,7 @@ export default function NewExpensePage() {
             );
             if (fileError) {
               console.error("Upload error:", fileError.message || fileError);
-              toast.error("Failed to upload payment screenshot");
-              setSaving(false);
-              return;
+              throw new Error("Failed to upload payment screenshot");
             }
             attachmentData = [
               voucherAttachment.name,
@@ -1405,11 +1495,11 @@ export default function NewExpensePage() {
             const voucherData = {
               expense_id: itemData.id,
               your_name: itemVoucherData.yourName || formData.yourName || null,
-                // Use explicit per-item voucher amount if provided, otherwise fall back to the item amount
-                amount:
-                  itemVoucherData.voucherAmount !== undefined
-                    ? parseFloat(itemVoucherData.voucherAmount || "0")
-                    : item.amount,
+              // Use explicit per-item voucher amount if provided, otherwise fall back to the item amount
+              amount:
+                itemVoucherData.voucherAmount !== undefined
+                  ? parseFloat(itemVoucherData.voucherAmount || "0")
+                  : item.amount,
               purpose:
                 itemVoucherData.purpose || formData.purpose || "Cash Voucher",
               credit_person:
@@ -1435,9 +1525,6 @@ export default function NewExpensePage() {
 
             if (voucherError) {
               console.error("Voucher creation error:", voucherError);
-              toast.error(
-                `Failed to create voucher for item: ${voucherError.message}`
-              );
               try {
                 await supabase
                   .from("expense_new")
@@ -1446,45 +1533,64 @@ export default function NewExpensePage() {
               } catch (cleanupError) {
                 console.error("Failed to clean up expense:", cleanupError);
               }
-              continue;
+              throw new Error(
+                `Failed to create voucher for item: ${voucherError.message}`
+              );
             }
           }
-
+          
           // Log history entry
-          try {
-            const authRaw = localStorage.getItem("auth-storage");
-            const authStorage = JSON.parse(authRaw || "{}");
-            let userName = "Unknown User";
-            if (authStorage?.state?.user?.profile?.full_name) {
-              userName = authStorage.state.user.profile.full_name;
-            } else if (
-              typeof authRaw === "string" &&
-              authRaw.includes("full_name")
-            ) {
-              const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
-              if (match && match[1]) {
-                userName = match[1];
+          void (async () => {
+            try {
+              const authRaw = localStorage.getItem("auth-storage");
+              const authStorage = JSON.parse(authRaw || "{}");
+              let userName = "Unknown User";
+              if (authStorage?.state?.user?.profile?.full_name) {
+                userName = authStorage.state.user.profile.full_name;
+              } else if (
+                typeof authRaw === "string" &&
+                authRaw.includes("full_name")
+              ) {
+                const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+                if (match && match[1]) {
+                  userName = match[1];
+                }
               }
+              await expenseHistory.addEntry(
+                itemData.id,
+                user.id,
+                userName,
+                "created",
+                null,
+                itemData.amount.toString()
+              );
+            } catch (logError) {
+              console.error("Error logging expense item creation:", logError);
+              await expenseHistory.addEntry(
+                itemData.id,
+                user.id,
+                "Unknown User",
+                "created",
+                null,
+                itemData.amount.toString()
+              );
             }
-            await expenseHistory.addEntry(
-              itemData.id,
-              user.id,
-              userName,
-              "created",
-              null,
-              itemData.amount.toString()
-            );
-          } catch (logError) {
-            console.error("Error logging expense item creation:", logError);
-            await expenseHistory.addEntry(
-              itemData.id,
-              user.id,
-              "Unknown User",
-              "created",
-              null,
-              itemData.amount.toString()
-            );
-          }
+          })();
+        };
+
+        const itemResults = await Promise.allSettled(
+          expenseItems.map((itemId) => processItem(itemId))
+        );
+
+        const failedItems = itemResults.filter(
+          (result) => result.status === "rejected"
+        ) as PromiseRejectedResult[];
+
+        if (failedItems.length > 0) {
+          failedItems.forEach((fail) => {
+            toast.error(fail.reason?.message || "Failed to create expense item");
+          });
+          throw new Error("One or more expense items failed to save");
         }
       }
 
@@ -1757,6 +1863,21 @@ export default function NewExpensePage() {
                                   </div>
                                 </button>
 
+                                {row.direct_payment && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDirectPaymentSelect(row)}
+                                    className="flex w-full flex-col rounded-lg border bg-white px-3 py-3 text-left shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-700">
+                                      Direct Payment
+                                    </p>
+                                    <p className="mt-2 inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 font-mono text-sm font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-100">
+                                      {row.direct_payment|| "Direct payment not available"}
+                                    </p>
+                                  </button>
+                                )}
+
                                 {advanceUniqueId && (
                                   <button
                                     type="button"
@@ -1878,21 +1999,13 @@ export default function NewExpensePage() {
                             onChange={(e) =>
                               handleInputChange(col.key, e.target.value)
                             }
-                            className={`w-full ${
+                            className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
                               errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                             }`}
-                            min={
-                              selectedEvent
-                                ? selectedEvent.start_date.split("T")[0]
-                                : undefined
-                            }
-                            max={
-                              selectedEvent
-                                ? selectedEvent.end_date.split("T")[0]
-                                : undefined
-                            }
+                            min={dateBounds.min}
+                            max={dateBounds.max}
                           />
                           {errors[col.key] && (
                             <p
@@ -2163,11 +2276,13 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`w-full ${
+                        className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
                           errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
                         }`}
+                        min={dateBounds.min}
+                        max={dateBounds.max}
                       />
                     )}
                     {col.type === "textarea" && (
@@ -2321,6 +2436,52 @@ export default function NewExpensePage() {
               })}
             </div>
 
+            
+            {isDirectPayment && (
+              <div className="space-y-2">
+                <Label
+                  htmlFor="expense_credit_person"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Expense Credit Person
+                  <span className="text-red-500 ml-1 text-sm">*</span>
+                </Label>
+                <Input
+                  id="expense_credit_person"
+                  name="expense_credit_person"
+                  type="text"
+                  value={formData.expense_credit_person || ""}
+                  onChange={(e) =>
+                    handleInputChange("expense_credit_person", e.target.value)
+                  }
+                  required
+                  aria-invalid={
+                    errors["expense_credit_person"] ? "true" : "false"
+                  }
+                  aria-describedby={
+                    errors["expense_credit_person"]
+                      ? "expense_credit_person-error"
+                      : undefined
+                  }
+                  placeholder="Enter expense credit person"
+                  className={`w-full border ${
+                    errors["expense_credit_person"]
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                      : "border-gray-300"
+                  }`}
+                />
+                {errors["expense_credit_person"] && (
+                  <p
+                    className="text-red-500 text-sm mt-1"
+                    role="alert"
+                    id="expense_credit_person-error"
+                  >
+                    {errors["expense_credit_person"]}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
                 <div className="flex items-center justify-between">
@@ -2453,19 +2614,33 @@ export default function NewExpensePage() {
                       </Button>
                     </div>
 
-                    {/* Expense Type, Date, Amount */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {columns.map((col) => {
-                        if (
-                          !col.visible ||
-                          !["dropdown", "date", "number"].includes(col.type) ||
-                          col.key === "approver" ||
-                          !defaultSystemFields.includes(col.key)
+                    {/* Expense Type, Amount, Date */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {columns
+                        .filter(
+                          (col) =>
+                            col.visible &&
+                            ["dropdown", "date", "number"].includes(col.type) &&
+                            col.key !== "approver" &&
+                            defaultSystemFields.includes(col.key)
                         )
-                          return null;
-
-                        return (
-                          <div key={col.key} className="space-y-2">
+                        .sort((a, b) => {
+                          const order: Record<string, number> = {
+                            expense_type: 0,
+                            amount: 1,
+                            date: 2,
+                          };
+                          const aOrder = order[a.key] ?? 99;
+                          const bOrder = order[b.key] ?? 99;
+                          return aOrder - bOrder;
+                        })
+                        .map((col) => (
+                          <div
+                            key={col.key}
+                            className={`space-y-2 ${
+                              col.key === "date" ? "md:col-span-2" : ""
+                            }`}
+                          >
                             <Label
                               htmlFor={col.key}
                               className="text-sm font-medium text-gray-700"
@@ -2554,27 +2729,23 @@ export default function NewExpensePage() {
                                       e.target.value
                                     )
                                   }
-                                  className={`w-full ${
+                                  className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
                                     errors[col.key]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
                                   }`}
-                                  min={
-                                    selectedEvent
-                                      ? selectedEvent.start_date.split("T")[0]
-                                      : undefined
-                                  }
-                                  max={
-                                    selectedEvent
-                                      ? selectedEvent.end_date.split("T")[0]
-                                      : undefined
-                                  }
+                                  min={dateBounds.min}
+                                  max={dateBounds.max}
                                 />
                                 {errors[col.key] && (
                                   <p className="text-red-500 text-sm">
                                     {errors[col.key]}
                                   </p>
                                 )}
+                                <p className="text-xs text-gray-500 mb-5">
+                                  Reimbursement bill uploading date / vendor
+                                  invoice date
+                                </p>
                               </>
                             )}
 
@@ -2608,8 +2779,7 @@ export default function NewExpensePage() {
                               </>
                             )}
                           </div>
-                        );
-                      })}
+                        ))}
                     </div>
 
                     {/* Description (full width) */}
@@ -2653,6 +2823,10 @@ export default function NewExpensePage() {
                             }`}
                             placeholder="Brief description of this expense report..."
                           />
+                          <p className="text-xs text-gray-500">
+                            Purpose of the expense, related activity/program,
+                            amount spent, number of people involved etc...
+                          </p>
                           {errors[col.key] && (
                             <p className="text-red-500 text-sm">
                               {errors[col.key]}
@@ -2977,6 +3151,66 @@ export default function NewExpensePage() {
                       );
                       return null;
                     })}
+                    
+                    {isDirectPaymentValue(
+                      expenseItemsData[id]?.unique_id ||
+                        formData.unique_id ||
+                        ""
+                    ) && (
+                      <div className="space-y-2 mt-5 mb-5">
+                        <Label
+                          htmlFor={`expense_credit_person-${id}`}
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Expense Credit Person
+                          <span className="text-red-500 ml-1 text-sm">*</span>
+                        </Label>
+                        <Input
+                          id={`expense_credit_person-${id}`}
+                          name={`expense_credit_person-${id}`}
+                          type="text"
+                          value={
+                            getExpenseItemValue(
+                              id,
+                              "expense_credit_person"
+                            ) || ""
+                          }
+                          onChange={(e) =>
+                            handleExpenseItemChange(
+                              id,
+                              "expense_credit_person",
+                              e.target.value
+                            )
+                          }
+                          required
+                          aria-invalid={
+                            errors[`expense_credit_person-${id}`]
+                              ? "true"
+                              : "false"
+                          }
+                          aria-describedby={
+                            errors[`expense_credit_person-${id}`]
+                              ? `expense_credit_person-${id}-error`
+                              : undefined
+                          }
+                          placeholder="Enter expense credit person"
+                          className={`w-full ${
+                            errors[`expense_credit_person-${id}`]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                          }`}
+                        />
+                        {errors[`expense_credit_person-${id}`] && (
+                          <p
+                            className="text-red-500 text-sm"
+                            role="alert"
+                            id={`expense_credit_person-${id}-error`}
+                          >
+                            {errors[`expense_credit_person-${id}`]}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Receipt Upload */}
                     <div className="space-y-2 mt-5">
