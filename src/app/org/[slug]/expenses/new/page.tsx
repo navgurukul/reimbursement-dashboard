@@ -143,12 +143,8 @@ export default function NewExpensePage() {
     event_id: eventIdFromQuery || "",
   });
 
-  const isDirectPaymentValue = (value: string | number | boolean | string[]) =>
-    String(value ?? "")
-      .trim()
-      .toLowerCase() === "direct payment";
-
-  const isDirectPayment = isDirectPaymentValue(formData.unique_id || "");
+  const [events, setEvents] = useState<ExpenseEvent[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
 
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
@@ -164,8 +160,43 @@ export default function NewExpensePage() {
     Record<number, boolean>
   >({});
 
-  const [events, setEvents] = useState<ExpenseEvent[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<ExpenseEvent | null>(null);
+  const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getAllowedMonthBounds = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { start: formatDateInput(start), end: formatDateInput(end) };
+  };
+
+  const getDateBounds = (event: ExpenseEvent | null) => {
+    const { start, end } = getAllowedMonthBounds();
+    let min = start;
+    let max = end;
+
+    if (event) {
+      const eventStart = event.start_date.split("T")[0];
+      const eventEnd = event.end_date.split("T")[0];
+      if (eventStart > min) min = eventStart;
+      if (eventEnd < max) max = eventEnd;
+    }
+
+    return { min, max };
+  };
+
+  const dateBounds = getDateBounds(selectedEvent);
+
+  const isDirectPaymentValue = (value: string | number | boolean | string[]) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase() === "direct payment";
+
+  const isDirectPayment = isDirectPaymentValue(formData.unique_id || "");
 
   // Separate signature states for expense and voucher
   const [expenseSignature, setExpenseSignature] = useState<string | undefined>(
@@ -1958,16 +1989,8 @@ export default function NewExpensePage() {
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                             }`}
-                            min={
-                              selectedEvent
-                                ? selectedEvent.start_date.split("T")[0]
-                                : undefined
-                            }
-                            max={
-                              selectedEvent
-                                ? selectedEvent.end_date.split("T")[0]
-                                : undefined
-                            }
+                            min={dateBounds.min}
+                            max={dateBounds.max}
                           />
                           {errors[col.key] && (
                             <p
@@ -2243,6 +2266,8 @@ export default function NewExpensePage() {
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
                         }`}
+                        min={dateBounds.min}
+                        max={dateBounds.max}
                       />
                     )}
                     {col.type === "textarea" && (
@@ -2694,16 +2719,8 @@ export default function NewExpensePage() {
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
                                   }`}
-                                  min={
-                                    selectedEvent
-                                      ? selectedEvent.start_date.split("T")[0]
-                                      : undefined
-                                  }
-                                  max={
-                                    selectedEvent
-                                      ? selectedEvent.end_date.split("T")[0]
-                                      : undefined
-                                  }
+                                  min={dateBounds.min}
+                                  max={dateBounds.max}
                                 />
                                 {errors[col.key] && (
                                   <p className="text-red-500 text-sm">

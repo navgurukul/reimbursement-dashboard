@@ -53,6 +53,37 @@ export default function VoucherForm({
   const [isEditingAmount, setIsEditingAmount] = useState(false);
   const amountInputRef = useRef<HTMLInputElement | null>(null);
 
+  const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getAllowedMonthBounds = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { start: formatDateInput(start), end: formatDateInput(end) };
+  };
+
+  const getDateBounds = () => {
+    const { start, end } = getAllowedMonthBounds();
+    let min = start;
+    let max = end;
+
+    if (selectedEvent) {
+      const eventStart = selectedEvent.start_date.split("T")[0];
+      const eventEnd = selectedEvent.end_date.split("T")[0];
+      if (eventStart > min) min = eventStart;
+      if (eventEnd < max) max = eventEnd;
+    }
+
+    return { min, max };
+  };
+
+  const dateBounds = getDateBounds();
+
   // inside VoucherForm
   useEffect(() => {
     if (!formData.date) {
@@ -194,8 +225,8 @@ export default function VoucherForm({
               type="date"
               value={formData.date || ""}
               onChange={(e) => onInputChange("date", e.target.value)}
-              min={selectedEvent ? selectedEvent.start_date.split("T")[0] : undefined}
-              max={selectedEvent ? selectedEvent.end_date.split("T")[0] : undefined}
+              min={dateBounds.min}
+              max={dateBounds.max}
               aria-invalid={getError("date") ? "true" : "false"}
               aria-describedby={getError("date") ? "date-error" : undefined}
               className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${getError("date") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
