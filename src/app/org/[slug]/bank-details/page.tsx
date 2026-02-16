@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 import supabase from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -29,7 +31,7 @@ import { Pagination, usePagination } from "@/components/pagination";
 import { toast } from "sonner";
 import { useOrgStore } from "@/store/useOrgStore";
 import { notFound, useRouter } from "next/navigation";
-import { Pencil, Plus } from "lucide-react";
+import { Download, Pencil, Plus } from "lucide-react";
 
 type BankDetail = {
   id: number;
@@ -54,6 +56,8 @@ export default function BankDetailsPage() {
   const [editing, setEditing] = useState<BankDetail | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showVerifyDialog, setShowVerifyDialog] = useState(false);
+  const [showColumnsModal, setShowColumnsModal] = useState(false);
+  const [showFormatModal, setShowFormatModal] = useState(false);
   // const [password, setPassword] = useState("");
   const [secret, setSecret] = useState("");
 
@@ -64,6 +68,17 @@ export default function BankDetailsPage() {
   useEffect(() => {
     pagination.resetPage();
   }, [search]);
+
+  const allColumns = [
+    "Account Holder",
+    "Account Number",
+    "IFSC Code",
+    "Bank Name",
+    "Email",
+    "Unique ID",
+    "Advance Unique ID",
+  ];
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(allColumns);
 
   const [form, setForm] = useState<Omit<BankDetail, "id">>({
     account_holder: "",
@@ -224,6 +239,94 @@ export default function BankDetailsPage() {
     setDialogOpen(false);
   };
 
+  const getColumnValue = (row: BankDetail, label: string) => {
+    switch (label) {
+      case "Account Holder":
+        return row.account_holder || "";
+      case "Account Number":
+        return row.account_number || "";
+      case "IFSC Code":
+        return row.ifsc_code || "";
+      case "Bank Name":
+        return row.bank_name || "";
+      case "Email":
+        return row.email || "";
+      case "Unique ID":
+        return row.unique_id || "";
+      case "Advance Unique ID":
+        return row.advance_unique_id || "";
+      default:
+        return "";
+    }
+  };
+
+  const exportToCSV = () => {
+    if (data.length === 0) {
+      toast.error("No bank details to export");
+      return;
+    }
+
+    const headers = selectedColumns;
+    const rows = data.map((row) =>
+      headers.map((label) => getColumnValue(row, label))
+    );
+
+    const csvRows: string[] = [];
+    csvRows.push(headers.map((h) => `"${h}"`).join(","));
+    csvRows.push(
+      ...rows.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      )
+    );
+
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "bank_details.csv");
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToXLSX = () => {
+    if (data.length === 0) {
+      toast.error("No bank details to export");
+      return;
+    }
+
+    const headers = selectedColumns;
+    const rows = data.map((row) =>
+      headers.map((label) => getColumnValue(row, label))
+    );
+
+    const sheetData = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws["!cols"] = headers.map(() => ({ wch: 24 }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Bank Details");
+
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "bank_details.xlsx";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = () => {
+    exportToCSV();
+    setShowFormatModal(false);
+  };
+
+  const handleExportXLSX = () => {
+    exportToXLSX();
+    setShowFormatModal(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -342,16 +445,110 @@ export default function BankDetailsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Search */}
-      <Input
-        type="text"
-        placeholder="Search by account name or email..."
-        value={search}
-        onChange={(e) => {
-          setSearch(e.target.value);
-        }}
-        className="max-w-md"
-      />
+      {/* Columns Selection Modal */}
+      <Dialog open={showColumnsModal} onOpenChange={setShowColumnsModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Columns to Export</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="grid gap-3 max-h-[300px] overflow-auto">
+              {allColumns.map((col) => (
+                <div key={col} className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedColumns.includes(col)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedColumns((prev) => [...prev, col]);
+                      } else {
+                        setSelectedColumns((prev) =>
+                          prev.filter((c) => c !== col)
+                        );
+                      }
+                    }}
+                  />
+                  <span>{col}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowColumnsModal(false)}
+              className="cursor-pointer"
+            >
+              Back
+            </Button>
+            <Button
+              onClick={() => {
+                setShowColumnsModal(false);
+                setShowFormatModal(true);
+              }}
+              disabled={selectedColumns.length === 0}
+              className="cursor-pointer"
+            >
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Format chooser modal: CSV or Excel */}
+      <Dialog open={showFormatModal} onOpenChange={setShowFormatModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choose export format</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Which format would you like to download?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  handleExportXLSX();
+                }}
+                disabled={selectedColumns.length === 0}
+                className="cursor-pointer"
+              >
+                Microsoft Excel (.xlsx)
+              </Button>
+              <Button
+                onClick={() => {
+                  handleExportCSV();
+                }}
+                disabled={selectedColumns.length === 0}
+                className="cursor-pointer"
+              >
+                CSV
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Search + Export */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Input
+          type="text"
+          placeholder="Search by account name or email..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+          }}
+          className="max-w-md"
+        />
+        <Button
+          variant="outline"
+          onClick={() => setShowColumnsModal(true)}
+          className="flex items-center gap-2 cursor-pointer"
+        >
+          <Download className="w-4 h-4" /> Export Bank Details
+        </Button>
+      </div>
 
       {/* Table */}
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
