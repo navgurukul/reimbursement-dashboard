@@ -1307,7 +1307,7 @@ export default function NewExpensePage() {
         return;
       }
 
-      await notifyApprover({
+      void notifyApprover({
         expenseId: baseData.id,
         amount: baseExpenseData.amount,
         expenseType: baseExpenseData.expense_type,
@@ -1316,40 +1316,42 @@ export default function NewExpensePage() {
       });
 
       // Log history for main/base expense
-      try {
-        const authRaw = localStorage.getItem("auth-storage");
-        const authStorage = JSON.parse(authRaw || "{}");
-        let userName = "Unknown User";
-        if (authStorage?.state?.user?.profile?.full_name) {
-          userName = authStorage.state.user.profile.full_name;
-        } else if (
-          typeof authRaw === "string" &&
-          authRaw.includes("full_name")
-        ) {
-          const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
-          if (match && match[1]) {
-            userName = match[1];
+      void (async () => {
+        try {
+          const authRaw = localStorage.getItem("auth-storage");
+          const authStorage = JSON.parse(authRaw || "{}");
+          let userName = "Unknown User";
+          if (authStorage?.state?.user?.profile?.full_name) {
+            userName = authStorage.state.user.profile.full_name;
+          } else if (
+            typeof authRaw === "string" &&
+            authRaw.includes("full_name")
+          ) {
+            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+            if (match && match[1]) {
+              userName = match[1];
+            }
           }
+          await expenseHistory.addEntry(
+            baseData.id,
+            user.id,
+            userName,
+            "created",
+            null,
+            baseData.amount.toString()
+          );
+        } catch (logError) {
+          console.error("Error logging base expense creation:", logError);
+          await expenseHistory.addEntry(
+            baseData.id,
+            user.id,
+            "Unknown User",
+            "created",
+            null,
+            baseData.amount.toString()
+          );
         }
-        await expenseHistory.addEntry(
-          baseData.id,
-          user.id,
-          userName,
-          "created",
-          null,
-          baseData.amount.toString()
-        );
-      } catch (logError) {
-        console.error("Error logging base expense creation:", logError);
-        await expenseHistory.addEntry(
-          baseData.id,
-          user.id,
-          "Unknown User",
-          "created",
-          null,
-          baseData.amount.toString()
-        );
-      }
+      })();
 
       let attachmentData = null;
       if (formData.attachment) {
@@ -1406,9 +1408,9 @@ export default function NewExpensePage() {
         }
       }
 
-      // Process additional expense items
+      // Process additional expense items (parallelized for faster saves)
       if (expenseItems.length > 0) {
-        for (const itemId of expenseItems) {
+        const processItem = async (itemId: number) => {
           const item = expenseItemsData[itemId];
           const isVoucher = voucherModalOpenMap[itemId] || voucherModalOpen;
           const itemIsDirectPayment = isDirectPaymentValue(
@@ -1457,12 +1459,11 @@ export default function NewExpensePage() {
           );
 
           if (itemError) {
-            toast.error(`Failed to create expense item: ${itemError.message}`);
             console.error("Error creating item:", itemError);
-            continue;
+            throw new Error(`Failed to create expense item: ${itemError.message}`);
           }
 
-          await notifyApprover({
+          void notifyApprover({
             expenseId: itemData.id,
             amount: individualExpenseData.amount,
             expenseType: individualExpenseData.expense_type,
@@ -1480,9 +1481,7 @@ export default function NewExpensePage() {
             );
             if (fileError) {
               console.error("Upload error:", fileError.message || fileError);
-              toast.error("Failed to upload payment screenshot");
-              setSaving(false);
-              return;
+              throw new Error("Failed to upload payment screenshot");
             }
             attachmentData = [
               voucherAttachment.name,
@@ -1496,11 +1495,11 @@ export default function NewExpensePage() {
             const voucherData = {
               expense_id: itemData.id,
               your_name: itemVoucherData.yourName || formData.yourName || null,
-                // Use explicit per-item voucher amount if provided, otherwise fall back to the item amount
-                amount:
-                  itemVoucherData.voucherAmount !== undefined
-                    ? parseFloat(itemVoucherData.voucherAmount || "0")
-                    : item.amount,
+              // Use explicit per-item voucher amount if provided, otherwise fall back to the item amount
+              amount:
+                itemVoucherData.voucherAmount !== undefined
+                  ? parseFloat(itemVoucherData.voucherAmount || "0")
+                  : item.amount,
               purpose:
                 itemVoucherData.purpose || formData.purpose || "Cash Voucher",
               credit_person:
@@ -1526,9 +1525,6 @@ export default function NewExpensePage() {
 
             if (voucherError) {
               console.error("Voucher creation error:", voucherError);
-              toast.error(
-                `Failed to create voucher for item: ${voucherError.message}`
-              );
               try {
                 await supabase
                   .from("expense_new")
@@ -1537,45 +1533,64 @@ export default function NewExpensePage() {
               } catch (cleanupError) {
                 console.error("Failed to clean up expense:", cleanupError);
               }
-              continue;
+              throw new Error(
+                `Failed to create voucher for item: ${voucherError.message}`
+              );
             }
           }
-
+          
           // Log history entry
-          try {
-            const authRaw = localStorage.getItem("auth-storage");
-            const authStorage = JSON.parse(authRaw || "{}");
-            let userName = "Unknown User";
-            if (authStorage?.state?.user?.profile?.full_name) {
-              userName = authStorage.state.user.profile.full_name;
-            } else if (
-              typeof authRaw === "string" &&
-              authRaw.includes("full_name")
-            ) {
-              const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
-              if (match && match[1]) {
-                userName = match[1];
+          void (async () => {
+            try {
+              const authRaw = localStorage.getItem("auth-storage");
+              const authStorage = JSON.parse(authRaw || "{}");
+              let userName = "Unknown User";
+              if (authStorage?.state?.user?.profile?.full_name) {
+                userName = authStorage.state.user.profile.full_name;
+              } else if (
+                typeof authRaw === "string" &&
+                authRaw.includes("full_name")
+              ) {
+                const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+                if (match && match[1]) {
+                  userName = match[1];
+                }
               }
+              await expenseHistory.addEntry(
+                itemData.id,
+                user.id,
+                userName,
+                "created",
+                null,
+                itemData.amount.toString()
+              );
+            } catch (logError) {
+              console.error("Error logging expense item creation:", logError);
+              await expenseHistory.addEntry(
+                itemData.id,
+                user.id,
+                "Unknown User",
+                "created",
+                null,
+                itemData.amount.toString()
+              );
             }
-            await expenseHistory.addEntry(
-              itemData.id,
-              user.id,
-              userName,
-              "created",
-              null,
-              itemData.amount.toString()
-            );
-          } catch (logError) {
-            console.error("Error logging expense item creation:", logError);
-            await expenseHistory.addEntry(
-              itemData.id,
-              user.id,
-              "Unknown User",
-              "created",
-              null,
-              itemData.amount.toString()
-            );
-          }
+          })();
+        };
+
+        const itemResults = await Promise.allSettled(
+          expenseItems.map((itemId) => processItem(itemId))
+        );
+
+        const failedItems = itemResults.filter(
+          (result) => result.status === "rejected"
+        ) as PromiseRejectedResult[];
+
+        if (failedItems.length > 0) {
+          failedItems.forEach((fail) => {
+            toast.error(fail.reason?.message || "Failed to create expense item");
+          });
+          throw new Error("One or more expense items failed to save");
         }
       }
 
