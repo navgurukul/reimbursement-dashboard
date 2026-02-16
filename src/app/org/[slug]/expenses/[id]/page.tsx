@@ -1906,6 +1906,17 @@ export default function ViewExpensePage() {
                   </p>
                 </div>
 
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Expense Credit Person
+                  </p>
+                  <p>
+                    {expense.expense_credit_person ||
+                      expense.custom_fields?.expense_credit_person ||
+                      "N/A"}
+                  </p>
+                </div>
+
                 {/* Show approved amount if it exists */}
                 {expense.approved_amount !== null &&
                   expense.approved_amount !== undefined && (
