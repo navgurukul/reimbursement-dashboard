@@ -1333,6 +1333,8 @@ export default function ViewExpensePage() {
   const isReceiptPdf =
     typeof receiptFileName === "string" &&
     receiptFileName.toLowerCase().endsWith(".pdf");
+  const isDirectPayment =
+    String(expense.unique_id || "").trim().toLowerCase() === "direct payment";
 
   // Helper function to format field names
   const formatFieldName = (name: string) => {
@@ -1906,16 +1908,18 @@ export default function ViewExpensePage() {
                   </p>
                 </div>
 
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Expense Credit Person
-                  </p>
-                  <p>
-                    {expense.expense_credit_person ||
-                      expense.custom_fields?.expense_credit_person ||
-                      "N/A"}
-                  </p>
-                </div>
+                {isDirectPayment && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Expense Credit Person
+                    </p>
+                    <p>
+                      {expense.expense_credit_person ||
+                        expense.custom_fields?.expense_credit_person ||
+                        "N/A"}
+                    </p>
+                  </div>
+                )}
 
                 {/* Show approved amount if it exists */}
                 {expense.approved_amount !== null &&
