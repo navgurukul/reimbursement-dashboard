@@ -242,9 +242,7 @@ export default function NewExpensePage() {
         date: new Date().toISOString().split("T")[0],
         description: "",
         unique_id: formData.unique_id || "",
-        expense_credit_person: isDirectPayment
-          ? formData.expense_credit_person || ""
-          : "",
+        expense_credit_person: "",
         ...customFieldValues, // ✅ Add label-based custom fields
       },
     }));
@@ -744,7 +742,7 @@ export default function NewExpensePage() {
             ...item,
             unique_id: v,
             expense_credit_person: isDirect
-              ? item.expense_credit_person || formData.expense_credit_person || ""
+              ? item.expense_credit_person || ""
               : "",
           };
         });
