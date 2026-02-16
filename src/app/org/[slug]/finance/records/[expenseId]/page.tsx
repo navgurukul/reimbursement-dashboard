@@ -130,6 +130,11 @@ export default function RecordsDetails() {
   }
 
   const tdsPercentage = expense?.tds_deduction_percentage ?? null;
+  const isDirectPayment =
+    String(expense?.unique_id || expense?.uniqueId || "")
+      .trim()
+      .toLowerCase()
+      .includes("direct payment");
   const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? 0;
   const tdsAmount = tdsPercentage
     ? expense?.tds_deduction_amount ??
@@ -199,6 +204,16 @@ export default function RecordsDetails() {
                       {expense.unique_id || expense.uniqueId || expense.id}
                     </TableCell>
                   </TableRow>
+                  {isDirectPayment && (
+                    <TableRow>
+                      <TableHead>Expense Credit Person</TableHead>
+                      <TableCell>
+                        {expense.expense_credit_person ||
+                          expense.custom_fields?.expense_credit_person ||
+                          "—"}
+                      </TableCell>
+                    </TableRow>
+                  )}
                   <TableRow>
                     <TableHead>Location of Expense</TableHead>
                     <TableCell>{expense.location || "N/A"}</TableCell>
