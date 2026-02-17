@@ -120,20 +120,20 @@ export interface DatabaseError {
 /** Mapping: expense type → primary approver and optional second approver */
 export interface ExpenseTypeApproverMappingEntry {
   expense_type: string;
-  approver_id: string;
-  approver_name?: string; // custom name when person is not in org dropdown
-  second_approver_id?: string;
-  second_approver_name?: string; // custom name for second approver
+  approver_id: string | string[];
+  approver_name?: string | string[]; // custom name when person is not in org dropdown
+  second_approver_id?: string | string[];
+  second_approver_name?: string | string[]; // custom name for second approver
 }
 
 /** Mapping: location of expense → primary approver and optional second approver */
 export interface LocationApproverMappingEntry {
   location: string;
-  approver_name?: string;
-  second_approver_name?: string;
+  approver_name?: string | string[];
+  second_approver_name?: string | string[];
   // Optional IDs for future use (stored as JSON, safe to include)
-  approver_id?: string;
-  second_approver_id?: string;
+  approver_id?: string | string[];
+  second_approver_id?: string | string[];
 }
 
 export interface OrganizationSettings {

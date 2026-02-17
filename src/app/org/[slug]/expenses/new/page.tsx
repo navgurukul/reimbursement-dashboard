@@ -226,10 +226,10 @@ export default function NewExpensePage() {
   const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
     {
       expense_type: string;
-      approver_id: string;
-      approver_name?: string;
-      second_approver_id?: string;
-      second_approver_name?: string;
+      approver_id: string | string[];
+      approver_name?: string | string[];
+      second_approver_id?: string | string[];
+      second_approver_name?: string | string[];
     }[]
   >([]);
 
@@ -237,10 +237,10 @@ export default function NewExpensePage() {
   const [locationApproverMapping, setLocationApproverMapping] = useState<
     {
       location: string;
-      approver_name?: string;
-      second_approver_name?: string;
-      approver_id?: string;
-      second_approver_id?: string;
+      approver_name?: string | string[];
+      second_approver_name?: string | string[];
+      approver_id?: string | string[];
+      second_approver_id?: string | string[];
     }[]
   >([]);
 
@@ -802,19 +802,59 @@ export default function NewExpensePage() {
         if (entryToApply) {
           // Both mapping shapes support these keys (some optional).
           // Only overwrite when the mapping provides a non-empty value.
-          const approverId = ((entryToApply as any).approver_id || "") as string;
-          const approverName = ((entryToApply as any).approver_name || "") as string;
-          const secondApproverId = (((entryToApply as any).second_approver_id ||
-            "") as string);
-          const secondApproverName = (((entryToApply as any)
-            .second_approver_name || "") as string);
+          const normalizeIds = (value?: string | string[]) => {
+            if (!value) return [] as string[];
+            return Array.isArray(value)
+              ? value.filter((v) => v && v.trim())
+              : value.trim()
+                ? [value]
+                : [];
+          };
 
-          if (approverId || approverName) {
-            next.approver = approverId;
+          const normalizeNames = (value?: string | string[]) => {
+            if (!value) return [] as string[];
+            if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+            return value
+              .split(",")
+              .map((v) => v.trim())
+              .filter(Boolean);
+          };
+
+          const approverIds = normalizeIds(
+            (entryToApply as any).approver_id
+          );
+          const approverNames = normalizeNames(
+            (entryToApply as any).approver_name
+          );
+          const approverName = approverNames.length
+            ? approverNames.join(", ")
+            : approverIds
+                .map((id) => getApproverOptionLabel(id))
+                .filter(Boolean)
+                .join(", ");
+
+          const secondApproverIds = normalizeIds(
+            (entryToApply as any).second_approver_id
+          );
+          const secondApproverNames = normalizeNames(
+            (entryToApply as any).second_approver_name
+          );
+          const secondApproverName = secondApproverNames.length
+            ? secondApproverNames.join(", ")
+            : secondApproverIds
+                .map((id) => getApproverOptionLabel(id))
+                .filter(Boolean)
+                .join(", ");
+
+          const primaryApproverId = approverIds[0] || "";
+          const primarySecondApproverId = secondApproverIds[0] || "";
+
+          if (primaryApproverId || approverName) {
+            next.approver = primaryApproverId;
             next.approver_name = approverName;
           }
-          if (secondApproverId || secondApproverName) {
-            next.second_approver_id = secondApproverId;
+          if (primarySecondApproverId || secondApproverName) {
+            next.second_approver_id = primarySecondApproverId;
             next.second_approver_name = secondApproverName;
           }
         }

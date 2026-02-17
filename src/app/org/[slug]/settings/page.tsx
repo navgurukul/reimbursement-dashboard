@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -38,7 +39,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusCircle, Settings2, Trash2, Plus } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { PlusCircle, Settings2, Trash2, Plus, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { organizations } from "@/lib/db";
 import { profiles } from "@/lib/db";
@@ -58,6 +66,102 @@ interface ColumnConfig {
   visible: boolean;
   options?: string[] | { value: string; label: string }[]; // For dropdown, radio, checkbox
   required?: boolean;
+}
+
+type ApproverOption = { value: string; label: string };
+
+function MultiSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchPlaceholder,
+}: {
+  options: ApproverOption[];
+  value: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+}) {
+  const [query, setQuery] = useState("");
+  const selected = new Set(value);
+  const filtered = options.filter((opt) =>
+    opt.label.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  const toggleValue = (id: string) => {
+    const next = selected.has(id)
+      ? value.filter((v) => v !== id)
+      : [...value, id];
+    onChange(next);
+  };
+
+  const getLabel = (id: string) =>
+    options.find((opt) => opt.value === id)?.label || id;
+
+  return (
+    <div className="space-y-2">
+      {value.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {value.map((id) => (
+            <Badge key={id} variant="secondary" className="gap-1">
+              <span>{getLabel(id)}</span>
+              <button
+                type="button"
+                className="ml-1 inline-flex items-center justify-center rounded-full hover:text-destructive"
+                aria-label={`Remove ${getLabel(id)}`}
+                onClick={() => toggleValue(id)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">{placeholder}</p>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-9 w-full justify-between">
+            <span className="truncate text-sm">
+              {value.length > 0
+                ? `${value.length} selected`
+                : "Select users"}
+            </span>
+            <span className="text-muted-foreground">▾</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-[280px] p-2">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-9"
+          />
+          <DropdownMenuSeparator className="my-2" />
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                No matching users
+              </p>
+            ) : (
+              filtered.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onSelect={(e: Event) => e.preventDefault()}
+                  className="cursor-pointer"
+                  onClick={() => toggleValue(opt.value)}
+                >
+                  <Checkbox checked={selected.has(opt.value)} />
+                  <span>{opt.label}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
 }
 
 export default function SettingsPage() {
@@ -123,6 +227,7 @@ export default function SettingsPage() {
   );
   const [showColumnDialog, setShowColumnDialog] = useState(false);
   const [newOptions, setNewOptions] = useState<string>("");
+  const [approverOptions, setApproverOptions] = useState<ApproverOption[]>([]);
 
   // Expense type → approver mapping (approver + second approver per expense type)
   const [approverMapping, setApproverMapping] = useState<
@@ -275,17 +380,20 @@ export default function SettingsPage() {
             ]) || []
           );
 
+          const nextApproverOptions = approvers.map((approver) => ({
+            value: approver.user_id,
+            label: approverNames.get(approver.user_id) || approver.user_id,
+          }));
+
+          setApproverOptions(nextApproverOptions);
+
           // Update the approver column options
           setColumns((prevColumns) => {
             return prevColumns.map((col) => {
               if (col.key === "approver") {
                 return {
                   ...col,
-                  options: approvers.map((approver) => ({
-                    value: approver.user_id,
-                    label:
-                      approverNames.get(approver.user_id) || approver.user_id,
-                  })),
+                  options: nextApproverOptions,
                 };
               }
               return col;
@@ -451,8 +559,8 @@ export default function SettingsPage() {
       ...prev,
       {
         expense_type: "__new__",
-        approver_id: "",
-        second_approver_id: undefined,
+        approver_id: [],
+        second_approver_id: [],
       },
     ]);
   };
@@ -462,8 +570,8 @@ export default function SettingsPage() {
       ...prev,
       {
         location: "__new__",
-        approver_name: "",
-        second_approver_name: "",
+        approver_id: [],
+        second_approver_id: [],
       },
     ]);
   };
@@ -623,6 +731,38 @@ export default function SettingsPage() {
       console.error("Error saving column:", error);
       toast.error("An unexpected error occurred");
     }
+  };
+
+  const getApproverLabel = (id: string) =>
+    approverOptions.find((opt) => opt.value === id)?.label || id;
+
+  const normalizeIds = (value?: string | string[]) => {
+    if (!value) return [] as string[];
+    return Array.isArray(value)
+      ? value.filter((v) => v && v.trim())
+      : value.trim()
+        ? [value]
+        : [];
+  };
+
+  const normalizeNames = (value?: string | string[]) => {
+    if (!value) return [] as string[];
+    if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+    return value
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  };
+
+  const resolveIdsFromNames = (names?: string | string[]) => {
+    const nameList = normalizeNames(names);
+    if (!nameList.length) return [] as string[];
+    const mapByLabel = new Map(
+      approverOptions.map((opt) => [opt.label.toLowerCase(), opt.value])
+    );
+    return nameList
+      .map((name) => mapByLabel.get(name.toLowerCase()))
+      .filter((v): v is string => Boolean(v));
   };
 
   return (
@@ -799,9 +939,9 @@ export default function SettingsPage() {
                       };
                 const newEntry: ExpenseTypeApproverMappingEntry = {
                   expense_type: base.expense_type,
-                  approver_id: base.approver_id ?? "",
+                  approver_id: base.approver_id ?? [],
                   approver_name: base.approver_name,
-                  second_approver_id: base.second_approver_id,
+                  second_approver_id: base.second_approver_id ?? [],
                   second_approver_name: base.second_approver_name,
                 };
                 if (idx >= 0) {
@@ -818,55 +958,102 @@ export default function SettingsPage() {
               const entry = approverMapping.find(
                 (m) => m.expense_type === expenseType
               );
-              const approverName = entry?.approver_name ?? "";
-              const secondApproverName = entry?.second_approver_name ?? "";
+              const resolvedApproverIds = normalizeIds(entry?.approver_id);
+              const resolvedApproverNames = normalizeNames(entry?.approver_name);
+              const selectedApproverIds =
+                resolvedApproverIds.length > 0
+                  ? resolvedApproverIds
+                  : resolveIdsFromNames(resolvedApproverNames);
+
+              const resolvedSecondApproverIds = normalizeIds(
+                entry?.second_approver_id
+              );
+              const resolvedSecondApproverNames = normalizeNames(
+                entry?.second_approver_name
+              );
+              const selectedSecondApproverIds =
+                resolvedSecondApproverIds.length > 0
+                  ? resolvedSecondApproverIds
+                  : resolveIdsFromNames(resolvedSecondApproverNames);
+
               const displayLabel =
                 expenseType === "__new__" ? "" : expenseType;
+
               return (
                 <div
                   key={expenseType}
-                  className="flex flex-wrap items-center gap-4 p-3 border rounded-lg"
+                  className="flex flex-wrap items-start gap-4 p-3 border rounded-lg"
                 >
-                  <div className="space-y-1 min-w-[180px] max-w-[220px]">
+                  <div className="space-y-1 min-w-[200px] max-w-[240px]">
                     <Label className="text-xs">Expense Type</Label>
-                    <Input
-                      value={displayLabel}
-                      onChange={(e) =>
-                        handleUpdateApproverMappingExpenseType(
-                          expenseType,
-                          e.target.value
-                        )
-                      }
-                      placeholder="Type expense type name"
-                      className="font-medium"
-                    />
+                    {expenseTypeOptions.length > 0 ? (
+                      <Select
+                        value={displayLabel}
+                        onValueChange={(value) =>
+                          handleUpdateApproverMappingExpenseType(
+                            expenseType,
+                            value
+                          )
+                        }
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select expense type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {expenseTypeOptions.map((opt) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={displayLabel}
+                        onChange={(e) =>
+                          handleUpdateApproverMappingExpenseType(
+                            expenseType,
+                            e.target.value
+                          )
+                        }
+                        placeholder="Type expense type name"
+                        className="font-medium h-9"
+                      />
+                    )}
                   </div>
                   <div className="flex-1 flex flex-wrap gap-4">
-                    <div className="space-y-1 min-w-[160px]">
+                    <div className="space-y-1 min-w-[240px]">
                       <Label className="text-xs">Approver</Label>
-                      <Input
-                        value={approverName}
-                        onChange={(e) =>
+                      <MultiSelect
+                        options={approverOptions}
+                        value={selectedApproverIds}
+                        onChange={(nextIds) =>
                           updateMappingEntry(expenseType, {
-                            approver_name: e.target.value.trim() || undefined,
+                            approver_id: nextIds,
+                            approver_name: nextIds.length
+                              ? nextIds.map(getApproverLabel).join(", ")
+                              : undefined,
                           })
                         }
-                        placeholder="Enter approver name"
-                        className="text-sm h-9"
+                        placeholder="Select one or more approvers"
+                        searchPlaceholder="Search approver"
                       />
                     </div>
-                    <div className="space-y-1 min-w-[160px]">
+                    <div className="space-y-1 min-w-[240px]">
                       <Label className="text-xs">Second Approver</Label>
-                      <Input
-                        value={secondApproverName}
-                        onChange={(e) =>
+                      <MultiSelect
+                        options={approverOptions}
+                        value={selectedSecondApproverIds}
+                        onChange={(nextIds) =>
                           updateMappingEntry(expenseType, {
-                            second_approver_name:
-                              e.target.value.trim() || undefined,
+                            second_approver_id: nextIds,
+                            second_approver_name: nextIds.length
+                              ? nextIds.map(getApproverLabel).join(", ")
+                              : undefined,
                           })
                         }
-                        placeholder="Enter second approver name"
-                        className="text-sm h-9"
+                        placeholder="Select one or more approvers"
+                        searchPlaceholder="Search second approver"
                       />
                     </div>
                   </div>
@@ -966,8 +1153,8 @@ export default function SettingsPage() {
                   location: base.location,
                   approver_name: base.approver_name,
                   second_approver_name: base.second_approver_name,
-                  approver_id: base.approver_id,
-                  second_approver_id: base.second_approver_id,
+                  approver_id: base.approver_id ?? [],
+                  second_approver_id: base.second_approver_id ?? [],
                 };
                 if (idx >= 0) {
                   const next = [...prev];
@@ -980,8 +1167,24 @@ export default function SettingsPage() {
 
             const renderRow = (location: string) => {
               const entry = locationApproverMapping.find((m) => m.location === location);
-              const approverName = entry?.approver_name ?? "";
-              const secondApproverName = entry?.second_approver_name ?? "";
+              const resolvedApproverIds = normalizeIds(entry?.approver_id);
+              const resolvedApproverNames = normalizeNames(entry?.approver_name);
+              const selectedApproverIds =
+                resolvedApproverIds.length > 0
+                  ? resolvedApproverIds
+                  : resolveIdsFromNames(resolvedApproverNames);
+
+              const resolvedSecondApproverIds = normalizeIds(
+                entry?.second_approver_id
+              );
+              const resolvedSecondApproverNames = normalizeNames(
+                entry?.second_approver_name
+              );
+              const selectedSecondApproverIds =
+                resolvedSecondApproverIds.length > 0
+                  ? resolvedSecondApproverIds
+                  : resolveIdsFromNames(resolvedSecondApproverNames);
+
               const displayLabel = location === "__new__" ? "" : location;
               return (
                 <div
@@ -1004,31 +1207,38 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="flex-1 flex flex-wrap gap-4">
-                    <div className="space-y-1 min-w-[160px]">
+                    <div className="space-y-1 min-w-[240px]">
                       <Label className="text-xs">Approver</Label>
-                      <Input
-                        value={approverName}
-                        onChange={(e) =>
+                      <MultiSelect
+                        options={approverOptions}
+                        value={selectedApproverIds}
+                        onChange={(nextIds) =>
                           updateMappingEntry(location, {
-                            approver_name: e.target.value.trim() || undefined,
+                            approver_id: nextIds,
+                            approver_name: nextIds.length
+                              ? nextIds.map(getApproverLabel).join(", ")
+                              : undefined,
                           })
                         }
-                        placeholder="Enter approver name"
-                        className="text-sm h-9"
+                        placeholder="Select one or more approvers"
+                        searchPlaceholder="Search approver"
                       />
                     </div>
-                    <div className="space-y-1 min-w-[160px]">
+                    <div className="space-y-1 min-w-[240px]">
                       <Label className="text-xs">Second Approver</Label>
-                      <Input
-                        value={secondApproverName}
-                        onChange={(e) =>
+                      <MultiSelect
+                        options={approverOptions}
+                        value={selectedSecondApproverIds}
+                        onChange={(nextIds) =>
                           updateMappingEntry(location, {
-                            second_approver_name:
-                              e.target.value.trim() || undefined,
+                            second_approver_id: nextIds,
+                            second_approver_name: nextIds.length
+                              ? nextIds.map(getApproverLabel).join(", ")
+                              : undefined,
                           })
                         }
-                        placeholder="Enter second approver name"
-                        className="text-sm h-9"
+                        placeholder="Select one or more approvers"
+                        searchPlaceholder="Search second approver"
                       />
                     </div>
                   </div>
