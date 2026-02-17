@@ -162,7 +162,11 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Approver</p>
-                  <p className="font-medium">{expense.approver?.full_name || "—"}</p>
+                  <p className="font-medium">{expense?.custom_fields?.approver_name || expense?.approver?.full_name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Second Approver</p>
+                  <p className="font-medium">{expense?.custom_fields?.second_approver_name || "N/A"}</p>
                 </div>
                 <div className="md:col-span-2">
                   <p className="text-sm text-muted-foreground">Purpose</p>

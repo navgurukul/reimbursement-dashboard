@@ -618,6 +618,9 @@ export default function NewExpensePage() {
           initialData.date = new Date().toISOString().split("T")[0];
           initialData.event_id = eventIdFromQuery || "";
           initialData.unique_id = "";
+          initialData.approver_name = "";
+          initialData.second_approver_id = "";
+          initialData.second_approver_name = "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         } else {
           // Process default columns with approver options
@@ -644,6 +647,9 @@ export default function NewExpensePage() {
           initialData.date = new Date().toISOString().split("T")[0];
           initialData.event_id = eventIdFromQuery || "";
           initialData.unique_id = "";
+          initialData.approver_name = "";
+          initialData.second_approver_id = "";
+          initialData.second_approver_name = "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         }
       } catch (error) {
@@ -769,6 +775,10 @@ export default function NewExpensePage() {
     setFormData((prev) => {
       const next = { ...prev, [key]: value };
 
+      if (key === "approver" && typeof value === "string") {
+        next.approver_name = getApproverOptionLabel(value);
+      }
+
       // Auto-fill approver and second approver from mappings
       // Priority: location mapping (if present) → expense type mapping (fallback)
       if (key === "expense_type" || key === "location") {
@@ -868,6 +878,29 @@ export default function NewExpensePage() {
       setSelectedEvent(event || null);
     }
   };
+
+  function getApproverOptionLabel(value?: string) {
+    if (!value) return "";
+    const approverCol = columns.find((c) => c.key === "approver");
+    const opts = (approverCol?.options || []) as Array<
+      string | { value: string; label: string }
+    >;
+    const opt = opts.find((o) =>
+      (typeof o === "string" ? o : o.value) === value
+    );
+    if (!opt) return "";
+    return typeof opt === "string" ? opt : opt.label || opt.value;
+  }
+
+  function getApproverDisplayName(
+    approverId?: string,
+    approverName?: string
+  ) {
+    const name = (approverName || "").trim();
+    if (name) return name;
+    const label = getApproverOptionLabel(approverId);
+    return label || approverId || "";
+  }
 
   // Prefill Payment Unique ID using the logged-in user's bank details
   useEffect(() => {
@@ -1151,6 +1184,10 @@ export default function NewExpensePage() {
     // Validate required fields from columns
     for (const col of columns) {
       if (col.required && col.visible && !formData[col.key]) {
+        // Special handling for approver: accept either ID or name
+        if (col.key === "approver" && formData.approver_name) {
+          continue; // approver name is set, so it's valid
+        }
         newErrors[col.key] = `${col.label} is required`;
       }
     }
@@ -1192,8 +1229,8 @@ export default function NewExpensePage() {
         throw new Error("Missing required data");
       }
 
-      // Validate that user is not approving their own expense
-      if (formData.approver === user.id) {
+      // Validate that user is not approving their own expense (if approver ID is set)
+      if (formData.approver && formData.approver === user.id) {
         toast.error("You cannot approve your own expenses");
         setSaving(false);
         return;
@@ -1339,14 +1376,15 @@ export default function NewExpensePage() {
           }
         }
       });
+      // Always save approver_name and second_approver_name
+      if (formData.approver_name) {
+        custom_fields["approver_name"] = formData.approver_name;
+      }
       if (formData.second_approver_id) {
         custom_fields["second_approver_id"] = formData.second_approver_id;
       }
       if (formData.second_approver_name) {
         custom_fields["second_approver_name"] = formData.second_approver_name;
-      }
-      if (formData.approver_name) {
-        custom_fields["approver_name"] = formData.approver_name;
       }
 
       if (voucherModalOpen) {
@@ -2115,8 +2153,52 @@ export default function NewExpensePage() {
                         </>
                       )}
 
-                      {/* Dropdown Input (Approver) */}
-                      {col.type === "dropdown" && col.options && (
+                      {/* Approver Input */}
+                      {col.type === "dropdown" && col.key === "approver" && (
+                        <>
+                          {(() => {
+                            const isApproverAvailable = Boolean(
+                              (formData.approver_name || "").trim() ||
+                                formData.approver
+                            );
+                            const approverValue = isApproverAvailable
+                              ? getApproverDisplayName(
+                                  formData.approver,
+                                  formData.approver_name
+                                )
+                              : "Not available";
+                            return (
+                              <Input
+                                id={col.key}
+                                name={col.key}
+                                value={approverValue}
+                                disabled
+                                className={`w-full ${
+                                  errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                } ${
+                                  !isApproverAvailable
+                                    ? "text-muted-foreground"
+                                    : "text-gray-900"
+                                } disabled:opacity-100 disabled:text-gray-900`}
+                              />
+                            );
+                          })()}
+                          {errors[col.key] && (
+                            <p
+                              className="text-red-500 text-sm mt-1"
+                              role="alert"
+                              id={`${col.key}-error`}
+                            >
+                              {errors[col.key]}
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      {/* Dropdown Input (non-approver) */}
+                      {col.type === "dropdown" && col.key !== "approver" && col.options && (
                         <>
                           <Select
                             value={formData[col.key] || ""}
@@ -2152,40 +2234,6 @@ export default function NewExpensePage() {
                               })}
                             </SelectContent>
                           </Select>
-                          {col.key === "approver" &&
-                            (formData.second_approver_id ||
-                              formData.second_approver_name) && (
-                              <p className="text-sm text-muted-foreground mt-1">
-                                Second Approver:{" "}
-                                {formData.second_approver_name ||
-                                  (() => {
-                                    const approverCol = columns.find(
-                                      (c) => c.key === "approver"
-                                    );
-                                    const opts = (approverCol?.options ||
-                                      []) as Array<{
-                                      value: string;
-                                      label: string;
-                                    }>;
-                                    const opt = opts.find(
-                                      (o) =>
-                                        o.value ===
-                                        formData.second_approver_id
-                                    );
-                                    return (
-                                      opt?.label ??
-                                      formData.second_approver_id
-                                    );
-                                  })()}
-                              </p>
-                            )}
-                          {col.key === "approver" &&
-                            formData.approver_name &&
-                            !formData.approver && (
-                              <p className="text-sm text-muted-foreground mt-1">
-                                Approver: {formData.approver_name}
-                              </p>
-                            )}
                           {errors[col.key] && (
                             <p
                               className="text-red-500 text-sm mt-1"
@@ -2282,6 +2330,49 @@ export default function NewExpensePage() {
                     </div>
                   );
                 })}
+                {(() => {
+                  const approverCol = columns.find(
+                    (c) => c.key === "approver" && c.type === "dropdown"
+                  );
+
+                  if (!approverCol) return null;
+
+                  return (
+                    <div key="second-approver" className="space-y-2">
+                      <Label
+                        htmlFor="second_approver_name"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Second Approver
+                      </Label>
+                      {(() => {
+                        const isSecondApproverAvailable = Boolean(
+                          (formData.second_approver_name || "").trim() ||
+                            formData.second_approver_id
+                        );
+                        const secondApproverValue = isSecondApproverAvailable
+                          ? getApproverDisplayName(
+                              formData.second_approver_id,
+                              formData.second_approver_name
+                            )
+                          : "Not available";
+                        return (
+                          <Input
+                            id="second_approver_name"
+                            name="second_approver_name"
+                            value={secondApproverValue}
+                            disabled
+                            className={`w-full ${
+                              !isSecondApproverAvailable
+                                ? "text-muted-foreground"
+                                : "text-gray-900"
+                            } disabled:opacity-100 disabled:text-gray-900`}
+                          />
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Full Width Description */}

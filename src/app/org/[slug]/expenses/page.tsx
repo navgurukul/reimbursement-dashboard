@@ -432,7 +432,7 @@ export default function ExpensesPage() {
                 }
 
                 // Get approver name from our map
-                const approverName = expense.approver.full_name || "—";
+                const approverName = expense.custom_fields?.approver_name || expense.approver?.full_name || "—";
                 // approverNamesMap[expense.id] || "Unknown Approver";
 
                 // Set approver info on the expense
@@ -1172,7 +1172,7 @@ export default function ExpensesPage() {
                                     "No receipt or voucher"
                                   )
                                 ) : c.key === "approver" ? (
-                                  exp.approver?.full_name || "—"
+                                  exp.custom_fields?.approver_name || exp.approver?.full_name || "—"
                                 ) : c.key === "category" ? (
                                   getExpenseValue(exp, "category")
                                 ) : c.key === "event_title" ? (

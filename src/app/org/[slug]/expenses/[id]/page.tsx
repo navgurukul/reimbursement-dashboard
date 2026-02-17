@@ -1977,12 +1977,21 @@ export default function ViewExpensePage() {
                   </p>
                 </div>
 
-                {expense.approver && (
+                {(expense.approver || expense.custom_fields?.approver_name) && (
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">
                       Approver
                     </p>
-                    <p>{expense.approver.full_name || "—"}</p>
+                    <p>{expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}</p>
+                  </div>
+                )}
+
+                {expense.custom_fields?.second_approver_name && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Second Approver
+                    </p>
+                    <p>{expense.custom_fields.second_approver_name}</p>
                   </div>
                 )}
 
@@ -2344,7 +2353,15 @@ export default function ViewExpensePage() {
                                   Approver
                                 </p>
                                 <p className="font-medium">
-                                  {expense.approver?.full_name || "—"}
+                                  {expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-muted-foreground">
+                                  Second Approver
+                                </p>
+                                <p className="font-medium">
+                                  {expense.custom_fields?.second_approver_name || "—"}
                                 </p>
                               </div>
                               <div className="md:col-span-2">
@@ -2602,8 +2619,11 @@ export default function ViewExpensePage() {
                         key !== "location_of_expense" &&
                         key !== "Location of Expense" &&
                         key.toLowerCase() !== "location_of_expense" &&
-                        key.toLowerCase() !== "description"
-                      ) // Exclude Location Of Expense and description
+                        key.toLowerCase() !== "description" &&
+                        key !== "approver_name" &&
+                        key !== "second_approver_id" &&
+                        key !== "second_approver_name"
+                      ) // Exclude Location Of Expense, description, and approver fields
                       .map(([key, value]) => {
                         const matchedField = customFields.find(
                           (field) => field.key === key
