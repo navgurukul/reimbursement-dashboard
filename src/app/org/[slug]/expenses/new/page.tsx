@@ -222,6 +222,28 @@ export default function NewExpensePage() {
   // Location options from settings
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
 
+  // Expense type → approver mapping (from org settings); used to auto-fill approver and second approver
+  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
+    {
+      expense_type: string;
+      approver_id: string;
+      approver_name?: string;
+      second_approver_id?: string;
+      second_approver_name?: string;
+    }[]
+  >([]);
+
+  // Location of expense → approver mapping (from org settings); used to auto-fill approver and second approver
+  const [locationApproverMapping, setLocationApproverMapping] = useState<
+    {
+      location: string;
+      approver_name?: string;
+      second_approver_name?: string;
+      approver_id?: string;
+      second_approver_id?: string;
+    }[]
+  >([]);
+
   // Payment Unique ID helpers
   const [uniqueIdModalOpen, setUniqueIdModalOpen] = useState(false);
   const [bankSearchQuery, setBankSearchQuery] = useState("");
@@ -529,6 +551,22 @@ export default function NewExpensePage() {
         }
 
         if (settings) {
+          if (
+            settings.expense_type_approver_mapping &&
+            Array.isArray(settings.expense_type_approver_mapping)
+          ) {
+            setExpenseTypeApproverMapping(
+              settings.expense_type_approver_mapping
+            );
+          }
+          if (
+            settings.location_approver_mapping &&
+            Array.isArray(settings.location_approver_mapping)
+          ) {
+            setLocationApproverMapping(
+              settings.location_approver_mapping
+            );
+          }
           const columnsToUse =
             settings.expense_columns && settings.expense_columns.length > 0
               ? settings.expense_columns
@@ -728,10 +766,51 @@ export default function NewExpensePage() {
         return updatedErrors;
       });
     }
-    setFormData((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setFormData((prev) => {
+      const next = { ...prev, [key]: value };
+
+      // Auto-fill approver and second approver from mappings
+      // Priority: location mapping (if present) → expense type mapping (fallback)
+      if (key === "expense_type" || key === "location") {
+        const selectedLocation =
+          typeof next.location === "string" ? next.location : "";
+        const selectedExpenseType =
+          typeof next.expense_type === "string" ? next.expense_type : "";
+
+        const locationEntry =
+          selectedLocation && locationApproverMapping?.length
+            ? locationApproverMapping.find((m) => m.location === selectedLocation)
+            : undefined;
+        const expenseTypeEntry =
+          selectedExpenseType && expenseTypeApproverMapping?.length
+            ? expenseTypeApproverMapping.find(
+                (m) => m.expense_type === selectedExpenseType
+              )
+            : undefined;
+
+        const entryToApply = locationEntry ?? expenseTypeEntry;
+        if (entryToApply) {
+          // Both mapping shapes support these keys (some optional).
+          // Only overwrite when the mapping provides a non-empty value.
+          const approverId = ((entryToApply as any).approver_id || "") as string;
+          const approverName = ((entryToApply as any).approver_name || "") as string;
+          const secondApproverId = (((entryToApply as any).second_approver_id ||
+            "") as string);
+          const secondApproverName = (((entryToApply as any)
+            .second_approver_name || "") as string);
+
+          if (approverId || approverName) {
+            next.approver = approverId;
+            next.approver_name = approverName;
+          }
+          if (secondApproverId || secondApproverName) {
+            next.second_approver_id = secondApproverId;
+            next.second_approver_name = secondApproverName;
+          }
+        }
+      }
+      return next;
+    });
 
     // If top-level amount is changed and top-level voucher mode is enabled, sync to voucherAmount
     if (key === "amount") {
@@ -1260,14 +1339,28 @@ export default function NewExpensePage() {
           }
         }
       });
+      if (formData.second_approver_id) {
+        custom_fields["second_approver_id"] = formData.second_approver_id;
+      }
+      if (formData.second_approver_name) {
+        custom_fields["second_approver_name"] = formData.second_approver_name;
+      }
+      if (formData.approver_name) {
+        custom_fields["approver_name"] = formData.approver_name;
+      }
 
       if (voucherModalOpen) {
         custom_fields["description"] = formData.description || "Cash Voucher";
       }
 
-      const approverProfile = await profiles.getById(formData.approver);
+      const approverProfile = formData.approver
+        ? await profiles.getById(formData.approver)
+        : null;
       const approverEmail = approverProfile?.data?.email || "";
-      const approverName = approverProfile?.data?.full_name || "";
+      const approverName =
+        approverProfile?.data?.full_name ||
+        formData.approver_name ||
+        "";
 
       // Create the base expense
       const baseExpenseData = {
@@ -2059,6 +2152,40 @@ export default function NewExpensePage() {
                               })}
                             </SelectContent>
                           </Select>
+                          {col.key === "approver" &&
+                            (formData.second_approver_id ||
+                              formData.second_approver_name) && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Second Approver:{" "}
+                                {formData.second_approver_name ||
+                                  (() => {
+                                    const approverCol = columns.find(
+                                      (c) => c.key === "approver"
+                                    );
+                                    const opts = (approverCol?.options ||
+                                      []) as Array<{
+                                      value: string;
+                                      label: string;
+                                    }>;
+                                    const opt = opts.find(
+                                      (o) =>
+                                        o.value ===
+                                        formData.second_approver_id
+                                    );
+                                    return (
+                                      opt?.label ??
+                                      formData.second_approver_id
+                                    );
+                                  })()}
+                              </p>
+                            )}
+                          {col.key === "approver" &&
+                            formData.approver_name &&
+                            !formData.approver && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Approver: {formData.approver_name}
+                              </p>
+                            )}
                           {errors[col.key] && (
                             <p
                               className="text-red-500 text-sm mt-1"

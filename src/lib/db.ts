@@ -117,11 +117,32 @@ export interface DatabaseError {
   code: string;
 }
 
+/** Mapping: expense type → primary approver and optional second approver */
+export interface ExpenseTypeApproverMappingEntry {
+  expense_type: string;
+  approver_id: string;
+  approver_name?: string; // custom name when person is not in org dropdown
+  second_approver_id?: string;
+  second_approver_name?: string; // custom name for second approver
+}
+
+/** Mapping: location of expense → primary approver and optional second approver */
+export interface LocationApproverMappingEntry {
+  location: string;
+  approver_name?: string;
+  second_approver_name?: string;
+  // Optional IDs for future use (stored as JSON, safe to include)
+  approver_id?: string;
+  second_approver_id?: string;
+}
+
 export interface OrganizationSettings {
   id: string;
   org_id: string;
   expense_columns: ColumnConfig[];
   branding: BrandingConfig;
+  expense_type_approver_mapping?: ExpenseTypeApproverMappingEntry[];
+  location_approver_mapping?: LocationApproverMappingEntry[];
   created_at: string;
   updated_at: string;
 }
@@ -1070,6 +1091,56 @@ export const orgSettings = {
       data: data as OrganizationSettings,
       error: null,
     };
+  },
+
+  /**
+   * Update expense type → approver mapping (approver + optional second approver per expense type)
+   */
+  updateExpenseTypeApproverMapping: async (
+    orgId: string,
+    mapping: ExpenseTypeApproverMappingEntry[]
+  ) => {
+    const { data, error } = await supabase
+      .from("org_settings")
+      .upsert(
+        {
+          org_id: orgId,
+          expense_type_approver_mapping: mapping,
+        },
+        { onConflict: "org_id", ignoreDuplicates: false }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+    return { data: data as OrganizationSettings, error: null };
+  },
+
+  /**
+   * Update location of expense → approver mapping (approver + optional second approver per location)
+   */
+  updateLocationApproverMapping: async (
+    orgId: string,
+    mapping: LocationApproverMappingEntry[]
+  ) => {
+    const { data, error } = await supabase
+      .from("org_settings")
+      .upsert(
+        {
+          org_id: orgId,
+          location_approver_mapping: mapping,
+        },
+        { onConflict: "org_id", ignoreDuplicates: false }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+    return { data: data as OrganizationSettings, error: null };
   },
 };
 
