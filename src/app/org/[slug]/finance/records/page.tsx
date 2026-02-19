@@ -2943,7 +2943,7 @@ export default function PaymentRecords() {
                       <option value="">Select Date</option>
                       {expenseDateOptions.map((date) => (
                         <option key={date} value={date}>
-                          {date}
+                          {formatDateForDisplay(date)}
                         </option>
                       ))}
                     </select>
@@ -3037,7 +3037,7 @@ export default function PaymentRecords() {
                       <option value="">Select Date</option>
                       {paidDateOptions.map((date) => (
                         <option key={date} value={date}>
-                          {date}
+                          {formatDateForDisplay(date)}
                         </option>
                       ))}
                     </select>
