@@ -900,7 +900,9 @@ export default function NewExpensePage() {
     return label || approverId || "";
   }
 
-  const getLocationSpecificApproverOptions = () => {
+  const getLocationSpecificApproverOptions = (
+    fieldKey: "approver" | "second_approver_id" = "approver"
+  ) => {
     const approverCol = columns.find((c) => c.key === "approver");
     const allOptions = (approverCol?.options || []) as Array<
       string | { value: string; label: string }
@@ -922,14 +924,18 @@ export default function NewExpensePage() {
           : [];
     };
 
-    const mappedApproverIds = normalizeIds(locationEntry?.approver_id);
-    const mappedSecondApproverIds = normalizeIds(locationEntry?.second_approver_id);
-    const mappedIds = Array.from(
-      new Set([...mappedApproverIds, ...mappedSecondApproverIds])
-    );
+    const mappedIds =
+      fieldKey === "second_approver_id"
+        ? normalizeIds(locationEntry?.second_approver_id)
+        : Array.from(
+            new Set([
+              ...normalizeIds(locationEntry?.approver_id),
+              ...normalizeIds(locationEntry?.second_approver_id),
+            ])
+          );
 
     if (!mappedIds.length) {
-      return allOptions;
+      return [];
     }
 
     const optionLookup = new Map(
@@ -945,6 +951,39 @@ export default function NewExpensePage() {
       if (mapped) return mapped;
       return { value: id, label: getApproverOptionLabel(id) || id };
     });
+  };
+
+  const isLocationApproverUnavailable = (
+    fieldKey: "approver" | "second_approver_id" = "approver"
+  ) => {
+    const selectedLocation =
+      typeof formData.location === "string" ? formData.location : "";
+    if (!selectedLocation) return false;
+
+    const locationEntry =
+      locationApproverMapping?.length
+        ? locationApproverMapping.find((m) => m.location === selectedLocation)
+        : undefined;
+
+    const normalizeIds = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      return Array.isArray(value)
+        ? value.filter((v) => v && v.trim())
+        : value.trim()
+          ? [value]
+          : [];
+    };
+
+    const mappedIds =
+      fieldKey === "second_approver_id"
+        ? normalizeIds(locationEntry?.second_approver_id)
+        : Array.from(
+            new Set([
+              ...normalizeIds(locationEntry?.approver_id),
+              ...normalizeIds(locationEntry?.second_approver_id),
+            ])
+          );
+    return mappedIds.length === 0;
   };
 
   // Prefill Payment Unique ID using the logged-in user's bank details
@@ -2201,6 +2240,13 @@ export default function NewExpensePage() {
                       {/* Approver Input */}
                       {col.type === "dropdown" && col.key === "approver" && (
                         <>
+                          {(() => {
+                            const approverOptions =
+                              getLocationSpecificApproverOptions("approver");
+                            const approverUnavailable =
+                              isLocationApproverUnavailable("approver");
+
+                            return (
                           <Select
                             value={formData.approver || ""}
                             onValueChange={(value: string) =>
@@ -2215,10 +2261,16 @@ export default function NewExpensePage() {
                                   : ""
                               }`}
                             >
-                              <SelectValue placeholder="Select approver" />
+                              <SelectValue
+                                placeholder={
+                                  approverUnavailable
+                                    ? "Not Availble"
+                                    : "Select approver"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              {getLocationSpecificApproverOptions().map(
+                              {approverOptions.map(
                                 (option: any) => {
                                   const value =
                                     typeof option === "string"
@@ -2237,6 +2289,8 @@ export default function NewExpensePage() {
                               )}
                             </SelectContent>
                           </Select>
+                            );
+                          })()}
                           {errors[col.key] && (
                             <p
                               className="text-red-500 text-sm mt-1"
@@ -2530,6 +2584,21 @@ export default function NewExpensePage() {
                     )}
                     {col.type === "dropdown" && col.options && (
                       <>
+                        {(() => {
+                          const isSecondApproverField =
+                            col.key === "second_approver_id";
+                          const optionsToRender = isSecondApproverField
+                            ? getLocationSpecificApproverOptions(
+                                "second_approver_id"
+                              )
+                            : col.options;
+                          const secondApproverUnavailable =
+                            isSecondApproverField &&
+                            isLocationApproverUnavailable(
+                              "second_approver_id"
+                            );
+
+                          return (
                         <Select
                           value={formData[col.key] || ""}
                           onValueChange={(value: string) =>
@@ -2544,10 +2613,16 @@ export default function NewExpensePage() {
                                 : ""
                             }`}
                           >
-                            <SelectValue placeholder="Please Select" />
+                            <SelectValue
+                              placeholder={
+                                secondApproverUnavailable
+                                  ? "Not Availble"
+                                  : "Please Select"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            {col.options.map((option: any) => {
+                            {optionsToRender.map((option: any) => {
                               const value =
                                 typeof option === "string"
                                   ? option
@@ -2564,6 +2639,8 @@ export default function NewExpensePage() {
                             })}
                           </SelectContent>
                         </Select>
+                          );
+                        })()}
                       </>
                     )}
                     {col.type === "radio" && col.options && (
