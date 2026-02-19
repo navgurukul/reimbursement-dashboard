@@ -2175,6 +2175,89 @@ export default function NewExpensePage() {
               </p>
             </div>
 
+            {/* Location of Expense */}
+            {columns.map((col) => {
+              if (!col.visible || col.key !== "location") return null;
+
+              return (
+                <div key={col.key} className="mb-6">
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor={col.key}
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      {col.label}
+                      {col.required && (
+                        <span className="text-red-500 ml-1 text-sm">*</span>
+                      )}
+                    </Label>
+                    {col.type === "dropdown" && col.options && (
+                      <Select
+                        value={formData[col.key] || ""}
+                        onValueChange={(value: string) =>
+                          handleInputChange(col.key, value)
+                        }
+                      >
+                        <SelectTrigger
+                          id={col.key}
+                          className={`w-full ${
+                            errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                          }`}
+                        >
+                          <SelectValue placeholder="Please Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {col.options.map((option: any) => {
+                            const value =
+                              typeof option === "string"
+                                ? option
+                                : option.value;
+                            const label =
+                              typeof option === "string"
+                                ? option
+                                : option.label;
+                            return (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {col.type === "text" && (
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        type="text"
+                        value={formData[col.key] || ""}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        className={`w-full ${
+                          errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
+                        placeholder={`Enter ${col.label}`}
+                      />
+                    )}
+                    {errors[col.key] && (
+                      <p
+                        className="text-red-500 text-sm mt-1"
+                        role="alert"
+                        id={`${col.key}-error`}
+                      >
+                        {errors[col.key]}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
             {/* Expense Type, Amount, Date, Approver, Description */}
             <div className="space-y-6">
               {/* Grid Row: Date and Approver */}
@@ -2486,6 +2569,7 @@ export default function NewExpensePage() {
               {customFields.map((col) => {
                 if (
                   !col.visible ||
+                  col.key === "location" ||
                   ![
                     "text",
                     "number",
