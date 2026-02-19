@@ -2194,7 +2194,7 @@ export default function NewExpensePage() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-600 mt-2">
                 {selectedEvent ? (
                   <span>
                     This expense will be added to the event:{" "}
@@ -3332,9 +3332,8 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
-                                <p className="text-xs text-gray-500 mb-5">
-                                  Reimbursement bill uploading date / vendor
-                                  invoice date
+                                <p className="text-xs text-gray-600 mb-5">
+                                  Reimbursement bill uploading date / vendor invoice date
                                 </p>
                               </>
                             )}
@@ -3406,16 +3405,15 @@ export default function NewExpensePage() {
                                 e.target.value
                               )
                             }
-                            className={`w-full min-h-[50px] ${
+                            className={`w-full min-h-[70px] ${
                               errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                             }`}
                             placeholder="Brief description of this expense report..."
                           />
-                          <p className="text-xs text-gray-500">
-                            Purpose of the expense, related activity/program,
-                            amount spent, number of people involved etc...
+                          <p className="text-xs text-gray-600">
+                            Purpose of the expense, related activity/program, amount spent, number of people involved etc...
                           </p>
                           {errors[col.key] && (
                             <p className="text-red-500 text-sm">

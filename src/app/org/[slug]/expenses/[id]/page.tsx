@@ -1986,15 +1986,6 @@ export default function ViewExpensePage() {
                   </div>
                 )}
 
-                {expense.custom_fields?.second_approver_name && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Second Approver
-                    </p>
-                    <p>{expense.custom_fields.second_approver_name}</p>
-                  </div>
-                )}
-
                 {relevantPolicy && (
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">
@@ -2354,14 +2345,6 @@ export default function ViewExpensePage() {
                                 </p>
                                 <p className="font-medium">
                                   {expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  Second Approver
-                                </p>
-                                <p className="font-medium">
-                                  {expense.custom_fields?.second_approver_name || "—"}
                                 </p>
                               </div>
                               <div className="md:col-span-2">
