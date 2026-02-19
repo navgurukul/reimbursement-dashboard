@@ -222,17 +222,6 @@ export default function NewExpensePage() {
   // Location options from settings
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
 
-  // Expense type → approver mapping (from org settings); used to auto-fill approver and second approver
-  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
-    {
-      expense_type: string;
-      approver_id: string | string[];
-      approver_name?: string | string[];
-      second_approver_id?: string | string[];
-      second_approver_name?: string | string[];
-    }[]
-  >([]);
-
   // Location of expense → approver mapping (from org settings); used to auto-fill approver and second approver
   const [locationApproverMapping, setLocationApproverMapping] = useState<
     {
@@ -552,14 +541,6 @@ export default function NewExpensePage() {
 
         if (settings) {
           if (
-            settings.expense_type_approver_mapping &&
-            Array.isArray(settings.expense_type_approver_mapping)
-          ) {
-            setExpenseTypeApproverMapping(
-              settings.expense_type_approver_mapping
-            );
-          }
-          if (
             settings.location_approver_mapping &&
             Array.isArray(settings.location_approver_mapping)
           ) {
@@ -779,28 +760,17 @@ export default function NewExpensePage() {
         next.approver_name = getApproverOptionLabel(value);
       }
 
-      // Auto-fill approver and second approver from mappings
-      // Priority: location mapping (if present) → expense type mapping (fallback)
-      if (key === "expense_type" || key === "location") {
+      // Auto-fill approver and second approver from location mapping only
+      if (key === "location") {
         const selectedLocation =
           typeof next.location === "string" ? next.location : "";
-        const selectedExpenseType =
-          typeof next.expense_type === "string" ? next.expense_type : "";
 
         const locationEntry =
           selectedLocation && locationApproverMapping?.length
             ? locationApproverMapping.find((m) => m.location === selectedLocation)
             : undefined;
-        const expenseTypeEntry =
-          selectedExpenseType && expenseTypeApproverMapping?.length
-            ? expenseTypeApproverMapping.find(
-                (m) => m.expense_type === selectedExpenseType
-              )
-            : undefined;
 
-        const entryToApply = locationEntry ?? expenseTypeEntry;
-        if (entryToApply) {
-          // Both mapping shapes support these keys (some optional).
+        if (locationEntry) {
           // Only overwrite when the mapping provides a non-empty value.
           const normalizeIds = (value?: string | string[]) => {
             if (!value) return [] as string[];
@@ -820,12 +790,8 @@ export default function NewExpensePage() {
               .filter(Boolean);
           };
 
-          const approverIds = normalizeIds(
-            (entryToApply as any).approver_id
-          );
-          const approverNames = normalizeNames(
-            (entryToApply as any).approver_name
-          );
+          const approverIds = normalizeIds(locationEntry.approver_id);
+          const approverNames = normalizeNames(locationEntry.approver_name);
           const approverName = approverNames.length
             ? approverNames.join(", ")
             : approverIds
@@ -834,10 +800,10 @@ export default function NewExpensePage() {
                 .join(", ");
 
           const secondApproverIds = normalizeIds(
-            (entryToApply as any).second_approver_id
+            locationEntry.second_approver_id
           );
           const secondApproverNames = normalizeNames(
-            (entryToApply as any).second_approver_name
+            locationEntry.second_approver_name
           );
           const secondApproverName = secondApproverNames.length
             ? secondApproverNames.join(", ")
