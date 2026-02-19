@@ -644,7 +644,7 @@ export default function NewExpensePage() {
     fetchData();
   }, [orgId, eventIdFromQuery, user]);
 
-  // When location or location mapping changes, keep approver and second approver in sync (e.g. after mapping loads)
+  // When location or location mapping changes, clear selected approvers so user can choose from dropdown
   useEffect(() => {
     const selectedLocation =
       typeof formData.location === "string" ? formData.location : "";
@@ -667,51 +667,11 @@ export default function NewExpensePage() {
       return value.split(",").map((v) => v.trim()).filter(Boolean);
     };
 
-    if (!selectedLocation || !locationEntry) {
-      setFormData((prev) => {
-        if (
-          prev.approver ||
-          prev.approver_name ||
-          prev.second_approver_id ||
-          prev.second_approver_name
-        ) {
-          return {
-            ...prev,
-            approver: "",
-            approver_name: "",
-            second_approver_id: "",
-            second_approver_name: "",
-          };
-        }
-        return prev;
-      });
-      return;
-    }
-
-    const approverIds = normalizeIds(locationEntry.approver_id);
-    const approverNames = normalizeNames(locationEntry.approver_name);
-    const approverName = approverNames.length
-      ? approverNames.join(", ")
-      : approverIds
-          .map((id) => getApproverOptionLabel(id))
-          .filter(Boolean)
-          .join(", ");
-    const secondApproverIds = normalizeIds(locationEntry.second_approver_id);
-    const secondApproverNames = normalizeNames(locationEntry.second_approver_name);
-    const secondApproverName = secondApproverNames.length
-      ? secondApproverNames.join(", ")
-      : secondApproverIds
-          .map((id) => getApproverOptionLabel(id))
-          .filter(Boolean)
-          .join(", ");
-    const primaryApproverId = approverIds[0] || "";
-    const primarySecondApproverId = secondApproverIds[0] || "";
-
     setFormData((prev) => {
-      const nextApprover = primaryApproverId || "";
-      const nextApproverName = approverName || "";
-      const nextSecondId = primarySecondApproverId || "";
-      const nextSecondName = secondApproverName || "";
+      const nextApprover = "";
+      const nextApproverName = "";
+      const nextSecondId = "";
+      const nextSecondName = "";
       if (
         prev.approver === nextApprover &&
         prev.approver_name === nextApproverName &&
@@ -846,70 +806,16 @@ export default function NewExpensePage() {
         next.approver_name = getApproverOptionLabel(value);
       }
 
-      // Auto-fill approver and second approver from location mapping; clear to "Not available" when no mapping or no approvers
+      if (key === "second_approver_id" && typeof value === "string") {
+        next.second_approver_name = getApproverOptionLabel(value);
+      }
+
+      // Clear approver fields on location change so user can select explicitly
       if (key === "location") {
-        const selectedLocation =
-          typeof next.location === "string" ? next.location : "";
-
-        const locationEntry =
-          selectedLocation && locationApproverMapping?.length
-            ? locationApproverMapping.find((m) => m.location === selectedLocation)
-            : undefined;
-
-        const normalizeIds = (value?: string | string[]) => {
-          if (!value) return [] as string[];
-          return Array.isArray(value)
-            ? value.filter((v) => v && v.trim())
-            : value.trim()
-              ? [value]
-              : [];
-        };
-
-        const normalizeNames = (value?: string | string[]) => {
-          if (!value) return [] as string[];
-          if (Array.isArray(value)) return value.filter((v) => v && v.trim());
-          return value
-            .split(",")
-            .map((v) => v.trim())
-            .filter(Boolean);
-        };
-
-        if (!selectedLocation || !locationEntry) {
-          next.approver = "";
-          next.approver_name = "";
-          next.second_approver_id = "";
-          next.second_approver_name = "";
-        } else {
-          const approverIds = normalizeIds(locationEntry.approver_id);
-          const approverNames = normalizeNames(locationEntry.approver_name);
-          const approverName = approverNames.length
-            ? approverNames.join(", ")
-            : approverIds
-                .map((id) => getApproverOptionLabel(id))
-                .filter(Boolean)
-                .join(", ");
-
-          const secondApproverIds = normalizeIds(
-            locationEntry.second_approver_id
-          );
-          const secondApproverNames = normalizeNames(
-            locationEntry.second_approver_name
-          );
-          const secondApproverName = secondApproverNames.length
-            ? secondApproverNames.join(", ")
-            : secondApproverIds
-                .map((id) => getApproverOptionLabel(id))
-                .filter(Boolean)
-                .join(", ");
-
-          const primaryApproverId = approverIds[0] || "";
-          const primarySecondApproverId = secondApproverIds[0] || "";
-
-          next.approver = primaryApproverId || "";
-          next.approver_name = approverName || "";
-          next.second_approver_id = primarySecondApproverId || "";
-          next.second_approver_name = secondApproverName || "";
-        }
+        next.approver = "";
+        next.approver_name = "";
+        next.second_approver_id = "";
+        next.second_approver_name = "";
       }
       return next;
     });
@@ -993,6 +899,53 @@ export default function NewExpensePage() {
     const label = getApproverOptionLabel(approverId);
     return label || approverId || "";
   }
+
+  const getLocationSpecificApproverOptions = () => {
+    const approverCol = columns.find((c) => c.key === "approver");
+    const allOptions = (approverCol?.options || []) as Array<
+      string | { value: string; label: string }
+    >;
+
+    const selectedLocation =
+      typeof formData.location === "string" ? formData.location : "";
+    const locationEntry =
+      selectedLocation && locationApproverMapping?.length
+        ? locationApproverMapping.find((m) => m.location === selectedLocation)
+        : undefined;
+
+    const normalizeIds = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      return Array.isArray(value)
+        ? value.filter((v) => v && v.trim())
+        : value.trim()
+          ? [value]
+          : [];
+    };
+
+    const mappedApproverIds = normalizeIds(locationEntry?.approver_id);
+    const mappedSecondApproverIds = normalizeIds(locationEntry?.second_approver_id);
+    const mappedIds = Array.from(
+      new Set([...mappedApproverIds, ...mappedSecondApproverIds])
+    );
+
+    if (!mappedIds.length) {
+      return allOptions;
+    }
+
+    const optionLookup = new Map(
+      allOptions.map((option) => {
+        const value = typeof option === "string" ? option : option.value;
+        const label = typeof option === "string" ? option : option.label;
+        return [value, { value, label }];
+      })
+    );
+
+    return mappedIds.map((id) => {
+      const mapped = optionLookup.get(id);
+      if (mapped) return mapped;
+      return { value: id, label: getApproverOptionLabel(id) || id };
+    });
+  };
 
   // Prefill Payment Unique ID using the logged-in user's bank details
   useEffect(() => {
@@ -2248,35 +2201,42 @@ export default function NewExpensePage() {
                       {/* Approver Input */}
                       {col.type === "dropdown" && col.key === "approver" && (
                         <>
-                          {(() => {
-                            const isApproverAvailable = Boolean(
-                              (formData.approver_name || "").trim() ||
-                                formData.approver
-                            );
-                            const approverValue = isApproverAvailable
-                              ? getApproverDisplayName(
-                                  formData.approver,
-                                  formData.approver_name
-                                )
-                              : "Not available";
-                            return (
-                              <Input
-                                id={col.key}
-                                name={col.key}
-                                value={approverValue}
-                                disabled
-                                className={`w-full ${
-                                  errors[col.key]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
-                                } ${
-                                  !isApproverAvailable
-                                    ? "text-muted-foreground"
-                                    : "text-gray-900"
-                                } disabled:opacity-100 disabled:text-gray-900`}
-                              />
-                            );
-                          })()}
+                          <Select
+                            value={formData.approver || ""}
+                            onValueChange={(value: string) =>
+                              handleInputChange(col.key, value)
+                            }
+                          >
+                            <SelectTrigger
+                              id={col.key}
+                              className={`w-full ${
+                                errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
+                            >
+                              <SelectValue placeholder="Select approver" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getLocationSpecificApproverOptions().map(
+                                (option: any) => {
+                                  const value =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.value;
+                                  const label =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.label;
+                                  return (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                }
+                              )}
+                            </SelectContent>
+                          </Select>
                           {errors[col.key] && (
                             <p
                               className="text-red-500 text-sm mt-1"
@@ -2422,49 +2382,6 @@ export default function NewExpensePage() {
                     </div>
                   );
                 })}
-                {(() => {
-                  const approverCol = columns.find(
-                    (c) => c.key === "approver" && c.type === "dropdown"
-                  );
-
-                  if (!approverCol) return null;
-
-                  return (
-                    <div key="second-approver" className="space-y-2">
-                      <Label
-                        htmlFor="second_approver_name"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Second Approver
-                      </Label>
-                      {(() => {
-                        const isSecondApproverAvailable = Boolean(
-                          (formData.second_approver_name || "").trim() ||
-                            formData.second_approver_id
-                        );
-                        const secondApproverValue = isSecondApproverAvailable
-                          ? getApproverDisplayName(
-                              formData.second_approver_id,
-                              formData.second_approver_name
-                            )
-                          : "Not available";
-                        return (
-                          <Input
-                            id="second_approver_name"
-                            name="second_approver_name"
-                            value={secondApproverValue}
-                            disabled
-                            className={`w-full ${
-                              !isSecondApproverAvailable
-                                ? "text-muted-foreground"
-                                : "text-gray-900"
-                            } disabled:opacity-100 disabled:text-gray-900`}
-                          />
-                        );
-                      })()}
-                    </div>
-                  );
-                })()}
               </div>
 
               {/* Full Width Description */}
