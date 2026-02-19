@@ -3002,6 +3002,102 @@ export default function NewExpensePage() {
                       </Button>
                     </div>
 
+                    {/* Location of Expense */}
+                    {customFields
+                      .filter((col) => col.visible && col.key === "location")
+                      .map((col) => (
+                        <div key={col.key} className="space-y-2 mb-5">
+                          <Label
+                            htmlFor={`${col.key}-${id}`}
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            {col.label}
+                            {col.required && (
+                              <span className="text-red-500 ml-1 text-sm">*</span>
+                            )}
+                          </Label>
+
+                          {col.type === "dropdown" && col.options && (
+                            <Select
+                              value={String(
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              )}
+                              onValueChange={(value: string) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  value
+                                )
+                              }
+                            >
+                              <SelectTrigger
+                                id={`${col.key}-${id}`}
+                                className={`w-full ${
+                                  errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                }`}
+                              >
+                                <SelectValue placeholder="Please Select" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {col.options.map((option: any) => {
+                                  const value =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.value;
+                                  const label =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.label;
+                                  return (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                          )}
+
+                          {col.type === "text" && (
+                            <Input
+                              id={`${col.key}-${id}`}
+                              name={`${col.key}-${id}`}
+                              type="text"
+                              value={String(
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              )}
+                              onChange={(e) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  e.target.value
+                                )
+                              }
+                              className={`w-full ${
+                                errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
+                              placeholder={`Enter ${col.label}`}
+                            />
+                          )}
+
+                          {errors[col.key] && (
+                            <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
+                              {errors[col.key]}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+
                     {/* Expense Type, Amount, Date */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {columns
@@ -3227,6 +3323,7 @@ export default function NewExpensePage() {
                     {customFields.map((col) => {
                       if (
                         !col.visible ||
+                        col.key === "location" ||
                         ![
                           "text",
                           "number",
