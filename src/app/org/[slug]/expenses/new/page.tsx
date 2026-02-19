@@ -322,11 +322,16 @@ export default function NewExpensePage() {
     key: keyof ExpenseItemData,
     value: string | number | string[]
   ) => {
+    const shouldResetApprovers = key === "location";
+
     setExpenseItemsData((prev) => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
         [key]: value,
+        ...(shouldResetApprovers
+          ? { approver: "", second_approver_id: "" }
+          : {}),
       },
     }));
 
@@ -901,7 +906,8 @@ export default function NewExpensePage() {
   }
 
   const getLocationSpecificApproverOptions = (
-    fieldKey: "approver" | "second_approver_id" = "approver"
+    fieldKey: "approver" | "second_approver_id" = "approver",
+    locationValue?: string
   ) => {
     const approverCol = columns.find((c) => c.key === "approver");
     const allOptions = (approverCol?.options || []) as Array<
@@ -909,7 +915,11 @@ export default function NewExpensePage() {
     >;
 
     const selectedLocation =
-      typeof formData.location === "string" ? formData.location : "";
+      typeof locationValue === "string"
+        ? locationValue
+        : typeof formData.location === "string"
+          ? formData.location
+          : "";
     const locationEntry =
       selectedLocation && locationApproverMapping?.length
         ? locationApproverMapping.find((m) => m.location === selectedLocation)
@@ -954,10 +964,15 @@ export default function NewExpensePage() {
   };
 
   const isLocationApproverUnavailable = (
-    fieldKey: "approver" | "second_approver_id" = "approver"
+    fieldKey: "approver" | "second_approver_id" = "approver",
+    locationValue?: string
   ) => {
     const selectedLocation =
-      typeof formData.location === "string" ? formData.location : "";
+      typeof locationValue === "string"
+        ? locationValue
+        : typeof formData.location === "string"
+          ? formData.location
+          : "";
     if (!selectedLocation) return false;
 
     const locationEntry =
@@ -1631,11 +1646,27 @@ export default function NewExpensePage() {
           const itemIsDirectPayment = isDirectPaymentValue(
             item?.unique_id || formData.unique_id || ""
           );
+          const itemApproverId =
+            typeof item?.approver === "string" && item.approver.trim()
+              ? item.approver
+              : formData.approver || null;
+
+          const itemApproverProfile = itemApproverId
+            ? await profiles.getById(itemApproverId)
+            : null;
+          const itemApproverEmail = itemApproverProfile?.data?.email || "";
+          const itemApproverName =
+            itemApproverProfile?.data?.full_name ||
+            getApproverDisplayName(itemApproverId || undefined);
 
           // Prepare custom fields for the item
           const itemCustomFields: Record<string, any> = {
             description: item.description || "",
           };
+
+          if (itemApproverName) {
+            itemCustomFields["approver_name"] = itemApproverName;
+          }
 
           // Add custom fields from expenseItemsData
           customFields.forEach((col) => {
@@ -1653,7 +1684,7 @@ export default function NewExpensePage() {
             date: new Date(item.date).toISOString(),
             custom_fields: itemCustomFields,
             event_id: formData.event_id || null,
-            approver_id: formData.approver || null,
+            approver_id: itemApproverId,
             // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
             unique_id: item.unique_id || formData.unique_id || undefined,
             expense_credit_person: itemIsDirectPayment
@@ -1664,7 +1695,7 @@ export default function NewExpensePage() {
               : expense_signature_url ?? undefined,
             receipt: null,
             creator_email: user.email,
-            approver_email: approverEmail,
+            approver_email: itemApproverEmail,
             location: item.location || null,
           };
 
@@ -1682,8 +1713,8 @@ export default function NewExpensePage() {
             expenseId: itemData.id,
             amount: individualExpenseData.amount,
             expenseType: individualExpenseData.expense_type,
-            approverEmail,
-            approverName,
+            approverEmail: itemApproverEmail,
+            approverName: itemApproverName,
           });
 
           let attachmentData = null;
@@ -1730,7 +1761,7 @@ export default function NewExpensePage() {
                 null,
               created_by: user.id,
               org_id: organization.id,
-              approver_id: formData.approver || null,
+              approver_id: itemApproverId,
               attachment: attachmentData,
             };
 
@@ -3105,7 +3136,6 @@ export default function NewExpensePage() {
                           (col) =>
                             col.visible &&
                             ["dropdown", "date", "number"].includes(col.type) &&
-                            col.key !== "approver" &&
                             defaultSystemFields.includes(col.key)
                         )
                         .sort((a, b) => {
@@ -3113,18 +3143,14 @@ export default function NewExpensePage() {
                             expense_type: 0,
                             amount: 1,
                             date: 2,
+                            approver: 3,
                           };
                           const aOrder = order[a.key] ?? 99;
                           const bOrder = order[b.key] ?? 99;
                           return aOrder - bOrder;
                         })
                         .map((col) => (
-                          <div
-                            key={col.key}
-                            className={`space-y-2 ${
-                              col.key === "date" ? "md:col-span-2" : ""
-                            }`}
-                          >
+                          <div key={col.key} className="space-y-2">
                             <Label
                               htmlFor={col.key}
                               className="text-sm font-medium text-gray-700"
@@ -3138,7 +3164,87 @@ export default function NewExpensePage() {
                             </Label>
 
                             {/* Dropdown */}
-                            {col.type === "dropdown" && col.options && (
+                            {col.type === "dropdown" && col.key === "approver" && (
+                              <>
+                                {(() => {
+                                  const selectedItemLocation = String(
+                                    getExpenseItemValue(
+                                      id,
+                                      "location" as keyof ExpenseItemData
+                                    ) || ""
+                                  );
+                                  const approverOptions =
+                                    getLocationSpecificApproverOptions(
+                                      "approver",
+                                      selectedItemLocation
+                                    );
+                                  const approverUnavailable =
+                                    isLocationApproverUnavailable(
+                                      "approver",
+                                      selectedItemLocation
+                                    );
+
+                                  return (
+                                    <Select
+                                      value={String(
+                                        getExpenseItemValue(
+                                          id,
+                                          "approver" as keyof ExpenseItemData
+                                        ) || ""
+                                      )}
+                                      onValueChange={(value: string) =>
+                                        handleExpenseItemChange(
+                                          id,
+                                          "approver" as keyof ExpenseItemData,
+                                          value
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        id={col.key}
+                                        className={`w-full ${
+                                          errors[col.key]
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                        }`}
+                                      >
+                                        <SelectValue
+                                          placeholder={
+                                            approverUnavailable
+                                              ? "Not Availble"
+                                              : "Select approver"
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {approverOptions.map((option: any) => {
+                                          const value =
+                                            typeof option === "string"
+                                              ? option
+                                              : option.value;
+                                          const label =
+                                            typeof option === "string"
+                                              ? option
+                                              : option.label;
+                                          return (
+                                            <SelectItem key={value} value={value}>
+                                              {label}
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  );
+                                })()}
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">
+                                    {errors[col.key]}
+                                  </p>
+                                )}
+                              </>
+                            )}
+
+                            {col.type === "dropdown" && col.key !== "approver" && col.options && (
                               <>
                                 <Select
                                   value={
