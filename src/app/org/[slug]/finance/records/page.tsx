@@ -79,6 +79,9 @@ export default function PaymentRecords() {
     startDate: "",
     endDate: "",
     dateMode: "All Dates",
+    paidStartDate: "",
+    paidEndDate: "",
+    paidDateMode: "All Dates",
     minAmount: 0,
     maxAmount: 0,
     paidByBank: "All Banks",
@@ -275,6 +278,13 @@ export default function PaymentRecords() {
     return `${year}-${month}-${day}`;
   };
 
+  const formatDateForDisplay = (dateValue?: string) => {
+    if (!dateValue) return "";
+    const [year, month, day] = dateValue.split("-");
+    if (!year || !month || !day) return dateValue;
+    return `${day}-${month}-${year}`;
+  };
+
   const isDateWithinRange = (
     value: string | Date | null | undefined,
     mode: string,
@@ -285,6 +295,7 @@ export default function PaymentRecords() {
     const dateValue = toDateOnly(value);
     if (!dateValue) return false;
     if (mode === "Single Date") {
+      if (!start) return true;
       return dateValue === start;
     }
     if (mode === "Custom Date") {
@@ -385,17 +396,17 @@ export default function PaymentRecords() {
         )
           return false;
       }
-      if (filters.startDate) {
-        const start = new Date(filters.startDate);
-        const recDate = new Date(r.updated_at || r.created_at || r.date);
-        if (recDate < start) return false;
-      }
-      if (filters.endDate) {
-        const end = new Date(filters.endDate);
-        const recDate = new Date(r.updated_at || r.created_at || r.date);
-        end.setHours(23, 59, 59, 999);
-        if (recDate > end) return false;
-      }
+      if (!isDateWithinRange(r.date, filters.dateMode, filters.startDate, filters.endDate))
+        return false;
+      if (
+        !isDateWithinRange(
+          r.paid_approval_time,
+          filters.paidDateMode,
+          filters.paidStartDate,
+          filters.paidEndDate
+        )
+      )
+        return false;
       const amt = Number(r.approved_amount) || 0;
       if (filters.minAmount !== null && amt < Number(filters.minAmount))
         return false;
@@ -774,6 +785,30 @@ export default function PaymentRecords() {
   const uniqueIds = Array.from(
     new Set(records.map((r: any) => r.unique_id).filter(Boolean))
   );
+  const dateOfExpenseOptions = useMemo(() => {
+    const uniqueDates = new Set<string>();
+    records.forEach((r: any) => {
+      if (activeTab !== "all") {
+        const expected = BANK_STRING_MAP[activeTab];
+        if ((r.paid_by_bank || "") !== expected) return;
+      }
+      const dateOnly = toDateOnly(r.date);
+      if (dateOnly) uniqueDates.add(dateOnly);
+    });
+    return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
+  }, [records, activeTab]);
+  const paidDateFilterOptions = useMemo(() => {
+    const uniqueDates = new Set<string>();
+    records.forEach((r: any) => {
+      if (activeTab !== "all") {
+        const expected = BANK_STRING_MAP[activeTab];
+        if ((r.paid_by_bank || "") !== expected) return;
+      }
+      const dateOnly = toDateOnly(r.paid_approval_time);
+      if (dateOnly) uniqueDates.add(dateOnly);
+    });
+    return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
+  }, [records, activeTab]);
   const paidByBankOptions = Array.from(
     new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
   );
@@ -841,17 +876,17 @@ export default function PaymentRecords() {
         )
           return false;
       }
-      if (filters.startDate) {
-        const start = new Date(filters.startDate);
-        const recDate = new Date(r.updated_at || r.created_at || r.date);
-        if (recDate < start) return false;
-      }
-      if (filters.endDate) {
-        const end = new Date(filters.endDate);
-        const recDate = new Date(r.updated_at || r.created_at || r.date);
-        end.setHours(23, 59, 59, 999);
-        if (recDate > end) return false;
-      }
+      if (!isDateWithinRange(r.date, filters.dateMode, filters.startDate, filters.endDate))
+        return false;
+      if (
+        !isDateWithinRange(
+          r.paid_approval_time,
+          filters.paidDateMode,
+          filters.paidStartDate,
+          filters.paidEndDate
+        )
+      )
+        return false;
       const amt = Number(r.approved_amount) || 0;
       if (filters.minAmount !== null && amt < Number(filters.minAmount))
         return false;
@@ -889,6 +924,9 @@ export default function PaymentRecords() {
       dateMode: "All Dates",
       startDate: "",
       endDate: "",
+      paidDateMode: "All Dates",
+      paidStartDate: "",
+      paidEndDate: "",
       minAmount: amountBounds.min,
       maxAmount: amountBounds.max,
       paidByBank: "All Banks",
@@ -1715,7 +1753,7 @@ export default function PaymentRecords() {
             )}
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Date</label>
+              <label className="text-sm font-medium">Date of expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.dateMode}
@@ -1745,13 +1783,12 @@ export default function PaymentRecords() {
                 <option>Custom Date</option>
               </select>
 
-              {/* Conditional inputs shown below the Date selector */}
+              {/* Conditional inputs shown below the Date of expense selector */}
               <div className="mt-2">
                 {filters.dateMode === "Single Date" ? (
                   <>
-                    <label className="text-sm font-medium">Select Date</label>
-                    <input
-                      type="date"
+                    <label className="text-sm font-medium">Select Date of expense</label>
+                    <select
                       className="mt-1 block w-full border rounded px-3 py-2"
                       value={filters.startDate}
                       onChange={(e) =>
@@ -1761,7 +1798,14 @@ export default function PaymentRecords() {
                           endDate: e.target.value,
                         }))
                       }
-                    />
+                    >
+                      <option value="">Select Date of expense</option>
+                      {dateOfExpenseOptions.map((date) => (
+                        <option key={date} value={date}>
+                          {formatDateForDisplay(date)}
+                        </option>
+                      ))}
+                    </select>
                   </>
                 ) : filters.dateMode === "Custom Date" ? (
                   <>
@@ -1783,6 +1827,87 @@ export default function PaymentRecords() {
                       value={filters.endDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, endDate: e.target.value }))
+                      }
+                    />
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Paid date</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.paidDateMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setFilters((f) => {
+                    if (mode === "All Dates")
+                      return {
+                        ...f,
+                        paidDateMode: mode,
+                        paidStartDate: "",
+                        paidEndDate: "",
+                      };
+                    if (mode === "Single Date")
+                      return {
+                        ...f,
+                        paidDateMode: mode,
+                        paidStartDate: f.paidStartDate || "",
+                        paidEndDate: f.paidStartDate || "",
+                      };
+                    return { ...f, paidDateMode: mode };
+                  });
+                }}
+              >
+                <option>All Dates</option>
+                <option>Single Date</option>
+                <option>Custom Date</option>
+              </select>
+
+              <div className="mt-2">
+                {filters.paidDateMode === "Single Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Select Paid date</label>
+                    <select
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidStartDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({
+                          ...f,
+                          paidStartDate: e.target.value,
+                          paidEndDate: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Select Paid date</option>
+                      {paidDateFilterOptions.map((date) => (
+                        <option key={date} value={date}>
+                          {formatDateForDisplay(date)}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : filters.paidDateMode === "Custom Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Start Date</label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidStartDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, paidStartDate: e.target.value }))
+                      }
+                    />
+                    <label className="text-sm font-medium mt-2 block">
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidEndDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, paidEndDate: e.target.value }))
                       }
                     />
                   </>
