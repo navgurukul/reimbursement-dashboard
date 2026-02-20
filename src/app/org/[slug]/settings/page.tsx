@@ -7,6 +7,7 @@ import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings } from "@/lib/db";
 import type {
   ColumnConfig as DbColumnConfig,
+  ExpenseTypeApproverMappingEntry,
   LocationApproverMappingEntry,
 } from "@/lib/db";
 import supabase from "@/lib/supabase";
@@ -228,6 +229,13 @@ export default function SettingsPage() {
   const [newOptions, setNewOptions] = useState<string>("");
   const [approverOptions, setApproverOptions] = useState<ApproverOption[]>([]);
 
+  // Expense type → approver mapping (approver + second approver per expense type)
+  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
+    ExpenseTypeApproverMappingEntry[]
+  >([]);
+  const [savingExpenseTypeMapping, setSavingExpenseTypeMapping] =
+    useState(false);
+
   // Location of expense → approver mapping (approver + second approver per location)
   const [locationApproverMapping, setLocationApproverMapping] = useState<
     LocationApproverMappingEntry[]
@@ -260,6 +268,16 @@ export default function SettingsPage() {
         }
 
         if (settingsData) {
+          // Set expense type → approver mapping
+          if (
+            settingsData.expense_type_approver_mapping &&
+            Array.isArray(settingsData.expense_type_approver_mapping)
+          ) {
+            setExpenseTypeApproverMapping(
+              settingsData.expense_type_approver_mapping
+            );
+          }
+
           // Set location → approver mapping
           if (
             settingsData.location_approver_mapping &&
@@ -515,6 +533,59 @@ export default function SettingsPage() {
     } finally {
       setSavingLocationMapping(false);
     }
+  };
+
+  const handleSaveExpenseTypeApproverMapping = async () => {
+    setSavingExpenseTypeMapping(true);
+    try {
+      const toSave = expenseTypeApproverMapping.filter(
+        (m) =>
+          m.expense_type &&
+          m.expense_type.trim() !== "" &&
+          m.expense_type !== "__new__"
+      );
+      const { error } = await orgSettings.updateExpenseTypeApproverMapping(
+        orgId,
+        toSave
+      );
+      if (error) throw error;
+      toast.success("Expense type → approver mapping saved!");
+    } catch (e: any) {
+      toast.error("Failed to save mapping", { description: e.message });
+    } finally {
+      setSavingExpenseTypeMapping(false);
+    }
+  };
+
+  const handleAddExpenseTypeApproverMappingRow = () => {
+    setExpenseTypeApproverMapping((prev) => [
+      ...prev,
+      {
+        expense_type: "__new__",
+        approver_id: [],
+        second_approver_id: [],
+      },
+    ]);
+  };
+
+  const handleRemoveExpenseTypeApproverMappingRow = (expenseType: string) => {
+    setExpenseTypeApproverMapping((prev) =>
+      prev.filter((m) => m.expense_type !== expenseType)
+    );
+  };
+
+  const handleUpdateExpenseTypeApproverMappingExpenseType = (
+    oldExpenseType: string,
+    newExpenseType: string
+  ) => {
+    const trimmed = newExpenseType.trim();
+    setExpenseTypeApproverMapping((prev) => {
+      const idx = prev.findIndex((m) => m.expense_type === oldExpenseType);
+      if (idx < 0) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], expense_type: trimmed || "__new__" };
+      return next;
+    });
   };
 
   const handleAddLocationApproverMappingRow = () => {
@@ -829,6 +900,206 @@ export default function SettingsPage() {
           <div className="flex justify-end">
             <Button onClick={handleSaveColumns}>Save Columns</Button>
           </div>
+
+          {/* Expense Type → Approver Mapping */}
+          {(() => {
+            const expenseTypeCol = (columns as any[]).find(
+              (c: any) =>
+                c.key === "expense_type" ||
+                String(c.label || "").trim().toLowerCase() === "expense type"
+            );
+            const expenseTypeOptions: string[] = expenseTypeCol?.options
+              ? Array.isArray(expenseTypeCol.options)
+                ? (expenseTypeCol.options as any[]).map((o: any) =>
+                    typeof o === "object" ? o.value ?? o.label : String(o)
+                  )
+                : []
+              : [];
+
+            const customExpenseTypes = expenseTypeApproverMapping
+              .map((m) => m.expense_type)
+              .filter((t) => t && t !== "__new__");
+            const newRow = expenseTypeApproverMapping.some(
+              (m) => m.expense_type === "__new__"
+            );
+            const displayRows = [
+              ...customExpenseTypes,
+              ...(newRow ? ["__new__"] : []),
+            ];
+
+            const updateMappingEntry = (
+              expenseType: string,
+              updates: Partial<ExpenseTypeApproverMappingEntry>
+            ) => {
+              setExpenseTypeApproverMapping((prev) => {
+                const idx = prev.findIndex((m) => m.expense_type === expenseType);
+                const base =
+                  idx >= 0
+                    ? { ...prev[idx], ...updates }
+                    : { expense_type: expenseType, ...updates };
+                const newEntry: ExpenseTypeApproverMappingEntry = {
+                  expense_type: base.expense_type,
+                  approver_name: base.approver_name,
+                  second_approver_name: base.second_approver_name,
+                  approver_id: base.approver_id ?? [],
+                  second_approver_id: base.second_approver_id ?? [],
+                };
+                if (idx >= 0) {
+                  const next = [...prev];
+                  next[idx] = newEntry;
+                  return next;
+                }
+                return [...prev, newEntry];
+              });
+            };
+
+            const renderRow = (expenseType: string) => {
+              const entry = expenseTypeApproverMapping.find(
+                (m) => m.expense_type === expenseType
+              );
+              const resolvedApproverIds = normalizeIds(entry?.approver_id);
+              const resolvedApproverNames = normalizeNames(entry?.approver_name);
+              const selectedApproverIds =
+                resolvedApproverIds.length > 0
+                  ? resolvedApproverIds
+                  : resolveIdsFromNames(resolvedApproverNames);
+
+              const resolvedSecondApproverIds = normalizeIds(
+                entry?.second_approver_id
+              );
+              const resolvedSecondApproverNames = normalizeNames(
+                entry?.second_approver_name
+              );
+              const selectedSecondApproverIds =
+                resolvedSecondApproverIds.length > 0
+                  ? resolvedSecondApproverIds
+                  : resolveIdsFromNames(resolvedSecondApproverNames);
+
+              const displayLabel = expenseType === "__new__" ? "" : expenseType;
+              return (
+                <div
+                  key={expenseType}
+                  className="flex flex-wrap items-center gap-4 p-3 border rounded-lg"
+                >
+                  <div className="space-y-1 min-w-[180px] max-w-[220px]">
+                    <Label className="text-xs">Expense Type</Label>
+                    <Input
+                      value={displayLabel}
+                      onChange={(e) =>
+                        handleUpdateExpenseTypeApproverMappingExpenseType(
+                          expenseType,
+                          e.target.value
+                        )
+                      }
+                      placeholder="Type expense type"
+                      className="font-medium"
+                      list="expense-type-options"
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-wrap gap-4">
+                    <div className="space-y-1 min-w-[240px]">
+                      <Label className="text-xs">Approver</Label>
+                      <MultiSelect
+                        options={approverOptions}
+                        value={selectedApproverIds}
+                        onChange={(nextIds) =>
+                          updateMappingEntry(expenseType, {
+                            approver_id: nextIds,
+                            approver_name: nextIds.length
+                              ? nextIds.map(getApproverLabel).join(", ")
+                              : undefined,
+                          })
+                        }
+                        placeholder="Select one or more approvers"
+                        searchPlaceholder="Search approver"
+                      />
+                    </div>
+                    <div className="space-y-1 min-w-[240px]">
+                      <Label className="text-xs">Second Approver</Label>
+                      <MultiSelect
+                        options={approverOptions}
+                        value={selectedSecondApproverIds}
+                        onChange={(nextIds) =>
+                          updateMappingEntry(expenseType, {
+                            second_approver_id: nextIds,
+                            second_approver_name: nextIds.length
+                              ? nextIds.map(getApproverLabel).join(", ")
+                              : undefined,
+                          })
+                        }
+                        placeholder="Select one or more approvers"
+                        searchPlaceholder="Search second approver"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() =>
+                      handleRemoveExpenseTypeApproverMappingRow(expenseType)
+                    }
+                    title="Remove mapping"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              );
+            };
+
+            return (
+              <Card className="mt-6">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle>Expense Type → Approver Mapping</CardTitle>
+                      <CardDescription>
+                        Set approver and second approver for each expense type.
+                        These will auto-fill on the new expense form when a user
+                        selects an expense type.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddExpenseTypeApproverMappingRow}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Mapping
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {expenseTypeOptions.length > 0 && (
+                    <datalist id="expense-type-options">
+                      {expenseTypeOptions.map((opt) => (
+                        <option key={opt} value={opt} />
+                      ))}
+                    </datalist>
+                  )}
+                  <div className="space-y-3">
+                    {displayRows.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-4 text-center">
+                        No mappings added yet. Click &quot;Add Mapping&quot; to create a new expense type → approver mapping.
+                      </p>
+                    ) : (
+                      displayRows.map((expenseType) => renderRow(expenseType))
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSaveExpenseTypeApproverMapping}
+                      disabled={savingExpenseTypeMapping}
+                    >
+                      {savingExpenseTypeMapping ? "Saving…" : "Save Mapping"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Location → Approver Mapping */}
           {(() => {

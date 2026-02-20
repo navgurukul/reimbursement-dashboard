@@ -233,6 +233,17 @@ export default function NewExpensePage() {
     }[]
   >([]);
 
+  // Expense type → approver mapping (from org settings); used to auto-fill approver and second approver
+  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
+    {
+      expense_type: string;
+      approver_name?: string | string[];
+      second_approver_name?: string | string[];
+      approver_id?: string | string[];
+      second_approver_id?: string | string[];
+    }[]
+  >([]);
+
   // Payment Unique ID helpers
   const [uniqueIdModalOpen, setUniqueIdModalOpen] = useState(false);
   const [bankSearchQuery, setBankSearchQuery] = useState("");
@@ -322,7 +333,7 @@ export default function NewExpensePage() {
     key: keyof ExpenseItemData,
     value: string | number | string[]
   ) => {
-    const shouldResetApprovers = key === "location";
+    const shouldResetApprovers = key === "location" || key === "expense_type";
 
     setExpenseItemsData((prev) => ({
       ...prev,
@@ -546,6 +557,12 @@ export default function NewExpensePage() {
 
         if (settings) {
           if (
+            settings.expense_type_approver_mapping &&
+            Array.isArray(settings.expense_type_approver_mapping)
+          ) {
+            setExpenseTypeApproverMapping(settings.expense_type_approver_mapping);
+          }
+          if (
             settings.location_approver_mapping &&
             Array.isArray(settings.location_approver_mapping)
           ) {
@@ -649,34 +666,32 @@ export default function NewExpensePage() {
     fetchData();
   }, [orgId, eventIdFromQuery, user]);
 
-  // When location or location mapping changes, clear selected approvers so user can choose from dropdown
+  // Auto-fill approver fields when expense type/location mapping changes
   useEffect(() => {
     const selectedLocation =
       typeof formData.location === "string" ? formData.location : "";
-    const locationEntry =
-      selectedLocation && locationApproverMapping?.length
-        ? locationApproverMapping.find((m) => m.location === selectedLocation)
-        : undefined;
+    const selectedExpenseType =
+      typeof formData.expense_type === "string" ? formData.expense_type : "";
 
-    const normalizeIds = (value?: string | string[]) => {
-      if (!value) return [] as string[];
-      return Array.isArray(value)
-        ? value.filter((v) => v && v.trim())
-        : value.trim()
-          ? [value]
-          : [];
-    };
-    const normalizeNames = (value?: string | string[]) => {
-      if (!value) return [] as string[];
-      if (Array.isArray(value)) return value.filter((v) => v && v.trim());
-      return value.split(",").map((v) => v.trim()).filter(Boolean);
-    };
+    if (!selectedLocation && !selectedExpenseType) return;
+
+    const mappedApprovers = getLocationSpecificApproverOptions(
+      "approver",
+      selectedLocation,
+      selectedExpenseType
+    );
+    const mappedSecondApprovers = getLocationSpecificApproverOptions(
+      "second_approver_id",
+      selectedLocation,
+      selectedExpenseType
+    );
+
+    const nextApprover = mappedApprovers[0]?.value || "";
+    const nextApproverName = mappedApprovers[0]?.label || "";
+    const nextSecondId = mappedSecondApprovers[0]?.value || "";
+    const nextSecondName = mappedSecondApprovers[0]?.label || "";
 
     setFormData((prev) => {
-      const nextApprover = "";
-      const nextApproverName = "";
-      const nextSecondId = "";
-      const nextSecondName = "";
       if (
         prev.approver === nextApprover &&
         prev.approver_name === nextApproverName &&
@@ -693,7 +708,68 @@ export default function NewExpensePage() {
         second_approver_name: nextSecondName,
       };
     });
-  }, [formData.location, locationApproverMapping]);
+  }, [
+    formData.location,
+    formData.expense_type,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    columns,
+  ]);
+
+  useEffect(() => {
+    if (!expenseItems.length) return;
+
+    setExpenseItemsData((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      expenseItems.forEach((itemId) => {
+        const item = prev[itemId];
+        if (!item) return;
+
+        const itemLocation =
+          typeof item.location === "string" ? item.location : "";
+        const itemExpenseType =
+          typeof item.expense_type === "string" ? item.expense_type : "";
+
+        if (!itemLocation && !itemExpenseType) return;
+
+        const mappedApprovers = getLocationSpecificApproverOptions(
+          "approver",
+          itemLocation,
+          itemExpenseType
+        );
+        const mappedSecondApprovers = getLocationSpecificApproverOptions(
+          "second_approver_id",
+          itemLocation,
+          itemExpenseType
+        );
+
+        const nextApprover = mappedApprovers[0]?.value || "";
+        const nextSecond = mappedSecondApprovers[0]?.value || "";
+
+        if (
+          item.approver !== nextApprover ||
+          item.second_approver_id !== nextSecond
+        ) {
+          changed = true;
+          next[itemId] = {
+            ...item,
+            approver: nextApprover,
+            second_approver_id: nextSecond,
+          };
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [
+    expenseItems,
+    expenseItemsData,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    columns,
+  ]);
 
   // Handle single receipt files
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -815,8 +891,8 @@ export default function NewExpensePage() {
         next.second_approver_name = getApproverOptionLabel(value);
       }
 
-      // Clear approver fields on location change so user can select explicitly
-      if (key === "location") {
+      // Clear approver fields on location/expense type change so mapping can repopulate
+      if (key === "location" || key === "expense_type") {
         next.approver = "";
         next.approver_name = "";
         next.second_approver_id = "";
@@ -907,23 +983,13 @@ export default function NewExpensePage() {
 
   const getLocationSpecificApproverOptions = (
     fieldKey: "approver" | "second_approver_id" = "approver",
-    locationValue?: string
+    locationValue?: string,
+    expenseTypeValue?: string
   ) => {
     const approverCol = columns.find((c) => c.key === "approver");
     const allOptions = (approverCol?.options || []) as Array<
       string | { value: string; label: string }
     >;
-
-    const selectedLocation =
-      typeof locationValue === "string"
-        ? locationValue
-        : typeof formData.location === "string"
-          ? formData.location
-          : "";
-    const locationEntry =
-      selectedLocation && locationApproverMapping?.length
-        ? locationApproverMapping.find((m) => m.location === selectedLocation)
-        : undefined;
 
     const normalizeIds = (value?: string | string[]) => {
       if (!value) return [] as string[];
@@ -934,13 +1000,68 @@ export default function NewExpensePage() {
           : [];
     };
 
+    const normalizeNames = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+      return value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    };
+
+    const resolveIdsFromNames = (value?: string | string[]) => {
+      const names = normalizeNames(value);
+      if (!names.length) return [] as string[];
+      const mapByLabel = new Map(
+        allOptions.map((option) => {
+          const optValue = typeof option === "string" ? option : option.value;
+          const optLabel = typeof option === "string" ? option : option.label;
+          return [optLabel.toLowerCase(), optValue];
+        })
+      );
+      return names
+        .map((name) => mapByLabel.get(name.toLowerCase()))
+        .filter((v): v is string => Boolean(v));
+    };
+
+    const selectedLocation =
+      typeof locationValue === "string"
+        ? locationValue
+        : typeof formData.location === "string"
+          ? formData.location
+          : "";
+    const selectedExpenseType =
+      typeof expenseTypeValue === "string"
+        ? expenseTypeValue
+        : typeof formData.expense_type === "string"
+          ? formData.expense_type
+          : "";
+
+    const expenseTypeEntry =
+      selectedExpenseType && expenseTypeApproverMapping?.length
+        ? expenseTypeApproverMapping.find(
+            (m) => m.expense_type === selectedExpenseType
+          )
+        : undefined;
+    const locationEntry =
+      selectedLocation && locationApproverMapping?.length
+        ? locationApproverMapping.find((m) => m.location === selectedLocation)
+        : undefined;
+    const activeEntry = expenseTypeEntry || locationEntry;
+
     const mappedIds =
       fieldKey === "second_approver_id"
-        ? normalizeIds(locationEntry?.second_approver_id)
+        ? normalizeIds(activeEntry?.second_approver_id).length
+          ? normalizeIds(activeEntry?.second_approver_id)
+          : resolveIdsFromNames(activeEntry?.second_approver_name)
         : Array.from(
             new Set([
-              ...normalizeIds(locationEntry?.approver_id),
-              ...normalizeIds(locationEntry?.second_approver_id),
+              ...(normalizeIds(activeEntry?.approver_id).length
+                ? normalizeIds(activeEntry?.approver_id)
+                : resolveIdsFromNames(activeEntry?.approver_name)),
+              ...(normalizeIds(activeEntry?.second_approver_id).length
+                ? normalizeIds(activeEntry?.second_approver_id)
+                : resolveIdsFromNames(activeEntry?.second_approver_name)),
             ])
           );
 
@@ -965,7 +1086,8 @@ export default function NewExpensePage() {
 
   const isLocationApproverUnavailable = (
     fieldKey: "approver" | "second_approver_id" = "approver",
-    locationValue?: string
+    locationValue?: string,
+    expenseTypeValue?: string
   ) => {
     const selectedLocation =
       typeof locationValue === "string"
@@ -973,31 +1095,21 @@ export default function NewExpensePage() {
         : typeof formData.location === "string"
           ? formData.location
           : "";
-    if (!selectedLocation) return false;
+    const selectedExpenseType =
+      typeof expenseTypeValue === "string"
+        ? expenseTypeValue
+        : typeof formData.expense_type === "string"
+          ? formData.expense_type
+          : "";
 
-    const locationEntry =
-      locationApproverMapping?.length
-        ? locationApproverMapping.find((m) => m.location === selectedLocation)
-        : undefined;
+    if (!selectedLocation && !selectedExpenseType) return false;
 
-    const normalizeIds = (value?: string | string[]) => {
-      if (!value) return [] as string[];
-      return Array.isArray(value)
-        ? value.filter((v) => v && v.trim())
-        : value.trim()
-          ? [value]
-          : [];
-    };
+    const mappedIds = getLocationSpecificApproverOptions(
+      fieldKey,
+      selectedLocation,
+      selectedExpenseType
+    ).map((opt) => opt.value);
 
-    const mappedIds =
-      fieldKey === "second_approver_id"
-        ? normalizeIds(locationEntry?.second_approver_id)
-        : Array.from(
-            new Set([
-              ...normalizeIds(locationEntry?.approver_id),
-              ...normalizeIds(locationEntry?.second_approver_id),
-            ])
-          );
     return mappedIds.length === 0;
   };
 
@@ -1666,6 +1778,18 @@ export default function NewExpensePage() {
 
           if (itemApproverName) {
             itemCustomFields["approver_name"] = itemApproverName;
+          }
+
+          const itemSecondApproverId = Array.isArray(item.second_approver_id)
+            ? item.second_approver_id[0]
+            : typeof item.second_approver_id === "string"
+              ? item.second_approver_id
+              : "";
+          if (itemSecondApproverId) {
+            itemCustomFields["second_approver_id"] = itemSecondApproverId;
+            itemCustomFields["second_approver_name"] = getApproverDisplayName(
+              itemSecondApproverId
+            );
           }
 
           // Add custom fields from expenseItemsData
@@ -3173,15 +3297,23 @@ export default function NewExpensePage() {
                                       "location" as keyof ExpenseItemData
                                     ) || ""
                                   );
+                                  const selectedItemExpenseType = String(
+                                    getExpenseItemValue(
+                                      id,
+                                      "expense_type" as keyof ExpenseItemData
+                                    ) || ""
+                                  );
                                   const approverOptions =
                                     getLocationSpecificApproverOptions(
                                       "approver",
-                                      selectedItemLocation
+                                      selectedItemLocation,
+                                      selectedItemExpenseType
                                     );
                                   const approverUnavailable =
                                     isLocationApproverUnavailable(
                                       "approver",
-                                      selectedItemLocation
+                                      selectedItemLocation,
+                                      selectedItemExpenseType
                                     );
 
                                   return (
@@ -3559,6 +3691,37 @@ export default function NewExpensePage() {
                           )}
                           {col.type === "dropdown" && col.options && (
                             <>
+                              {(() => {
+                                const isSecondApproverField =
+                                  col.key === "second_approver_id";
+                                const selectedItemLocation = String(
+                                  getExpenseItemValue(
+                                    id,
+                                    "location" as keyof ExpenseItemData
+                                  ) || ""
+                                );
+                                const selectedItemExpenseType = String(
+                                  getExpenseItemValue(
+                                    id,
+                                    "expense_type" as keyof ExpenseItemData
+                                  ) || ""
+                                );
+                                const optionsToRender = isSecondApproverField
+                                  ? getLocationSpecificApproverOptions(
+                                      "second_approver_id",
+                                      selectedItemLocation,
+                                      selectedItemExpenseType
+                                    )
+                                  : col.options;
+                                const secondApproverUnavailable =
+                                  isSecondApproverField &&
+                                  isLocationApproverUnavailable(
+                                    "second_approver_id",
+                                    selectedItemLocation,
+                                    selectedItemExpenseType
+                                  );
+
+                                return (
                               <Select
                                 value={String(
                                   getExpenseItemValue(
@@ -3582,10 +3745,16 @@ export default function NewExpensePage() {
                                       : ""
                                   }`}
                                 >
-                                  <SelectValue placeholder="Please Select" />
+                                  <SelectValue
+                                    placeholder={
+                                      secondApproverUnavailable
+                                        ? "Not Availble"
+                                        : "Please Select"
+                                    }
+                                  />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {col.options.map((option: any) => {
+                                  {optionsToRender.map((option: any) => {
                                     const value =
                                       typeof option === "string"
                                         ? option
@@ -3602,6 +3771,8 @@ export default function NewExpensePage() {
                                   })}
                                 </SelectContent>
                               </Select>
+                                );
+                              })()}
                             </>
                           )}
 
