@@ -101,25 +101,6 @@ function MultiSelect({
 
   return (
     <div className="space-y-2">
-      {value.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {value.map((id) => (
-            <Badge key={id} variant="secondary" className="gap-1">
-              <span>{getLabel(id)}</span>
-              <button
-                type="button"
-                className="ml-1 inline-flex items-center justify-center rounded-full hover:text-destructive"
-                aria-label={`Remove ${getLabel(id)}`}
-                onClick={() => toggleValue(id)}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">{placeholder}</p>
-      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className="h-9 w-full justify-between">
@@ -160,6 +141,25 @@ function MultiSelect({
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
+      {value.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {value.map((id) => (
+            <Badge key={id} variant="secondary" className="gap-1">
+              <span>{getLabel(id)}</span>
+              <button
+                type="button"
+                className="ml-1 inline-flex items-center justify-center rounded-full hover:text-destructive"
+                aria-label={`Remove ${getLabel(id)}`}
+                onClick={() => toggleValue(id)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">{placeholder}</p>
+      )}
     </div>
   );
 }
@@ -982,7 +982,7 @@ export default function SettingsPage() {
               return (
                 <div
                   key={expenseType}
-                  className="flex flex-wrap items-center gap-4 p-3 border rounded-lg"
+                  className="flex flex-wrap items-start gap-4 p-3 border rounded-lg"
                 >
                   <div className="space-y-1 min-w-[180px] max-w-[220px]">
                     <Label className="text-xs">Expense Type</Label>
@@ -1034,26 +1034,18 @@ export default function SettingsPage() {
                         searchPlaceholder="Search second approver"
                       />
                     </div>
-                    <div className="space-y-1 min-w-[120px]">
-                      <Label className="text-xs">Use on form</Label>
-                      <Select
-                        value={
-                          entry?.enabled === false ? "false" : "true"
-                        }
-                        onValueChange={(v) =>
-                          updateMappingEntry(expenseType, {
-                            enabled: v === "true",
-                          })
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="True / False" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">True</SelectItem>
-                          <SelectItem value="false">False</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-1 min-w-[140px]">
+                      <Label className="block text-center text-xs">Enable on expense form</Label>
+                      <div className="flex h-9 items-center justify-center">
+                        <Checkbox
+                          checked={entry?.enabled !== false}
+                          onCheckedChange={(checked) =>
+                            updateMappingEntry(expenseType, {
+                              enabled: checked === true,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                   <Button
@@ -1193,7 +1185,7 @@ export default function SettingsPage() {
               return (
                 <div
                   key={location}
-                  className="flex flex-wrap items-center gap-4 p-3 border rounded-lg"
+                  className="flex flex-wrap items-start gap-4 p-3 border rounded-lg"
                 >
                   <div className="space-y-1 min-w-[180px] max-w-[220px]">
                     <Label className="text-xs">Location</Label>
@@ -1245,26 +1237,18 @@ export default function SettingsPage() {
                         searchPlaceholder="Search second approver"
                       />
                     </div>
-                    <div className="space-y-1 min-w-[120px]">
-                      <Label className="text-xs">Use on form</Label>
-                      <Select
-                        value={
-                          entry?.enabled === false ? "false" : "true"
-                        }
-                        onValueChange={(v) =>
-                          updateMappingEntry(location, {
-                            enabled: v === "true",
-                          })
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="True / False" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">True</SelectItem>
-                          <SelectItem value="false">False</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-1 min-w-[140px]">
+                      <Label className="block text-center text-xs">Enable on expense form</Label>
+                      <div className="flex h-9 items-center justify-center">
+                        <Checkbox
+                          checked={entry?.enabled !== false}
+                          onCheckedChange={(checked) =>
+                            updateMappingEntry(location, {
+                              enabled: checked === true,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                   <Button
