@@ -124,6 +124,8 @@ export interface ExpenseTypeApproverMappingEntry {
   approver_name?: string | string[]; // custom name when person is not in org dropdown
   second_approver_id?: string | string[];
   second_approver_name?: string | string[]; // custom name for second approver
+  /** If true, this mapping is used on new expense form; if false, ignored. Default true when missing. */
+  enabled?: boolean;
 }
 
 /** Mapping: location of expense → primary approver and optional second approver */
@@ -134,6 +136,8 @@ export interface LocationApproverMappingEntry {
   // Optional IDs for future use (stored as JSON, safe to include)
   approver_id?: string | string[];
   second_approver_id?: string | string[];
+  /** If true, this mapping is used on new expense form; if false, ignored. Default true when missing. */
+  enabled?: boolean;
 }
 
 export interface OrganizationSettings {

@@ -564,6 +564,7 @@ export default function SettingsPage() {
         expense_type: "__new__",
         approver_id: [],
         second_approver_id: [],
+        enabled: true,
       },
     ]);
   };
@@ -595,6 +596,7 @@ export default function SettingsPage() {
         location: "__new__",
         approver_id: [],
         second_approver_id: [],
+        enabled: true,
       },
     ]);
   };
@@ -943,6 +945,7 @@ export default function SettingsPage() {
                   second_approver_name: base.second_approver_name,
                   approver_id: base.approver_id ?? [],
                   second_approver_id: base.second_approver_id ?? [],
+                  enabled: base.enabled ?? true,
                 };
                 if (idx >= 0) {
                   const next = [...prev];
@@ -1030,6 +1033,27 @@ export default function SettingsPage() {
                         placeholder="Select one or more approvers"
                         searchPlaceholder="Search second approver"
                       />
+                    </div>
+                    <div className="space-y-1 min-w-[120px]">
+                      <Label className="text-xs">Use on form</Label>
+                      <Select
+                        value={
+                          entry?.enabled === false ? "false" : "true"
+                        }
+                        onValueChange={(v) =>
+                          updateMappingEntry(expenseType, {
+                            enabled: v === "true",
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="True / False" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">True</SelectItem>
+                          <SelectItem value="false">False</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <Button
@@ -1134,6 +1158,7 @@ export default function SettingsPage() {
                   second_approver_name: base.second_approver_name,
                   approver_id: base.approver_id ?? [],
                   second_approver_id: base.second_approver_id ?? [],
+                  enabled: base.enabled ?? true,
                 };
                 if (idx >= 0) {
                   const next = [...prev];
@@ -1219,6 +1244,27 @@ export default function SettingsPage() {
                         placeholder="Select one or more approvers"
                         searchPlaceholder="Search second approver"
                       />
+                    </div>
+                    <div className="space-y-1 min-w-[120px]">
+                      <Label className="text-xs">Use on form</Label>
+                      <Select
+                        value={
+                          entry?.enabled === false ? "false" : "true"
+                        }
+                        onValueChange={(v) =>
+                          updateMappingEntry(location, {
+                            enabled: v === "true",
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="True / False" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">True</SelectItem>
+                          <SelectItem value="false">False</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <Button

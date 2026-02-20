@@ -230,6 +230,7 @@ export default function NewExpensePage() {
       second_approver_name?: string | string[];
       approver_id?: string | string[];
       second_approver_id?: string | string[];
+      enabled?: boolean;
     }[]
   >([]);
 
@@ -241,6 +242,7 @@ export default function NewExpensePage() {
       second_approver_name?: string | string[];
       approver_id?: string | string[];
       second_approver_id?: string | string[];
+      enabled?: boolean;
     }[]
   >([]);
 
@@ -1047,7 +1049,16 @@ export default function NewExpensePage() {
       selectedLocation && locationApproverMapping?.length
         ? locationApproverMapping.find((m) => m.location === selectedLocation)
         : undefined;
-    const activeEntry = expenseTypeEntry || locationEntry;
+    // Only use mappings that are enabled (true); ignore when enabled === false
+    const effectiveExpenseTypeEntry =
+      expenseTypeEntry && expenseTypeEntry.enabled !== false
+        ? expenseTypeEntry
+        : undefined;
+    const effectiveLocationEntry =
+      locationEntry && locationEntry.enabled !== false
+        ? locationEntry
+        : undefined;
+    const activeEntry = effectiveExpenseTypeEntry || effectiveLocationEntry;
 
     const mappedIds =
       fieldKey === "second_approver_id"
