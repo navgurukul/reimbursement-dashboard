@@ -226,6 +226,7 @@ export default function NewExpensePage() {
   const [locationApproverMapping, setLocationApproverMapping] = useState<
     {
       location: string;
+      expense_type?: string;
       approver_name?: string | string[];
       second_approver_name?: string | string[];
       approver_id?: string | string[];
@@ -1039,16 +1040,42 @@ export default function NewExpensePage() {
           ? formData.expense_type
           : "";
 
+    // 1) Try expense-type specific mapping first (global, not tied to location)
     const expenseTypeEntry =
       selectedExpenseType && expenseTypeApproverMapping?.length
         ? expenseTypeApproverMapping.find(
             (m) => m.expense_type === selectedExpenseType
           )
         : undefined;
-    const locationEntry =
-      selectedLocation && locationApproverMapping?.length
-        ? locationApproverMapping.find((m) => m.location === selectedLocation)
-        : undefined;
+
+    // 2) Then look for location-based mappings.
+    let locationEntry: (typeof locationApproverMapping)[number] | undefined;
+    if (selectedLocation && locationApproverMapping?.length) {
+      const candidates = locationApproverMapping.filter(
+        (m) => m.location === selectedLocation
+      );
+
+      if (candidates.length) {
+        if (selectedExpenseType) {
+          locationEntry =
+            candidates.find(
+              (m) =>
+                typeof m.expense_type === "string" &&
+                m.expense_type === selectedExpenseType
+            ) || locationEntry;
+        }
+
+        if (!locationEntry) {
+          locationEntry =
+            candidates.find(
+              (m) =>
+                m.expense_type === undefined ||
+                (typeof m.expense_type === "string" &&
+                  m.expense_type.trim() === "")
+            ) || candidates[0];
+        }
+      }
+    }
     // Only use mappings that are enabled (true); ignore when enabled === false
     const effectiveExpenseTypeEntry =
       expenseTypeEntry && expenseTypeEntry.enabled !== false
