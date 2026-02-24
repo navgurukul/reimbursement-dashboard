@@ -268,6 +268,15 @@ export default function EditExpensePage() {
     return null;
   }
 
+  const locationFieldKey = Object.keys(expense.custom_fields || {}).find((key) => {
+    const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+    return (
+      normalizedKey === "location" ||
+      normalizedKey === "location of expense" ||
+      normalizedKey === "location_of_expense"
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -351,16 +360,61 @@ export default function EditExpensePage() {
                   id="date"
                   type="date"
                   value={formData.date || ""}
+                  className="relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                   onChange={(e) => handleInputChange("date", e.target.value)}
                   required
                 />
               </div>
+
+              {locationFieldKey && (
+                <div className="space-y-2">
+                  <Label htmlFor={locationFieldKey}>Location of Expense</Label>
+                  {locationOptions.length > 0 ? (
+                    <Select
+                      value={formData[locationFieldKey] || ""}
+                      onValueChange={(value: string) =>
+                        handleInputChange(locationFieldKey, value)
+                      }
+                    >
+                      <SelectTrigger id={locationFieldKey} className="w-full">
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locationOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id={locationFieldKey}
+                      value={formData[locationFieldKey] || ""}
+                      onChange={(e) =>
+                        handleInputChange(locationFieldKey, e.target.value)
+                      }
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Custom fields */}
             {Object.entries(expense.custom_fields).map(([key, value]) => {
+              if (
+                key === "approver_name" ||
+                key === "second_approver_id" ||
+                key === "second_approver_name" ||
+                key === locationFieldKey
+              ) {
+                return null;
+              }
+
               // Check if this field is location_of_expense and has options
               const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+              const isDescriptionField = normalizedKey === "description";
+              const fieldLabel = isDescriptionField ? "Description" : key;
               const isLocationField =
                 normalizedKey === "location" ||
                 normalizedKey === "location of expense" ||
@@ -369,7 +423,7 @@ export default function EditExpensePage() {
 
               return (
                 <div key={key} className="space-y-2">
-                  <Label htmlFor={key}>{key}</Label>
+                  <Label htmlFor={key}>{fieldLabel}</Label>
                   {hasLocationOptions ? (
                     <Select
                       value={formData[key] || ""}
@@ -388,6 +442,12 @@ export default function EditExpensePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  ) : isDescriptionField ? (
+                    <Textarea
+                      id={key}
+                      value={formData[key] || ""}
+                      onChange={(e) => handleInputChange(key, e.target.value)}
+                    />
                   ) : (
                     <Input
                       id={key}
