@@ -1128,6 +1128,21 @@ export default function SettingsPage() {
                 : []
               : [];
 
+            const expenseTypeCol = (columns as any[]).find(
+              (c: any) =>
+                c.key === "expense_type" ||
+                String(c.label || "")
+                  .trim()
+                  .toLowerCase() === "expense type"
+            );
+            const expenseTypeOptions: string[] = expenseTypeCol?.options
+              ? Array.isArray(expenseTypeCol.options)
+                ? (expenseTypeCol.options as any[]).map((o: any) =>
+                    typeof o === "object" ? o.value ?? o.label : String(o)
+                  )
+                : []
+              : [];
+
             const customLocations = locationApproverMapping
               .map((m) => m.location)
               .filter((l) => l && l !== "__new__");
@@ -1146,6 +1161,7 @@ export default function SettingsPage() {
                     : { location, ...updates };
                 const newEntry: LocationApproverMappingEntry = {
                   location: base.location,
+                  expense_type: base.expense_type,
                   approver_name: base.approver_name,
                   second_approver_name: base.second_approver_name,
                   approver_id: base.approver_id ?? [],
@@ -1182,25 +1198,45 @@ export default function SettingsPage() {
                   : resolveIdsFromNames(resolvedSecondApproverNames);
 
               const displayLabel = location === "__new__" ? "" : location;
+              const expenseTypeValue =
+                typeof entry?.expense_type === "string" ? entry.expense_type : "";
               return (
                 <div
                   key={location}
                   className="flex flex-wrap items-start gap-4 p-3 border rounded-lg"
                 >
-                  <div className="space-y-1 min-w-[180px] max-w-[220px]">
-                    <Label className="text-xs">Location</Label>
-                    <Input
-                      value={displayLabel}
-                      onChange={(e) =>
-                        handleUpdateLocationApproverMappingLocation(
-                          location,
-                          e.target.value
-                        )
-                      }
-                      placeholder="Type location name"
-                      className="font-medium"
-                      list="location-options"
-                    />
+                  <div className="space-y-3 min-w-[200px] max-w-[260px]">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Location</Label>
+                      <Input
+                        value={displayLabel}
+                        onChange={(e) =>
+                          handleUpdateLocationApproverMappingLocation(
+                            location,
+                            e.target.value
+                          )
+                        }
+                        placeholder="Type location name"
+                        className="font-medium"
+                        list="location-options"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Expense Type (optional)
+                      </Label>
+                      <Input
+                        value={expenseTypeValue}
+                        onChange={(e) =>
+                          updateMappingEntry(location, {
+                            expense_type: e.target.value.trim() || undefined,
+                          })
+                        }
+                        placeholder="Type expense type"
+                        className="font-medium"
+                        list="location-expense-type-options"
+                      />
+                    </div>
                   </div>
                   <div className="flex-1 flex flex-wrap gap-4">
                     <div className="space-y-1 min-w-[240px]">
@@ -1292,6 +1328,13 @@ export default function SettingsPage() {
                   {locationOptions.length > 0 && (
                     <datalist id="location-options">
                       {locationOptions.map((opt) => (
+                        <option key={opt} value={opt} />
+                      ))}
+                    </datalist>
+                  )}
+                  {expenseTypeOptions.length > 0 && (
+                    <datalist id="location-expense-type-options">
+                      {expenseTypeOptions.map((opt) => (
                         <option key={opt} value={opt} />
                       ))}
                     </datalist>

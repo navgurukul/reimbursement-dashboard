@@ -128,9 +128,10 @@ export interface ExpenseTypeApproverMappingEntry {
   enabled?: boolean;
 }
 
-/** Mapping: location of expense → primary approver and optional second approver */
+/** Mapping: location of expense (optionally narrowed by expense type) → primary approver and optional second approver */
 export interface LocationApproverMappingEntry {
   location: string;
+  expense_type?: string;
   approver_name?: string | string[];
   second_approver_name?: string | string[];
   // Optional IDs for future use (stored as JSON, safe to include)
