@@ -26,12 +26,12 @@ export function Pagination({
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
   return (
-    <div className="flex items-center justify-between pt-2">
+    <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="text-sm text-black font-medium">
         Showing {startItem} to {endItem} of {totalItems} {itemLabel}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
         <Button
           type="button"
           size="sm"

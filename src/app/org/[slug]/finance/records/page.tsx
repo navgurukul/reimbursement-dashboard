@@ -1712,11 +1712,11 @@ export default function PaymentRecords() {
   return (
     <div className="space-y-4">
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Bank Tabs */}
-        <div className="flex items-center justify-start">
+        <div className="w-full overflow-x-auto lg:w-auto">
           <Tabs value={activeTab} onValueChange={(v) => handleBankTabChange(v as any)}>
-            <TabsList>
+            <TabsList className="w-max min-w-max">
               <TabsTrigger value="all" className="cursor-pointer">All Records</TabsTrigger>
               <TabsTrigger value="ngidfc" className="cursor-pointer">NG Records</TabsTrigger>
               <TabsTrigger value="fcidfc" className="cursor-pointer">FC Records</TabsTrigger>
@@ -1724,13 +1724,13 @@ export default function PaymentRecords() {
             </TabsList>
           </Tabs>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex w-full flex-wrap gap-2 lg:w-auto">
           <Button
             onClick={() => {
               setExportRangeLabel("");
               setShowExportModal(true);
             }}
-            className="flex items-center gap-2 cursor-pointer text-sm sm:text-sm"
+            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
             variant="outline"
           >
             <Download className="w-4 h-4" />
@@ -1741,13 +1741,13 @@ export default function PaymentRecords() {
               // Keep any existing bank/tab selection, but label based on quick export choice
               setShowQuickExportModal(true);
             }}
-            className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
             variant="outline"
           >
             <Download className="w-4 h-4" />
             Weekly / Monthly
           </Button>
-          <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
+          <Button className="w-full sm:w-auto" variant="outline" onClick={() => setFilterOpen((s) => !s)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters
           </Button>
@@ -3266,7 +3266,7 @@ export default function PaymentRecords() {
             <div>
               <label className="text-sm font-medium">Export Type</label>
               <RadioGroup
-                className="mt-2 space-y-2"
+                className="mt-2 flex flex-wrap gap-6"
                 value={quickExportMode}
                 onValueChange={(v) => setQuickExportMode(v as "weekly" | "monthly")}
               >

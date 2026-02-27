@@ -45,8 +45,8 @@ export default function FinancePage() {
         onValueChange={handleTabChange}
         className="space-y-6"
       >
-        <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
-          <TabsList className="gap-2">
+        <div className="w-full overflow-x-auto">
+          <TabsList className="w-max min-w-max gap-2">
             <TabsTrigger value="approvals" className="cursor-pointer">
               Approval Queue
             </TabsTrigger>
