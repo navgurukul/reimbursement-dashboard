@@ -1336,6 +1336,33 @@ export default function ViewExpensePage() {
   const isDirectPayment =
     String(expense.unique_id || "").trim().toLowerCase() === "direct payment";
 
+  const getCustomFieldValue = (keyAliases: string[]) => {
+    const fields = expense?.custom_fields;
+    if (!fields || typeof fields !== "object") return null;
+
+    const normalizeKey = (value: string) =>
+      value
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_]+/g, " ");
+
+    const normalizedAliases = keyAliases.map(normalizeKey);
+
+    for (const [key, value] of Object.entries(fields)) {
+      if (normalizedAliases.includes(normalizeKey(key)) && value) {
+        return String(value);
+      }
+    }
+
+    return null;
+  };
+
+  const expenseCreditPersonValue = getCustomFieldValue([
+    "expense_credit_person",
+    "expense credit person",
+    "Expense Credit Person",
+  ]);
+
   // Helper function to format field names
   const formatFieldName = (name: string) => {
     return name
@@ -1913,11 +1940,7 @@ export default function ViewExpensePage() {
                     <p className="text-sm font-medium text-muted-foreground">
                       Expense Credit Person
                     </p>
-                    <p>
-                      {
-                        expense.custom_fields?.expense_credit_person ||
-                        "N/A"}
-                    </p>
+                    <p>{expenseCreditPersonValue || "N/A"}</p>
                   </div>
                 )}
 
@@ -2598,16 +2621,21 @@ export default function ViewExpensePage() {
                 customFields.length > 0 && ( // make sure customFields are loaded
                   <div className="grid grid-cols-2 gap-4 mt-4 break-words">
                     {Object.entries(expense.custom_fields)
-                      .filter(([key]) =>
-                        key !== "location_of_expense" &&
-                        key !== "Location of Expense" &&
-                        key.toLowerCase() !== "approver_name" &&
-                        key.toLowerCase() !== "second_approver_name" &&
-                        key.toLowerCase() !== "second_approver_id" &&
-                        key.toLowerCase() !== "expense_credit_person" &&
-                        key.toLowerCase() !== "location_of_expense" &&
-                        key.toLowerCase() !== "description"
-                      ) // Exclude Location Of Expense and description
+                      .filter(([key]) => {
+                        const normalizedKey = key
+                          .toLowerCase()
+                          .trim()
+                          .replace(/[\s_]+/g, " ");
+
+                        return (
+                          normalizedKey !== "location of expense" &&
+                          normalizedKey !== "approver name" &&
+                          normalizedKey !== "second approver name" &&
+                          normalizedKey !== "second approver id" &&
+                          normalizedKey !== "expense credit person" &&
+                          normalizedKey !== "description"
+                        );
+                      }) // Exclude Location Of Expense and description
                       .map(([key, value]) => {
                         const matchedField = customFields.find(
                           (field) => field.key === key
