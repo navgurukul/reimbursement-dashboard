@@ -2217,6 +2217,19 @@ export default function NewExpensePage() {
                 )
                   return null;
 
+                // Show the "Expense Credit Person" field (from Settings)
+                // only when Payment Unique ID is "Direct Payment"
+                const isExpenseCreditPersonField =
+                  col.key === "expense_credit_person" ||
+                  col.label?.trim().toLowerCase() === "expense credit person";
+
+                if (
+                  isExpenseCreditPersonField &&
+                  !isDirectPaymentValue(formData.unique_id || "")
+                ) {
+                  return null;
+                }
+
                 return (
                   <div key={col.key} className="space-y-2">
                     <Label
@@ -2850,6 +2863,21 @@ export default function NewExpensePage() {
                         ].includes(col.type)
                       )
                         return null;
+
+                      // Item-level Expense Credit Person: only for Direct Payment
+                      const isExpenseCreditPersonField =
+                        col.key === "expense_credit_person" ||
+                        col.label?.trim().toLowerCase() ===
+                          "expense credit person";
+                      const itemIsDirectPayment = isDirectPaymentValue(
+                        expenseItemsData[id]?.unique_id ||
+                          formData.unique_id ||
+                          ""
+                      );
+
+                      if (isExpenseCreditPersonField && !itemIsDirectPayment) {
+                        return null;
+                      }
 
                       return (
                         <div key={col.key} className="space-y-2 mt-5">
