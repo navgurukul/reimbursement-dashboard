@@ -1914,7 +1914,7 @@ export default function ViewExpensePage() {
                       Expense Credit Person
                     </p>
                     <p>
-                      {expense.expense_credit_person ||
+                      {
                         expense.custom_fields?.expense_credit_person ||
                         "N/A"}
                     </p>
@@ -2604,6 +2604,7 @@ export default function ViewExpensePage() {
                         key.toLowerCase() !== "approver_name" &&
                         key.toLowerCase() !== "second_approver_name" &&
                         key.toLowerCase() !== "second_approver_id" &&
+                        key.toLowerCase() !== "expense_credit_person" &&
                         key.toLowerCase() !== "location_of_expense" &&
                         key.toLowerCase() !== "description"
                       ) // Exclude Location Of Expense and description
