@@ -2601,6 +2601,9 @@ export default function ViewExpensePage() {
                       .filter(([key]) =>
                         key !== "location_of_expense" &&
                         key !== "Location of Expense" &&
+                        key.toLowerCase() !== "approver_name" &&
+                        key.toLowerCase() !== "second_approver_name" &&
+                        key.toLowerCase() !== "second_approver_id" &&
                         key.toLowerCase() !== "location_of_expense" &&
                         key.toLowerCase() !== "description"
                       ) // Exclude Location Of Expense and description

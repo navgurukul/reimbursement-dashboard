@@ -432,7 +432,7 @@ export default function ExpensesPage() {
                 }
 
                 // Get approver name from our map
-                const approverName = expense.approver.full_name || "—";
+                const approverName = expense.approver?.full_name || expense.approver_name || "—";
                 // approverNamesMap[expense.id] || "Unknown Approver";
 
                 // Set approver info on the expense
