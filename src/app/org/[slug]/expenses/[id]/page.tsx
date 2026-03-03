@@ -1363,6 +1363,13 @@ export default function ViewExpensePage() {
     "Expense Credit Person",
   ]);
 
+  const expenseLocationValue =
+    getCustomFieldValue([
+      "location_of_expense",
+      "location of expense",
+      "Location of Expense",
+    ]) || expense.location;
+
   // Helper function to format field names
   const formatFieldName = (name: string) => {
     return name
@@ -1908,7 +1915,7 @@ export default function ViewExpensePage() {
                   <p className="text-sm font-medium text-muted-foreground">
                     Location
                   </p>
-                  <p>{expense.location || "N/A"}</p>
+                  <p>{expenseLocationValue || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
