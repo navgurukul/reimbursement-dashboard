@@ -42,6 +42,40 @@ import {
 import { Button } from "@/components/ui/button";
 import { useOrgStore } from "@/store/useOrgStore";
 
+const normalizeCustomFieldKey = (key: string) =>
+  key.toLowerCase().replace(/[\s_-]+/g, "");
+
+const getCustomFieldValue = (
+  customFields: unknown,
+  targetKey: string
+): string | null => {
+  if (!customFields) return null;
+
+  let parsedCustomFields: unknown = customFields;
+  if (typeof parsedCustomFields === "string") {
+    try {
+      parsedCustomFields = JSON.parse(parsedCustomFields);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsedCustomFields || typeof parsedCustomFields !== "object") return null;
+
+  const fields = parsedCustomFields as Record<string, unknown>;
+  const normalizedTargetKey = normalizeCustomFieldKey(targetKey);
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (normalizeCustomFieldKey(key) === normalizedTargetKey) {
+      if (typeof value === "string") return value;
+      if (value === null || value === undefined) return null;
+      return String(value);
+    }
+  }
+
+  return null;
+};
+
 export default function PaymentProcessingDetails() {
   const { expenseId } = useParams();
   const router = useRouter();
@@ -306,6 +340,10 @@ export default function PaymentProcessingDetails() {
       .trim()
       .toLowerCase()
       .includes("direct payment");
+  const expenseCreditPerson =
+    expense?.expense_credit_person ||
+    getCustomFieldValue(expense?.custom_fields, "expense_credit_person") ||
+    "N/A";
   const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? 0;
   const tdsAmount = tdsPercentage
     ? expense?.tds_deduction_amount ??
@@ -393,11 +431,7 @@ export default function PaymentProcessingDetails() {
                   {isDirectPayment && (
                     <TableRow>
                       <TableHead>Expense Credit Person</TableHead>
-                      <TableCell>
-                        {expense.expense_credit_person ||
-                          expense.custom_fields?.expense_credit_person ||
-                          "—"}
-                      </TableCell>
+                      <TableCell>{expenseCreditPerson}</TableCell>
                     </TableRow>
                   )}
                   <TableRow>

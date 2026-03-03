@@ -259,6 +259,13 @@ export default function ExpensesPage() {
         // Remove any existing 'Location of Expense' columns
         expenseColumns = expenseColumns.filter((c) => c.key !== "location");
 
+        // Remove any existing 'Expense Credit Person' columns (by key or label)
+        expenseColumns = expenseColumns.filter(
+          (c) =>
+            c.key !== "expense_credit_person" &&
+            c.label !== "Expense Credit Person"
+        );
+
         // Ensure creator_name column exists
         if (!expenseColumns.some((c) => c.key === "creator_name")) {
           expenseColumns.splice(3, 0, {
@@ -432,7 +439,7 @@ export default function ExpensesPage() {
                 }
 
                 // Get approver name from our map
-                const approverName = expense.approver.full_name || "—";
+                const approverName = expense.approver?.full_name || expense.approver_name || "—";
                 // approverNamesMap[expense.id] || "Unknown Approver";
 
                 // Set approver info on the expense

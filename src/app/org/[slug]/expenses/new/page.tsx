@@ -311,6 +311,21 @@ export default function NewExpensePage() {
     key: keyof ExpenseItemData,
     value: string | number | string[]
   ) => {
+    // Clear item-level "required" error when user fills the field
+    if (key === "expense_credit_person") {
+      const stringValue = String(value ?? "").trim();
+      if (stringValue !== "") {
+        setErrors((prevErrors) => {
+          const updatedErrors = { ...prevErrors };
+          const errorKey = `expense_credit_person-${itemId}`;
+          if (updatedErrors[errorKey]) {
+            delete updatedErrors[errorKey];
+          }
+          return updatedErrors;
+        });
+      }
+    }
+
     setExpenseItemsData((prev) => ({
       ...prev,
       [itemId]: {
@@ -385,8 +400,12 @@ export default function NewExpensePage() {
   };
 
   const showErrorSummary = (errors: Record<string, string>) => {
+    const firstErrorKey = Object.keys(errors)[0];
+    const firstErrorMessage = firstErrorKey ? errors[firstErrorKey] : undefined;
+
     toast.error("Please fill in the required fields", {
       duration: 4000,
+      description: firstErrorMessage,
     });
   };
 
@@ -1000,12 +1019,29 @@ export default function NewExpensePage() {
     const isDirectPaymentSelected = isDirectPaymentValue(
       formData.unique_id || ""
     );
-    if (
-      isDirectPaymentSelected &&
-      !String(formData.expense_credit_person || "").trim()
-    ) {
-      newErrors["expense_credit_person"] =
-        "Expense credit person is required";
+
+    if (isDirectPaymentSelected) {
+      // Resolve the actual top-level "Expense Credit Person" value, even if
+      // the settings use a different column key for this label.
+      let topLevelExpenseCreditPerson = formData.expense_credit_person;
+
+      if (!topLevelExpenseCreditPerson) {
+        const expenseCreditCol = columns.find(
+          (col) =>
+            col.visible &&
+            (col.key === "expense_credit_person" ||
+              col.label?.trim().toLowerCase() === "expense credit person")
+        );
+
+        if (expenseCreditCol) {
+          topLevelExpenseCreditPerson = formData[expenseCreditCol.key];
+        }
+      }
+
+      if (!String(topLevelExpenseCreditPerson || "").trim()) {
+        newErrors["expense_credit_person"] =
+          "Expense credit person is required";
+      }
     }
 
     // Validate expense items
@@ -1035,18 +1071,21 @@ export default function NewExpensePage() {
 
       // Validate custom fields for expense items
       customFields.forEach((col) => {
-        if (col.required && !item[col.key]) {
-          newErrors[`${col.key}-${itemId}`] = `${col.label} is required`;
+        const isExpenseCreditPersonField =
+          col.key === "expense_credit_person" ||
+          col.label?.trim().toLowerCase() === "expense credit person";
+
+        // For "Expense Credit Person", only require it when this item is Direct Payment.
+        // Error keys for item-level fields use the raw column key so that UI bindings
+        // like `errors[col.key]` work correctly.
+        if (
+          col.required &&
+          !item[col.key] &&
+          (!isExpenseCreditPersonField || itemIsDirectPayment)
+        ) {
+          newErrors[col.key] = `${col.label} is required`;
         }
       });
-
-      if (
-        itemIsDirectPayment &&
-        !String(item.expense_credit_person || "").trim()
-      ) {
-        newErrors[`expense_credit_person-${itemId}`] =
-          "Expense credit person is required";
-      }
 
       if (voucherModalOpenMap[itemId]) {
         const voucherData = voucherDataMap[itemId] || {};
@@ -1071,7 +1110,18 @@ export default function NewExpensePage() {
 
     // Validate required fields from columns
     for (const col of columns) {
-      if (col.required && col.visible && !formData[col.key]) {
+      const isExpenseCreditPersonField =
+        col.key === "expense_credit_person" ||
+        col.label?.trim().toLowerCase() === "expense credit person";
+
+      // For "Expense Credit Person", only require it when top-level Payment Unique ID is Direct Payment
+      if (
+        col.required &&
+        col.visible &&
+        !formData[col.key] &&
+        (!isExpenseCreditPersonField ||
+          isDirectPaymentValue(formData.unique_id || ""))
+      ) {
         newErrors[col.key] = `${col.label} is required`;
       }
     }
@@ -2217,6 +2267,19 @@ export default function NewExpensePage() {
                 )
                   return null;
 
+                // Show the "Expense Credit Person" field (from Settings)
+                // only when Payment Unique ID is "Direct Payment"
+                const isExpenseCreditPersonField =
+                  col.key === "expense_credit_person" ||
+                  col.label?.trim().toLowerCase() === "expense credit person";
+
+                if (
+                  isExpenseCreditPersonField &&
+                  !isDirectPaymentValue(formData.unique_id || "")
+                ) {
+                  return null;
+                }
+
                 return (
                   <div key={col.key} className="space-y-2">
                     <Label
@@ -2434,53 +2497,7 @@ export default function NewExpensePage() {
                 );
                 return null;
               })}
-            </div>
-
-            
-            {isDirectPayment && (
-              <div className="space-y-2">
-                <Label
-                  htmlFor="expense_credit_person"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Expense Credit Person
-                  <span className="text-red-500 ml-1 text-sm">*</span>
-                </Label>
-                <Input
-                  id="expense_credit_person"
-                  name="expense_credit_person"
-                  type="text"
-                  value={formData.expense_credit_person || ""}
-                  onChange={(e) =>
-                    handleInputChange("expense_credit_person", e.target.value)
-                  }
-                  required
-                  aria-invalid={
-                    errors["expense_credit_person"] ? "true" : "false"
-                  }
-                  aria-describedby={
-                    errors["expense_credit_person"]
-                      ? "expense_credit_person-error"
-                      : undefined
-                  }
-                  placeholder="Enter expense credit person"
-                  className={`w-full border ${
-                    errors["expense_credit_person"]
-                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                      : "border-gray-300"
-                  }`}
-                />
-                {errors["expense_credit_person"] && (
-                  <p
-                    className="text-red-500 text-sm mt-1"
-                    role="alert"
-                    id="expense_credit_person-error"
-                  >
-                    {errors["expense_credit_person"]}
-                  </p>
-                )}
-              </div>
-            )}
+            </div>            
 
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
@@ -2851,6 +2868,21 @@ export default function NewExpensePage() {
                       )
                         return null;
 
+                      // Item-level Expense Credit Person: only for Direct Payment
+                      const isExpenseCreditPersonField =
+                        col.key === "expense_credit_person" ||
+                        col.label?.trim().toLowerCase() ===
+                          "expense credit person";
+                      const itemIsDirectPayment = isDirectPaymentValue(
+                        expenseItemsData[id]?.unique_id ||
+                          formData.unique_id ||
+                          ""
+                      );
+
+                      if (isExpenseCreditPersonField && !itemIsDirectPayment) {
+                        return null;
+                      }
+
                       return (
                         <div key={col.key} className="space-y-2 mt-5">
                           <Label
@@ -3151,66 +3183,6 @@ export default function NewExpensePage() {
                       );
                       return null;
                     })}
-                    
-                    {isDirectPaymentValue(
-                      expenseItemsData[id]?.unique_id ||
-                        formData.unique_id ||
-                        ""
-                    ) && (
-                      <div className="space-y-2 mt-5 mb-5">
-                        <Label
-                          htmlFor={`expense_credit_person-${id}`}
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Expense Credit Person
-                          <span className="text-red-500 ml-1 text-sm">*</span>
-                        </Label>
-                        <Input
-                          id={`expense_credit_person-${id}`}
-                          name={`expense_credit_person-${id}`}
-                          type="text"
-                          value={
-                            getExpenseItemValue(
-                              id,
-                              "expense_credit_person"
-                            ) || ""
-                          }
-                          onChange={(e) =>
-                            handleExpenseItemChange(
-                              id,
-                              "expense_credit_person",
-                              e.target.value
-                            )
-                          }
-                          required
-                          aria-invalid={
-                            errors[`expense_credit_person-${id}`]
-                              ? "true"
-                              : "false"
-                          }
-                          aria-describedby={
-                            errors[`expense_credit_person-${id}`]
-                              ? `expense_credit_person-${id}-error`
-                              : undefined
-                          }
-                          placeholder="Enter expense credit person"
-                          className={`w-full ${
-                            errors[`expense_credit_person-${id}`]
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                              : ""
-                          }`}
-                        />
-                        {errors[`expense_credit_person-${id}`] && (
-                          <p
-                            className="text-red-500 text-sm"
-                            role="alert"
-                            id={`expense_credit_person-${id}-error`}
-                          >
-                            {errors[`expense_credit_person-${id}`]}
-                          </p>
-                        )}
-                      </div>
-                    )}
 
                     {/* Receipt Upload */}
                     <div className="space-y-2 mt-5">
