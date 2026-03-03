@@ -2161,12 +2161,9 @@ export default function ViewExpensePage() {
                           </div>
                         ) : receiptPreviewUrl ? (
                           isReceiptPdf ? (
-                            <div
-                              className="rounded-md border bg-white overflow-hidden"
-                              style={{ height: "500px" }}
-                            >
+                            <div className="h-[68vh] min-h-[360px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
                               <iframe
-                                src={`${receiptPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                                src={`${receiptPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
                                 className="h-full w-full border-none"
                                 title="Receipt PDF Preview"
                               />
