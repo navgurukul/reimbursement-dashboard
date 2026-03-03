@@ -225,6 +225,8 @@ export default function PaymentRecords() {
   const [showQuickExportModal, setShowQuickExportModal] = useState(false);
   const [quickExportMode, setQuickExportMode] = useState<"weekly" | "monthly">("weekly");
   const [quickExportDate, setQuickExportDate] = useState("");
+  const [exportLocationFilter, setExportLocationFilter] = useState("All Locations");
+  const [quickExportLocation, setQuickExportLocation] = useState("All Locations");
 
   const ADMIN_PASSWORD = "admin"; // your password
 
@@ -524,7 +526,11 @@ export default function PaymentRecords() {
         exportDateFilters.paidStartDate,
         exportDateFilters.paidEndDate
       );
-      return matchesExpenseDate && matchesPaidDate;
+      const matchesLocation =
+        exportLocationFilter === "All Locations" ||
+        (record.location || "") === exportLocationFilter;
+
+      return matchesExpenseDate && matchesPaidDate && matchesLocation;
     });
   };
 
@@ -546,6 +552,35 @@ export default function PaymentRecords() {
     return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
   }, [filteredRecords, exportBankType, records, filters]);
 
+  const quickExportLocationOptions = useMemo(() => {
+    const locations = new Set<string>();
+
+    filteredRecords.forEach((record) => {
+      const location = (record.location || "").trim();
+      if (location) locations.add(location);
+    });
+
+    return Array.from(locations).sort((a, b) => a.localeCompare(b));
+  }, [filteredRecords]);
+
+  const quickExpenseDateOptions = useMemo(() => {
+    const uniqueDates = new Set<string>();
+
+    filteredRecords.forEach((record) => {
+      if (
+        quickExportLocation !== "All Locations" &&
+        (record.location || "") !== quickExportLocation
+      ) {
+        return;
+      }
+
+      const dateOnly = toDateOnly(record.date);
+      if (dateOnly) uniqueDates.add(dateOnly);
+    });
+
+    return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
+  }, [filteredRecords, quickExportLocation]);
+
   const weeklyExpenseOptions = useMemo(() => {
     const weeks = new Map<
       string,
@@ -555,7 +590,7 @@ export default function PaymentRecords() {
       }
     >();
 
-    expenseDateOptions.forEach((dateStr) => {
+    quickExpenseDateOptions.forEach((dateStr) => {
       const d = new Date(dateStr);
       if (Number.isNaN(d.getTime())) return;
 
@@ -586,12 +621,12 @@ export default function PaymentRecords() {
         value,
         label: `${formatter.format(start)} - ${formatter.format(end)}`,
       }));
-  }, [expenseDateOptions]);
+  }, [quickExpenseDateOptions]);
 
   const monthlyExpenseOptions = useMemo(() => {
     const months = new Set<string>();
 
-    expenseDateOptions.forEach((dateStr) => {
+    quickExpenseDateOptions.forEach((dateStr) => {
       if (!dateStr) return;
       const [year, month] = dateStr.split("-");
       if (!year || !month) return;
@@ -615,7 +650,11 @@ export default function PaymentRecords() {
           label: formatter.format(date),
         };
       });
-  }, [expenseDateOptions]);
+  }, [quickExpenseDateOptions]);
+
+  useEffect(() => {
+    setQuickExportDate("");
+  }, [quickExportMode, quickExportLocation]);
 
   const paidDateOptions = useMemo(() => {
     const baseRecords = exportBankType === "ALL_RECORDS"
@@ -1191,6 +1230,10 @@ export default function PaymentRecords() {
         segments.push(exportRangeLabel);
       }
 
+      if (exportLocationFilter !== "All Locations") {
+        segments.push(`Location_${exportLocationFilter}`);
+      }
+
       if (exportDateFilters.expenseDateMode !== "All Dates") {
         const dateLabel = "Date-of-Expense";
         const dateValue =
@@ -1419,6 +1462,10 @@ export default function PaymentRecords() {
 
       if (exportRangeLabel) {
         segments.push(exportRangeLabel);
+      }
+
+      if (exportLocationFilter !== "All Locations") {
+        segments.push(`Location_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
@@ -1685,6 +1732,7 @@ export default function PaymentRecords() {
 
     // Label for file name based on quick export type
     setExportRangeLabel(quickExportMode === "weekly" ? "Weekly" : "Monthly");
+    setExportLocationFilter(quickExportLocation);
 
     // Pre-fill export date filters based on Date of Expense
     setExportDateFilters((prev) => ({
@@ -1728,6 +1776,7 @@ export default function PaymentRecords() {
           <Button
             onClick={() => {
               setExportRangeLabel("");
+              setExportLocationFilter("All Locations");
               setShowExportModal(true);
             }}
             className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
@@ -1738,7 +1787,9 @@ export default function PaymentRecords() {
           </Button>
           <Button
             onClick={() => {
-              // Keep any existing bank/tab selection, but label based on quick export choice
+              setQuickExportMode("weekly");
+              setQuickExportLocation("All Locations");
+              setQuickExportDate("");
               setShowQuickExportModal(true);
             }}
             className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
@@ -3283,6 +3334,21 @@ export default function PaymentRecords() {
                   </Label>
                 </div>
               </RadioGroup>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Location (Date of Expense)</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                value={quickExportLocation}
+                onChange={(e) => setQuickExportLocation(e.target.value)}
+              >
+                <option value="All Locations">All Locations</option>
+                {quickExportLocationOptions.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium">
