@@ -58,6 +58,40 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
+const normalizeCustomFieldKey = (key: string) =>
+  key.toLowerCase().replace(/[\s_-]+/g, "");
+
+const getCustomFieldValue = (
+  customFields: unknown,
+  targetKey: string
+): string | null => {
+  if (!customFields) return null;
+
+  let parsedCustomFields: unknown = customFields;
+  if (typeof parsedCustomFields === "string") {
+    try {
+      parsedCustomFields = JSON.parse(parsedCustomFields);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsedCustomFields || typeof parsedCustomFields !== "object") return null;
+
+  const fields = parsedCustomFields as Record<string, unknown>;
+  const normalizedTargetKey = normalizeCustomFieldKey(targetKey);
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (normalizeCustomFieldKey(key) === normalizedTargetKey) {
+      if (typeof value === "string") return value;
+      if (value === null || value === undefined) return null;
+      return String(value);
+    }
+  }
+
+  return null;
+};
+
 export default function PaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
@@ -1333,7 +1367,10 @@ export default function PaymentRecords() {
         record.creator?.full_name ||
         record.creator_email ||
         "N/A";
-      const expenseCreditPerson = record.custom_fields?.expense_credit_person || record.expense_credit_person || "N/A";
+      const expenseCreditPerson =
+        record.expense_credit_person ||
+        getCustomFieldValue(record.custom_fields, "expense_credit_person") ||
+        "N/A";
       const tdsPercent = record.tds_deduction_percentage;
       const tdsLine =
         tdsAmount !== null || tdsPercent
@@ -1576,7 +1613,10 @@ export default function PaymentRecords() {
         record.creator?.full_name ||
         record.creator_email ||
         "N/A";
-      const expenseCreditPerson = record.custom_fields?.expense_credit_person || record.expense_credit_person || "N/A";
+      const expenseCreditPerson =
+        record.expense_credit_person ||
+        getCustomFieldValue(record.custom_fields, "expense_credit_person") ||
+        "N/A";
       const tdsPercent = record.tds_deduction_percentage;
       const tdsLine =
         tdsAmount !== null || tdsPercent
