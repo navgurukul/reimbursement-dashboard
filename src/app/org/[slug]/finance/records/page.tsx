@@ -1290,7 +1290,7 @@ export default function PaymentRecords() {
         record.creator?.full_name ||
         record.creator_email ||
         "N/A";
-      const expenseCreditPerson = record.expense_credit_person || "N/A";
+      const expenseCreditPerson = record.custom_fields?.expense_credit_person || record.expense_credit_person || "N/A";
       const tdsPercent = record.tds_deduction_percentage;
       const tdsLine =
         tdsAmount !== null || tdsPercent
@@ -1529,7 +1529,7 @@ export default function PaymentRecords() {
         record.creator?.full_name ||
         record.creator_email ||
         "N/A";
-      const expenseCreditPerson = record.expense_credit_person || "N/A";
+      const expenseCreditPerson = record.custom_fields?.expense_credit_person || record.expense_credit_person || "N/A";
       const tdsPercent = record.tds_deduction_percentage;
       const tdsLine =
         tdsAmount !== null || tdsPercent
