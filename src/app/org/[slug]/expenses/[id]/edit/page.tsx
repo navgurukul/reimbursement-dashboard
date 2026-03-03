@@ -43,6 +43,16 @@ export default function EditExpensePage() {
   const [expenseCreditPersonOptions, setExpenseCreditPersonOptions] = useState<string[]>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
 
+  const getDisplayFieldLabel = (key: string) => {
+    const labelMap: Record<string, string> = {
+      description: "Description",
+      location_of_expense: "Location of Expense",
+      expense_credit_person: "Expense Credit Person",
+    };
+
+    return labelMap[key] || key;
+  };
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -399,7 +409,7 @@ export default function EditExpensePage() {
 
               return (
                 <div key={key} className="space-y-2">
-                  <Label htmlFor={key}>{key}</Label>
+                  <Label htmlFor={key}>{getDisplayFieldLabel(key)}</Label>
                   {hasLocationOptions || hasExpenseCreditPersonOptions ? (
                     <Select
                       value={formData[key] || ""}
@@ -408,7 +418,7 @@ export default function EditExpensePage() {
                       }
                     >
                       <SelectTrigger id={key} className="w-full">
-                        <SelectValue placeholder={`Select ${key}`} />
+                        <SelectValue placeholder={`Select ${getDisplayFieldLabel(key)}`} />
                       </SelectTrigger>
                       <SelectContent>
                         {dropdownOptions.map((option) => (
