@@ -190,12 +190,12 @@ export default function VoucherDownloadAsPdf({
       }
 
       const body = [
-        ["Name", voucher.your_name || expense.creator?.full_name || "—"],
+        ["Name", voucher.your_name || expense?.creator?.full_name || "N/A"],
         ["Amount", amountString],
-        ["Date", formatDate(expense.date)],
-        ["Credit Person", voucher.credit_person || "—"],
-        ["Approver", expense.approver?.full_name || "—"],
-        ["Purpose", voucher.purpose || "—"],
+        ["Date", expense?.date ? formatDate(expense.date) : "N/A"],
+        ["Credit Person", voucher.credit_person || "N/A"],
+        ["Approver", expense?.approver?.full_name || "N/A"],
+        ["Purpose", voucher.purpose || "N/A"],
         ["Attachment", voucherAttachmentFilename || "Not available"],
         [
           "Signature",
@@ -471,7 +471,7 @@ export default function VoucherDownloadAsPdf({
         (voucher as any).type ||
         (voucher as any).expenseType ||
         "expense";
-      const rawName = voucher.your_name || expense.creator?.full_name || "N/A";
+      const rawName = voucher.your_name || expense?.creator?.full_name || "N/A";
       const rawDateValue =
         (voucher as any)?.created_at || (voucher as any)?.date || (expense as any)?.date || "N/A";
       const dateObj = new Date(rawDateValue);

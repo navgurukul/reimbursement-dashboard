@@ -143,30 +143,30 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Your Name</p>
-                  <p className="font-medium">{voucherDetails?.your_name || expense.creator?.full_name || "—"}</p>
+                  <p className="font-medium">{voucherDetails?.your_name || expense?.creator?.full_name || "N/A"}</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm text-muted-foreground">Amount</p>
-                    <ExpenseStatusBadge status={expense.status} />
+                    <ExpenseStatusBadge status={expense?.status} />
                   </div>
-                  <p className="font-medium">{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(voucherDetails?.amount || expense.amount)}</p>
+                  <p className="font-medium">{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(voucherDetails?.amount ?? expense?.amount ?? 0)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Date</p>
-                  <p className="font-medium">{new Date(expense.date).toLocaleDateString("en-GB")}</p>
+                  <p className="font-medium">{expense?.date ? new Date(expense.date).toLocaleDateString("en-GB") : "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Credit Person</p>
-                  <p className="font-medium">{voucherDetails?.credit_person || "—"}</p>
+                  <p className="font-medium">{voucherDetails?.credit_person || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Approver</p>
-                  <p className="font-medium">{expense.approver?.full_name || "—"}</p>
+                  <p className="font-medium">{expense?.approver?.full_name || "N/A"}</p>
                 </div>
                 <div className="md:col-span-2">
                   <p className="text-sm text-muted-foreground">Purpose</p>
-                  <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">{voucherDetails?.purpose || "—"}</div>
+                  <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">{voucherDetails?.purpose || "N/A"}</div>
                 </div>
               </div>
 
