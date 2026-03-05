@@ -689,14 +689,15 @@ export default function FinanceExpenseDetails() {
         {/* Expense Details */}
         <div className="space-y-6 md:col-span-4">
           <div className="bg-white p-6 rounded shadow border">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="card-title">Expense Details</h2>
-              <div className="flex items-center gap-1">
+            <div className="mb-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="card-title">Expense Details</h2>
+                <div className="flex items-center gap-1 shrink-0">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
                         onClick={handleStartEdit}
                         disabled={
@@ -717,7 +718,7 @@ export default function FinanceExpenseDetails() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
                         onClick={handleSaveDetails}
                         disabled={
@@ -736,7 +737,11 @@ export default function FinanceExpenseDetails() {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+                </div>
               </div>
+              <p className="text-sm text-muted-foreground">
+                Editable access - Click the edit icon to make changes and the save icon to update.
+              </p>
             </div>
             {loading ? (
               <Table>
