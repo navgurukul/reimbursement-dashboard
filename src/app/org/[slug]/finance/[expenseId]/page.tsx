@@ -25,6 +25,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { FileText, Clock, ArrowLeft, Pencil, Save } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -686,36 +692,50 @@ export default function FinanceExpenseDetails() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="card-title">Expense Details</h2>
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleStartEdit}
-                  disabled={
-                    loading ||
-                    processing ||
-                    tdsUpdating ||
-                    savingDetails ||
-                    isEditingDetails
-                  }
-                  title="Edit expense details"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleSaveDetails}
-                  disabled={
-                    loading ||
-                    processing ||
-                    tdsUpdating ||
-                    savingDetails ||
-                    !isEditingDetails
-                  }
-                  title="Save expense details"
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleStartEdit}
+                        disabled={
+                          loading ||
+                          processing ||
+                          tdsUpdating ||
+                          savingDetails ||
+                          isEditingDetails
+                        }
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Edit expense details</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleSaveDetails}
+                        disabled={
+                          loading ||
+                          processing ||
+                          tdsUpdating ||
+                          savingDetails ||
+                          !isEditingDetails
+                        }
+                      >
+                        <Save className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Save expense details</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
             {loading ? (
