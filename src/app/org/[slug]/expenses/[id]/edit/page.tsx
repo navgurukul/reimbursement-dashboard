@@ -300,14 +300,23 @@ export default function EditExpensePage() {
     return null;
   }
 
+  const hasDirectPaymentUniqueId = String(expense?.unique_id || "")
+    .trim()
+    .toLowerCase()
+    .includes("direct payment unique id") ||
+    String(expense?.unique_id || "")
+      .trim()
+      .toLowerCase()
+      .includes("direct payment");
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button
-          variant="ghost"
+          variant="link"
           onClick={() => router.push(`/org/${slug}/expenses/${expenseId}`)}
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft/>
           Back to Expense
         </Button>
         <Button onClick={handleSubmit} disabled={saving}>
@@ -400,6 +409,11 @@ export default function EditExpensePage() {
               const isExpenseCreditPersonField =
                 normalizedKey === "expense credit person" ||
                 key.toLowerCase() === "expense_credit_person";
+
+              if (isExpenseCreditPersonField && !hasDirectPaymentUniqueId) {
+                return null;
+              }
+
               const hasLocationOptions = isLocationField && locationOptions.length > 0;
               const hasExpenseCreditPersonOptions =
                 isExpenseCreditPersonField && expenseCreditPersonOptions.length > 0;
