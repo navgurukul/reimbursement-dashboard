@@ -40,7 +40,18 @@ export default function EditExpensePage() {
   const [columns, setColumns] = useState<any[]>([]);
   const [expenseTypeOptions, setExpenseTypeOptions] = useState<string[]>([]);
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [expenseCreditPersonOptions, setExpenseCreditPersonOptions] = useState<string[]>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
+
+  const getDisplayFieldLabel = (key: string) => {
+    const labelMap: Record<string, string> = {
+      description: "Description",
+      location_of_expense: "Location of Expense",
+      expense_credit_person: "Expense Credit Person",
+    };
+
+    return labelMap[key] || key;
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -105,6 +116,27 @@ export default function EditExpensePage() {
                 );
               } else {
                 setLocationOptions(options as string[]);
+              }
+            }
+          }
+
+          // Extract expense credit person options
+          const expenseCreditPersonCol = settings.expense_columns.find(
+            (col: any) =>
+              col.key === "expense_credit_person" ||
+              col.label?.trim().toLowerCase() === "expense credit person"
+          );
+          if (expenseCreditPersonCol && expenseCreditPersonCol.options) {
+            const options = expenseCreditPersonCol.options;
+            if (Array.isArray(options) && options.length > 0) {
+              if (typeof options[0] === "object") {
+                setExpenseCreditPersonOptions(
+                  (options as Array<{ value: string; label: string }>).map(
+                    (opt) => opt.label || opt.value
+                  )
+                );
+              } else {
+                setExpenseCreditPersonOptions(options as string[]);
               }
             }
           }
@@ -277,14 +309,23 @@ export default function EditExpensePage() {
     );
   });
 
+  const hasDirectPaymentUniqueId = String(expense?.unique_id || "")
+    .trim()
+    .toLowerCase()
+    .includes("direct payment unique id") ||
+    String(expense?.unique_id || "")
+      .trim()
+      .toLowerCase()
+      .includes("direct payment");
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button
-          variant="ghost"
+          variant="link"
           onClick={() => router.push(`/org/${slug}/expenses/${expenseId}`)}
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft/>
           Back to Expense
         </Button>
         <Button onClick={handleSubmit} disabled={saving}>
@@ -419,12 +460,25 @@ export default function EditExpensePage() {
                 normalizedKey === "location" ||
                 normalizedKey === "location of expense" ||
                 normalizedKey === "location_of_expense";
+              const isExpenseCreditPersonField =
+                normalizedKey === "expense credit person" ||
+                key.toLowerCase() === "expense_credit_person";
+
+              if (isExpenseCreditPersonField && !hasDirectPaymentUniqueId) {
+                return null;
+              }
+
               const hasLocationOptions = isLocationField && locationOptions.length > 0;
+              const hasExpenseCreditPersonOptions =
+                isExpenseCreditPersonField && expenseCreditPersonOptions.length > 0;
+              const dropdownOptions = hasLocationOptions
+                ? locationOptions
+                : expenseCreditPersonOptions;
 
               return (
                 <div key={key} className="space-y-2">
-                  <Label htmlFor={key}>{fieldLabel}</Label>
-                  {hasLocationOptions ? (
+                  <Label htmlFor={key}>{getDisplayFieldLabel(key)}</Label>
+                  {hasLocationOptions || hasExpenseCreditPersonOptions ? (
                     <Select
                       value={formData[key] || ""}
                       onValueChange={(value: string) =>
@@ -432,10 +486,10 @@ export default function EditExpensePage() {
                       }
                     >
                       <SelectTrigger id={key} className="w-full">
-                        <SelectValue placeholder={`Select ${key}`} />
+                        <SelectValue placeholder={`Select ${getDisplayFieldLabel(key)}`} />
                       </SelectTrigger>
                       <SelectContent>
-                        {locationOptions.map((option) => (
+                        {dropdownOptions.map((option) => (
                           <SelectItem key={option} value={option}>
                             {option}
                           </SelectItem>

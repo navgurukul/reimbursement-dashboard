@@ -8,12 +8,15 @@ import {
   expenseHistory,
   auth,
   profiles,
+  organizations,
+  orgSettings,
 } from "@/lib/db";
 import { formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -22,7 +25,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock, ArrowLeft } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { FileText, Clock, ArrowLeft, Pencil, Save } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
@@ -58,6 +67,85 @@ const calculateTdsAmount = (
   return Number(amount.toFixed(2));
 };
 
+const normalizeCustomFieldKey = (key: string) =>
+  key.toLowerCase().replace(/[\s_-]+/g, "");
+
+const getCustomFieldValue = (
+  customFields: unknown,
+  targetKey: string
+): string | null => {
+  if (!customFields) return null;
+
+  let parsedCustomFields: unknown = customFields;
+  if (typeof parsedCustomFields === "string") {
+    try {
+      parsedCustomFields = JSON.parse(parsedCustomFields);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsedCustomFields || typeof parsedCustomFields !== "object") return null;
+
+  const fields = parsedCustomFields as Record<string, unknown>;
+  const normalizedTargetKey = normalizeCustomFieldKey(targetKey);
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (normalizeCustomFieldKey(key) === normalizedTargetKey) {
+      if (typeof value === "string") return value;
+      if (value === null || value === undefined) return null;
+      return String(value);
+    }
+  }
+
+  return null;
+};
+
+const parseDropdownOptions = (options: unknown): string[] => {
+  if (!Array.isArray(options) || options.length === 0) return [];
+
+  if (typeof options[0] === "object" && options[0] !== null) {
+    return (options as Array<{ label?: string; value?: string }>)
+      .map((option) => String(option.label ?? option.value ?? "").trim())
+      .filter(Boolean);
+  }
+
+  return options.map((option) => String(option ?? "").trim()).filter(Boolean);
+};
+
+const updateLocationCustomFields = (
+  customFields: unknown,
+  locationValue: string | null
+) => {
+  let parsedFields: Record<string, unknown> = {};
+
+  if (customFields && typeof customFields === "object" && !Array.isArray(customFields)) {
+    parsedFields = { ...(customFields as Record<string, unknown>) };
+  } else if (typeof customFields === "string") {
+    try {
+      const parsed = JSON.parse(customFields);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        parsedFields = { ...(parsed as Record<string, unknown>) };
+      }
+    } catch {
+      parsedFields = {};
+    }
+  }
+
+  const locationKeyNorm = normalizeCustomFieldKey("location_of_expense");
+  Object.keys(parsedFields).forEach((key) => {
+    if (normalizeCustomFieldKey(key) === locationKeyNorm) {
+      delete parsedFields[key];
+    }
+  });
+
+  if (locationValue) {
+    parsedFields["Location of Expense"] = locationValue;
+  }
+
+  return parsedFields;
+};
+
 export default function FinanceExpenseDetails() {
   const params = useParams();
   const { expenseId } = useParams();
@@ -74,6 +162,21 @@ export default function FinanceExpenseDetails() {
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [expenseTypeOptions, setExpenseTypeOptions] = useState<string[]>([]);
+  const [eventOptions, setEventOptions] = useState<{ id: string; title: string }[]>(
+    []
+  );
+  const [editForm, setEditForm] = useState({
+    unique_id: "",
+    location: "",
+    event_id: "",
+    expense_type: "",
+    amount: "",
+    approved_amount: "",
+  });
   const highlightId =
     searchParams.get("expID") || (typeof expenseId === "string" ? expenseId : null);
   const pageParam = searchParams.get("page");
@@ -145,12 +248,169 @@ export default function FinanceExpenseDetails() {
         setHasVoucher(true);
       }
 
+      try {
+        const { data: orgData } = await organizations.getBySlug(slug);
+        const orgId = orgData?.id;
+
+        if (orgId) {
+          const [settingsRes, eventsRes] = await Promise.all([
+            orgSettings.getByOrgId(orgId),
+            expenseEvents.getByOrg(orgId),
+          ]);
+
+          if (settingsRes.data?.expense_columns) {
+            const columns = settingsRes.data.expense_columns as any[];
+
+            const locationColumn = columns.find(
+              (col: any) => col.key === "location" || col.key === "location_of_expense"
+            );
+            const expenseTypeColumn = columns.find(
+              (col: any) => col.key === "expense_type"
+            );
+
+            setLocationOptions(parseDropdownOptions(locationColumn?.options));
+            setExpenseTypeOptions(parseDropdownOptions(expenseTypeColumn?.options));
+          }
+
+          if (eventsRes.data) {
+            const options = eventsRes.data.map((event) => ({
+              id: event.id,
+              title: event.title,
+            }));
+            setEventOptions(options);
+
+            if (expenseData.event_id) {
+              const selectedEvent = options.find(
+                (event) => event.id === expenseData.event_id
+              );
+              if (selectedEvent) {
+                setEventTitle(selectedEvent.title);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load edit dropdown options:", err);
+      }
+
       setExpense(expenseData);
       setLoading(false);
     };
 
     fetchExpense();
-  }, [expenseId]);
+  }, [expenseId, slug]);
+
+  const handleStartEdit = () => {
+    if (!expense) return;
+
+    setEditForm({
+      unique_id: expense.unique_id ?? "",
+      location: expense.location ?? "",
+      event_id: expense.event_id ?? "",
+      expense_type: expense.expense_type ?? "",
+      amount:
+        expense.amount !== null && expense.amount !== undefined
+          ? String(expense.amount)
+          : "",
+      approved_amount:
+        expense.approved_amount !== null && expense.approved_amount !== undefined
+          ? String(expense.approved_amount)
+          : "",
+    });
+    setIsEditingDetails(true);
+  };
+
+  const handleEditFieldChange = (field: keyof typeof editForm, value: string) => {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveDetails = async () => {
+    if (!expense || typeof expenseId !== "string") return;
+
+    const amountValue = Number(editForm.amount);
+    const approvedAmountValue =
+      editForm.approved_amount.trim() === ""
+        ? null
+        : Number(editForm.approved_amount);
+
+    if (editForm.amount.trim() === "" || !Number.isFinite(amountValue)) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (
+      editForm.approved_amount.trim() !== "" &&
+      !Number.isFinite(approvedAmountValue as number)
+    ) {
+      toast.error("Please enter a valid approved amount");
+      return;
+    }
+
+    const baseAmountForCalculations = approvedAmountValue ?? amountValue;
+    const tdsPercentageValue = expense.tds_deduction_percentage
+      ? Number(expense.tds_deduction_percentage)
+      : null;
+    const existingTdsAmount =
+      expense.tds_deduction_amount !== null &&
+      expense.tds_deduction_amount !== undefined
+        ? Number(expense.tds_deduction_amount)
+        : null;
+    const recalculatedTdsAmount = tdsPercentageValue
+      ? calculateTdsAmount(baseAmountForCalculations, tdsPercentageValue)
+      : existingTdsAmount;
+    const recalculatedActualAmount = Number(
+      (baseAmountForCalculations - (recalculatedTdsAmount ?? 0)).toFixed(2)
+    );
+    const locationValue = editForm.location.trim() || null;
+    const updatedCustomFields = updateLocationCustomFields(
+      expense.custom_fields,
+      locationValue
+    );
+
+    const payload = {
+      unique_id: editForm.unique_id.trim() || null,
+      location: locationValue,
+      event_id: editForm.event_id || null,
+      expense_type: editForm.expense_type.trim() || null,
+      amount: amountValue,
+      approved_amount: approvedAmountValue,
+      tds_deduction_amount: recalculatedTdsAmount,
+      actual_amount: recalculatedActualAmount,
+      custom_fields: updatedCustomFields,
+    };
+
+    setSavingDetails(true);
+
+    const { error } = await supabase
+      .from("expense_new")
+      .update(payload)
+      .eq("id", expenseId);
+
+    if (error) {
+      toast.error("Failed to save expense details", {
+        description: error.message,
+      });
+      setSavingDetails(false);
+      return;
+    }
+
+    const updatedEventTitle = payload.event_id
+      ? eventOptions.find((event) => event.id === payload.event_id)?.title || null
+      : null;
+
+    setExpense((prev: any) =>
+      prev
+        ? {
+            ...prev,
+            ...payload,
+          }
+        : prev
+    );
+    setEventTitle(updatedEventTitle);
+    setIsEditingDetails(false);
+    setSavingDetails(false);
+    toast.success("Expense details updated");
+  };
 
   const handleFinanceApprove = async () => {
     setProcessing(true);
@@ -348,6 +608,35 @@ export default function FinanceExpenseDetails() {
     (tdsBaseAmount !== null && tdsBaseAmount !== undefined
       ? Number(tdsBaseAmount) - (tdsAmount ?? 0)
       : null);
+  const expenseCreditPerson =
+    expense?.expense_credit_person ||
+    getCustomFieldValue(expense?.custom_fields, "expense_credit_person") ||
+    "N/A";
+  const locationDropdownOptions = Array.from(
+    new Set([
+      ...locationOptions,
+      ...(expense?.location ? [String(expense.location)] : []),
+    ])
+  ).filter(Boolean);
+  const expenseTypeDropdownOptions = Array.from(
+    new Set([
+      ...expenseTypeOptions,
+      ...(expense?.expense_type ? [String(expense.expense_type)] : []),
+    ])
+  ).filter(Boolean);
+  const eventDropdownOptions = (() => {
+    const allOptions = [...eventOptions];
+    if (
+      expense?.event_id &&
+      !allOptions.some((event) => event.id === expense.event_id)
+    ) {
+      allOptions.unshift({
+        id: expense.event_id,
+        title: eventTitle || "Selected Event",
+      });
+    }
+    return allOptions;
+  })();
 
   return (
     <div className="p-6 space-y-6">
@@ -400,7 +689,60 @@ export default function FinanceExpenseDetails() {
         {/* Expense Details */}
         <div className="space-y-6 md:col-span-4">
           <div className="bg-white p-6 rounded shadow border">
-            <h2 className="card-title mb-4">Expense Details</h2>
+            <div className="mb-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="card-title">Expense Details</h2>
+                <div className="flex items-center gap-1 shrink-0">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleStartEdit}
+                        disabled={
+                          loading ||
+                          processing ||
+                          tdsUpdating ||
+                          savingDetails ||
+                          isEditingDetails
+                        }
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Edit expense details</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleSaveDetails}
+                        disabled={
+                          loading ||
+                          processing ||
+                          tdsUpdating ||
+                          savingDetails ||
+                          !isEditingDetails
+                        }
+                      >
+                        <Save className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Save expense details</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Editable access - Click the edit icon to make changes and the save icon to update.
+              </p>
+            </div>
             {loading ? (
               <Table>
                 <TableBody>
@@ -416,39 +758,139 @@ export default function FinanceExpenseDetails() {
                   </TableRow>
                   <TableRow>
                     <TableHead>Unique ID</TableHead>
-                    <TableCell>{expense.unique_id || "N/A"}</TableCell>
+                    <TableCell>
+                      {isEditingDetails ? (
+                        <Input
+                          value={editForm.unique_id}
+                          onChange={(e) =>
+                            handleEditFieldChange("unique_id", e.target.value)
+                          }
+                          placeholder="Enter unique ID"
+                          disabled={savingDetails}
+                          className="max-w-xs"
+                        />
+                      ) : (
+                        expense.unique_id || "N/A"
+                      )}
+                    </TableCell>
                   </TableRow>
                   {isDirectPayment && (
                     <TableRow>
                       <TableHead>Expense Credit Person</TableHead>
-                      <TableCell>
-                        {expense.expense_credit_person ||
-                          expense.custom_fields?.expense_credit_person ||
-                          "—"}
-                      </TableCell>
+                      <TableCell>{expenseCreditPerson}</TableCell>
                     </TableRow>
                   )}
                   <TableRow>
                     <TableHead>Location of Expense</TableHead>
-                    <TableCell>{expense.location || "N/A"}</TableCell>
+                    <TableCell>
+                      {isEditingDetails ? (
+                        <select
+                          className="border px-2 py-1 rounded bg-white text-sm max-w-xs"
+                          value={editForm.location}
+                          onChange={(e) =>
+                            handleEditFieldChange("location", e.target.value)
+                          }
+                          disabled={savingDetails}
+                        >
+                          <option value="">Select location</option>
+                          {locationDropdownOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        expense.location || "N/A"
+                      )}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Event Name</TableHead>
-                    <TableCell>{eventTitle || "N/A"}</TableCell>
+                    <TableCell>
+                      {isEditingDetails ? (
+                        <select
+                          className="border px-2 py-1 rounded bg-white text-sm max-w-xs"
+                          value={editForm.event_id}
+                          onChange={(e) =>
+                            handleEditFieldChange("event_id", e.target.value)
+                          }
+                          disabled={savingDetails}
+                        >
+                          <option value="">Select event</option>
+                          {eventDropdownOptions.map((event) => (
+                            <option key={event.id} value={event.id}>
+                              {event.title}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        eventTitle || "N/A"
+                      )}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Expense Type</TableHead>
                     <TableCell>
-                      {expense.expense_type || "Not Provided"}
+                      {isEditingDetails ? (
+                        <select
+                          className="border px-2 py-1 rounded bg-white text-sm max-w-xs"
+                          value={editForm.expense_type}
+                          onChange={(e) =>
+                            handleEditFieldChange("expense_type", e.target.value)
+                          }
+                          disabled={savingDetails}
+                        >
+                          <option value="">Select expense type</option>
+                          {expenseTypeDropdownOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        expense.expense_type || "Not Provided"
+                      )}
                     </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Amount</TableHead>
-                    <TableCell>₹{expense.amount}</TableCell>
+                    <TableCell>
+                      {isEditingDetails ? (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editForm.amount}
+                          onChange={(e) =>
+                            handleEditFieldChange("amount", e.target.value)
+                          }
+                          disabled={savingDetails}
+                          className="max-w-xs"
+                        />
+                      ) : (
+                        `₹${expense.amount}`
+                      )}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Approved Amount</TableHead>
-                    <TableCell>{formatCurrency(expense.approved_amount)}</TableCell>
+                    <TableCell>
+                      {isEditingDetails ? (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editForm.approved_amount}
+                          onChange={(e) =>
+                            handleEditFieldChange("approved_amount", e.target.value)
+                          }
+                          disabled={savingDetails}
+                          className="max-w-xs"
+                        />
+                      ) : (
+                        formatCurrency(expense.approved_amount)
+                      )}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>TDS Deduction</TableHead>
