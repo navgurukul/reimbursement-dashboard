@@ -1401,7 +1401,7 @@ export default function NewExpensePage() {
 
       if (!String(topLevelExpenseCreditPerson || "").trim()) {
         newErrors["expense_credit_person"] =
-          "Expense credit person is required";
+          "Expense Credit Person is required";
       }
     }
 
@@ -1471,7 +1471,18 @@ export default function NewExpensePage() {
 
     // Validate required fields from columns
     for (const col of columns) {
-      if (col.required && col.visible && !formData[col.key]) {
+      const isExpenseCreditPersonField =
+      col.key === "expense_credit_person" ||
+      col.label?.trim().toLowerCase() === "expense credit person";
+
+      // For "Expense Credit Person", only require it when top-level Payment Unique ID is Direct Payment
+      if (
+        col.required &&
+        col.visible &&
+        !formData[col.key] &&
+        (!isExpenseCreditPersonField ||
+          isDirectPaymentValue(formData.unique_id || ""))
+      ) {
         newErrors[col.key] = `${col.label} is required`;
       }
     }
