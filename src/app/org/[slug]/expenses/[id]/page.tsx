@@ -28,6 +28,7 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  ExternalLink,
   Download,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -1217,7 +1218,7 @@ export default function ViewExpensePage() {
     if (expense.receipt?.path) {
       try {
         if (receiptPreviewUrl) {
-          window.open(receiptPreviewUrl, "_blank");
+          window.open(receiptPreviewUrl, "_blank", "noopener,noreferrer");
           return;
         }
 
@@ -1232,7 +1233,7 @@ export default function ViewExpensePage() {
         }
         if (url) {
           setReceiptPreviewUrl(url);
-          window.open(url, "_blank");
+          window.open(url, "_blank", "noopener,noreferrer");
         }
       } catch (err) {
         console.error("Error opening receipt:", err);
@@ -2066,6 +2067,28 @@ export default function ViewExpensePage() {
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="cursor-pointer"
+                                  onClick={handleViewReceipt}
+                                  aria-label="Open receipt in new tab"
+                                  disabled={receiptLoading}
+                                >
+                                  {receiptLoading ? (
+                                    <Spinner size="sm" className="h-4 w-4" />
+                                  ) : (
+                                    <ExternalLink className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Open in new tab</p>
+                              </TooltipContent>
+                            </Tooltip>
+
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
