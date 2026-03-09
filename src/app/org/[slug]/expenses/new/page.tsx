@@ -107,6 +107,30 @@ interface BankDetailRecord {
   bankDetails?: { advanceUniqueId?: string | null } | null;
 }
 
+interface DuplicateCheckInput {
+  expenseType: string;
+  location: string;
+  amount: number;
+  receiptFile?: File | null;
+  voucherFile?: File | null;
+  isVoucher?: boolean;
+  voucherYourName?: string;
+  voucherPurpose?: string;
+  voucherCreditPerson?: string;
+  sourceLabel?: string;
+}
+
+interface DuplicateMatchDetails {
+  matchedExpenseId: string;
+  expenseType: string;
+  location: string;
+  amount: number;
+  date: string;
+  matchedReceiptFile?: string | null;
+  matchedVoucherFile?: string | null;
+  matchedSource?: string;
+}
+
 export default function NewExpensePage() {
   const router = useRouter();
   const params = useParams();
@@ -236,6 +260,9 @@ export default function NewExpensePage() {
     null
   );
   const [uniqueIdUnavailable, setUniqueIdUnavailable] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateMatchDetails, setDuplicateMatchDetails] =
+    useState<DuplicateMatchDetails[]>([]);
 
   const getDefaultValueByType = (type: string) => {
     switch (type) {
@@ -993,6 +1020,275 @@ export default function NewExpensePage() {
     }
   };
 
+  const normalizeFileName = (filename?: string | null) =>
+    String(filename || "")
+      .trim()
+      .toLowerCase();
+
+  const normalizeVoucherText = (value?: string | null) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  const parseVoucherAttachmentFilename = (attachment?: string | null) => {
+    if (!attachment) return "";
+    const [name] = attachment.split(",");
+    return name || "";
+  };
+
+  const formatDuplicateDate = (date?: string | null) => {
+    if (!date) return "-";
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return date;
+    return parsed.toLocaleDateString("en-GB");
+  };
+
+  const getDraftCandidateKey = (candidate: DuplicateCheckInput) => {
+    const normalizedExpenseType = String(candidate.expenseType || "")
+      .trim()
+      .toLowerCase();
+    const normalizedLocation = String(candidate.location || "")
+      .trim()
+      .toLowerCase();
+    const normalizedAmount = Number(Number(candidate.amount || 0).toFixed(2));
+
+    if (
+      !normalizedExpenseType ||
+      !normalizedLocation ||
+      Number.isNaN(normalizedAmount)
+    ) {
+      return null;
+    }
+
+    const receiptSignature = candidate.receiptFile
+      ? `receipt:${normalizeFileName(candidate.receiptFile.name)}:${candidate.receiptFile.size}`
+      : "";
+    const voucherFileSignature = candidate.voucherFile
+      ? `voucher:${normalizeFileName(candidate.voucherFile.name)}:${candidate.voucherFile.size}`
+      : "";
+
+    const voucherDetailsSignature = candidate.isVoucher
+      ? `voucher-details:${normalizeVoucherText(candidate.voucherYourName)}:${normalizeVoucherText(candidate.voucherPurpose)}:${normalizeVoucherText(candidate.voucherCreditPerson)}`
+      : "";
+
+    const voucherSignature = voucherFileSignature || voucherDetailsSignature;
+
+    const fileSignature = receiptSignature || voucherSignature;
+    if (!fileSignature) return null;
+
+    return `${normalizedExpenseType}|${normalizedLocation}|${normalizedAmount}|${fileSignature}`;
+  };
+
+  const dedupeDuplicateMatches = (matches: DuplicateMatchDetails[]) => {
+    const seen = new Set<string>();
+    return matches.filter((match) => {
+      const key = [
+        match.matchedSource || "",
+        match.matchedExpenseId || "",
+        match.expenseType || "",
+        match.location || "",
+        String(Number(Number(match.amount || 0).toFixed(2))),
+        match.matchedReceiptFile || "",
+        match.matchedVoucherFile || "",
+      ].join("|");
+
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const findDuplicatesInCurrentDraft = (
+    candidates: DuplicateCheckInput[]
+  ): DuplicateMatchDetails[] => {
+    const seen = new Map<string, DuplicateCheckInput>();
+    const matches: DuplicateMatchDetails[] = [];
+
+    for (const candidate of candidates) {
+      const key = getDraftCandidateKey(candidate);
+      if (!key) continue;
+
+      const firstMatch = seen.get(key);
+      if (!firstMatch) {
+        seen.set(key, candidate);
+        continue;
+      }
+
+      matches.push({
+        matchedExpenseId: `${firstMatch.sourceLabel || "Entry"} / ${candidate.sourceLabel || "Entry"}`,
+        expenseType: candidate.expenseType,
+        location: candidate.location,
+        amount: Number(Number(candidate.amount || 0).toFixed(2)),
+        date: "",
+        matchedReceiptFile:
+          candidate.receiptFile?.name || firstMatch.receiptFile?.name || null,
+        matchedVoucherFile:
+          candidate.voucherFile?.name || firstMatch.voucherFile?.name || null,
+        matchedSource: "Current form entries",
+      });
+    }
+
+    return dedupeDuplicateMatches(matches);
+  };
+
+  const getPotentialDuplicatesForUser = async ({
+    expenseType,
+    location,
+    amount,
+    receiptFile,
+    voucherFile,
+    isVoucher,
+    voucherYourName,
+    voucherPurpose,
+    voucherCreditPerson,
+  }: DuplicateCheckInput): Promise<DuplicateMatchDetails[]> => {
+    if (!user?.id || !organization?.id) return [];
+    if (!receiptFile && !voucherFile && !isVoucher) return [];
+
+    const normalizedExpenseType = String(expenseType || "").trim();
+    const normalizedLocation = String(location || "").trim();
+    const normalizedAmount = Number(Number(amount || 0).toFixed(2));
+
+    if (
+      !normalizedExpenseType ||
+      !normalizedLocation ||
+      Number.isNaN(normalizedAmount)
+    ) {
+      return [];
+    }
+
+    let expenseQuery = supabase
+      .from("expense_new")
+      .select("id, expense_type, amount, location, date, receipt")
+      .eq("org_id", organization.id)
+      .eq("user_id", user.id)
+      .eq("expense_type", normalizedExpenseType)
+      .eq("amount", normalizedAmount);
+
+    expenseQuery = normalizedLocation
+      ? expenseQuery.eq("location", normalizedLocation)
+      : expenseQuery.is("location", null);
+
+    const { data: potentialMatches, error: potentialMatchesError } =
+      await expenseQuery.limit(50);
+
+    if (potentialMatchesError) {
+      console.error(
+        "Duplicate check failed during expense lookup:",
+        potentialMatchesError
+      );
+      return [];
+    }
+
+    if (!potentialMatches || potentialMatches.length === 0) {
+      return [];
+    }
+
+    if (receiptFile) {
+      const receiptName = normalizeFileName(receiptFile.name);
+      const matchedExpenses = potentialMatches.filter((entry: any) => {
+        const existingReceipt = entry?.receipt as ReceiptInfo | null;
+        if (!existingReceipt) return false;
+        return (
+          normalizeFileName(existingReceipt.filename) === receiptName &&
+          Number(existingReceipt.size) === Number(receiptFile.size)
+        );
+      });
+
+      if (!matchedExpenses.length) return [];
+
+      return dedupeDuplicateMatches(
+        matchedExpenses.map((matchedExpense: any) => ({
+          matchedExpenseId: matchedExpense.id,
+          expenseType: matchedExpense.expense_type || normalizedExpenseType,
+          location: matchedExpense.location || normalizedLocation,
+          amount: Number(matchedExpense.amount ?? normalizedAmount),
+          date: matchedExpense.date || "",
+          matchedReceiptFile: (matchedExpense.receipt as ReceiptInfo | null)
+            ?.filename,
+          matchedVoucherFile: null,
+          matchedSource: "Submitted expenses",
+        }))
+      );
+    }
+
+    if (voucherFile || isVoucher) {
+      const expenseIds = potentialMatches
+        .map((entry: any) => entry?.id)
+        .filter(Boolean);
+
+      if (expenseIds.length === 0) return [];
+
+      const { data: voucherRows, error: voucherLookupError } = await supabase
+        .from("vouchers")
+        .select("expense_id, attachment, your_name, purpose, credit_person")
+        .in("expense_id", expenseIds);
+
+      if (voucherLookupError) {
+        console.error(
+          "Duplicate check failed during voucher lookup:",
+          voucherLookupError
+        );
+        return [];
+      }
+
+      const normalizedVoucherName = normalizeFileName(voucherFile?.name);
+      const normalizedYourName = normalizeVoucherText(voucherYourName);
+      const normalizedPurpose = normalizeVoucherText(voucherPurpose);
+      const normalizedCreditPerson = normalizeVoucherText(voucherCreditPerson);
+
+      const matchedVouchers = (voucherRows || []).filter((voucher: any) => {
+        const existingVoucherFileName = normalizeFileName(
+          parseVoucherAttachmentFilename(voucher?.attachment)
+        );
+
+        const isAttachmentMatch =
+          normalizedVoucherName.length > 0 &&
+          existingVoucherFileName.length > 0 &&
+          existingVoucherFileName === normalizedVoucherName;
+
+        const isVoucherDetailsMatch =
+          normalizedYourName.length > 0 &&
+          normalizedPurpose.length > 0 &&
+          normalizedCreditPerson.length > 0 &&
+          normalizeVoucherText(voucher?.your_name) === normalizedYourName &&
+          normalizeVoucherText(voucher?.purpose) === normalizedPurpose &&
+          normalizeVoucherText(voucher?.credit_person) ===
+            normalizedCreditPerson;
+
+        return isAttachmentMatch || isVoucherDetailsMatch;
+      });
+
+      if (!matchedVouchers.length) return [];
+
+      const mappedMatches = matchedVouchers.map((matchedVoucher: any) => {
+        const matchedExpense = potentialMatches.find(
+          (entry: any) => entry?.id === matchedVoucher.expense_id
+        );
+
+        const matchedVoucherFile = parseVoucherAttachmentFilename(
+          matchedVoucher.attachment
+        );
+
+        return {
+          matchedExpenseId: matchedExpense?.id || matchedVoucher.expense_id,
+          expenseType: matchedExpense?.expense_type || normalizedExpenseType,
+          location: matchedExpense?.location || normalizedLocation,
+          amount: Number(matchedExpense?.amount ?? normalizedAmount),
+          date: matchedExpense?.date || "",
+          matchedReceiptFile: null,
+          matchedVoucherFile:
+            matchedVoucherFile || "Voucher details matched",
+          matchedSource: "Submitted expenses",
+        };
+      });
+
+      return dedupeDuplicateMatches(mappedMatches);
+    }
+
+    return [];
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -1166,6 +1462,89 @@ export default function NewExpensePage() {
       // Validate that user is not approving their own expense
       if (formData.approver === user.id) {
         toast.error("You cannot approve your own expenses");
+        setSaving(false);
+        return;
+      }
+
+      const duplicateCandidates: DuplicateCheckInput[] = [
+        {
+          expenseType: (formData.expense_type as string) || "N/A",
+          location: String(formData.location || ""),
+          amount: parseFloat(formData.amount || "0"),
+          receiptFile: voucherModalOpen ? null : receiptFile,
+          voucherFile: voucherModalOpen
+            ? ((formData.attachment as File | null) ?? null)
+            : null,
+          isVoucher: voucherModalOpen,
+          voucherYourName: voucherModalOpen ? String(formData.yourName || "") : "",
+          voucherPurpose: voucherModalOpen ? String(formData.purpose || "") : "",
+          voucherCreditPerson: voucherModalOpen
+            ? String(formData.voucherCreditPerson || "")
+            : "",
+          sourceLabel: "Main Expense",
+        },
+      ];
+
+      for (let index = 0; index < expenseItems.length; index++) {
+        const itemId = expenseItems[index];
+        const item = expenseItemsData[itemId];
+        if (!item) continue;
+
+        const itemIsVoucher = voucherModalOpenMap[itemId] || voucherModalOpen;
+        const itemVoucherAttachment =
+          (voucherDataMap[itemId]?.attachment as File | null | undefined) ||
+          null;
+        const itemVoucherData = voucherDataMap[itemId] || {};
+
+        duplicateCandidates.push({
+          expenseType: item.expense_type || "N/A",
+          location: String(item.location || formData.location || "N/A"),
+          amount: Number(item.amount || 0),
+          receiptFile: itemIsVoucher ? null : receiptFiles[itemId] || null,
+          voucherFile: itemIsVoucher ? itemVoucherAttachment : null,
+          isVoucher: itemIsVoucher,
+          voucherYourName: itemIsVoucher
+            ? String(itemVoucherData.yourName || formData.yourName || "")
+            : "",
+          voucherPurpose: itemIsVoucher
+            ? String(itemVoucherData.purpose || formData.purpose || "")
+            : "",
+          voucherCreditPerson: itemIsVoucher
+            ? String(
+                itemVoucherData.voucherCreditPerson ||
+                  formData.voucherCreditPerson ||
+                  ""
+              )
+            : "",
+          sourceLabel: `Expense Item ${index + 1}`,
+        });
+      }
+
+      const allDuplicateMatches: DuplicateMatchDetails[] = [];
+
+      const draftDuplicates = findDuplicatesInCurrentDraft(duplicateCandidates);
+      if (draftDuplicates.length > 0) {
+        allDuplicateMatches.push(...draftDuplicates);
+      }
+
+      for (const candidate of duplicateCandidates) {
+        const duplicateMatchesForCandidate =
+          await getPotentialDuplicatesForUser(candidate);
+
+        if (duplicateMatchesForCandidate.length > 0) {
+          allDuplicateMatches.push(...duplicateMatchesForCandidate);
+        }
+      }
+
+      const uniqueDuplicateMatches = dedupeDuplicateMatches(allDuplicateMatches);
+
+      if (uniqueDuplicateMatches.length > 0) {
+        setDuplicateMatchDetails(uniqueDuplicateMatches);
+        setDuplicateDialogOpen(true);
+        toast.error("Duplicate Expense Entry Detected", {
+          description: `${uniqueDuplicateMatches.length} matching duplicate expense(s) found.`,
+          duration: 10000,
+        });
         setSaving(false);
         return;
       }
@@ -1967,6 +2346,92 @@ export default function NewExpensePage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Matching expense details Popup */}
+            <Dialog
+              open={duplicateDialogOpen}
+              onOpenChange={(open) => {
+                setDuplicateDialogOpen(open);
+                if (!open) setDuplicateMatchDetails([]);
+              }}
+            >
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Duplicate Expense Entry Detected</DialogTitle>
+                  <DialogDescription>
+                    All matching expense details found for your account.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {duplicateMatchDetails.length > 0 && (
+                  <div className="max-h-[45vh] overflow-y-auto space-y-3 pr-1">
+                    {duplicateMatchDetails.map((match, index) => (
+                      <div
+                        key={`${match.matchedSource || "source"}-${match.matchedExpenseId}-${index}`}
+                        className="rounded-md border bg-gray-50 p-4 space-y-3"
+                      >
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Match</span>
+                          <span className="font-medium text-gray-900">
+                            #{index + 1}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Expense Type</span>
+                          <span className="font-medium text-gray-900">
+                            {match.expenseType}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Location of Expense</span>
+                          <span className="font-medium text-gray-900">
+                            {match.location}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Amount</span>
+                          <span className="font-medium text-gray-900">
+                            ₹{match.amount}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Date</span>
+                          <span className="font-medium text-gray-900">
+                            {formatDuplicateDate(match.date)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Matched Receipt</span>
+                          <span className="font-medium text-gray-900">
+                            {match.matchedReceiptFile || "N/A"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Matched Voucher</span>
+                          <span className="font-medium text-gray-900">
+                            {match.matchedVoucherFile || "N/A"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setDuplicateDialogOpen(false);
+                      setDuplicateMatchDetails([]);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
               <div className="flex items-center space-x-3 mb-2">
