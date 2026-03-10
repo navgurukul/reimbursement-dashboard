@@ -142,7 +142,27 @@ export interface ReceiptInfo {
   path: string;
   size: number;
   mime_type: string;
+  content_hash?: string | null;
 }
+
+const bytesToHex = (bytes: Uint8Array) =>
+  Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+const computeFileContentHash = async (file: File): Promise<string | null> => {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await subtle.digest("SHA-256", buffer);
+    return bytesToHex(new Uint8Array(hashBuffer));
+  } catch (error) {
+    console.error("Failed to compute file hash:", error);
+    return null;
+  }
+};
 
 export interface PolicyValidation {
   policy_type: string;
@@ -1563,11 +1583,14 @@ export const expenses = {
           };
         }
 
+        const contentHash = await computeFileContentHash(receiptFile);
+
         receipt = {
           filename: receiptFile.name,
           path,
           size: receiptFile.size,
           mime_type: receiptFile.type,
+          content_hash: contentHash,
         };
       }
 
@@ -1782,11 +1805,14 @@ export const expenses = {
           };
         }
 
+        const contentHash = await computeFileContentHash(receiptFile);
+
         receipt = {
           filename: receiptFile.name,
           path,
           size: receiptFile.size,
           mime_type: receiptFile.type,
+          content_hash: contentHash,
         };
       }
 

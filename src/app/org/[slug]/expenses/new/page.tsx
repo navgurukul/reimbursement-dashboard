@@ -112,6 +112,7 @@ interface DuplicateCheckInput {
   location: string;
   amount: number;
   receiptFile?: File | null;
+  receiptHash?: string | null;
   voucherFile?: File | null;
   isVoucher?: boolean;
   voucherYourName?: string;
@@ -265,6 +266,12 @@ export default function NewExpensePage() {
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateMatchDetails, setDuplicateMatchDetails] =
     useState<DuplicateMatchDetails[]>([]);
+  const uploadFileHashCacheRef = useRef<Map<string, Promise<string | null>>>(
+    new Map()
+  );
+  const storedReceiptHashCacheRef = useRef<Map<string, Promise<string | null>>>(
+    new Map()
+  );
 
   const getDefaultValueByType = (type: string) => {
     switch (type) {
@@ -1027,6 +1034,78 @@ export default function NewExpensePage() {
       .trim()
       .toLowerCase();
 
+  const normalizeHash = (value?: string | null) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  const getFileHashCacheKey = (file: File) =>
+    [file.name, file.size, file.lastModified, file.type].join("|");
+
+  const bytesToHex = (bytes: Uint8Array) =>
+    Array.from(bytes)
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+
+  const hashArrayBuffer = async (
+    buffer: ArrayBuffer
+  ): Promise<string | null> => {
+    try {
+      const subtle = globalThis.crypto?.subtle;
+      if (!subtle) return null;
+      const digest = await subtle.digest("SHA-256", buffer);
+      return bytesToHex(new Uint8Array(digest));
+    } catch (error) {
+      console.error("Failed to hash file content:", error);
+      return null;
+    }
+  };
+
+  const getFileContentHash = async (file?: File | null) => {
+    if (!file) return null;
+
+    const cacheKey = getFileHashCacheKey(file);
+    const existingHashPromise = uploadFileHashCacheRef.current.get(cacheKey);
+    if (existingHashPromise) {
+      return existingHashPromise;
+    }
+
+    const hashPromise = (async () => {
+      const fileBuffer = await file.arrayBuffer();
+      return hashArrayBuffer(fileBuffer);
+    })();
+
+    uploadFileHashCacheRef.current.set(cacheKey, hashPromise);
+    return hashPromise;
+  };
+
+  const getStoredReceiptContentHash = async (path?: string | null) => {
+    if (!path) return null;
+
+    const existingHashPromise = storedReceiptHashCacheRef.current.get(path);
+    if (existingHashPromise) {
+      return existingHashPromise;
+    }
+
+    const hashPromise = (async () => {
+      const { url, error } = await expenses.getReceiptUrl(path);
+      if (error || !url) {
+        return null;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+
+      const buffer = await response.arrayBuffer();
+      return hashArrayBuffer(buffer);
+    })();
+
+    storedReceiptHashCacheRef.current.set(path, hashPromise);
+    return hashPromise;
+  };
+
   const normalizeVoucherText = (value?: string | null) =>
     String(value || "")
       .trim()
@@ -1072,7 +1151,10 @@ export default function NewExpensePage() {
     }
 
     const receiptSignature = candidate.receiptFile
-      ? `receipt:${normalizeFileName(candidate.receiptFile.name)}:${candidate.receiptFile.size}`
+      ? `receipt:${
+          normalizeHash(candidate.receiptHash) ||
+          `${normalizeFileName(candidate.receiptFile.name)}:${candidate.receiptFile.size}`
+        }`
       : "";
     const voucherFileSignature = candidate.voucherFile
       ? `voucher:${normalizeFileName(candidate.voucherFile.name)}:${candidate.voucherFile.size}`
@@ -1159,6 +1241,7 @@ export default function NewExpensePage() {
     location,
     amount,
     receiptFile,
+    receiptHash,
     voucherFile,
     isVoucher,
     voucherYourName,
@@ -1209,15 +1292,38 @@ export default function NewExpensePage() {
     }
 
     if (receiptFile) {
+      const normalizedReceiptHash = normalizeHash(receiptHash);
       const receiptName = normalizeFileName(receiptFile.name);
-      const matchedExpenses = potentialMatches.filter((entry: any) => {
-        const existingReceipt = entry?.receipt as ReceiptInfo | null;
-        if (!existingReceipt) return false;
-        return (
-          normalizeFileName(existingReceipt.filename) === receiptName &&
-          Number(existingReceipt.size) === Number(receiptFile.size)
-        );
-      });
+
+      const matchResults = await Promise.all(
+        potentialMatches.map(async (entry: any) => {
+          const existingReceipt = entry?.receipt as ReceiptInfo | null;
+          if (!existingReceipt) return false;
+
+          if (normalizedReceiptHash) {
+            const existingStoredHash = normalizeHash(existingReceipt.content_hash);
+            if (existingStoredHash) {
+              return existingStoredHash === normalizedReceiptHash;
+            }
+
+            const existingFileHash = normalizeHash(
+              await getStoredReceiptContentHash(existingReceipt.path)
+            );
+            if (existingFileHash) {
+              return existingFileHash === normalizedReceiptHash;
+            }
+          }
+
+          return (
+            normalizeFileName(existingReceipt.filename) === receiptName &&
+            Number(existingReceipt.size) === Number(receiptFile.size)
+          );
+        })
+      );
+
+      const matchedExpenses = potentialMatches.filter(
+        (_entry: any, index: number) => matchResults[index]
+      );
 
       if (!matchedExpenses.length) return [];
 
@@ -1398,14 +1504,25 @@ export default function NewExpensePage() {
   const runDuplicateCheck = async (
     duplicateCandidates: DuplicateCheckInput[]
   ): Promise<DuplicateMatchDetails[]> => {
+    const duplicateCandidatesWithHashes = await Promise.all(
+      duplicateCandidates.map(async (candidate) => ({
+        ...candidate,
+        receiptHash: candidate.receiptFile
+          ? await getFileContentHash(candidate.receiptFile)
+          : null,
+      }))
+    );
+
     const allDuplicateMatches: DuplicateMatchDetails[] = [];
 
-    const draftDuplicates = findDuplicatesInCurrentDraft(duplicateCandidates);
+    const draftDuplicates = findDuplicatesInCurrentDraft(
+      duplicateCandidatesWithHashes
+    );
     if (draftDuplicates.length > 0) {
       allDuplicateMatches.push(...draftDuplicates);
     }
 
-    for (const candidate of duplicateCandidates) {
+    for (const candidate of duplicateCandidatesWithHashes) {
       const duplicateMatchesForCandidate =
         await getPotentialDuplicatesForUser(candidate);
 
