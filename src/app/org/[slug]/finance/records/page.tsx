@@ -2201,7 +2201,7 @@ export default function PaymentRecords() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+      <div className="rounded-md border shadow-sm bg-white max-h-[100vh] overflow-x-auto overflow-y-auto">
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300">
             <TableRow>
