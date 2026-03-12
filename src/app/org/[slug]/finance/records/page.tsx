@@ -93,6 +93,7 @@ const getCustomFieldValue = (
 };
 
 export default function PaymentRecords() {
+  const RECORDS_PER_PAGE = 5;
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +102,9 @@ export default function PaymentRecords() {
   const searchParams = useSearchParams();
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+  const hasReturnNavigationParams =
+    Number(searchParams.get("page")) > 0 || Boolean(searchParams.get("expID"));
+  const isRestoringViewedExpenseRef = useRef(hasReturnNavigationParams);
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -159,6 +163,10 @@ export default function PaymentRecords() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    isRestoringViewedExpenseRef.current = hasReturnNavigationParams;
+  }, [hasReturnNavigationParams]);
+
   const handleBankTabChange = (value: "all" | "ngidfc" | "fcidfc" | "kotak") => {
     setActiveTab(value);
     const params = new URLSearchParams(searchParams.toString());
@@ -169,11 +177,13 @@ export default function PaymentRecords() {
   };
 
   // Use pagination hook
-  const pagination = usePagination(filteredRecords, 100);
+  const pagination = usePagination(filteredRecords, RECORDS_PER_PAGE);
 
   // Reset page when filters change
   useEffect(() => {
-    pagination.resetPage();
+    if (!isRestoringViewedExpenseRef.current) {
+      pagination.resetPage();
+    }
   }, [filters]);
 
   // Handle expID from URL parameter
@@ -181,34 +191,60 @@ export default function PaymentRecords() {
     const expID = searchParams.get("expID");
     if (expID) {
       setHighlightedExpenseId(expID);
-      // Clear the expID after 10 seconds
-      const timer = setTimeout(() => {
-        setHighlightedExpenseId(null);
-      }, 10000);
-      return () => clearTimeout(timer);
     }
   }, [searchParams]);
 
-  // Scroll to highlighted row when it's set
   useEffect(() => {
-    if (highlightedExpenseId && filteredRecords.length > 0) {
-      // Find which page the highlighted expense is on
+    if (!highlightedExpenseId) return;
+
+    const timer = window.setTimeout(() => {
+      setHighlightedExpenseId(null);
+    }, 10000);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId]);
+
+  useEffect(() => {
+    const pageParam = Number(searchParams.get("page"));
+    if (Number.isInteger(pageParam) && pageParam > 0) {
+      pagination.setCurrentPage(Math.min(pageParam, pagination.totalPages));
+    }
+  }, [searchParams, pagination.totalPages, pagination.setCurrentPage]);
+
+  // Move to the page containing the highlighted row
+  useEffect(() => {
+    const hasRequestedPage = Number(searchParams.get("page")) > 0;
+
+    if (highlightedExpenseId && filteredRecords.length > 0 && !hasRequestedPage) {
       const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
       if (recordIndex !== -1) {
-        const itemsPerPage = 100;
-        const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
+        const pageNumber = Math.floor(recordIndex / RECORDS_PER_PAGE) + 1;
         pagination.setCurrentPage(pageNumber);
-
-        // Scroll to the highlighted row after pagination updates
-        setTimeout(() => {
-          highlightedRowRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }, 200);
       }
     }
-  }, [highlightedExpenseId, filteredRecords]);
+  }, [highlightedExpenseId, filteredRecords, searchParams, RECORDS_PER_PAGE, pagination.setCurrentPage]);
+
+  // Scroll to highlighted row after the target page renders
+  useEffect(() => {
+    if (!highlightedExpenseId || !highlightedRowRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      highlightedRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      if (hasReturnNavigationParams) {
+        isRestoringViewedExpenseRef.current = false;
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("page");
+        params.delete("expID");
+        router.replace(`?${params.toString()}`, { scroll: false });
+      }
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId, pagination.currentPage, pagination.paginatedData, hasReturnNavigationParams, searchParams, router]);
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;
     id: string | null;
@@ -1058,7 +1094,9 @@ export default function PaymentRecords() {
 
   // Reset to page 1 when filters change
   useEffect(() => {
-    pagination.resetPage();
+    if (!isRestoringViewedExpenseRef.current) {
+      pagination.resetPage();
+    }
   }, [filteredRecords]);
 
   const clearFilters = () => {
@@ -2603,6 +2641,7 @@ export default function PaymentRecords() {
                               onClick={() => {
                                 const params = new URLSearchParams();
                                 params.set("activeTab", activeTab);
+                                params.set("page", String(pagination.currentPage));
                                 router.push(
                                   `/org/${slug}/finance/records/${record.id}?${params.toString()}`
                                 );
@@ -2676,7 +2715,7 @@ export default function PaymentRecords() {
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
-          itemsPerPage={100}
+          itemsPerPage={RECORDS_PER_PAGE}
           onPageChange={pagination.setCurrentPage}
           isLoading={loading}
           itemLabel="Records"
