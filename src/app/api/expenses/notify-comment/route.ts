@@ -7,6 +7,15 @@ interface Recipient {
   name?: string;
 }
 
+interface CommentRecipientRow {
+  id: string;
+  user: {
+    email?: string | null;
+    full_name?: string | null;
+    user_id?: string | null;
+  } | null;
+}
+
 const escapeHtml = (value: string) =>
   value
     .replace(/&/g, "&amp;")
@@ -114,12 +123,99 @@ export async function POST(req: NextRequest) {
       "finance_rejected",
       "ready_for_payment",
     ]);
+    const statusLabel = (expenseData.status || "").toLowerCase();
+    const isApprovedByApprover = approvedStatuses.has(statusLabel);
+    const isCreatorAfterApproval = isCreator && isApprovedByApprover;
 
     const isFinanceAfterApproval =
       !isCreator &&
       !isApprover &&
       financeRoles.has(commenterRoleNormalized) &&
-      approvedStatuses.has((expenseData.status || "").toLowerCase());
+      isApprovedByApprover;
+
+    const dedupeRecipients = (recipients: Recipient[]) =>
+      recipients.filter((r, idx, arr) => {
+        const normalizedEmail = (r.email || "").toLowerCase();
+        return (
+          normalizedEmail &&
+          arr.findIndex((x) => (x.email || "").toLowerCase() === normalizedEmail) === idx
+        );
+      });
+
+    const dedupeLabels = (labels: string[]) =>
+      labels.filter((label, idx, arr) => {
+        const normalizedLabel = String(label || "").trim().toLowerCase();
+        return (
+          normalizedLabel &&
+          arr.findIndex((x) => String(x || "").trim().toLowerCase() === normalizedLabel) === idx
+        );
+      });
+
+    let thirdPartyCommenterRecipients: Recipient[] = [];
+    let thirdPartyCommenterLabels: string[] = [];
+    if (isCreatorAfterApproval) {
+      const { data: priorCommentRows, error: priorCommentsError } = await supabaseAdmin
+        .from("expense_comments")
+        .select(
+          `
+          id,
+          user:profiles!user_id (
+            email,
+            full_name,
+            user_id
+          )
+        `
+        )
+        .eq("expense_id", expenseId)
+        .eq("is_deleted", false);
+
+      if (priorCommentsError) {
+        console.error("Error fetching prior commenters for notification:", priorCommentsError);
+      }
+
+      if (priorCommentRows?.length) {
+        const excludedEmails = new Set(
+          [commenterEmail, creatorProfile?.email, approverProfile?.email]
+            .filter(Boolean)
+            .map((email) => String(email).toLowerCase())
+        );
+        const excludedUserIds = new Set(
+          [commenterUserId, expenseData.user_id, expenseData.approver_id]
+            .filter(Boolean)
+            .map((id) => String(id))
+        );
+
+        const thirdPartyParticipants = (priorCommentRows as CommentRecipientRow[])
+          .filter((row) => !commentId || row.id !== commentId)
+          .map((row) => ({
+            email: row.user?.email || "",
+            name: row.user?.full_name || "",
+            userId: row.user?.user_id || "",
+          }))
+          .filter((row) => {
+            const normalizedEmail = String(row.email || "").toLowerCase();
+            if (normalizedEmail && excludedEmails.has(normalizedEmail)) return false;
+            if (row.userId && excludedUserIds.has(row.userId)) return false;
+            return Boolean(row.name || row.email);
+          });
+
+        thirdPartyCommenterLabels = dedupeLabels(
+          thirdPartyParticipants
+            .map((row) => row.name || row.email)
+            .filter(Boolean)
+        );
+
+        thirdPartyCommenterRecipients = dedupeRecipients(
+          thirdPartyParticipants
+            .filter((row) => {
+              const normalizedEmail = String(row.email || "").toLowerCase();
+              if (!normalizedEmail) return false;
+              return true;
+            })
+            .map((row) => ({ email: row.email, name: row.name }))
+        );
+      }
+    }
 
     // Decide recipients based on commenter identity
     const toRecipients: Recipient[] = [];
@@ -127,6 +223,9 @@ export async function POST(req: NextRequest) {
 
     if (isCreator) {
       if (approverRecipient) toRecipients.push(approverRecipient);
+      if (isCreatorAfterApproval && thirdPartyCommenterRecipients.length > 0) {
+        ccRecipients.push(...thirdPartyCommenterRecipients);
+      }
     } else if (isApprover) {
       if (creatorRecipient) toRecipients.push(creatorRecipient);
     } else if (isFinanceAfterApproval) {
@@ -147,22 +246,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const dedupeRecipients = (recipients: Recipient[]) =>
-      recipients.filter(
-        (r, idx, arr) => arr.findIndex((x) => x.email === r.email) === idx
-      );
-
     // Remove duplicates and exclude the commenter from recipients
     let uniqueToRecipients = dedupeRecipients(toRecipients).filter((r) => {
+      const normalizedRecipientEmail = (r.email || "").toLowerCase();
+      const normalizedCommenterEmail = (commenterEmail || "").toLowerCase();
       if (!r.email) return false;
-      if (commenterEmail && r.email === commenterEmail) return false;
+      if (normalizedCommenterEmail && normalizedRecipientEmail === normalizedCommenterEmail) return false;
       return true;
     });
 
     let uniqueCcRecipients = dedupeRecipients(ccRecipients).filter((r) => {
+      const normalizedRecipientEmail = (r.email || "").toLowerCase();
+      const normalizedCommenterEmail = (commenterEmail || "").toLowerCase();
       if (!r.email) return false;
-      if (commenterEmail && r.email === commenterEmail) return false;
-      if (uniqueToRecipients.some((to) => to.email === r.email)) return false;
+      if (normalizedCommenterEmail && normalizedRecipientEmail === normalizedCommenterEmail) return false;
+      if (uniqueToRecipients.some((to) => (to.email || "").toLowerCase() === normalizedRecipientEmail)) return false;
       return true;
     });
 
@@ -203,12 +301,18 @@ export async function POST(req: NextRequest) {
     const approverLabel =
       approverProfile?.full_name || approverProfile?.email || "Not assigned";
     const commentedByLabel = commenterName || commenterEmail || "Someone";
-    const statusLabel = (expenseData.status || "").toLowerCase();
-    const isApprovedByApprover = approvedStatuses.has(statusLabel);
 
     const commentDirectionLine = (() => {
       if (isFinanceAfterApproval) {
-        return `This comment was added by ${commentedByLabel} (Finance Team) for ${requesterLabel} (Expense Creator) after the expense was approved by the expense approver.`;
+        return `This comment was added by ${commentedByLabel} (Finance Team) to ${requesterLabel} (Expense Creator) after the expense was approved by the expense approver.`;
+      }
+
+      if (isCreatorAfterApproval && thirdPartyCommenterRecipients.length > 0) {
+        return `This comment was added by ${requesterLabel} (Expense Creator) to the Finance Team after the expense was approved by the Approver.`;
+      }
+
+      if (isCreatorAfterApproval) {
+        return `This comment was added by ${requesterLabel} (Expense Creator) to ${approverLabel} (Expense Approver) after the expense was approved by the expense approver.`;
       }
 
       if (!isApprovedByApprover && isCreator) {
@@ -230,9 +334,26 @@ export async function POST(req: NextRequest) {
       return `This comment was added by ${commentedByLabel} and shared with relevant stakeholders for this expense.`;
     })();
 
+    const ccLineRecipients = dedupeRecipients([
+      ...uniqueCcRecipients,
+      ...(isCreatorAfterApproval && approverRecipient ? [approverRecipient] : []),
+    ]).filter((r) => {
+      const normalizedRecipientEmail = (r.email || "").toLowerCase();
+      const normalizedCommenterEmail = (commenterEmail || "").toLowerCase();
+      if (!normalizedRecipientEmail) return false;
+      if (normalizedCommenterEmail && normalizedRecipientEmail === normalizedCommenterEmail) return false;
+      return true;
+    });
+
+    const ccLineLabelsForCreatorAfterApproval = dedupeLabels(
+      isCreatorAfterApproval ? [approverLabel] : []
+    );
+
     const ccLine =
-      uniqueCcRecipients.length > 0
-        ? `CC: ${uniqueCcRecipients
+      ccLineLabelsForCreatorAfterApproval.length > 0
+        ? `CC: ${ccLineLabelsForCreatorAfterApproval.join(", ")}`
+        : ccLineRecipients.length > 0
+        ? `CC: ${ccLineRecipients
             .map((r) => r.name || r.email)
             .filter(Boolean)
             .join(", ")}`
