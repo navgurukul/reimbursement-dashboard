@@ -302,11 +302,11 @@ export async function POST(req: NextRequest) {
             <body>
               <div class="container">
                 <div class="header">
-                  <div style="font-size: 18px; font-weight: 600;">Comment message from ${escapeHtml(String(orgName))} organization</div>
+                  <h1>Comment message from ${escapeHtml(String(orgName))} organization</h1>
                 </div>
                 <div class="content">
-                  <p>${escapeHtml(greetingLine)}</p>
-                  <div class="meta">${safeCommentDirectionLine}</div>
+                  <h2><strong>${escapeHtml(greetingLine)}</strong></h2>
+                  <h3 class="meta"><strong>${safeCommentDirectionLine}</strong></h3>
                   <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
                   <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
                   ${htmlComment}
