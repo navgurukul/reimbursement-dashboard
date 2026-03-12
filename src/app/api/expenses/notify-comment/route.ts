@@ -266,15 +266,24 @@ export async function POST(req: NextRequest) {
     const expenseTypeLabel = expenseData.expense_type || "Expense";
     const amountLabel = typeof expenseData.amount === "number" ? expenseData.amount.toFixed(2) : expenseData.amount;
 
-    const greetingName = uniqueToRecipients.length === 1 ? uniqueToRecipients[0].name : null;
+    const allRecipients = dedupeRecipients([
+      ...uniqueToRecipients,
+      ...uniqueCcRecipients,
+    ]);
 
-    const mailOptions = {
-      from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
-      to: uniqueToRecipients.map((r) => r.email).join(", "),
-      cc: uniqueCcRecipients.length > 0 ? uniqueCcRecipients.map((r) => r.email).join(", ") : undefined,
-      subject,
-      text: `${greetingName ? `Hi ${greetingName},\n\n` : "Hello,\n\n"}A new comment was added to an expense you are involved with.\n\nExpense: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\n${textComment}\n\nView details: ${expenseUrl}`,
-      html: `
+    for (const recipient of allRecipients) {
+      const greetingLine = recipient.name
+        ? `Hi ${recipient.name},`
+        : recipient.email
+          ? `Hi ${recipient.email},`
+          : "Hello,";
+
+      const mailOptions = {
+        from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+        to: recipient.email,
+        subject,
+        text: `${greetingLine}\n\nA new comment was added to an expense you are involved with.\n\nExpense: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\n${textComment}\n\nView details: ${expenseUrl}`,
+        html: `
           <!DOCTYPE html>
           <html>
             <head>
@@ -296,7 +305,7 @@ export async function POST(req: NextRequest) {
                   <div style="font-size: 18px; font-weight: 600;">Comment message from ${escapeHtml(String(orgName))} organization</div>
                 </div>
                 <div class="content">
-                  <p>Hi ${escapeHtml(greetingName || "there")},</p>
+                  <p>${escapeHtml(greetingLine)}</p>
                   <div class="meta">${safeCommentDirectionLine}</div>
                   <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
                   <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
@@ -310,11 +319,12 @@ export async function POST(req: NextRequest) {
             </body>
           </html>
         `,
-    } as any;
+      } as any;
 
-    await transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
+    }
 
-    return NextResponse.json({ success: true, sent: uniqueToRecipients.length, cc: uniqueCcRecipients.length });
+    return NextResponse.json({ success: true, sent: allRecipients.length, cc: uniqueCcRecipients.length });
   } catch (error: any) {
     console.error("Error sending comment notification:", error);
     return NextResponse.json({ error: error?.message || "Failed to send comment notification" }, { status: 500 });
