@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
+interface Recipient {
+  email: string;
+  name?: string;
+}
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
 const transporter = nodemailer.createTransport({
   host: process.env.NEXT_PUBLIC_SMTP_HOST,
   port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
@@ -37,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Load expense to determine org, creator and approver
     const { data: expenseData, error: expenseError } = await supabaseAdmin
       .from("expense_new")
-      .select("*, org_id, user_id, approver_id, expense_type, amount")
+      .select("id, org_id, user_id, approver_id, expense_type, amount, status")
       .eq("id", expenseId)
       .single();
 
@@ -78,60 +91,88 @@ export async function POST(req: NextRequest) {
       commenterRole = orgUser?.role || null;
     }
 
-    // Decide recipients based on commenter role
-    const recipients: { email: string; name?: string }[] = [];
+    const creatorRecipient: Recipient | null = creatorProfile?.email
+      ? { email: creatorProfile.email, name: creatorProfile.full_name }
+      : null;
+    const approverRecipient: Recipient | null = approverProfile?.email
+      ? { email: approverProfile.email, name: approverProfile.full_name }
+      : null;
 
-    const isCreator = commenterUserId === expenseData.user_id;
-    const isApprover = commenterUserId === expenseData.approver_id;
-    const isFinance = commenterRole === "finance" || commenterRole === "Finance";
+    const isCreator =
+      (commenterUserId && commenterUserId === expenseData.user_id) ||
+      (commenterEmail && creatorProfile?.email === commenterEmail);
+    const isApprover =
+      (commenterUserId && commenterUserId === expenseData.approver_id) ||
+      (commenterEmail && approverProfile?.email === commenterEmail);
 
-    if (isFinance) {
-      if (approverProfile && approverProfile.email) recipients.push({ email: approverProfile.email, name: approverProfile.full_name });
-      if (creatorProfile && creatorProfile.email) recipients.push({ email: creatorProfile.email, name: creatorProfile.full_name });
-    } else if (isCreator) {
-      // notify approver only
-      if (approverProfile && approverProfile.email) recipients.push({ email: approverProfile.email, name: approverProfile.full_name });
+    const commenterRoleNormalized = (commenterRole || "").toLowerCase();
+    const financeRoles = new Set(["finance", "owner", "admin", "manager"]);
+    const approvedStatuses = new Set([
+      "approved",
+      "approved_as_per_policy",
+      "finance_approved",
+      "finance_rejected",
+      "ready_for_payment",
+    ]);
+
+    const isFinanceAfterApproval =
+      !isCreator &&
+      !isApprover &&
+      financeRoles.has(commenterRoleNormalized) &&
+      approvedStatuses.has((expenseData.status || "").toLowerCase());
+
+    // Decide recipients based on commenter identity
+    const toRecipients: Recipient[] = [];
+    const ccRecipients: Recipient[] = [];
+
+    if (isCreator) {
+      if (approverRecipient) toRecipients.push(approverRecipient);
     } else if (isApprover) {
-      // notify creator only
-      if (creatorProfile && creatorProfile.email) recipients.push({ email: creatorProfile.email, name: creatorProfile.full_name });
-    } else {
-      // If role unknown, default: notify creator and approver if present
-      if (approverProfile && approverProfile.email) recipients.push({ email: approverProfile.email, name: approverProfile.full_name });
-      if (creatorProfile && creatorProfile.email) recipients.push({ email: creatorProfile.email, name: creatorProfile.full_name });
-    }
-
-    // Include all previous commenters on this expense (participants)
-    try {
-      const { data: commentRows } = await supabaseAdmin
-        .from("expense_comments")
-        .select(`user:profiles!user_id (id, user_id, full_name, email)`)
-        .eq("expense_id", expenseId)
-        .eq("is_deleted", false);
-
-      if (commentRows && Array.isArray(commentRows)) {
-        for (const row of commentRows) {
-          // supabase can return the related record as an array or an object; normalize to an object
-          const u = Array.isArray(row.user) ? row.user[0] : row.user;
-          if (u && u.email) {
-            recipients.push({ email: u.email, name: u.full_name });
-          }
-        }
+      if (creatorRecipient) toRecipients.push(creatorRecipient);
+    } else if (isFinanceAfterApproval) {
+      if (creatorRecipient) toRecipients.push(creatorRecipient);
+      if (
+        approverRecipient &&
+        (!creatorRecipient || approverRecipient.email !== creatorRecipient.email)
+      ) {
+        ccRecipients.push(approverRecipient);
       }
-    } catch (e) {
-      // ignore failures to fetch commenters
+    } else {
+      if (creatorRecipient) toRecipients.push(creatorRecipient);
+      if (
+        approverRecipient &&
+        (!creatorRecipient || approverRecipient.email !== creatorRecipient.email)
+      ) {
+        ccRecipients.push(approverRecipient);
+      }
     }
 
-    // Remove duplicates
-    let uniqueRecipients = recipients.filter((r, idx, arr) => arr.findIndex(x => x.email === r.email) === idx);
+    const dedupeRecipients = (recipients: Recipient[]) =>
+      recipients.filter(
+        (r, idx, arr) => arr.findIndex((x) => x.email === r.email) === idx
+      );
 
-    // Exclude the commenter from recipients
-    uniqueRecipients = uniqueRecipients.filter((r) => {
+    // Remove duplicates and exclude the commenter from recipients
+    let uniqueToRecipients = dedupeRecipients(toRecipients).filter((r) => {
       if (!r.email) return false;
       if (commenterEmail && r.email === commenterEmail) return false;
       return true;
     });
 
-    if (uniqueRecipients.length === 0) {
+    let uniqueCcRecipients = dedupeRecipients(ccRecipients).filter((r) => {
+      if (!r.email) return false;
+      if (commenterEmail && r.email === commenterEmail) return false;
+      if (uniqueToRecipients.some((to) => to.email === r.email)) return false;
+      return true;
+    });
+
+    // Ensure at least one TO recipient for SMTP compatibility
+    if (uniqueToRecipients.length === 0 && uniqueCcRecipients.length > 0) {
+      uniqueToRecipients = [uniqueCcRecipients[0]];
+      uniqueCcRecipients = uniqueCcRecipients.slice(1);
+    }
+
+    if (uniqueToRecipients.length === 0) {
       return NextResponse.json({ success: true, message: "No recipients for comment notification" });
     }
 
@@ -157,25 +198,83 @@ export async function POST(req: NextRequest) {
     // Compose email
     const subject = `New Comment on ${expenseData.expense_type} Expense`;
 
+    const requesterLabel =
+      creatorProfile?.full_name || creatorProfile?.email || "Unknown requester";
+    const approverLabel =
+      approverProfile?.full_name || approverProfile?.email || "Not assigned";
+    const commentedByLabel = commenterName || commenterEmail || "Someone";
+    const statusLabel = (expenseData.status || "").toLowerCase();
+    const isApprovedByApprover = approvedStatuses.has(statusLabel);
+
+    const commentDirectionLine = (() => {
+      if (isFinanceAfterApproval) {
+        return `This comment was added by ${commentedByLabel} (Finance side) to ${requesterLabel} (Expense Creator).`;
+      }
+
+      if (!isApprovedByApprover && isCreator) {
+        return `This comment was added by ${requesterLabel} (Expense Creator) to ${approverLabel} (Expense Approver).`;
+      }
+
+      if (!isApprovedByApprover && isApprover) {
+        return `This comment was added by ${approverLabel} (Expense Approver) to ${requesterLabel} (Expense Creator).`;
+      }
+
+      if (isApprover) {
+        return `This comment was added by ${approverLabel} (Expense Approver) to ${requesterLabel} (Expense Creator).`;
+      }
+
+      if (isCreator) {
+        return `This comment was added by ${requesterLabel} (Expense Creator) to ${approverLabel} (Expense Approver).`;
+      }
+
+      return `This comment was added by ${commentedByLabel} and shared with relevant stakeholders for this expense.`;
+    })();
+
+    const ccLine =
+      uniqueCcRecipients.length > 0
+        ? `CC: ${uniqueCcRecipients
+            .map((r) => r.name || r.email)
+            .filter(Boolean)
+            .join(", ")}`
+        : "";
+
+    const safeComment = escapeHtml(String(commentContent));
+    const safeRequester = escapeHtml(requesterLabel);
+    const safeApprover = escapeHtml(approverLabel);
+    const safeCommentedBy = escapeHtml(commentedByLabel);
+    const safeCommentDirectionLine = escapeHtml(commentDirectionLine);
+    const safeCcLine = escapeHtml(ccLine);
+
     const htmlComment = `
-      <div class="meta"><strong>Comment:</strong> ${commentContent}</div>
-      <div class="meta" style="margin-top:8px;"><strong>From:</strong> ${commenterName || commenterEmail || "Someone"}</div>
+      <div class="meta"><strong>Expense Creator Name :</strong> ${safeRequester}</div>
+      <div class="meta"><strong>Expense Approver Name :</strong> ${safeApprover}</div>
+      <div class="meta"><strong>Commented by :</strong> ${safeCommentedBy}</div>
+      <div class="meta"><strong>Comment Message :</strong> ${safeComment}</div>
+      ${safeCcLine ? `<div class="meta"><strong>${safeCcLine}</strong></div>` : ""}
     `;
 
-    const textComment = `Comment: ${commentContent}\nFrom: ${commenterName || commenterEmail || "Someone"}`;
+    const textComment = [
+      `${commentDirectionLine}`,
+      `Expense Creator Name : ${requesterLabel}`,
+      `Expense Approver Name : ${approverLabel}`,
+      `Commented by : ${commentedByLabel}`,
+      `Comment Message : ${commentContent}`,
+      ...(ccLine ? [ccLine] : []),
+    ].join("\n");
 
     // Expense details
     const expenseTypeLabel = expenseData.expense_type || "Expense";
     const amountLabel = typeof expenseData.amount === "number" ? expenseData.amount.toFixed(2) : expenseData.amount;
 
-    // Send emails to each recipient
-    for (const r of uniqueRecipients) {
-      const mailOptions = {
-        from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
-        to: r.email,
-        subject,
-        text: `${r.name ? `Hi ${r.name},\n\n` : "Hello,\n\n"}A new comment was added to an expense you are involved with.\n\nExpense: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\n${textComment}\n\nView details: ${expenseUrl}`,
-        html: `
+    const greetingName = uniqueToRecipients.length === 1 ? uniqueToRecipients[0].name : null;
+
+    const mailOptions = {
+      from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      to: uniqueToRecipients.map((r) => r.email).join(", "),
+      cc: uniqueCcRecipients.length > 0 ? uniqueCcRecipients.map((r) => r.email).join(", ") : undefined,
+      subject,
+      text: `${greetingName ? `Hi ${greetingName},\n\n` : "Hello,\n\n"}A new comment was added to an expense you are involved with.\n\nExpense: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\n${textComment}\n\nView details: ${expenseUrl}`,
+      html: `
           <!DOCTYPE html>
           <html>
             <head>
@@ -194,10 +293,11 @@ export async function POST(req: NextRequest) {
             <body>
               <div class="container">
                 <div class="header">
-                  <div style="font-size: 18px; font-weight: 600;">Comment message from ${orgName} organization</div>
+                  <div style="font-size: 18px; font-weight: 600;">Comment message from ${escapeHtml(String(orgName))} organization</div>
                 </div>
                 <div class="content">
-                  <p>Hi ${r.name || "there"},</p>
+                  <p>Hi ${escapeHtml(greetingName || "there")},</p>
+                  <div class="meta">${safeCommentDirectionLine}</div>
                   <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
                   <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
                   ${htmlComment}
@@ -210,12 +310,11 @@ export async function POST(req: NextRequest) {
             </body>
           </html>
         `,
-      } as any;
+    } as any;
 
-      await transporter.sendMail(mailOptions);
-    }
+    await transporter.sendMail(mailOptions);
 
-    return NextResponse.json({ success: true, sent: uniqueRecipients.length });
+    return NextResponse.json({ success: true, sent: uniqueToRecipients.length, cc: uniqueCcRecipients.length });
   } catch (error: any) {
     console.error("Error sending comment notification:", error);
     return NextResponse.json({ error: error?.message || "Failed to send comment notification" }, { status: 500 });

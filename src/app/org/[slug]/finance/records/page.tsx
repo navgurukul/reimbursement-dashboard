@@ -93,7 +93,7 @@ const getCustomFieldValue = (
 };
 
 export default function PaymentRecords() {
-  const RECORDS_PER_PAGE = 5;
+  const RECORDS_PER_PAGE = 100;
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
