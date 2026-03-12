@@ -208,15 +208,15 @@ export async function POST(req: NextRequest) {
 
     const commentDirectionLine = (() => {
       if (isFinanceAfterApproval) {
-        return `This comment was added by ${commentedByLabel} (Finance side) to ${requesterLabel} (Expense Creator).`;
+        return `This comment was added by ${commentedByLabel} (Finance Team) for ${requesterLabel} (Expense Creator) after the expense was approved by the expense approver.`;
       }
 
       if (!isApprovedByApprover && isCreator) {
-        return `This comment was added by ${requesterLabel} (Expense Creator) to ${approverLabel} (Expense Approver).`;
+        return `This comment was added by ${requesterLabel} (Expense Creator) to ${approverLabel} (Expense Approver) while the expense was pending approval.`;
       }
 
       if (!isApprovedByApprover && isApprover) {
-        return `This comment was added by ${approverLabel} (Expense Approver) to ${requesterLabel} (Expense Creator).`;
+        return `This comment was added by ${approverLabel} (Expense Approver) to ${requesterLabel} (Expense Creator) while the expense was pending approval.`;
       }
 
       if (isApprover) {
