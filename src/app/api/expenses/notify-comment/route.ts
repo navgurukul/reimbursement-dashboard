@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
+interface Recipient {
+  email: string;
+  name?: string;
+}
+
+interface CommentRecipientRow {
+  id: string;
+  user: {
+    email?: string | null;
+    full_name?: string | null;
+    user_id?: string | null;
+  } | null;
+}
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
 const transporter = nodemailer.createTransport({
   host: process.env.NEXT_PUBLIC_SMTP_HOST,
   port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
@@ -37,7 +59,7 @@ export async function POST(req: NextRequest) {
     // Load expense to determine org, creator and approver
     const { data: expenseData, error: expenseError } = await supabaseAdmin
       .from("expense_new")
-      .select("*, org_id, user_id, approver_id, expense_type, amount")
+      .select("id, org_id, user_id, approver_id, expense_type, amount, status")
       .eq("id", expenseId)
       .single();
 
@@ -78,61 +100,180 @@ export async function POST(req: NextRequest) {
       commenterRole = orgUser?.role || null;
     }
 
-    // Decide recipients based on commenter role
-    const recipients: { email: string; name?: string }[] = [];
+    const creatorRecipient: Recipient | null = creatorProfile?.email
+      ? { email: creatorProfile.email, name: creatorProfile.full_name }
+      : null;
+    const approverRecipient: Recipient | null = approverProfile?.email
+      ? { email: approverProfile.email, name: approverProfile.full_name }
+      : null;
 
-    const isCreator = commenterUserId === expenseData.user_id;
-    const isApprover = commenterUserId === expenseData.approver_id;
-    const isFinance = commenterRole === "finance" || commenterRole === "Finance";
+    const isCreator =
+      (commenterUserId && commenterUserId === expenseData.user_id) ||
+      (commenterEmail && creatorProfile?.email === commenterEmail);
+    const isApprover =
+      (commenterUserId && commenterUserId === expenseData.approver_id) ||
+      (commenterEmail && approverProfile?.email === commenterEmail);
 
-    if (isFinance) {
-      if (approverProfile && approverProfile.email) recipients.push({ email: approverProfile.email, name: approverProfile.full_name });
-      if (creatorProfile && creatorProfile.email) recipients.push({ email: creatorProfile.email, name: creatorProfile.full_name });
-    } else if (isCreator) {
-      // notify approver only
-      if (approverProfile && approverProfile.email) recipients.push({ email: approverProfile.email, name: approverProfile.full_name });
-    } else if (isApprover) {
-      // notify creator only
-      if (creatorProfile && creatorProfile.email) recipients.push({ email: creatorProfile.email, name: creatorProfile.full_name });
-    } else {
-      // If role unknown, default: notify creator and approver if present
-      if (approverProfile && approverProfile.email) recipients.push({ email: approverProfile.email, name: approverProfile.full_name });
-      if (creatorProfile && creatorProfile.email) recipients.push({ email: creatorProfile.email, name: creatorProfile.full_name });
-    }
+    const commenterRoleNormalized = (commenterRole || "").toLowerCase();
+    const financeRoles = new Set(["finance", "owner", "admin", "manager"]);
+    const approvedStatuses = new Set([
+      "approved",
+      "approved_as_per_policy",
+      "finance_approved",
+      "finance_rejected",
+      "ready_for_payment",
+    ]);
+    const statusLabel = (expenseData.status || "").toLowerCase();
+    const isApprovedByApprover = approvedStatuses.has(statusLabel);
+    const isCreatorAfterApproval = isCreator && isApprovedByApprover;
 
-    // Include all previous commenters on this expense (participants)
-    try {
-      const { data: commentRows } = await supabaseAdmin
+    const isFinanceAfterApproval =
+      !isCreator &&
+      !isApprover &&
+      financeRoles.has(commenterRoleNormalized) &&
+      isApprovedByApprover;
+
+    const dedupeRecipients = (recipients: Recipient[]) =>
+      recipients.filter((r, idx, arr) => {
+        const normalizedEmail = (r.email || "").toLowerCase();
+        return (
+          normalizedEmail &&
+          arr.findIndex((x) => (x.email || "").toLowerCase() === normalizedEmail) === idx
+        );
+      });
+
+    const dedupeLabels = (labels: string[]) =>
+      labels.filter((label, idx, arr) => {
+        const normalizedLabel = String(label || "").trim().toLowerCase();
+        return (
+          normalizedLabel &&
+          arr.findIndex((x) => String(x || "").trim().toLowerCase() === normalizedLabel) === idx
+        );
+      });
+
+    let thirdPartyCommenterRecipients: Recipient[] = [];
+    let thirdPartyCommenterLabels: string[] = [];
+    if (isCreatorAfterApproval) {
+      const { data: priorCommentRows, error: priorCommentsError } = await supabaseAdmin
         .from("expense_comments")
-        .select(`user:profiles!user_id (id, user_id, full_name, email)`)
+        .select(
+          `
+          id,
+          user:profiles!user_id (
+            email,
+            full_name,
+            user_id
+          )
+        `
+        )
         .eq("expense_id", expenseId)
         .eq("is_deleted", false);
 
-      if (commentRows && Array.isArray(commentRows)) {
-        for (const row of commentRows) {
-          // supabase can return the related record as an array or an object; normalize to an object
-          const u = Array.isArray(row.user) ? row.user[0] : row.user;
-          if (u && u.email) {
-            recipients.push({ email: u.email, name: u.full_name });
-          }
-        }
+      if (priorCommentsError) {
+        console.error("Error fetching prior commenters for notification:", priorCommentsError);
       }
-    } catch (e) {
-      // ignore failures to fetch commenters
+
+      if (priorCommentRows?.length) {
+        const excludedEmails = new Set(
+          [commenterEmail, creatorProfile?.email, approverProfile?.email]
+            .filter(Boolean)
+            .map((email) => String(email).toLowerCase())
+        );
+        const excludedUserIds = new Set(
+          [commenterUserId, expenseData.user_id, expenseData.approver_id]
+            .filter(Boolean)
+            .map((id) => String(id))
+        );
+
+        const thirdPartyParticipants = (priorCommentRows as CommentRecipientRow[])
+          .filter((row) => !commentId || row.id !== commentId)
+          .map((row) => ({
+            email: row.user?.email || "",
+            name: row.user?.full_name || "",
+            userId: row.user?.user_id || "",
+          }))
+          .filter((row) => {
+            const normalizedEmail = String(row.email || "").toLowerCase();
+            if (normalizedEmail && excludedEmails.has(normalizedEmail)) return false;
+            if (row.userId && excludedUserIds.has(row.userId)) return false;
+            return Boolean(row.name || row.email);
+          });
+
+        thirdPartyCommenterLabels = dedupeLabels(
+          thirdPartyParticipants
+            .map((row) => row.name || row.email)
+            .filter(Boolean)
+        );
+
+        thirdPartyCommenterRecipients = dedupeRecipients(
+          thirdPartyParticipants
+            .filter((row) => {
+              const normalizedEmail = String(row.email || "").toLowerCase();
+              if (!normalizedEmail) return false;
+              return true;
+            })
+            .map((row) => ({ email: row.email, name: row.name }))
+        );
+      }
     }
 
-    // Remove duplicates
-    let uniqueRecipients = recipients.filter((r, idx, arr) => arr.findIndex(x => x.email === r.email) === idx);
+    // Decide recipients based on commenter identity
+    const toRecipients: Recipient[] = [];
+    const ccRecipients: Recipient[] = [];
 
-    // Exclude the commenter from recipients
-    uniqueRecipients = uniqueRecipients.filter((r) => {
+    if (isCreator) {
+      if (isCreatorAfterApproval) {
+        if (thirdPartyCommenterRecipients.length > 0) {
+          toRecipients.push(...thirdPartyCommenterRecipients);
+        }
+        if (approverRecipient) {
+          ccRecipients.push(approverRecipient);
+        }
+      } else if (approverRecipient) {
+        toRecipients.push(approverRecipient);
+      }
+    } else if (isApprover) {
+      if (creatorRecipient) toRecipients.push(creatorRecipient);
+    } else if (isFinanceAfterApproval) {
+      if (creatorRecipient) toRecipients.push(creatorRecipient);
+      if (
+        approverRecipient &&
+        (!creatorRecipient || approverRecipient.email !== creatorRecipient.email)
+      ) {
+        ccRecipients.push(approverRecipient);
+      }
+    } else {
+      if (creatorRecipient) toRecipients.push(creatorRecipient);
+      if (
+        approverRecipient &&
+        (!creatorRecipient || approverRecipient.email !== creatorRecipient.email)
+      ) {
+        ccRecipients.push(approverRecipient);
+      }
+    }
+
+    // Remove duplicates and exclude the commenter from recipients
+    let uniqueToRecipients = dedupeRecipients(toRecipients).filter((r) => {
+      const normalizedRecipientEmail = (r.email || "").toLowerCase();
+      const normalizedCommenterEmail = (commenterEmail || "").toLowerCase();
       if (!r.email) return false;
-      if (commenterEmail && r.email === commenterEmail) return false;
+      if (normalizedCommenterEmail && normalizedRecipientEmail === normalizedCommenterEmail) return false;
       return true;
     });
 
-    if (uniqueRecipients.length === 0) {
-      return NextResponse.json({ success: true, message: "No recipients for comment notification" });
+    let uniqueCcRecipients = dedupeRecipients(ccRecipients).filter((r) => {
+      const normalizedRecipientEmail = (r.email || "").toLowerCase();
+      const normalizedCommenterEmail = (commenterEmail || "").toLowerCase();
+      if (!r.email) return false;
+      if (normalizedCommenterEmail && normalizedRecipientEmail === normalizedCommenterEmail) return false;
+      if (uniqueToRecipients.some((to) => (to.email || "").toLowerCase() === normalizedRecipientEmail)) return false;
+      return true;
+    });
+
+    if (uniqueToRecipients.length === 0) {
+      if (uniqueCcRecipients.length === 0) {
+        return NextResponse.json({ success: true, message: "No recipients for comment notification" });
+      }
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -157,25 +298,114 @@ export async function POST(req: NextRequest) {
     // Compose email
     const subject = `New Comment on ${expenseData.expense_type} Expense`;
 
+    const requesterLabel =
+      creatorProfile?.full_name || creatorProfile?.email || "Unknown requester";
+    const approverLabel =
+      approverProfile?.full_name || approverProfile?.email || "Not assigned";
+    const commentedByLabel = commenterName || commenterEmail || "Someone";
+
+    const commentDirectionLine = (() => {
+      if (isFinanceAfterApproval) {
+        return `This comment was added by ${commentedByLabel} (Finance Team) to ${requesterLabel} (Expense Creator) after the expense was approved by the expense approver.`;
+      }
+
+      if (isCreatorAfterApproval && thirdPartyCommenterRecipients.length > 0) {
+        return `This comment was added by ${requesterLabel} (Expense Creator) to the Finance Team after the expense was approved by the Approver.`;
+      }
+
+      if (isCreatorAfterApproval) {
+        return `This comment was added by ${requesterLabel} (Expense Creator) to ${approverLabel} (Expense Approver) after the expense was approved by the expense approver.`;
+      }
+
+      if (!isApprovedByApprover && isCreator) {
+        return `This comment was added by ${requesterLabel} (Expense Creator) to ${approverLabel} (Expense Approver) while the expense was pending approval.`;
+      }
+
+      if (!isApprovedByApprover && isApprover) {
+        return `This comment was added by ${approverLabel} (Expense Approver) to ${requesterLabel} (Expense Creator) while the expense was pending approval.`;
+      }
+
+      if (isApprover) {
+        return `This comment was added by ${approverLabel} (Expense Approver) to ${requesterLabel} (Expense Creator).`;
+      }
+
+      if (isCreator) {
+        return `This comment was added by ${requesterLabel} (Expense Creator) to ${approverLabel} (Expense Approver).`;
+      }
+
+      return `This comment was added by ${commentedByLabel} and shared with relevant stakeholders for this expense.`;
+    })();
+
+    const ccLineRecipients = uniqueCcRecipients.filter((r) => {
+      const normalizedRecipientEmail = (r.email || "").toLowerCase();
+      const normalizedCommenterEmail = (commenterEmail || "").toLowerCase();
+      if (!normalizedRecipientEmail) return false;
+      if (normalizedCommenterEmail && normalizedRecipientEmail === normalizedCommenterEmail) return false;
+      return true;
+    });
+
+    const ccLine =
+      ccLineRecipients.length > 0
+        ? `CC: ${ccLineRecipients
+            .map((r) => r.name || r.email)
+            .filter(Boolean)
+            .join(", ")}`
+        : "";
+
+    const safeComment = escapeHtml(String(commentContent));
+    const safeRequester = escapeHtml(requesterLabel);
+    const safeApprover = escapeHtml(approverLabel);
+    const safeCommentedBy = escapeHtml(commentedByLabel);
+    const safeCommentDirectionLine = escapeHtml(commentDirectionLine);
+    const safeCcLine = escapeHtml(ccLine);
+
     const htmlComment = `
-      <div class="meta"><strong>Comment:</strong> ${commentContent}</div>
-      <div class="meta" style="margin-top:8px;"><strong>From:</strong> ${commenterName || commenterEmail || "Someone"}</div>
+      <div class="meta"><strong>Expense Creator Name :</strong> ${safeRequester}</div>
+      <div class="meta"><strong>Expense Approver Name :</strong> ${safeApprover}</div>
+      <div class="meta"><strong>Commented by :</strong> ${safeCommentedBy}</div>
+      <div class="meta"><strong>Comment Message :</strong> ${safeComment}</div>
+      ${safeCcLine ? `<div class="meta"><strong>${safeCcLine}</strong></div>` : ""}
     `;
 
-    const textComment = `Comment: ${commentContent}\nFrom: ${commenterName || commenterEmail || "Someone"}`;
+    const textComment = [
+      `${commentDirectionLine}`,
+      `Expense Creator Name : ${requesterLabel}`,
+      `Expense Approver Name : ${approverLabel}`,
+      `Commented by : ${commentedByLabel}`,
+      `Comment Message : ${commentContent}`,
+      ...(ccLine ? [ccLine] : []),
+    ].join("\n");
 
     // Expense details
     const expenseTypeLabel = expenseData.expense_type || "Expense";
     const amountLabel = typeof expenseData.amount === "number" ? expenseData.amount.toFixed(2) : expenseData.amount;
 
-    // Send emails to each recipient
-    for (const r of uniqueRecipients) {
-      const mailOptions = {
-        from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
-        to: r.email,
-        subject,
-        text: `${r.name ? `Hi ${r.name},\n\n` : "Hello,\n\n"}A new comment was added to an expense you are involved with.\n\nExpense: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\n${textComment}\n\nView details: ${expenseUrl}`,
-        html: `
+    const allRecipients = dedupeRecipients([
+      ...uniqueToRecipients,
+      ...uniqueCcRecipients,
+    ]);
+
+    for (const recipient of allRecipients) {
+      const greetingLine = recipient.name
+        ? `Hi ${recipient.name},`
+        : recipient.email
+          ? `Hi ${recipient.email},`
+          : "Hello,";
+
+
+    const mailOptions = {
+      from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      to:
+        uniqueToRecipients.length > 0
+          ? uniqueToRecipients.map((recipient) => recipient.email).join(", ")
+          : process.env.NEXT_PUBLIC_SMTP_USER,
+      cc:
+        uniqueCcRecipients.length > 0
+          ? uniqueCcRecipients.map((recipient) => recipient.email).join(", ")
+          : undefined,
+      subject,
+      text: `${greetingLine}\n\nA new comment was added to an expense you are involved with.\n\nExpense: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\n${textComment}\n\nView details: ${expenseUrl}`,
+      html: `
           <!DOCTYPE html>
           <html>
             <head>
@@ -194,10 +424,11 @@ export async function POST(req: NextRequest) {
             <body>
               <div class="container">
                 <div class="header">
-                  <div style="font-size: 18px; font-weight: 600;">Comment message from ${orgName} organization</div>
+                  <h1>Comment message from ${escapeHtml(String(orgName))} organization</h1>
                 </div>
                 <div class="content">
-                  <p>Hi ${r.name || "there"},</p>
+                  <h2><strong>${escapeHtml(greetingLine)}</strong></h2>
+                  <h3 class="meta"><strong>${safeCommentDirectionLine}</strong></h3>
                   <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
                   <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
                   ${htmlComment}
@@ -209,13 +440,13 @@ export async function POST(req: NextRequest) {
               </div>
             </body>
           </html>
-        `,
-      } as any;
+      `,
+    } as any;
 
-      await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
+
+    return NextResponse.json({ success: true, sent: allRecipients.length, cc: uniqueCcRecipients.length });
     }
-
-    return NextResponse.json({ success: true, sent: uniqueRecipients.length });
   } catch (error: any) {
     console.error("Error sending comment notification:", error);
     return NextResponse.json({ error: error?.message || "Failed to send comment notification" }, { status: 500 });

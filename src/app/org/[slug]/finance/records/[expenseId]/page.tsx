@@ -86,7 +86,11 @@ export default function RecordsDetails() {
 
   const bankTabParam = searchParams.get("activeTab");
   const activeTab =
-    bankTabParam === "ngidfc" || bankTabParam === "fcidfc" ? bankTabParam : "all";
+    bankTabParam === "ngidfc" ||
+    bankTabParam === "fcidfc" ||
+    bankTabParam === "kotak"
+      ? bankTabParam
+      : "all";
 
   const [expense, setExpense] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -194,6 +198,8 @@ export default function RecordsDetails() {
             const query = new URLSearchParams();
             query.set("tab", "records");
             query.set("activeTab", activeTab);
+            const page = searchParams.get("page");
+            if (page) query.set("page", page);
             if (expenseId) query.set("expID", expenseId as string);
             router.push(`/org/${slug}/finance?${query.toString()}`);
           }}

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FileText, Eye, EyeOff } from "lucide-react";
+import { FileText, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { expenses } from "@/lib/db";
 import {
   Tooltip,
@@ -22,6 +22,32 @@ export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
   const [isOpen, setIsOpen] = React.useState<boolean>(defaultOpen);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [isPdf, setIsPdf] = React.useState<boolean>(false);
+
+  const handleOpenInNewTab = async () => {
+    if (!expense?.receipt?.path) return;
+
+    try {
+      if (receiptPreviewUrl) {
+        window.open(receiptPreviewUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      setLoading(true);
+      const { url, error } = await expenses.getReceiptUrl(expense.receipt.path);
+      if (error || !url) {
+        console.error("Error opening receipt in new tab:", error);
+        return;
+      }
+
+      setReceiptPreviewUrl(url);
+      setIsPdf(url.toLowerCase().includes(".pdf"));
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Receipt open in new tab error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   React.useEffect(() => {
     let isCancelled = false;
@@ -78,6 +104,24 @@ export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={handleOpenInNewTab}
+                    aria-label="Open receipt in new tab"
+                    disabled={loading}
+                  >
+                    {loading ? <Spinner size="sm" className="h-4 w-4" /> : <ExternalLink className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Open in new tab</p>
+                </TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
