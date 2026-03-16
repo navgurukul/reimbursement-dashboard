@@ -2399,7 +2399,7 @@ export default function NewExpensePage() {
               )}
 
               {(selectedUniqueIdUser || prefilledUniqueId) && (
-                <div className="bg-gray-50 px-2 py-0 text-sm text-gray-800">
+                <div className="bg-white px-2 py-0 text-sm text-gray-800">
                   <p className="mt-1 text-xs text-gray-600">
                     Pre-filled Payment Unique ID; allows searching and replacing
                     with another user’s Unique ID.

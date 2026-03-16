@@ -218,7 +218,7 @@ export default function VoucherForm({
                 onChange={(e) => onInputChange("yourName", e.target.value)}
                 aria-invalid={getError("yourName") ? "true" : "false"}
                 aria-describedby={getError("yourName") ? "yourName-error" : undefined}
-                className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingName ? "bg-gray-50" : ""}`}
+                className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500 " : ""} ${!isEditingName ? "bg-white" : ""}`}
                 readOnly={!isEditingName}
                 ref={nameInputRef}
               />
@@ -236,7 +236,7 @@ export default function VoucherForm({
                         onInputChange("yourName", (formData.yourName || "").trim());
                       }
                     }}
-                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white"
+                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white cursor-pointer"
                   >
                     {isEditingName ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
                   </button>
@@ -297,7 +297,7 @@ export default function VoucherForm({
                 readOnly={!isEditingAmount}
                 aria-invalid={getError("voucherAmount") ? "true" : "false"}
                 aria-describedby={getError("voucherAmount") ? "voucherAmount-error" : undefined}
-                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingAmount ? "bg-gray-50" : ""}`}
+                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingAmount ? "bg-white" : ""}`}
               />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -316,7 +316,7 @@ export default function VoucherForm({
                         onInputChange("voucherAmount", num);
                       }
                     }}
-                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white"
+                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white cursor-pointer"
                   >
                     {isEditingAmount ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
                   </button>
@@ -406,7 +406,8 @@ export default function VoucherForm({
             </p>
           )}
           <p className="text-sm text-gray-500">
-            credit person name description should beName of the person or vendor who will receive the payment from NavGurukul.
+            Credit Person name description should be Name of the person or vendor who will receive the payment from NavGurukul.<br />
+            Voucher Credit Person will be prefilled with the logged-in user's account holder name.
           </p>
         </div>
 
