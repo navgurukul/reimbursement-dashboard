@@ -222,9 +222,15 @@ export async function POST(req: NextRequest) {
     const ccRecipients: Recipient[] = [];
 
     if (isCreator) {
-      if (approverRecipient) toRecipients.push(approverRecipient);
-      if (isCreatorAfterApproval && thirdPartyCommenterRecipients.length > 0) {
-        ccRecipients.push(...thirdPartyCommenterRecipients);
+      if (isCreatorAfterApproval) {
+        if (thirdPartyCommenterRecipients.length > 0) {
+          toRecipients.push(...thirdPartyCommenterRecipients);
+        }
+        if (approverRecipient) {
+          ccRecipients.push(approverRecipient);
+        }
+      } else if (approverRecipient) {
+        toRecipients.push(approverRecipient);
       }
     } else if (isApprover) {
       if (creatorRecipient) toRecipients.push(creatorRecipient);
@@ -264,14 +270,10 @@ export async function POST(req: NextRequest) {
       return true;
     });
 
-    // Ensure at least one TO recipient for SMTP compatibility
-    if (uniqueToRecipients.length === 0 && uniqueCcRecipients.length > 0) {
-      uniqueToRecipients = [uniqueCcRecipients[0]];
-      uniqueCcRecipients = uniqueCcRecipients.slice(1);
-    }
-
     if (uniqueToRecipients.length === 0) {
-      return NextResponse.json({ success: true, message: "No recipients for comment notification" });
+      if (uniqueCcRecipients.length === 0) {
+        return NextResponse.json({ success: true, message: "No recipients for comment notification" });
+      }
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -334,10 +336,7 @@ export async function POST(req: NextRequest) {
       return `This comment was added by ${commentedByLabel} and shared with relevant stakeholders for this expense.`;
     })();
 
-    const ccLineRecipients = dedupeRecipients([
-      ...uniqueCcRecipients,
-      ...(isCreatorAfterApproval && approverRecipient ? [approverRecipient] : []),
-    ]).filter((r) => {
+    const ccLineRecipients = uniqueCcRecipients.filter((r) => {
       const normalizedRecipientEmail = (r.email || "").toLowerCase();
       const normalizedCommenterEmail = (commenterEmail || "").toLowerCase();
       if (!normalizedRecipientEmail) return false;
@@ -345,14 +344,8 @@ export async function POST(req: NextRequest) {
       return true;
     });
 
-    const ccLineLabelsForCreatorAfterApproval = dedupeLabels(
-      isCreatorAfterApproval ? [approverLabel] : []
-    );
-
     const ccLine =
-      ccLineLabelsForCreatorAfterApproval.length > 0
-        ? `CC: ${ccLineLabelsForCreatorAfterApproval.join(", ")}`
-        : ccLineRecipients.length > 0
+      ccLineRecipients.length > 0
         ? `CC: ${ccLineRecipients
             .map((r) => r.name || r.email)
             .filter(Boolean)
@@ -399,12 +392,20 @@ export async function POST(req: NextRequest) {
           ? `Hi ${recipient.email},`
           : "Hello,";
 
-      const mailOptions = {
-        from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
-        to: recipient.email,
-        subject,
-        text: `${greetingLine}\n\nA new comment was added to an expense you are involved with.\n\nExpense: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\n${textComment}\n\nView details: ${expenseUrl}`,
-        html: `
+
+    const mailOptions = {
+      from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      to:
+        uniqueToRecipients.length > 0
+          ? uniqueToRecipients.map((recipient) => recipient.email).join(", ")
+          : process.env.NEXT_PUBLIC_SMTP_USER,
+      cc:
+        uniqueCcRecipients.length > 0
+          ? uniqueCcRecipients.map((recipient) => recipient.email).join(", ")
+          : undefined,
+      subject,
+      text: `${greetingLine}\n\nA new comment was added to an expense you are involved with.\n\nExpense: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\n${textComment}\n\nView details: ${expenseUrl}`,
+      html: `
           <!DOCTYPE html>
           <html>
             <head>
@@ -439,13 +440,13 @@ export async function POST(req: NextRequest) {
               </div>
             </body>
           </html>
-        `,
-      } as any;
+      `,
+    } as any;
 
-      await transporter.sendMail(mailOptions);
-    }
+    await transporter.sendMail(mailOptions);
 
     return NextResponse.json({ success: true, sent: allRecipients.length, cc: uniqueCcRecipients.length });
+    }
   } catch (error: any) {
     console.error("Error sending comment notification:", error);
     return NextResponse.json({ error: error?.message || "Failed to send comment notification" }, { status: 500 });
