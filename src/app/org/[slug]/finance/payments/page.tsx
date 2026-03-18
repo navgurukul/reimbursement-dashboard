@@ -61,6 +61,17 @@ const calculateTdsAmount = (
   return Number(amount.toFixed(2));
 };
 
+const calculateActualAmount = (
+  baseAmount: number | null | undefined,
+  tdsAmount: number | null | undefined,
+  securityDepositAmount: number | null | undefined
+) => {
+  if (baseAmount === null || baseAmount === undefined) return null;
+  const amount =
+    Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
+  return Number(amount.toFixed(2));
+};
+
 const isDirectPaymentUniqueId = (value: unknown) =>
   String(value || "").trim().toLowerCase().includes("direct payment");
 
@@ -508,7 +519,16 @@ export default function PaymentProcessingOnly() {
       if (exp.id !== expenseId) return exp;
       const baseAmount = exp.approved_amount ?? exp.amount ?? 0;
       const tdsAmount = calculateTdsAmount(baseAmount, percentage);
-      const actualAmount = baseAmount - (tdsAmount ?? 0);
+      const securityDepositAmount =
+        exp.security_deposit_amount !== null &&
+        exp.security_deposit_amount !== undefined
+          ? Number(exp.security_deposit_amount)
+          : null;
+      const actualAmount = calculateActualAmount(
+        baseAmount,
+        tdsAmount,
+        securityDepositAmount
+      );
       return {
         ...exp,
         tds_deduction_percentage: percentage,
@@ -785,6 +805,9 @@ export default function PaymentProcessingOnly() {
                 TDS Deduction
               </TableHead>
               <TableHead className="px-4 py-3 text-center">
+                Security Deposit 
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
                 Actual Amount
               </TableHead>
               <TableHead className="px-4 py-3 text-center">Currency</TableHead>
@@ -837,11 +860,11 @@ export default function PaymentProcessingOnly() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={20} rows={5} />
+              <TableSkeleton colSpan={24} rows={5} />
             ) : processingExpenses.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={20}
+                  colSpan={24}
                   className="text-center py-6 text-muted-foreground"
                 >
                   No expenses in payment processing.
@@ -1036,16 +1059,38 @@ export default function PaymentProcessingOnly() {
                     </div>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    {formatCurrency(
-                      (expense.approved_amount ?? 0) -
-                        (expense.tds_deduction_amount ??
-                          (expense.tds_deduction_percentage
-                            ? calculateTdsAmount(
-                                expense.approved_amount ?? expense.amount ?? 0,
-                                expense.tds_deduction_percentage
-                              ) ?? 0
-                            : 0))
-                    )}
+                    {expense.security_deposit_amount !== null &&
+                    expense.security_deposit_amount !== undefined
+                      ? formatCurrency(Number(expense.security_deposit_amount))
+                      : "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {(() => {
+                      const baseAmount =
+                        expense.approved_amount ?? expense.amount ?? 0;
+                      const tdsAmount =
+                        expense.tds_deduction_amount ??
+                        (expense.tds_deduction_percentage
+                          ? calculateTdsAmount(
+                              baseAmount,
+                              expense.tds_deduction_percentage
+                            ) ?? 0
+                          : 0);
+                      const securityDepositAmount =
+                        expense.security_deposit_amount !== null &&
+                        expense.security_deposit_amount !== undefined
+                          ? Number(expense.security_deposit_amount)
+                          : null;
+                      const actualAmount = calculateActualAmount(
+                        baseAmount,
+                        tdsAmount,
+                        securityDepositAmount
+                      );
+
+                      return actualAmount !== null
+                        ? formatCurrency(actualAmount)
+                        : "N/A";
+                    })()}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {expense.currency || "INR"}

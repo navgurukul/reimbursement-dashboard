@@ -1727,6 +1727,11 @@ export default function ViewExpensePage() {
     ? expense.tds_deduction_amount ??
       Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
     : null;
+  const securityDepositAmount =
+    expense.security_deposit_amount !== null &&
+    expense.security_deposit_amount !== undefined
+      ? Number(expense.security_deposit_amount)
+      : null;
 
   return (
     <div className="container mx-auto py-6">
@@ -1980,6 +1985,20 @@ export default function ViewExpensePage() {
                         currency: "INR",
                       }).format(tdsAmount ?? 0)}
                       )
+                    </p>
+                  </div>
+                ) : null}
+
+                {securityDepositAmount !== null ? (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Security Deposit Deduction
+                    </p>
+                    <p className="text-amber-600 font-medium">
+                      {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR",
+                      }).format(securityDepositAmount)}
                     </p>
                   </div>
                 ) : null}
