@@ -314,6 +314,14 @@ export default function PaymentRecords() {
     return Number(((base * percentage) / 100).toFixed(2));
   };
 
+  const getSecurityDepositAmount = (record: any) => {
+    const amount = record.security_deposit_amount;
+    if (amount === null || amount === undefined || amount === "") {
+      return null;
+    }
+    return Number(amount);
+  };
+
   const getActualAmount = (record: any) => {
     const stored = record.actual_amount;
     if (stored !== null && stored !== undefined && stored !== "") {
@@ -321,8 +329,18 @@ export default function PaymentRecords() {
     }
     const base = getBaseAmount(record);
     const tdsAmount = getTdsAmount(record);
-    if (!base && !tdsAmount && !record.tds_deduction_percentage) return null;
-    return base - (tdsAmount ?? 0);
+    const securityDepositAmount = getSecurityDepositAmount(record);
+    if (
+      !base &&
+      !tdsAmount &&
+      !record.tds_deduction_percentage &&
+      !securityDepositAmount
+    ) {
+      return null;
+    }
+    return Number(
+      (base - (tdsAmount ?? 0) - (securityDepositAmount ?? 0)).toFixed(2)
+    );
   };
 
   const formatKotakVoucherDate = (dateValue?: string | Date | null) => {
@@ -2252,6 +2270,7 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Location</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">TDS Deduction</TableHead>
+              <TableHead className="text-center py-3">Security Deposit</TableHead>
               <TableHead className="text-center py-3">Actual Amount</TableHead>
               <TableHead className="text-center py-3">Bills</TableHead>
               <TableHead className="text-center py-3">Date of expense</TableHead>
@@ -2306,11 +2325,11 @@ export default function PaymentRecords() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={19} rows={5} />
+              <TableSkeleton colSpan={20} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={19}
+                  colSpan={20}
                   className="text-center py-6 text-gray-500"
                 >
                   No payment records found.
@@ -2377,10 +2396,19 @@ export default function PaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {(() => {
+                      const securityDepositAmount =
+                        getSecurityDepositAmount(record);
+                      return securityDepositAmount !== null
+                        ? formatCurrency(securityDepositAmount)
+                        : "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
                       const actualAmount = getActualAmount(record);
                       return actualAmount !== null
                         ? formatCurrency(actualAmount)
-                        : "—";
+                        : "N/A";
                     })()}
                   </TableCell>
                   <TableCell className="text-center py-2">
