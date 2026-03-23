@@ -1764,9 +1764,9 @@ export default function ViewExpensePage() {
       )}
 
       {userRole !== "member" && expense.status === "submitted" && (
-        <div className="flex items-center space-x-2 mb-6 px-1">
+        <div className="mb-6 px-1 space-y-3">
           {!isAssignedApprover && (
-            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
+            <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-md">
               <p className="text-sm text-amber-800">
                 ⚠️ You are not the assigned approver for this expense. Only the
                 assigned approver can approve or reject this request.
@@ -1774,7 +1774,7 @@ export default function ViewExpensePage() {
             </div>
           )}
           {showCustomAmountInput ? (
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2">
                   ₹
@@ -1808,7 +1808,7 @@ export default function ViewExpensePage() {
               </Button>
             </div>
           ) : (
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="destructive"
                 onClick={handleReject}
@@ -1889,7 +1889,7 @@ export default function ViewExpensePage() {
                   </Button>
                 </>
               )}
-            </>
+            </div>
           )}
         </div>
       )}
