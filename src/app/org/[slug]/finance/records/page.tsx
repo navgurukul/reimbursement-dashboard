@@ -525,6 +525,7 @@ export default function PaymentRecords() {
       "Location",
       "Amount",
       "TDS Deduction",
+      "Security Deposit",
       "Actual Amount",
       "Bills",
       "Date of expense",
@@ -543,6 +544,11 @@ export default function PaymentRecords() {
         ? `${tdsPercent}% (${tdsAmount !== null ? formatCurrency(tdsAmount) : "—"})`
         : tdsAmount !== null
           ? formatCurrency(tdsAmount)
+          : "N/A";
+      const securityDepositAmount = getSecurityDepositAmount(record);
+      const securityDepositDisplay =
+        securityDepositAmount !== null
+          ? formatCurrency(securityDepositAmount)
           : "N/A";
 
       const actualAmount = getActualAmount(record);
@@ -569,6 +575,7 @@ export default function PaymentRecords() {
         record.location || "N/A",
         `₹${record.approved_amount ?? 0}`,
         tdsDisplay,
+        securityDepositDisplay,
         actualAmount !== null ? formatCurrency(actualAmount) : "—",
         billsDisplay,
         record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—",
@@ -1416,6 +1423,7 @@ export default function PaymentRecords() {
     const rows = exportRecords.flatMap((record, index) => {
       const baseAmount = getBaseAmount(record);
       const tdsAmount = getTdsAmount(record);
+      const securityDepositAmount = getSecurityDepositAmount(record);
       const actualAmount = getActualAmount(record);
       const beneficiaryName =
         record.beneficiary_name ||
@@ -1500,6 +1508,18 @@ export default function PaymentRecords() {
           "",
           tdsLine,
           formatAmountValue(tdsAmount),
+          "Cr",
+          "",
+        ]);
+      }
+
+      if (securityDepositAmount !== null) {
+        rowsForRecord.push([
+          "",
+          "",
+          "",
+          "Security Deposit",
+          formatAmountValue(securityDepositAmount),
           "Cr",
           "",
         ]);
@@ -1662,6 +1682,7 @@ export default function PaymentRecords() {
     const rows = exportRecords.flatMap((record, index) => {
       const baseAmount = getBaseAmount(record);
       const tdsAmount = getTdsAmount(record);
+      const securityDepositAmount = getSecurityDepositAmount(record);
       const actualAmount = getActualAmount(record);
       const beneficiaryName =
         record.beneficiary_name ||
@@ -1746,6 +1767,18 @@ export default function PaymentRecords() {
           "",
           tdsLine,
           formatAmountValue(tdsAmount),
+          "Cr",
+          "",
+        ]);
+      }
+
+      if (securityDepositAmount !== null) {
+        rowsForRecord.push([
+          "",
+          "",
+          "",
+          "Security Deposit",
+          formatAmountValue(securityDepositAmount),
           "Cr",
           "",
         ]);
