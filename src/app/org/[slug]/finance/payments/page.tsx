@@ -5,10 +5,10 @@ import { expenses } from "@/lib/db";
 import { formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { Eye, Download, Pencil, Save } from "lucide-react";
+import { Eye, Download, Pencil, Save, Filter } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { auth, profiles } from "@/lib/db";
 
@@ -89,6 +89,22 @@ export default function PaymentProcessingOnly() {
   const [paidByBank, setPaidByBank] = useState<Record<string, string>>({});
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    expenseType: "All Expense Type",
+    createdBy: "All Creators",
+    email: "All Emails",
+    eventName: "All Events",
+    location: "All Locations",
+    approvedBy: "All Approvers",
+    uniqueId: "All Unique IDs",
+    minAmount: "",
+    maxAmount: "",
+    tdsDeduction: "All TDS Deductions",
+    securityDeposit: "All Security Deposits",
+    minActualAmount: "",
+    maxActualAmount: "",
+  });
 
   const router = useRouter();
 
@@ -126,8 +142,268 @@ export default function PaymentProcessingOnly() {
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
+  const getBaseAmount = (expense: any) =>
+    Number(expense.approved_amount ?? expense.amount ?? 0);
+
+  const getTdsDeductionAmount = (expense: any) => {
+    const storedAmount = expense.tds_deduction_amount;
+    if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
+      return Number(storedAmount);
+    }
+
+    const percentage = Number(expense.tds_deduction_percentage ?? 0);
+    if (!percentage) return 0;
+
+    return calculateTdsAmount(getBaseAmount(expense), percentage) ?? 0;
+  };
+
+  const getSecurityDepositAmount = (expense: any) => {
+    if (
+      expense.security_deposit_amount === null ||
+      expense.security_deposit_amount === undefined ||
+      expense.security_deposit_amount === ""
+    ) {
+      return 0;
+    }
+
+    return Number(expense.security_deposit_amount);
+  };
+
+  const hasTdsDeduction = (expense: any) => {
+    const storedAmount = expense.tds_deduction_amount;
+    if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
+      return true;
+    }
+    return Number(expense.tds_deduction_percentage ?? 0) > 0;
+  };
+
+  const getTdsDeductionPercentage = (expense: any) =>
+    Number(expense.tds_deduction_percentage ?? 0);
+
+  const getTdsDeductionOptionValue = (expense: any) => {
+    if (!hasTdsDeduction(expense)) return "N/A";
+
+    const percentage = getTdsDeductionPercentage(expense);
+    const amount = getTdsDeductionAmount(expense);
+    return `${percentage}|${amount.toFixed(2)}`;
+  };
+
+  const formatTdsDeductionOptionLabel = (optionValue: string) => {
+    if (optionValue === "N/A") return "N/A";
+
+    const [percentageText, amountText] = optionValue.split("|");
+    const percentage = Number(percentageText);
+    const amount = Number(amountText);
+    const percentageLabel =
+      Number.isFinite(percentage) && percentage > 0 ? `${percentage}%` : "—";
+
+    return `${percentageLabel} (${formatCurrency(amount)})`;
+  };
+
+  const hasSecurityDeposit = (expense: any) =>
+    !(
+      expense.security_deposit_amount === null ||
+      expense.security_deposit_amount === undefined ||
+      expense.security_deposit_amount === ""
+    );
+
+  const getActualAmountValue = (expense: any) => {
+    const actualAmount = calculateActualAmount(
+      getBaseAmount(expense),
+      getTdsDeductionAmount(expense),
+      getSecurityDepositAmount(expense)
+    );
+
+    return actualAmount ?? 0;
+  };
+
+  const expenseTypeOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.expense_type).filter(Boolean))),
+    [processingExpenses]
+  );
+  const createdByOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.creator_name).filter(Boolean))),
+    [processingExpenses]
+  );
+  const emailOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          processingExpenses
+            .map((e) => e.bank_email || e.email)
+            .filter(Boolean)
+        )
+      ),
+    [processingExpenses]
+  );
+  const eventNameOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.event_title).filter(Boolean))),
+    [processingExpenses]
+  );
+  const locationOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.location).filter(Boolean))),
+    [processingExpenses]
+  );
+  const approvedByOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.approver_name).filter(Boolean))),
+    [processingExpenses]
+  );
+  const uniqueIdOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.unique_id).filter(Boolean))),
+    [processingExpenses]
+  );
+  const tdsDeductionOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          processingExpenses.map((expense) => getTdsDeductionOptionValue(expense))
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        const [aPercentage, aAmount] = a.split("|");
+        const [bPercentage, bAmount] = b.split("|");
+        const percentageDiff = Number(aPercentage) - Number(bPercentage);
+        if (percentageDiff !== 0) return percentageDiff;
+        return Number(aAmount) - Number(bAmount);
+      }),
+    [processingExpenses]
+  );
+  const securityDepositOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          processingExpenses.map((expense) =>
+            hasSecurityDeposit(expense)
+              ? String(getSecurityDepositAmount(expense))
+              : "N/A"
+          )
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        return Number(a) - Number(b);
+      }),
+    [processingExpenses]
+  );
+
+  const filteredProcessingExpenses = useMemo(() => {
+    return processingExpenses.filter((expense) => {
+      if (
+        filters.expenseType !== "All Expense Type" &&
+        (expense.expense_type || "") !== filters.expenseType
+      ) {
+        return false;
+      }
+
+      if (
+        filters.createdBy !== "All Creators" &&
+        (expense.creator_name || "") !== filters.createdBy
+      ) {
+        return false;
+      }
+
+      if (
+        filters.email !== "All Emails" &&
+        (expense.bank_email || expense.email || "") !== filters.email
+      ) {
+        return false;
+      }
+
+      if (
+        filters.eventName !== "All Events" &&
+        (expense.event_title || "N/A") !== filters.eventName
+      ) {
+        return false;
+      }
+
+      if (
+        filters.location !== "All Locations" &&
+        (expense.location || "") !== filters.location
+      ) {
+        return false;
+      }
+
+      if (
+        filters.approvedBy !== "All Approvers" &&
+        (expense.approver_name || "") !== filters.approvedBy
+      ) {
+        return false;
+      }
+
+      if (
+        filters.uniqueId !== "All Unique IDs" &&
+        (expense.unique_id || "") !== filters.uniqueId
+      ) {
+        return false;
+      }
+
+      const amount = getBaseAmount(expense);
+      if (filters.minAmount !== "" && amount < Number(filters.minAmount)) return false;
+      if (filters.maxAmount !== "" && amount > Number(filters.maxAmount)) return false;
+
+      const tdsDeduction = getTdsDeductionAmount(expense);
+      if (
+        filters.tdsDeduction !== "All TDS Deductions" &&
+        !(
+          (filters.tdsDeduction === "N/A" && !hasTdsDeduction(expense)) ||
+          (filters.tdsDeduction !== "N/A" &&
+            filters.tdsDeduction === getTdsDeductionOptionValue(expense))
+        )
+      ) {
+        return false;
+      }
+
+      const securityDeposit = getSecurityDepositAmount(expense);
+      if (
+        filters.securityDeposit !== "All Security Deposits" &&
+        !(
+          (filters.securityDeposit === "N/A" && !hasSecurityDeposit(expense)) ||
+          (filters.securityDeposit !== "N/A" &&
+            securityDeposit === Number(filters.securityDeposit))
+        )
+      ) {
+        return false;
+      }
+
+      const actualAmount = getActualAmountValue(expense);
+      if (
+        filters.minActualAmount !== "" &&
+        actualAmount < Number(filters.minActualAmount)
+      ) {
+        return false;
+      }
+      if (
+        filters.maxActualAmount !== "" &&
+        actualAmount > Number(filters.maxActualAmount)
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [processingExpenses, filters]);
+
+  const clearFilters = () => {
+    setFilters({
+      expenseType: "All Expense Type",
+      createdBy: "All Creators",
+      email: "All Emails",
+      eventName: "All Events",
+      location: "All Locations",
+      approvedBy: "All Approvers",
+      uniqueId: "All Unique IDs",
+      minAmount: "",
+      maxAmount: "",
+      tdsDeduction: "All TDS Deductions",
+      securityDeposit: "All Security Deposits",
+      minActualAmount: "",
+      maxActualAmount: "",
+    });
+  };
+
   // Use pagination hook
-  const pagination = usePagination(processingExpenses);
+  const pagination = usePagination(filteredProcessingExpenses);
 
   useEffect(() => {
     async function fetchExpensesAndBankDetails() {
@@ -278,9 +554,9 @@ export default function PaymentProcessingOnly() {
 
   // Scroll to highlighted row when it's set
   useEffect(() => {
-    if (highlightedExpenseId && processingExpenses.length > 0) {
+    if (highlightedExpenseId && filteredProcessingExpenses.length > 0) {
       // Find which page the highlighted expense is on
-      const recordIndex = processingExpenses.findIndex(r => r.id === highlightedExpenseId);
+      const recordIndex = filteredProcessingExpenses.findIndex(r => r.id === highlightedExpenseId);
       if (recordIndex !== -1) {
         const itemsPerPage = 10;
         const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
@@ -295,7 +571,7 @@ export default function PaymentProcessingOnly() {
         }, 200);
       }
     }
-  }, [highlightedExpenseId, processingExpenses]);
+  }, [highlightedExpenseId, filteredProcessingExpenses, pagination.setCurrentPage]);
 
   const exportToCSV = () => {
     const headers = selectedColumns;
@@ -750,6 +1026,10 @@ export default function PaymentProcessingOnly() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
         <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
+            <Filter className="mr-2 h-4 w-4" />
+            Filters
+          </Button>
           <Button onClick={() => setShowConfirmAllPaid(true)}>
             Mark all as Paid
           </Button>
@@ -763,6 +1043,235 @@ export default function PaymentProcessingOnly() {
           </Button>
         </div>
       </div>
+
+      {filterOpen && (
+        <div className="p-4 rounded-md border shadow-sm bg-white">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="text-sm font-medium">Expense Type</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.expenseType}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, expenseType: e.target.value }))
+                }
+              >
+                <option>All Expense Type</option>
+                {expenseTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Created By</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.createdBy}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, createdBy: e.target.value }))
+                }
+              >
+                <option>All Creators</option>
+                {createdByOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Email</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.email}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, email: e.target.value }))
+                }
+              >
+                <option>All Emails</option>
+                {emailOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Event Name</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.eventName}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, eventName: e.target.value }))
+                }
+              >
+                <option>All Events</option>
+                {eventNameOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Location</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.location}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, location: e.target.value }))
+                }
+              >
+                <option>All Locations</option>
+                {locationOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Approved By</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.approvedBy}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, approvedBy: e.target.value }))
+                }
+              >
+                <option>All Approvers</option>
+                {approvedByOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Unique ID</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.uniqueId}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, uniqueId: e.target.value }))
+                }
+              >
+                <option>All Unique IDs</option>
+                {uniqueIdOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">TDS Deduction</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.tdsDeduction}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, tdsDeduction: e.target.value }))
+                }
+              >
+                <option>All TDS Deductions</option>
+                {tdsDeductionOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {formatTdsDeductionOptionLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Security Deposit</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.securityDeposit}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, securityDeposit: e.target.value }))
+                }
+              >
+                <option>All Security Deposits</option>
+                {securityDepositOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.minAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, minAmount: e.target.value }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.maxAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Actual Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.minActualAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, minActualAmount: e.target.value }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.maxActualAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, maxActualAmount: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setFilterOpen(false)}>
+              Close
+            </Button>
+            <Button variant="outline" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
@@ -861,13 +1370,15 @@ export default function PaymentProcessingOnly() {
           <TableBody>
             {loading ? (
               <TableSkeleton colSpan={24} rows={5} />
-            ) : processingExpenses.length === 0 ? (
+            ) : filteredProcessingExpenses.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={24}
                   className="text-center py-6 text-muted-foreground"
                 >
-                  No expenses in payment processing.
+                  {processingExpenses.length === 0
+                    ? "No expenses in payment processing."
+                    : "No expenses match selected filters."}
                 </TableCell>
               </TableRow>
             ) : (
@@ -1269,7 +1780,7 @@ export default function PaymentProcessingOnly() {
           </TableBody>
         </Table>
       </div>
-      {processingExpenses.length > 0 && (
+      {filteredProcessingExpenses.length > 0 && (
         <Pagination
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
