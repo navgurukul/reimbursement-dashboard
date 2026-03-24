@@ -382,6 +382,42 @@ export default function PaymentRecords() {
     return `${day}-${month}-${year}`;
   };
 
+  const formatDateForInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const day = `${date.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getMonthYearLabelForDateRange = (start?: string, end?: string) => {
+    if (!start || !end) return null;
+
+    const [startYear, startMonth, startDay] = start.split("-").map(Number);
+    const [endYear, endMonth, endDay] = end.split("-").map(Number);
+    if (
+      !startYear ||
+      !startMonth ||
+      !startDay ||
+      !endYear ||
+      !endMonth ||
+      !endDay
+    ) {
+      return null;
+    }
+
+    const isSameMonth = startYear === endYear && startMonth === endMonth;
+    const isFirstDay = startDay === 1;
+    const lastDayOfMonth = new Date(startYear, startMonth, 0).getDate();
+    const isLastDay = endDay === lastDayOfMonth;
+
+    if (!isSameMonth || !isFirstDay || !isLastDay) return null;
+
+    const monthName = new Date(startYear, startMonth - 1, 1).toLocaleString("en-US", {
+      month: "long",
+    });
+    return `${monthName}_${startYear}`;
+  };
+
   const isDateWithinRange = (
     value: string | Date | null | undefined,
     mode: string,
@@ -1333,12 +1369,24 @@ export default function PaymentRecords() {
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
         const dateLabel = "Date-of-Expense";
+        const monthlyLabel =
+          exportRangeLabel === "Monthly" &&
+          exportDateFilters.expenseDateMode === "Custom Date"
+            ? getMonthYearLabelForDateRange(
+                exportDateFilters.expenseStartDate,
+                exportDateFilters.expenseEndDate
+              )
+            : null;
+        const formattedRange = `${formatExportDateForName(
+          exportDateFilters.expenseStartDate
+        )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
         const dateValue =
-          exportDateFilters.expenseDateMode === "Single Date"
+          monthlyLabel
+            ? monthlyLabel
+            :
+          (exportDateFilters.expenseDateMode === "Single Date"
             ? formatExportDateForName(exportDateFilters.expenseStartDate)
-            : `${formatExportDateForName(
-                exportDateFilters.expenseStartDate
-              )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
+            : formattedRange);
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1583,12 +1631,24 @@ export default function PaymentRecords() {
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
         const dateLabel = "Date-of-Expense";
+        const monthlyLabel =
+          exportRangeLabel === "Monthly" &&
+          exportDateFilters.expenseDateMode === "Custom Date"
+            ? getMonthYearLabelForDateRange(
+                exportDateFilters.expenseStartDate,
+                exportDateFilters.expenseEndDate
+              )
+            : null;
+        const formattedRange = `${formatExportDateForName(
+          exportDateFilters.expenseStartDate
+        )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
         const dateValue =
-          exportDateFilters.expenseDateMode === "Single Date"
+          monthlyLabel
+            ? monthlyLabel
+            :
+          (exportDateFilters.expenseDateMode === "Single Date"
             ? formatExportDateForName(exportDateFilters.expenseStartDate)
-            : `${formatExportDateForName(
-                exportDateFilters.expenseStartDate
-              )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
+            : formattedRange);
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1850,8 +1910,6 @@ export default function PaymentRecords() {
       endDate = new Date(year, monthIndex + 1, 0);
     }
 
-    const formatForInput = (date: Date) => date.toISOString().slice(0, 10);
-
     // Set export bank type based on the currently active tab
     if (activeTab === "all") {
       setExportBankType("ALL_RECORDS");
@@ -1867,8 +1925,8 @@ export default function PaymentRecords() {
     setExportDateFilters((prev) => ({
       ...prev,
       expenseDateMode: "Custom Date",
-      expenseStartDate: formatForInput(startDate),
-      expenseEndDate: formatForInput(endDate),
+      expenseStartDate: formatDateForInput(startDate),
+      expenseEndDate: formatDateForInput(endDate),
       paidDateMode: "All Dates",
       paidStartDate: "",
       paidEndDate: "",
