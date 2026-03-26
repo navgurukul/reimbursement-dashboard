@@ -1111,6 +1111,33 @@ export default function NewExpensePage() {
       .trim()
       .toLowerCase();
 
+  /**
+   * Block duplicates only when the existing expense is in an approved state.
+   * Allow creation when previous matching expense is rejected by manager/finance.
+   */
+  const duplicateBlockingStatusSet = new Set([
+    "approved",
+    "approved_as_per_policy",
+    "finance_approved",
+  ]);
+  const duplicateNonBlockingStatusSet = new Set([
+    "rejected",
+    "finance_rejected",
+    "finance_rejeced",
+  ]);
+
+  const isDuplicateBlockingStatus = (status?: string | null) => {
+    const normalizedStatus = String(status || "")
+      .trim()
+      .toLowerCase();
+
+    if (duplicateNonBlockingStatusSet.has(normalizedStatus)) {
+      return false;
+    }
+
+    return duplicateBlockingStatusSet.has(normalizedStatus);
+  };
+
   const parseVoucherAttachmentFilename = (attachment?: string | null) => {
     if (!attachment) return "";
     const [name] = attachment.split(",");
@@ -1266,7 +1293,7 @@ export default function NewExpensePage() {
 
     let expenseQuery = supabase
       .from("expense_new")
-      .select("id, expense_type, amount, location, date, receipt")
+      .select("id, expense_type, amount, location, date, receipt, status")
       .eq("org_id", organization.id)
       .eq("user_id", user.id)
       .eq("expense_type", normalizedExpenseType)
@@ -1287,7 +1314,11 @@ export default function NewExpensePage() {
       return [];
     }
 
-    if (!potentialMatches || potentialMatches.length === 0) {
+    const eligiblePotentialMatches = (potentialMatches || []).filter(
+      (entry: any) => isDuplicateBlockingStatus(entry?.status)
+    );
+
+    if (eligiblePotentialMatches.length === 0) {
       return [];
     }
 
@@ -1296,7 +1327,7 @@ export default function NewExpensePage() {
       const receiptName = normalizeFileName(receiptFile.name);
 
       const matchResults = await Promise.all(
-        potentialMatches.map(async (entry: any) => {
+        eligiblePotentialMatches.map(async (entry: any) => {
           const existingReceipt = entry?.receipt as ReceiptInfo | null;
           if (!existingReceipt) return false;
 
@@ -1321,7 +1352,7 @@ export default function NewExpensePage() {
         })
       );
 
-      const matchedExpenses = potentialMatches.filter(
+      const matchedExpenses = eligiblePotentialMatches.filter(
         (_entry: any, index: number) => matchResults[index]
       );
 
@@ -1345,7 +1376,7 @@ export default function NewExpensePage() {
     }
 
     if (voucherFile || isVoucher) {
-      const expenseIds = potentialMatches
+      const expenseIds = eligiblePotentialMatches
         .map((entry: any) => entry?.id)
         .filter(Boolean);
 
@@ -1381,10 +1412,13 @@ export default function NewExpensePage() {
             parseVoucherAttachmentFilename(voucher?.attachment)
           );
 
+          const hasIncomingAttachment = normalizedVoucherName.length > 0;
+          const hasExistingAttachment = existingVoucherFileName.length > 0;
+
           const isAttachmentMatch =
-            normalizedVoucherName.length > 0 &&
-            existingVoucherFileName.length > 0 &&
-            existingVoucherFileName === normalizedVoucherName;
+            hasIncomingAttachment === hasExistingAttachment &&
+            (!hasIncomingAttachment ||
+              existingVoucherFileName === normalizedVoucherName);
 
           const isVoucherDetailsMatch =
             normalizedYourName.length > 0 &&
@@ -1395,13 +1429,15 @@ export default function NewExpensePage() {
             normalizeVoucherText(voucher?.credit_person) ===
               normalizedCreditPerson;
 
-          if (!isAttachmentMatch && !isVoucherDetailsMatch) {
+          const isFullVoucherMatch = isAttachmentMatch && isVoucherDetailsMatch;
+
+          if (!isFullVoucherMatch) {
             return acc;
           }
 
           acc.push({
             voucher,
-            matchedBy: isAttachmentMatch
+            matchedBy: hasIncomingAttachment
               ? "Voucher Attachment"
               : "Voucher Details",
           });
@@ -1414,7 +1450,7 @@ export default function NewExpensePage() {
       if (!matchedVouchers.length) return [];
 
       const mappedMatches = matchedVouchers.map(({ voucher, matchedBy }) => {
-        const matchedExpense = potentialMatches.find(
+        const matchedExpense = eligiblePotentialMatches.find(
           (entry: any) => entry?.id === voucher.expense_id
         );
 
