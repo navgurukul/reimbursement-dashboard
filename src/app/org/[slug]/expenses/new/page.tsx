@@ -114,6 +114,7 @@ interface DuplicateCheckInput {
   receiptFile?: File | null;
   receiptHash?: string | null;
   voucherFile?: File | null;
+  voucherHash?: string | null;
   isVoucher?: boolean;
   voucherYourName?: string;
   voucherPurpose?: string;
@@ -270,6 +271,9 @@ export default function NewExpensePage() {
     new Map()
   );
   const storedReceiptHashCacheRef = useRef<Map<string, Promise<string | null>>>(
+    new Map()
+  );
+  const storedVoucherHashCacheRef = useRef<Map<string, Promise<string | null>>>(
     new Map()
   );
 
@@ -1106,6 +1110,39 @@ export default function NewExpensePage() {
     return hashPromise;
   };
 
+  const parseVoucherAttachmentPath = (attachment?: string | null) => {
+    if (!attachment) return "";
+    const [, path] = attachment.split(",");
+    return path || "";
+  };
+
+  const getStoredVoucherContentHash = async (path?: string | null) => {
+    if (!path) return null;
+
+    const existingHashPromise = storedVoucherHashCacheRef.current.get(path);
+    if (existingHashPromise) {
+      return existingHashPromise;
+    }
+
+    const hashPromise = (async () => {
+      const { url, error } = await voucherAttachments.getUrl(path);
+      if (error || !url) {
+        return null;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+
+      const buffer = await response.arrayBuffer();
+      return hashArrayBuffer(buffer);
+    })();
+
+    storedVoucherHashCacheRef.current.set(path, hashPromise);
+    return hashPromise;
+  };
+
   const normalizeVoucherText = (value?: string | null) =>
     String(value || "")
       .trim()
@@ -1184,7 +1221,10 @@ export default function NewExpensePage() {
         }`
       : "";
     const voucherFileSignature = candidate.voucherFile
-      ? `voucher:${normalizeFileName(candidate.voucherFile.name)}:${candidate.voucherFile.size}`
+      ? `voucher:${
+          normalizeHash(candidate.voucherHash) ||
+          `${normalizeFileName(candidate.voucherFile.name)}:${candidate.voucherFile.size}`
+        }`
       : "";
 
     const voucherDetailsSignature = candidate.isVoucher
@@ -1270,6 +1310,7 @@ export default function NewExpensePage() {
     receiptFile,
     receiptHash,
     voucherFile,
+    voucherHash,
     isVoucher,
     voucherYourName,
     voucherPurpose,
@@ -1395,19 +1436,17 @@ export default function NewExpensePage() {
         return [];
       }
 
+      const normalizedVoucherHash = normalizeHash(voucherHash);
       const normalizedVoucherName = normalizeFileName(voucherFile?.name);
       const normalizedYourName = normalizeVoucherText(voucherYourName);
       const normalizedPurpose = normalizeVoucherText(voucherPurpose);
       const normalizedCreditPerson = normalizeVoucherText(voucherCreditPerson);
 
-      const matchedVouchers = (voucherRows || []).reduce(
-        (
-          acc: Array<{
-            voucher: any;
-            matchedBy: NonNullable<DuplicateMatchDetails["matchedBy"]>;
-          }>,
-          voucher: any
-        ) => {
+      const matchedVoucherCandidates = await Promise.all(
+        (voucherRows || []).map(async (voucher: any) => {
+          const existingVoucherAttachmentPath = parseVoucherAttachmentPath(
+            voucher?.attachment
+          );
           const existingVoucherFileName = normalizeFileName(
             parseVoucherAttachmentFilename(voucher?.attachment)
           );
@@ -1415,10 +1454,26 @@ export default function NewExpensePage() {
           const hasIncomingAttachment = normalizedVoucherName.length > 0;
           const hasExistingAttachment = existingVoucherFileName.length > 0;
 
-          const isAttachmentMatch =
+          let isAttachmentMatch =
             hasIncomingAttachment === hasExistingAttachment &&
             (!hasIncomingAttachment ||
               existingVoucherFileName === normalizedVoucherName);
+
+          if (
+            hasIncomingAttachment &&
+            hasExistingAttachment &&
+            normalizedVoucherHash
+          ) {
+            const existingVoucherHash = normalizeHash(
+              await getStoredVoucherContentHash(existingVoucherAttachmentPath)
+            );
+            if (existingVoucherHash) {
+              isAttachmentMatch = existingVoucherHash === normalizedVoucherHash;
+            } else {
+              // Fallback for historical records where hash cannot be resolved.
+              isAttachmentMatch = existingVoucherFileName === normalizedVoucherName;
+            }
+          }
 
           const isVoucherDetailsMatch =
             normalizedYourName.length > 0 &&
@@ -1432,20 +1487,24 @@ export default function NewExpensePage() {
           const isFullVoucherMatch = isAttachmentMatch && isVoucherDetailsMatch;
 
           if (!isFullVoucherMatch) {
-            return acc;
+            return null;
           }
 
-          acc.push({
+          return {
             voucher,
             matchedBy: hasIncomingAttachment
               ? "Voucher Attachment"
               : "Voucher Details",
-          });
-
-          return acc;
-        },
-        []
+          } as {
+            voucher: any;
+            matchedBy: NonNullable<DuplicateMatchDetails["matchedBy"]>;
+          };
+        })
       );
+      const matchedVouchers = matchedVoucherCandidates.filter(Boolean) as Array<{
+        voucher: any;
+        matchedBy: NonNullable<DuplicateMatchDetails["matchedBy"]>;
+      }>;
 
       if (!matchedVouchers.length) return [];
 
@@ -1545,6 +1604,9 @@ export default function NewExpensePage() {
         ...candidate,
         receiptHash: candidate.receiptFile
           ? await getFileContentHash(candidate.receiptFile)
+          : null,
+        voucherHash: candidate.voucherFile
+          ? await getFileContentHash(candidate.voucherFile)
           : null,
       }))
     );
