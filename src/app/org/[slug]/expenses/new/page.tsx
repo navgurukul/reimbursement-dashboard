@@ -1153,6 +1153,7 @@ export default function NewExpensePage() {
    * Allow creation when previous matching expense is rejected by manager/finance.
    */
   const duplicateBlockingStatusSet = new Set([
+    "submitted",
     "approved",
     "approved_as_per_policy",
     "finance_approved",
