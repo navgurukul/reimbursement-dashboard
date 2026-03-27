@@ -31,6 +31,40 @@ type Props = {
     organization: any;
 };
 
+const normalizeCustomFieldKey = (key: string) =>
+    key.toLowerCase().replace(/[\s_-]+/g, "");
+
+const getCustomFieldValue = (
+    customFields: unknown,
+    targetKey: string
+): string | null => {
+    if (!customFields) return null;
+
+    let parsedCustomFields: unknown = customFields;
+    if (typeof parsedCustomFields === "string") {
+        try {
+            parsedCustomFields = JSON.parse(parsedCustomFields);
+        } catch {
+            return null;
+        }
+    }
+
+    if (!parsedCustomFields || typeof parsedCustomFields !== "object") return null;
+
+    const fields = parsedCustomFields as Record<string, unknown>;
+    const normalizedTargetKey = normalizeCustomFieldKey(targetKey);
+
+    for (const [key, value] of Object.entries(fields)) {
+        if (normalizeCustomFieldKey(key) === normalizedTargetKey) {
+            if (typeof value === "string") return value;
+            if (value === null || value === undefined) return null;
+            return String(value);
+        }
+    }
+
+    return null;
+};
+
 // Utility: fetch URL -> base64 data URL
 async function convertImageUrlToBase64(url: string): Promise<string> {
     const { dataUrl } = await fetchImageAsDataUrl(url);
@@ -315,9 +349,63 @@ export default function DownloadAllExpensesAsPdf({
                 // Get event title if available
                 const eventTitle = expense.event_title || "N/A";
 
+                const tdsPercentageValue = Number(expense.tds_deduction_percentage ?? 0);
+                const hasTdsPercentage = tdsPercentageValue > 0;
+                const storedTdsAmount =
+                    expense.tds_deduction_amount !== null &&
+                    expense.tds_deduction_amount !== undefined &&
+                    expense.tds_deduction_amount !== ""
+                        ? Number(expense.tds_deduction_amount)
+                        : null;
+                const tdsBaseAmount = Number(expense.approved_amount ?? expense.amount ?? 0);
+                const computedTdsAmount =
+                    hasTdsPercentage
+                        ? Number(((tdsBaseAmount || 0) * tdsPercentageValue / 100).toFixed(2))
+                        : null;
+                const tdsAmount =
+                    hasTdsPercentage
+                        ? storedTdsAmount ?? computedTdsAmount
+                        : storedTdsAmount;
+                const hasTdsDeduction = hasTdsPercentage || storedTdsAmount !== null;
+
+                const securityDepositAmount =
+                    expense.security_deposit_amount !== null &&
+                    expense.security_deposit_amount !== undefined &&
+                    expense.security_deposit_amount !== ""
+                        ? Number(expense.security_deposit_amount)
+                        : null;
+                const hasSecurityDepositDeduction = securityDepositAmount !== null;
+                const hasStoredActualAmount =
+                    expense.actual_amount !== null &&
+                    expense.actual_amount !== undefined &&
+                    expense.actual_amount !== "";
+                const actualAmount = hasStoredActualAmount
+                    ? Number(expense.actual_amount)
+                    : Number(
+                        (
+                            tdsBaseAmount -
+                            (tdsAmount ?? 0) -
+                            (securityDepositAmount ?? 0)
+                        ).toFixed(2)
+                    );
+                const paidDateDisplay = expense.paid_approval_time
+                    ? new Date(expense.paid_approval_time).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                    })
+                    : "N/A";
+                const expenseCreditPersonValue =
+                    expense.expense_credit_person ||
+                    getCustomFieldValue(expense.custom_fields, "expense_credit_person");
+                const hasExpenseCreditPerson =
+                    typeof expenseCreditPersonValue === "string" &&
+                    expenseCreditPersonValue.trim().length > 0;
+
                 // Build expense details table body (without voucher details)
                 const body = [
                     ["Timestamp", formatDateTime(expense.created_at)],
+                    ["Paid Date", paidDateDisplay],
                     ["Payment Unique ID", expense.unique_id || expense.uniqueId || "N/A"],
                     ["Location of Expense", expense.location || "N/A"],
                     ["Event Name", eventTitle],
@@ -340,6 +428,34 @@ export default function DownloadAllExpensesAsPdf({
                         expense.custom_fields?.description || expense.description || "—",
                     ],
                 ];
+
+                if (hasExpenseCreditPerson) {
+                    body.splice(3, 0, ["Expense Credit Person", expenseCreditPersonValue]);
+                }
+
+                let amountDetailsInsertIndex = 7;
+
+                if (hasTdsDeduction) {
+                    const tdsValue = tdsAmount !== null ? `INR ${Number(tdsAmount).toFixed(2)}` : "N/A";
+                    body.splice(amountDetailsInsertIndex, 0, [
+                        "TDS Deduction",
+                        hasTdsPercentage ? `${tdsPercentageValue}% (${tdsValue})` : tdsValue,
+                    ]);
+                    amountDetailsInsertIndex += 1;
+                }
+
+                if (hasSecurityDepositDeduction) {
+                    body.splice(amountDetailsInsertIndex, 0, [
+                        "Security Deposit Deduction",
+                        `INR ${Number(securityDepositAmount).toFixed(2)}`,
+                    ]);
+                    amountDetailsInsertIndex += 1;
+                }
+
+                body.splice(amountDetailsInsertIndex, 0, [
+                    "Actual Amount",
+                    `INR ${Number(actualAmount).toFixed(2)}`,
+                ]);
 
                 // Expense Details Table
                 autoTable(doc, {

@@ -3,10 +3,10 @@
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenses } from "@/lib/db";
 import supabase from "@/lib/supabase";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye } from "lucide-react";
+import { Eye, Filter } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +50,51 @@ const calculateTdsAmount = (
   return Number(amount.toFixed(2));
 };
 
+const toDateOnly = (value?: string | Date | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatDateForLabel = (dateValue: string) => {
+  if (!dateValue) return "";
+  const parsedDate = new Date(dateValue);
+  if (Number.isNaN(parsedDate.getTime())) return dateValue;
+  return parsedDate.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const isDateWithinRange = (
+  value: string | Date | null | undefined,
+  mode: string,
+  startDate: string,
+  endDate: string
+) => {
+  if (mode === "All Dates") return true;
+
+  const dateValue = toDateOnly(value);
+  if (!dateValue) return false;
+
+  if (mode === "Single Date") {
+    if (!startDate) return true;
+    return dateValue === startDate;
+  }
+
+  if (mode === "Custom Date") {
+    if (!startDate || !endDate) return false;
+    return dateValue >= startDate && dateValue <= endDate;
+  }
+
+  return true;
+};
+
 export default function FinanceReview() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
@@ -63,8 +108,148 @@ export default function FinanceReview() {
   const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
   const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    expenseType: "All Expense Type",
+    eventName: "All Events",
+    submittedBy: "All Submitters",
+    approvedBy: "All Approvers",
+    location: "All Locations",
+    uniqueId: "All Unique IDs",
+    minAmount: "",
+    maxAmount: "",
+    minActualAmount: "",
+    maxActualAmount: "",
+    dateMode: "All Dates",
+    startDate: "",
+    endDate: "",
+  });
+
+  const expenseTypeOptions = useMemo(
+    () => Array.from(new Set(expenseList.map((e) => e.expense_type).filter(Boolean))),
+    [expenseList]
+  );
+  const eventNameOptions = useMemo(
+    () => Array.from(new Set(expenseList.map((e) => e.event_title).filter(Boolean))),
+    [expenseList]
+  );
+  const submittedByOptions = useMemo(
+    () => Array.from(new Set(expenseList.map((e) => e.creator_name).filter(Boolean))),
+    [expenseList]
+  );
+  const approvedByOptions = useMemo(
+    () => Array.from(new Set(expenseList.map((e) => e.approver_name).filter(Boolean))),
+    [expenseList]
+  );
+  const locationOptions = useMemo(
+    () => Array.from(new Set(expenseList.map((e) => e.location).filter(Boolean))),
+    [expenseList]
+  );
+  const uniqueIdOptions = useMemo(
+    () => Array.from(new Set(expenseList.map((e) => e.unique_id).filter(Boolean))),
+    [expenseList]
+  );
+  const singleDateOptions = useMemo(() => {
+    const dates = Array.from(
+      new Set(expenseList.map((e) => toDateOnly(e.date)).filter(Boolean))
+    );
+
+    return dates.sort((a, b) => a.localeCompare(b));
+  }, [expenseList]);
+
+  const filteredExpenseList = useMemo(() => {
+    const getActualAmount = (expense: any) => {
+      const baseAmount = expense.approved_amount ?? expense.amount ?? 0;
+      const tdsAmount =
+        expense.tds_deduction_amount ??
+        (expense.tds_deduction_percentage
+          ? calculateTdsAmount(baseAmount, expense.tds_deduction_percentage) ?? 0
+          : 0);
+      return Number(baseAmount - tdsAmount);
+    };
+
+    return expenseList.filter((expense) => {
+      if (
+        filters.expenseType !== "All Expense Type" &&
+        expense.expense_type !== filters.expenseType
+      ) {
+        return false;
+      }
+
+      if (
+        filters.eventName !== "All Events" &&
+        (expense.event_title || "N/A") !== filters.eventName
+      ) {
+        return false;
+      }
+
+      if (
+        filters.submittedBy !== "All Submitters" &&
+        (expense.creator_name || "") !== filters.submittedBy
+      ) {
+        return false;
+      }
+
+      if (
+        filters.approvedBy !== "All Approvers" &&
+        (expense.approver_name || "") !== filters.approvedBy
+      ) {
+        return false;
+      }
+
+      if (
+        filters.location !== "All Locations" &&
+        (expense.location || "") !== filters.location
+      ) {
+        return false;
+      }
+
+      if (
+        filters.uniqueId !== "All Unique IDs" &&
+        (expense.unique_id || "") !== filters.uniqueId
+      ) {
+        return false;
+      }
+
+      const amount = Number(expense.amount ?? 0);
+      if (filters.minAmount !== "" && amount < Number(filters.minAmount)) {
+        return false;
+      }
+      if (filters.maxAmount !== "" && amount > Number(filters.maxAmount)) {
+        return false;
+      }
+
+      const actualAmount = getActualAmount(expense);
+      if (
+        filters.minActualAmount !== "" &&
+        actualAmount < Number(filters.minActualAmount)
+      ) {
+        return false;
+      }
+      if (
+        filters.maxActualAmount !== "" &&
+        actualAmount > Number(filters.maxActualAmount)
+      ) {
+        return false;
+      }
+
+      if (
+        !isDateWithinRange(
+          expense.date,
+          filters.dateMode,
+          filters.startDate,
+          filters.endDate
+        )
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [expenseList, filters]);
+
   // Use pagination hook
-  const pagination = usePagination(expenseList);
+  const pagination = usePagination(filteredExpenseList);
 
   const highlightQuery = searchParams.get("expID");
   const pageQuery = searchParams.get("page");
@@ -164,7 +349,7 @@ export default function FinanceReview() {
   }, [orgId]);
 
   useEffect(() => {
-    if (!expenseList.length) return;
+    if (!filteredExpenseList.length) return;
 
     if (pageQuery) {
       const parsed = parseInt(pageQuery, 10);
@@ -178,7 +363,7 @@ export default function FinanceReview() {
     }
 
     if (highlightQuery) {
-      const targetIndex = expenseList.findIndex((item) => item.id === highlightQuery);
+      const targetIndex = filteredExpenseList.findIndex((item) => item.id === highlightQuery);
       if (targetIndex !== -1) {
         const targetPage = Math.floor(targetIndex / PER_PAGE) + 1;
         if (targetPage !== pagination.currentPage) {
@@ -187,7 +372,7 @@ export default function FinanceReview() {
       }
     }
   }, [
-    expenseList,
+    filteredExpenseList,
     highlightQuery,
     pageQuery,
     pagination.currentPage,
@@ -222,7 +407,7 @@ export default function FinanceReview() {
   };
 
   const handleApproveAll = async () => {
-    if (!orgId || expenseList.length === 0) {
+    if (!orgId || filteredExpenseList.length === 0) {
       toast.warning("No expenses to approve.");
       return;
     }
@@ -231,7 +416,7 @@ export default function FinanceReview() {
       setLoading(true);
 
       const results = await Promise.all(
-        expenseList.map((expense) =>
+        filteredExpenseList.map((expense) =>
           expenses
             .updateByFinance(expense.id, true, "")
             .catch((err) => ({ error: err }))
@@ -246,7 +431,7 @@ export default function FinanceReview() {
         
         // Send email notifications to all expense creators
         await Promise.all(
-          expenseList.map((expense) =>
+          filteredExpenseList.map((expense) =>
             // Only send email if creator email exists
             (expense.creator?.email || expense.creator_email) ? 
             fetch("/api/expenses/notify-creator", {
@@ -278,6 +463,24 @@ export default function FinanceReview() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      expenseType: "All Expense Type",
+      eventName: "All Events",
+      submittedBy: "All Submitters",
+      approvedBy: "All Approvers",
+      location: "All Locations",
+      uniqueId: "All Unique IDs",
+      minAmount: "",
+      maxAmount: "",
+      minActualAmount: "",
+      maxActualAmount: "",
+      dateMode: "All Dates",
+      startDate: "",
+      endDate: "",
+    });
   };
 
   const handleTdsChange = async (expenseId: string, value: string) => {
@@ -317,15 +520,259 @@ export default function FinanceReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
         {/* <h2 className="subsection-heading">Finance Review</h2> */}
+        <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
+          <Filter className="mr-2 h-4 w-4" />
+          Filters
+        </Button>
         <Button
           onClick={() => setConfirmApproveAllOpen(true)}
-          disabled={expenseList.length === 0 || loading}
+          disabled={filteredExpenseList.length === 0 || loading}
         >
           Approve All
         </Button>
       </div>
+
+      {filterOpen && (
+        <div className="p-4 rounded-md border shadow-sm bg-white">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="text-sm font-medium">Unique ID</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.uniqueId}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, uniqueId: e.target.value }))
+                }
+              >
+                <option>All Unique IDs</option>
+                {uniqueIdOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Expense Type</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.expenseType}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, expenseType: e.target.value }))
+                }
+              >
+                <option>All Expense Type</option>
+                {expenseTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Event Name</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.eventName}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, eventName: e.target.value }))
+                }
+              >
+                <option>All Events</option>
+                {eventNameOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Location</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.location}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, location: e.target.value }))
+                }
+              >
+                <option>All Locations</option>
+                {locationOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.minAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, minAmount: e.target.value }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.maxAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Actual Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.minActualAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, minActualAmount: e.target.value }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.maxActualAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, maxActualAmount: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Date</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.dateMode}
+                onChange={(e) =>
+                  setFilters((prev) => {
+                    const nextMode = e.target.value;
+                    return {
+                      ...prev,
+                      dateMode: nextMode,
+                      startDate: nextMode === "All Dates" ? "" : prev.startDate,
+                      endDate: nextMode === "Custom Date" ? prev.endDate : "",
+                    };
+                  })
+                }
+              >
+                <option value="All Dates">All Dates</option>
+                <option value="Single Date">
+                  {filters.startDate
+                    ? `Single Date (${formatDateForLabel(filters.startDate)})`
+                    : "Single Date"}
+                </option>
+                <option value="Custom Date">Custom Date</option>
+              </select>
+
+              {filters.dateMode === "Single Date" && (
+                <select
+                  className="mt-2 block w-full border rounded px-3 py-2"
+                  value={filters.startDate}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, startDate: e.target.value }))
+                  }
+                >
+                  <option value="">Select Date</option>
+                  {singleDateOptions.map((dateValue) => (
+                    <option key={dateValue} value={dateValue}>
+                      {formatDateForLabel(dateValue)}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {filters.dateMode === "Custom Date" && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    className="w-full border rounded px-3 py-2"
+                    value={filters.startDate}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, startDate: e.target.value }))
+                    }
+                  />
+                  <input
+                    type="date"
+                    className="w-full border rounded px-3 py-2"
+                    value={filters.endDate}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, endDate: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
+                        <div>
+              <label className="text-sm font-medium">Submitted By</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.submittedBy}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, submittedBy: e.target.value }))
+                }
+              >
+                <option>All Submitters</option>
+                {submittedByOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Approved By</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.approvedBy}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, approvedBy: e.target.value }))
+                }
+              >
+                <option>All Approvers</option>
+                {approvedByOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setFilterOpen(false)}>
+              Close
+            </Button>
+            <Button variant="outline" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
@@ -362,13 +809,15 @@ export default function FinanceReview() {
           <TableBody>
             {loading ? (
               <TableSkeleton colSpan={14} rows={5} />
-            ) : expenseList.length === 0 ? (
+            ) : filteredExpenseList.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={14}
                   className="text-center py-6 text-muted-foreground"
                 >
-                  No expenses pending finance review
+                  {expenseList.length === 0
+                    ? "No expenses pending finance review"
+                    : "No expenses match selected filters"}
                 </TableCell>
               </TableRow>
             ) : (
@@ -494,7 +943,7 @@ export default function FinanceReview() {
           </TableBody>
         </Table>
       </div>
-      {expenseList.length > 0 && (
+      {filteredExpenseList.length > 0 && (
         <Pagination
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}

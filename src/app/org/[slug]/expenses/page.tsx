@@ -124,6 +124,19 @@ export default function ExpensesPage() {
   });
 
   const OPTION_ALL = "ALL";
+  const OPTION_NO_DATES = "NO_DATES";
+
+  const getExpenseDateKey = (dateValue: any) => {
+    if (!dateValue) return "";
+    const raw = String(dateValue);
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   const allDataCombined = useMemo(() => {
     return [...expensesData, ...pendingApprovals, ...allExpenses];
@@ -501,6 +514,13 @@ export default function ExpensesPage() {
     return allExpenses;
   };
 
+  const singleDateOptions = useMemo(() => {
+    const dates = unique(getCurrent().map((e: any) => getExpenseDateKey(e.date)));
+    return dates.sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
+  }, [expensesData, pendingApprovals, allExpenses, activeTab]);
+
   const toNumber = (val: string) => {
     const n = parseFloat(val);
     return isNaN(n) ? undefined : n;
@@ -544,7 +564,11 @@ export default function ExpensesPage() {
       if (minAmt !== undefined && Number(e.amount) < minAmt) return false;
       if (maxAmt !== undefined && Number(e.amount) > maxAmt) return false;
 
-      if (fromDate || toDate) {
+      if (filters.dateMode === "SINGLE" && filters.dateFrom) {
+        const expenseDateKey = getExpenseDateKey(e.date);
+        if (!expenseDateKey || expenseDateKey !== filters.dateFrom)
+          return false;
+      } else if (fromDate || toDate) {
         const d = e.date ? new Date(e.date) : undefined;
         if (!d) return false;
         if (fromDate && d < fromDate) return false;
@@ -927,19 +951,48 @@ export default function ExpensesPage() {
                               ? "On Date"
                               : "From Date"}
                           </Label>
-                          <Input
-                            type="date"
-                            placeholder={
-                              filters.dateMode === "SINGLE" ? "Date" : "From"
-                            }
-                            value={filters.dateFrom}
-                            onChange={(e) =>
-                              setFilters({
-                                ...filters,
-                                dateFrom: e.target.value,
-                              })
-                            }
-                          />
+                          {filters.dateMode === "SINGLE" ? (
+                            <Select
+                              value={filters.dateFrom || OPTION_ALL}
+                              onValueChange={(v) => {
+                                if (v === OPTION_NO_DATES) return;
+                                setFilters({
+                                  ...filters,
+                                  dateFrom: v === OPTION_ALL ? "" : v,
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select Date" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={OPTION_ALL}>All Dates</SelectItem>
+                                {singleDateOptions.length > 0 ? (
+                                  singleDateOptions.map((dateKey: string) => (
+                                    <SelectItem key={dateKey} value={dateKey}>
+                                      {formatDate(dateKey)}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value={OPTION_NO_DATES} disabled>
+                                    No expense dates
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              type="date"
+                              placeholder="From"
+                              value={filters.dateFrom}
+                              onChange={(e) =>
+                                setFilters({
+                                  ...filters,
+                                  dateFrom: e.target.value,
+                                })
+                              }
+                            />
+                          )}
                           {filters.dateMode === "CUSTOM" && (
                             <>
                               <Label>To Date</Label>

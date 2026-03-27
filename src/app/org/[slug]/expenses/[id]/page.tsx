@@ -1727,6 +1727,11 @@ export default function ViewExpensePage() {
     ? expense.tds_deduction_amount ??
       Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
     : null;
+  const securityDepositAmount =
+    expense.security_deposit_amount !== null &&
+    expense.security_deposit_amount !== undefined
+      ? Number(expense.security_deposit_amount)
+      : null;
 
   return (
     <div className="container mx-auto py-6">
@@ -1759,9 +1764,9 @@ export default function ViewExpensePage() {
       )}
 
       {userRole !== "member" && expense.status === "submitted" && (
-        <div className="flex items-center space-x-2 mb-6 px-1">
+        <div className="mb-6 px-1 space-y-3">
           {!isAssignedApprover && (
-            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
+            <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-md">
               <p className="text-sm text-amber-800">
                 ⚠️ You are not the assigned approver for this expense. Only the
                 assigned approver can approve or reject this request.
@@ -1769,7 +1774,7 @@ export default function ViewExpensePage() {
             </div>
           )}
           {showCustomAmountInput ? (
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2">
                   ₹
@@ -1803,7 +1808,7 @@ export default function ViewExpensePage() {
               </Button>
             </div>
           ) : (
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="destructive"
                 onClick={handleReject}
@@ -1884,7 +1889,7 @@ export default function ViewExpensePage() {
                   </Button>
                 </>
               )}
-            </>
+            </div>
           )}
         </div>
       )}
@@ -1980,6 +1985,20 @@ export default function ViewExpensePage() {
                         currency: "INR",
                       }).format(tdsAmount ?? 0)}
                       )
+                    </p>
+                  </div>
+                ) : null}
+
+                {securityDepositAmount !== null ? (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Security Deposit Deduction
+                    </p>
+                    <p className="text-amber-600 font-medium">
+                      {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR",
+                      }).format(securityDepositAmount)}
                     </p>
                   </div>
                 ) : null}
