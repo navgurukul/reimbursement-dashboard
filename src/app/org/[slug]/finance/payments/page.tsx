@@ -429,6 +429,13 @@ export default function PaymentProcessingOnly() {
     return "";
   };
 
+  const getExportFileName = (extension: "csv" | "xlsx") => {
+    const accountTypeSuffix = selectedBankType
+      ? selectedBankType.toLowerCase()
+      : "all";
+    return `payment_processing_${accountTypeSuffix}.${extension}`;
+  };
+
   const getExpensesForSelectedAccountType = () => {
     const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
     if (!bankLabel) return [];
@@ -722,7 +729,7 @@ export default function PaymentProcessingOnly() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "payment_processing.csv");
+    link.setAttribute("download", getExportFileName("csv"));
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -819,7 +826,7 @@ export default function PaymentProcessingOnly() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "payment_processing.xlsx";
+    link.download = getExportFileName("xlsx");
     link.click();
     URL.revokeObjectURL(url);
   };
