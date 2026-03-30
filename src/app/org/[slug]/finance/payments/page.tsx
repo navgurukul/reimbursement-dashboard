@@ -1861,6 +1861,7 @@ export default function PaymentProcessingOnly() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Select Account Type</DialogTitle>
+              Only expenses with a selected bank in 'Paid by Bank' will be exported.
           </DialogHeader>
 
           <div className="space-y-6">
