@@ -420,6 +420,42 @@ export default function PaymentProcessingOnly() {
     });
   };
 
+  const getPaidByBankLabelForAccountType = (
+    accountType: "NGIDFC" | "FCIDCF" | "KOTAK" | ""
+  ) => {
+    if (accountType === "NGIDFC") return "NGIDFC Current";
+    if (accountType === "FCIDCF") return "FCIDFC Current";
+    if (accountType === "KOTAK") return "KOTAK";
+    return "";
+  };
+
+  const getExpensesForSelectedAccountType = () => {
+    const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
+    if (!bankLabel) return [];
+
+    return processingExpenses.filter(
+      (expense) => (paidByBank[expense.id] || "") === bankLabel
+    );
+  };
+
+  const validateSelectedAccountTypeForExport = () => {
+    const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
+    if (!bankLabel) {
+      toast.error("Please select an account type before exporting.");
+      return false;
+    }
+
+    const expensesForSelectedType = getExpensesForSelectedAccountType();
+    if (expensesForSelectedType.length === 0) {
+      toast.error(
+        `No expenses found with “${bankLabel}” selected in the “Paid By Bank” column.`
+      );
+      return false;
+    }
+
+    return true;
+  };
+
   // Use pagination hook
   const pagination = usePagination(filteredProcessingExpenses);
 
@@ -591,7 +627,7 @@ export default function PaymentProcessingOnly() {
     }
   }, [highlightedExpenseId, filteredProcessingExpenses, pagination.setCurrentPage]);
 
-  const exportToCSV = () => {
+  const exportToCSV = (expensesToExport: any[]) => {
     const headers = selectedColumns;
 
     // Descriptions for each column to match the provided Excel template
@@ -612,7 +648,7 @@ export default function PaymentProcessingOnly() {
       Remark: "Enter Remarks OPTIONAL",
     };
 
-    const rows = processingExpenses.map((exp) => {
+    const rows = expensesToExport.map((exp) => {
       const row: any[] = [];
 
       for (const col of headers) {
@@ -691,7 +727,7 @@ export default function PaymentProcessingOnly() {
     URL.revokeObjectURL(url);
   };
 
-  const exportToXLSX = () => {
+  const exportToXLSX = (expensesToExport: any[]) => {
     const headers = selectedColumns;
 
     const descriptionsMap: Record<string, string> = {
@@ -711,7 +747,7 @@ export default function PaymentProcessingOnly() {
       Remark: "Enter Remarks OPTIONAL",
     };
 
-    const rows = processingExpenses.map((exp) => {
+    const rows = expensesToExport.map((exp) => {
       const row: any[] = [];
 
       for (const col of headers) {
@@ -789,9 +825,9 @@ export default function PaymentProcessingOnly() {
   };
 
   // Validate that if Transaction Date column is selected, all rows have a value_date
-  const validateTransactionDatesForExport = () => {
+  const validateTransactionDatesForExport = (expensesToExport: any[]) => {
     if (selectedColumns.includes("Transaction Date")) {
-      const missing = processingExpenses.filter((exp) => {
+      const missing = expensesToExport.filter((exp) => {
         return !exp.value_date || exp.value_date.trim() === "";
       });
       if (missing.length > 0) {
@@ -852,15 +888,19 @@ export default function PaymentProcessingOnly() {
   };
 
   const handleExportXLSX = () => {
-    if (!validateTransactionDatesForExport()) return;
-    exportToXLSX();
+    if (!validateSelectedAccountTypeForExport()) return;
+    const expensesToExport = getExpensesForSelectedAccountType();
+    if (!validateTransactionDatesForExport(expensesToExport)) return;
+    exportToXLSX(expensesToExport);
     setShowFormatModal(false);
     // setSelectedBankType("");
   };
 
   const handleExportCSV = () => {
-    if (!validateTransactionDatesForExport()) return;
-    exportToCSV();
+    if (!validateSelectedAccountTypeForExport()) return;
+    const expensesToExport = getExpensesForSelectedAccountType();
+    if (!validateTransactionDatesForExport(expensesToExport)) return;
+    exportToCSV(expensesToExport);
     setShowFormatModal(false);
     // setSelectedBankType("");
   };
@@ -1846,6 +1886,7 @@ export default function PaymentProcessingOnly() {
             </Button>
             <Button
               onClick={() => {
+                if (!validateSelectedAccountTypeForExport()) return;
                 setShowExportModal(false);
                 setShowColumnsModal(true);
               }}
