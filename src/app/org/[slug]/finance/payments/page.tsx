@@ -75,6 +75,9 @@ const calculateActualAmount = (
 const isDirectPaymentUniqueId = (value: unknown) =>
   String(value || "").trim().toLowerCase().includes("direct payment");
 
+const hasValue = (value: unknown) =>
+  value !== null && value !== undefined && value !== "";
+
 export default function PaymentProcessingOnly() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
@@ -215,6 +218,21 @@ export default function PaymentProcessingOnly() {
     );
 
     return actualAmount ?? 0;
+  };
+
+  const getExportAmountValue = (expense: any, fallback: string) => {
+    const hasApprovedAmount = hasValue(expense.approved_amount);
+    const hasRequestedAmount = hasValue(expense.amount);
+
+    if (!hasApprovedAmount && !hasRequestedAmount) {
+      return fallback;
+    }
+
+    if (hasTdsDeduction(expense) || hasSecurityDeposit(expense)) {
+      return getActualAmountValue(expense);
+    }
+
+    return Number(hasApprovedAmount ? expense.approved_amount : expense.amount);
   };
 
   const expenseTypeOptions = useMemo(
@@ -622,7 +640,7 @@ export default function PaymentProcessingOnly() {
             );
             break;
           case "Amount":
-            row.push(exp.approved_amount ?? exp.amount ?? "—");
+            row.push(getExportAmountValue(exp, "N/A"));
             break;
           case "Currency":
             row.push(exp.currency || "INR");
@@ -721,7 +739,7 @@ export default function PaymentProcessingOnly() {
             );
             break;
           case "Amount":
-            row.push(exp.approved_amount ?? exp.amount ?? "N/A");
+            row.push(getExportAmountValue(exp, "N/A"));
             break;
           case "Currency":
             row.push(exp.currency || "INR");
