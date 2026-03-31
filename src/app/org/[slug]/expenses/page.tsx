@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings, expenses } from "@/lib/db";
@@ -59,7 +59,7 @@ import {
 import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
-import { Pagination, usePagination } from "@/components/pagination";
+import { Pagination, usePagination, PER_PAGE } from "@/components/pagination";
 
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
@@ -122,6 +122,9 @@ export default function ExpensesPage() {
     isOpen: false,
     expenseId: null,
   });
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
+  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const OPTION_ALL = "ALL";
   const OPTION_NO_DATES = "NO_DATES";
@@ -251,6 +254,17 @@ export default function ExpensesPage() {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
+
+  const handleTabChange = (tabValue: "my" | "pending" | "all") => {
+    setActiveTab(tabValue);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", tabValue);
+    nextParams.delete("expID");
+    nextParams.delete("page");
+
+    router.replace(`/org/${slug}/expenses?${nextParams.toString()}`);
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -603,6 +617,81 @@ export default function ExpensesPage() {
   // Use pagination hook
   const pagination = usePagination(filteredData);
 
+  const highlightQuery = searchParams.get("expID");
+  const pageQuery = searchParams.get("page");
+
+  useEffect(() => {
+    setHighlightId(highlightQuery);
+    setHasAppliedHighlight(false);
+  }, [highlightQuery]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const timer = window.setTimeout(() => setHighlightId(null), 10000);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
+
+  useEffect(() => {
+    if (!filteredData.length) return;
+
+    if (pageQuery) {
+      const parsed = parseInt(pageQuery, 10);
+      if (!Number.isNaN(parsed)) {
+        const clamped = Math.min(Math.max(parsed, 1), pagination.totalPages);
+        if (clamped !== pagination.currentPage) {
+          pagination.setCurrentPage(clamped);
+        }
+      }
+      return;
+    }
+
+    if (highlightQuery) {
+      const targetIndex = filteredData.findIndex((item) => item.id === highlightQuery);
+      if (targetIndex !== -1) {
+        const targetPage = Math.floor(targetIndex / PER_PAGE) + 1;
+        if (targetPage !== pagination.currentPage) {
+          pagination.setCurrentPage(targetPage);
+        }
+      }
+    }
+  }, [
+    filteredData,
+    highlightQuery,
+    pageQuery,
+    pagination.setCurrentPage,
+    pagination.totalPages,
+  ]);
+
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === pagination.currentPage) return;
+
+    pagination.setCurrentPage(nextPage);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", activeTab);
+    nextParams.set("page", String(nextPage));
+    nextParams.delete("expID");
+
+    router.replace(`/org/${slug}/expenses?${nextParams.toString()}`);
+  };
+
+  useEffect(() => {
+    if (!highlightId || hasAppliedHighlight) return;
+
+    const isVisible = pagination.paginatedData.some((item) => item.id === highlightId);
+    if (!isVisible) return;
+
+    const timer = window.setTimeout(() => {
+      highlightedRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      setHasAppliedHighlight(true);
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightId, hasAppliedHighlight, pagination.paginatedData]);
+
   // Reset to page 1 when filters or tab changes
   useEffect(() => {
     pagination.resetPage();
@@ -692,7 +781,10 @@ export default function ExpensesPage() {
   return (
     <div className="space-y-6 pt-0">
       <h1 className="page-title">Expenses</h1>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => handleTabChange(v as "my" | "pending" | "all")}
+      >
         <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
           <TabsList className="cursor-pointer">
             {tabs.map((t) => (
@@ -1162,8 +1254,15 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      pagination.paginatedData.map((exp, index) => (
-                        <TableRow key={exp.id}>
+                      pagination.paginatedData.map((exp, index) => {
+                        const isHighlighted = highlightId === exp.id;
+                        return (
+                        <TableRow
+                          key={exp.id}
+                          ref={isHighlighted ? highlightedRowRef : null}
+                          data-expense-row={exp.id}
+                          className={isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""}
+                        >
                           <TableCell className="w-12 text-center">
                             {pagination.getItemNumber(index)}
                           </TableCell>
@@ -1257,7 +1356,7 @@ export default function ExpensesPage() {
                                       className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                       onClick={() => {
                                         // For pending tab, add nextId to enable sequential approval flow
-                                        const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}`;
+                                        const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}&page=${pagination.currentPage}`;
                                         const globalIndex = pagination.getItemNumber(index) - 1;
                                         if (
                                           activeTab === "pending" &&
@@ -1318,7 +1417,8 @@ export default function ExpensesPage() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -1328,7 +1428,7 @@ export default function ExpensesPage() {
                       currentPage={pagination.currentPage}
                       totalPages={pagination.totalPages}
                       totalItems={pagination.totalItems}
-                      onPageChange={pagination.setCurrentPage}
+                      onPageChange={handlePageChange}
                       isLoading={loading}
                       itemLabel="Expenses"
                     />

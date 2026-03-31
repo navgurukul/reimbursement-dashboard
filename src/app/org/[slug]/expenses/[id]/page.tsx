@@ -150,7 +150,19 @@ export default function ViewExpensePage() {
   const searchParams = useSearchParams();
   const eventIdFromQuery = searchParams.get("eventId");
   const fromTab = searchParams.get("fromTab");
+  const fromPage = searchParams.get("page");
   const nextId = searchParams.get("nextId"); // Next pending expense ID for sequential approval
+
+  const backToExpensesUrl = (() => {
+    const query = new URLSearchParams();
+    const tab = fromTab || "my";
+    query.set("tab", tab);
+    query.set("expID", expenseId);
+    if (fromPage) {
+      query.set("page", fromPage);
+    }
+    return `/org/${slug}/expenses?${query.toString()}`;
+  })();
 
   const [loading, setLoading] = useState(true);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -1738,7 +1750,7 @@ export default function ViewExpensePage() {
       <div className="mb-4">
         <Button
           variant="link"
-          onClick={() => router.push(`/org/${slug}/expenses`)}
+          onClick={() => router.push(backToExpensesUrl)}
         >
           <ArrowLeft />
           Back to Expenses
