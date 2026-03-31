@@ -375,10 +375,22 @@ export default function FinanceReview() {
     filteredExpenseList,
     highlightQuery,
     pageQuery,
-    pagination.currentPage,
     pagination.setCurrentPage,
     pagination.totalPages,
   ]);
+
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === pagination.currentPage) return;
+
+    pagination.setCurrentPage(nextPage);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", "approvals");
+    nextParams.set("page", String(nextPage));
+    nextParams.delete("expID");
+
+    router.replace(`?${nextParams.toString()}`, { scroll: false });
+  };
 
   useEffect(() => {
     if (!highlightId || hasAppliedHighlight) return;
@@ -948,7 +960,7 @@ export default function FinanceReview() {
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
-          onPageChange={pagination.setCurrentPage}
+          onPageChange={handlePageChange}
           isLoading={loading}
           itemLabel="Expenses"
         />

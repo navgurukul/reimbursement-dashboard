@@ -209,7 +209,7 @@ export default function PaymentRecords() {
     if (Number.isInteger(pageParam) && pageParam > 0) {
       pagination.setCurrentPage(Math.min(pageParam, pagination.totalPages));
     }
-  }, [searchParams, pagination.totalPages, pagination.setCurrentPage]);
+  }, [searchParams, pagination.totalPages]);
 
   // Move to the page containing the highlighted row
   useEffect(() => {
@@ -222,7 +222,7 @@ export default function PaymentRecords() {
         pagination.setCurrentPage(pageNumber);
       }
     }
-  }, [highlightedExpenseId, filteredRecords, searchParams, RECORDS_PER_PAGE, pagination.setCurrentPage]);
+  }, [highlightedExpenseId, filteredRecords, searchParams, RECORDS_PER_PAGE]);
 
   // Scroll to highlighted row after the target page renders
   useEffect(() => {
@@ -245,6 +245,20 @@ export default function PaymentRecords() {
 
     return () => window.clearTimeout(timer);
   }, [highlightedExpenseId, pagination.currentPage, pagination.paginatedData, hasReturnNavigationParams, searchParams, router]);
+
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === pagination.currentPage) return;
+
+    pagination.setCurrentPage(nextPage);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", activeTab);
+    nextParams.set("page", String(nextPage));
+    nextParams.delete("expID");
+
+    router.replace(`?${nextParams.toString()}`, { scroll: false });
+  };
+
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;
     id: string | null;
@@ -2835,7 +2849,7 @@ export default function PaymentRecords() {
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
           itemsPerPage={RECORDS_PER_PAGE}
-          onPageChange={pagination.setCurrentPage}
+          onPageChange={handlePageChange}
           isLoading={loading}
           itemLabel="Records"
         />

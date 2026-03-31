@@ -634,6 +634,19 @@ export default function PaymentProcessingOnly() {
     }
   }, [highlightedExpenseId, filteredProcessingExpenses, pagination.setCurrentPage]);
 
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === pagination.currentPage) return;
+
+    pagination.setCurrentPage(nextPage);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", "payments");
+    nextParams.set("page", String(nextPage));
+    nextParams.delete("expID");
+
+    router.replace(`?${nextParams.toString()}`, { scroll: false });
+  };
+
   const exportToCSV = (expensesToExport: any[]) => {
     const headers = selectedColumns;
 
@@ -1850,7 +1863,7 @@ export default function PaymentProcessingOnly() {
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
-          onPageChange={pagination.setCurrentPage}
+          onPageChange={handlePageChange}
           isLoading={loading}
           itemLabel="Expenses"
         />
