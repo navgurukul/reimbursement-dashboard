@@ -115,6 +115,8 @@ export default function PaymentRecords() {
     uniqueId: "All Unique IDs",
     location: "All Locations",
     bills: "All Bills",
+    tdsDeduction: "All TDS Deductions",
+    securityDeposit: "All Security Deposits",
     utr: "All UTRs",
     startDate: "",
     endDate: "",
@@ -328,12 +330,42 @@ export default function PaymentRecords() {
     return Number(((base * percentage) / 100).toFixed(2));
   };
 
+  const getTdsDeductionPercentage = (record: any) =>
+    Number(record.tds_deduction_percentage ?? 0);
+
   const getSecurityDepositAmount = (record: any) => {
     const amount = record.security_deposit_amount;
     if (amount === null || amount === undefined || amount === "") {
       return null;
     }
     return Number(amount);
+  };
+
+  const getTdsDeductionOptionValue = (record: any) => {
+    const amount = getTdsAmount(record);
+    if (amount === null) return "N/A";
+    const percentage = getTdsDeductionPercentage(record);
+    return `${percentage}|${amount.toFixed(2)}`;
+  };
+
+  const formatTdsDeductionOptionLabel = (optionValue: string) => {
+    if (optionValue === "N/A") return "N/A";
+    const [percentageText, amountText] = optionValue.split("|");
+    const percentage = Number(percentageText);
+    const amount = Number(amountText);
+    const percentageLabel =
+      Number.isFinite(percentage) && percentage > 0 ? `${percentage}%` : "—";
+    return `${percentageLabel} (${formatCurrency(amount)})`;
+  };
+
+  const getSecurityDepositOptionValue = (record: any) => {
+    const amount = getSecurityDepositAmount(record);
+    return amount === null ? "N/A" : String(amount);
+  };
+
+  const formatSecurityDepositOptionLabel = (optionValue: string) => {
+    if (optionValue === "N/A") return "N/A";
+    return formatCurrency(Number(optionValue));
   };
 
   const getActualAmount = (record: any) => {
@@ -1047,6 +1079,34 @@ export default function PaymentRecords() {
   const uniqueIds = Array.from(
     new Set(records.map((r: any) => r.unique_id).filter(Boolean))
   );
+  const tdsDeductionOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(records.map((record: any) => getTdsDeductionOptionValue(record)))
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        const [aPercentage, aAmount] = a.split("|");
+        const [bPercentage, bAmount] = b.split("|");
+        const percentageDiff = Number(aPercentage) - Number(bPercentage);
+        if (percentageDiff !== 0) return percentageDiff;
+        return Number(aAmount) - Number(bAmount);
+      }),
+    [records]
+  );
+  const securityDepositOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          records.map((record: any) => getSecurityDepositOptionValue(record))
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        return Number(a) - Number(b);
+      }),
+    [records]
+  );
   const dateOfExpenseOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
     records.forEach((r: any) => {
@@ -1123,6 +1183,24 @@ export default function PaymentRecords() {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
+      if (filters.tdsDeduction !== "All TDS Deductions") {
+        if (filters.tdsDeduction === "N/A") {
+          if (getTdsDeductionOptionValue(r) !== "N/A") return false;
+        } else if (getTdsDeductionOptionValue(r) !== filters.tdsDeduction) {
+          return false;
+        }
+      }
+      if (filters.securityDeposit !== "All Security Deposits") {
+        const securityDepositAmount = getSecurityDepositAmount(r);
+        if (filters.securityDeposit === "N/A") {
+          if (securityDepositAmount !== null) return false;
+        } else if (
+          securityDepositAmount === null ||
+          securityDepositAmount !== Number(filters.securityDeposit)
+        ) {
+          return false;
+        }
+      }
       if (
         filters.paidByBank !== "All Banks" &&
         (r.paid_by_bank || "") !== filters.paidByBank
@@ -1184,6 +1262,8 @@ export default function PaymentRecords() {
       uniqueId: "All Unique IDs",
       location: "All Locations",
       bills: "All Bills",
+      tdsDeduction: "All TDS Deductions",
+      securityDeposit: "All Security Deposits",
       utr: "All UTRs",
       dateMode: "All Dates",
       startDate: "",
@@ -2009,7 +2089,7 @@ export default function PaymentRecords() {
       {/* Filter panel */}
       {filterOpen && (
         <div className="p-4 rounded-md border shadow-sm bg-white">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Expense Type</label>
               <select
@@ -2112,6 +2192,48 @@ export default function PaymentRecords() {
                 <option>All Receipt/Voucher</option>
                 <option>Receipt</option>
                 <option>Voucher</option>
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">TDS Deduction</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.tdsDeduction}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, tdsDeduction: e.target.value }))
+                }
+              >
+                <option>All TDS Deductions</option>
+                <option value="N/A">N/A</option>
+                {tdsDeductionOptions
+                  .filter((value) => value !== "N/A")
+                  .map((value) => (
+                    <option key={value} value={value}>
+                      {formatTdsDeductionOptionLabel(value)}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Security Deposit</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.securityDeposit}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, securityDeposit: e.target.value }))
+                }
+              >
+                <option>All Security Deposits</option>
+                <option value="N/A">N/A</option>
+                {securityDepositOptions
+                  .filter((value) => value !== "N/A")
+                  .map((value) => (
+                    <option key={value} value={value}>
+                      {formatSecurityDepositOptionLabel(value)}
+                    </option>
+                  ))}
               </select>
             </div>
 
