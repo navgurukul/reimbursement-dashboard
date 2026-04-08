@@ -138,9 +138,10 @@ export default function BankDetailsPage() {
 
       case "account_number":
         if (!value.trim()) newErrors[name] = "Account number is required";
-        else if (!/^\d+$/.test(value)) newErrors[name] = "Only digits allowed";
+        else if (!/^[a-zA-Z0-9]+$/.test(value))
+          newErrors[name] = "Only letters and digits allowed";
         else if (value.length < 9 || value.length > 18)
-          newErrors[name] = "Must be 9–18 digits";
+          newErrors[name] = "Must be 9–18 characters";
         else delete newErrors[name];
         break;
 
@@ -181,10 +182,10 @@ export default function BankDetailsPage() {
 
     if (!form.account_number.trim())
       newErrors.account_number = "Account number is required";
-    else if (!/^\d+$/.test(form.account_number))
-      newErrors.account_number = "Only digits allowed";
+    else if (!/^[a-zA-Z0-9]+$/.test(form.account_number))
+      newErrors.account_number = "Only letters and digits allowed";
     else if (form.account_number.length < 9 || form.account_number.length > 18)
-      newErrors.account_number = "Must be 9–18 digits";
+      newErrors.account_number = "Must be 9–18 characters";
 
     if (!form.ifsc_code.trim()) newErrors.ifsc_code = "IFSC code is required";
 
