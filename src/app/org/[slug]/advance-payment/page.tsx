@@ -956,7 +956,7 @@ export default function AdvancePaymentRecords() {
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Location</label>
+              <label className="text-sm font-medium">Project of Expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.location}
@@ -964,7 +964,7 @@ export default function AdvancePaymentRecords() {
                   setFilters((f) => ({ ...f, location: e.target.value }))
                 }
               >
-                <option>All Locations</option>
+                <option>All Projects</option>
                 {locations.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -1158,7 +1158,7 @@ export default function AdvancePaymentRecords() {
               <TableHead className="text-center py-3">Unique ID</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
-              <TableHead className="text-center py-3">Location</TableHead>
+              <TableHead className="text-center py-3">Project of Expense</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">Bills</TableHead>
               <TableHead className="text-center py-3">Date of expense</TableHead>

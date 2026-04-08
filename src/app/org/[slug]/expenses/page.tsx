@@ -283,8 +283,13 @@ export default function ExpensesPage() {
         // ✅ Remove any existing 'description' columns
         expenseColumns = expenseColumns.filter((c) => c.key !== "description");
 
-        // Remove any existing 'Location of Expense' columns
-        expenseColumns = expenseColumns.filter((c) => c.key !== "location");
+        // Remove any existing 'Location of Expense' or 'Project of Expense' columns (by key or label)
+        expenseColumns = expenseColumns.filter(
+          (c) =>
+            c.key !== "location" &&
+            c.label !== "Project of Expense" &&
+            c.key !== "Project of Expense"
+        );
 
         // Remove any existing 'Expense Credit Person' columns (by key or label)
         expenseColumns = expenseColumns.filter(

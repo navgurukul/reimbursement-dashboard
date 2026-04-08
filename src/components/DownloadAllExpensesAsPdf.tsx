@@ -407,7 +407,7 @@ export default function DownloadAllExpensesAsPdf({
                     ["Timestamp", formatDateTime(expense.created_at)],
                     ["Paid Date", paidDateDisplay],
                     ["Payment Unique ID", expense.unique_id || expense.uniqueId || "N/A"],
-                    ["Location of Expense", expense.location || "N/A"],
+                    ["Project of Expense", expense.location || "N/A"],
                     ["Event Name", eventTitle],
                     ["Expense Type", expense.expense_type || "Not Provided"],
                     ["Amount", amountString],

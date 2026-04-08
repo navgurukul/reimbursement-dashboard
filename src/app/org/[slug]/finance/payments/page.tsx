@@ -1198,7 +1198,7 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Location</label>
+              <label className="text-sm font-medium">Project of Expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.location}
@@ -1206,7 +1206,7 @@ export default function PaymentProcessingOnly() {
                   setFilters((prev) => ({ ...prev, location: e.target.value }))
                 }
               >
-                <option>All Locations</option>
+                <option>All Projects</option>
                 {locationOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -1367,7 +1367,7 @@ export default function PaymentProcessingOnly() {
               <TableHead className="px-4 py-3 text-center">
                 Event Name
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Location</TableHead>
+              <TableHead className="px-4 py-3 text-center">Project of Expense</TableHead>
               <TableHead className="px-4 py-3 text-center">
                 Approved By
               </TableHead>
