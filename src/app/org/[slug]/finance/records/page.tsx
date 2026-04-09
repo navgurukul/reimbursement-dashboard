@@ -124,12 +124,13 @@ export default function PaymentRecords() {
     paidStartDate: "",
     paidEndDate: "",
     paidDateMode: "All Dates",
-    minAmount: 0,
-    maxAmount: 0,
+    minAmount: "",
+    maxAmount: "",
+    minActualAmount: "",
+    maxActualAmount: "",
     paidByBank: "All Banks",
   });
 
-  const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
   const [filterOpen, setFilterOpen] = useState(false);
   const [eventTitleLookup, setEventTitleLookup] = useState<
     Record<string, string>
@@ -591,6 +592,19 @@ export default function PaymentRecords() {
         return false;
       if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
         return false;
+      const actualAmt = getActualAmount(r);
+      if (
+        filters.minActualAmount !== null &&
+        actualAmt !== null &&
+        actualAmt < Number(filters.minActualAmount)
+      )
+        return false;
+      if (
+        filters.maxActualAmount !== null &&
+        actualAmt !== null &&
+        actualAmt > Number(filters.maxActualAmount)
+      )
+        return false;
 
       return true;
     });
@@ -1007,19 +1021,10 @@ export default function PaymentRecords() {
             };
           });
 
-          // compute amount bounds
-          const amounts = enriched.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
-          const min = amounts.length ? Math.min(...amounts) : 0;
-          const max = amounts.length ? Math.max(...amounts) : 0;
-
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
-          setAmountBounds({ min, max });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
           const fallback = sortByPaidApprovalTime(
@@ -1040,18 +1045,10 @@ export default function PaymentRecords() {
                 : index + 1,
             };
           });
-          const amounts = fallback.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
-          const min = amounts.length ? Math.min(...amounts) : 0;
-          const max = amounts.length ? Math.max(...amounts) : 0;
-
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
-          setAmountBounds({ min, max });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         }
       } catch (err: any) {
         toast.error("Failed to load records", { description: err.message });
@@ -1228,9 +1225,22 @@ export default function PaymentRecords() {
       )
         return false;
       const amt = Number(r.approved_amount) || 0;
-      if (filters.minAmount !== null && amt < Number(filters.minAmount))
+      if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
-      if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
+      if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
+        return false;
+      const actualAmt = getActualAmount(r);
+      if (
+        filters.minActualAmount !== "" &&
+        actualAmt !== null &&
+        actualAmt < Number(filters.minActualAmount)
+      )
+        return false;
+      if (
+        filters.maxActualAmount !== "" &&
+        actualAmt !== null &&
+        actualAmt > Number(filters.maxActualAmount)
+      )
         return false;
 
       return true;
@@ -1271,8 +1281,10 @@ export default function PaymentRecords() {
       paidDateMode: "All Dates",
       paidStartDate: "",
       paidEndDate: "",
-      minAmount: amountBounds.min,
-      maxAmount: amountBounds.max,
+      minAmount: "",
+      maxAmount: "",
+      minActualAmount: "",
+      maxActualAmount: "",
       paidByBank: "All Banks",
     }));
     setFilteredRecords(records);
@@ -2441,33 +2453,63 @@ export default function PaymentRecords() {
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Min</label>
-              <input
-                type="number"
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.minAmount}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    minAmount: Number(e.target.value),
-                  }))
-                }
-              />
+              <label className="text-sm font-medium">Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.minAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.maxAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Max</label>
-              <input
-                type="number"
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.maxAmount}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    maxAmount: Number(e.target.value),
-                  }))
-                }
-              />
+              <label className="text-sm font-medium">Actual Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.minActualAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minActualAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.maxActualAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxActualAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-3">
