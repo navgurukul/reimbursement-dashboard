@@ -1458,7 +1458,7 @@ export default function PaymentRecords() {
       }
 
       if (exportLocationFilter !== "All Locations") {
-        segments.push(`Location_${exportLocationFilter}`);
+        segments.push(`Project_of_expense_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
@@ -1720,7 +1720,7 @@ export default function PaymentRecords() {
       }
 
       if (exportLocationFilter !== "All Locations") {
-        segments.push(`Location_${exportLocationFilter}`);
+        segments.push(`Project_of_expense_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
