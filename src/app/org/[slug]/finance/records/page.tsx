@@ -561,11 +561,13 @@ export default function PaymentRecords() {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
-      if (
-        filters.paidByBank !== "All Banks" &&
-        (r.paid_by_bank || "") !== filters.paidByBank
-      )
-        return false;
+      if (filters.paidByBank !== "All Banks") {
+        if (filters.paidByBank === "NO_BANK") {
+          if ((r.paid_by_bank || "").trim()) return false;
+        } else if ((r.paid_by_bank || "") !== filters.paidByBank) {
+          return false;
+        }
+      }
       if (filters.utr && filters.utr !== "All UTRs") {
         if (filters.utr === "Has" && !r.utr) return false;
         if (filters.utr === "None" && r.utr) return false;
@@ -1128,9 +1130,19 @@ export default function PaymentRecords() {
     });
     return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
   }, [records, activeTab]);
-  const paidByBankOptions = Array.from(
-    new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
-  );
+  const paidByBankOptions = useMemo(() => {
+    const banks = Array.from(
+      new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
+    );
+    // Add "NO_BANK" option if there are records without paid_by_bank
+    const hasNoBankRecords = records.some(
+      (r: any) => !r.paid_by_bank || !(r.paid_by_bank || "").trim()
+    );
+    if (hasNoBankRecords) {
+      banks.push("NO_BANK");
+    }
+    return banks;
+  }, [records]);
   const utrValues = Array.from(
     new Set(
       (filters.uniqueId && filters.uniqueId !== "All Unique IDs"
@@ -1198,11 +1210,13 @@ export default function PaymentRecords() {
           return false;
         }
       }
-      if (
-        filters.paidByBank !== "All Banks" &&
-        (r.paid_by_bank || "") !== filters.paidByBank
-      )
-        return false;
+      if (filters.paidByBank !== "All Banks") {
+        if (filters.paidByBank === "NO_BANK") {
+          if ((r.paid_by_bank || "").trim()) return false;
+        } else if ((r.paid_by_bank || "") !== filters.paidByBank) {
+          return false;
+        }
+      }
       if (filters.utr && filters.utr !== "All UTRs") {
         if (filters.utr === "Has" && !r.utr) return false;
         if (filters.utr === "None" && r.utr) return false;
@@ -2262,7 +2276,7 @@ export default function PaymentRecords() {
                   <option>All Banks</option>
                   {paidByBankOptions.map((bank) => (
                     <option key={bank} value={bank}>
-                      {bank}
+                      {bank === "NO_BANK" ? "No Bank (Not Paid)" : bank}
                     </option>
                   ))}
                 </select>
