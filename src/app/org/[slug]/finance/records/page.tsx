@@ -1109,11 +1109,14 @@ export default function PaymentRecords() {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
-      if (
-        filters.paidByBank !== "All Banks" &&
-        (r.paid_by_bank || "") !== filters.paidByBank
-      )
-        return false;
+      if (filters.paidByBank !== "All Banks") {
+        const paidByBank = (r.paid_by_bank || "").trim();
+        if (filters.paidByBank === "No Bank Records (Not paid by bank)") {
+          if (paidByBank) return false;
+        } else if (paidByBank !== filters.paidByBank) {
+          return false;
+        }
+      }
       if (filters.utr && filters.utr !== "All UTRs") {
         if (filters.utr === "Has" && !r.utr) return false;
         if (filters.utr === "None" && r.utr) return false;
@@ -2112,6 +2115,9 @@ export default function PaymentRecords() {
                   }
                 >
                   <option>All Banks</option>
+                  <option value="No Bank Records (Not paid by bank)">
+                    No Bank Records (Not paid by bank)
+                  </option>
                   {paidByBankOptions.map((bank) => (
                     <option key={bank} value={bank}>
                       {bank}
