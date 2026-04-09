@@ -1364,7 +1364,7 @@ export default function PaymentRecords() {
       }
 
       if (exportLocationFilter !== "All Locations") {
-        segments.push(`Location_${exportLocationFilter}`);
+        segments.push(`Project_of_expense_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
@@ -1626,7 +1626,7 @@ export default function PaymentRecords() {
       }
 
       if (exportLocationFilter !== "All Locations") {
-        segments.push(`Location_${exportLocationFilter}`);
+        segments.push(`Project_of_expense_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
@@ -2069,7 +2069,7 @@ export default function PaymentRecords() {
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Location</label>
+              <label className="text-sm font-medium">Project of Expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.location}
@@ -2077,7 +2077,7 @@ export default function PaymentRecords() {
                   setFilters((f) => ({ ...f, location: e.target.value }))
                 }
               >
-                <option>All Locations</option>
+                <option>All Projects</option>
                 {locations.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -2358,7 +2358,7 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Unique ID</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
-              <TableHead className="text-center py-3">Location</TableHead>
+              <TableHead className="text-center py-3">Project of Expense</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">TDS Deduction</TableHead>
               <TableHead className="text-center py-3">Security Deposit</TableHead>
@@ -2912,7 +2912,7 @@ export default function PaymentRecords() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Location</label>
+                <label className="text-sm font-medium">Project of Expense</label>
                 <select
                   className="mt-1 block w-full border rounded px-3 py-2 bg-white"
                   value={editForm.location}
@@ -3534,13 +3534,13 @@ export default function PaymentRecords() {
               </RadioGroup>
             </div>
             <div>
-              <label className="text-sm font-medium">Location (Date of Expense)</label>
+              <label className="text-sm font-medium">Project of Expense (Date of Expense)</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2 bg-white"
                 value={quickExportLocation}
                 onChange={(e) => setQuickExportLocation(e.target.value)}
               >
-                <option value="All Locations">All Locations</option>
+                <option value="All Locations">All Projects</option>
                 {quickExportLocationOptions.map((location) => (
                   <option key={location} value={location}>
                     {location}
