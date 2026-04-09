@@ -172,14 +172,30 @@ export default function SettingsPage() {
               return col;
             });
 
-            // Ensure location column exists if not present
+            // Ensure location column exists if not present and remove duplicates
             const hasLocationColumn = processedColumns.some(
               (col) => col.key === "location"
             );
-            if (!hasLocationColumn) {
+            
+            // Remove duplicate "Project of Expense" entries (keep only the one with key "location")
+            const locationColumnIndex = processedColumns.findIndex(
+              (col) => col.key === "location"
+            );
+            const projectExpenseIndex = processedColumns.findIndex(
+              (col) => col.label === "Project of Expense" && col.key !== "location"
+            );
+            
+            if (projectExpenseIndex !== -1 && locationColumnIndex !== -1) {
+              // Remove the duplicate if both exist
+              processedColumns.splice(projectExpenseIndex, 1);
+            } else if (projectExpenseIndex !== -1 && locationColumnIndex === -1) {
+              // If only the duplicate exists, rename it to location
+              processedColumns[projectExpenseIndex].key = "location";
+            } else if (!hasLocationColumn) {
+              // If no location column exists, add it
               processedColumns.push({
                 key: "location",
-                label: "Location of Expense",
+                label: "Project of Expense",
                 type: "dropdown",
                 visible: true,
                 required: true,
@@ -191,14 +207,17 @@ export default function SettingsPage() {
           } else {
             // If no columns exist, initialize with default columns plus location
             const initialColumns = [...defaultColumns];
-            initialColumns.push({
-              key: "location",
-              label: "Location of Expense",
-              type: "dropdown",
-              visible: true,
-              required: true,
-              options: [],
-            });
+            // Only add location if not already present
+            if (!initialColumns.some((col) => col.key === "location" || col.label === "Project of Expense")) {
+              initialColumns.push({
+                key: "location",
+                label: "Project of Expense",
+                type: "dropdown",
+                visible: true,
+                required: true,
+                options: [],
+              });
+            }
             setColumns(initialColumns);
           }
         }
@@ -307,7 +326,22 @@ export default function SettingsPage() {
     const toastId = toast.loading("Saving columns…");
     try {
       // Make a deep copy of columns to avoid reference issues
-      const columnsToSave = JSON.parse(JSON.stringify(columns));
+      let columnsToSave = JSON.parse(JSON.stringify(columns));
+
+      // Remove duplicate "Project of Expense" entries
+      const locationColumnIndex = columnsToSave.findIndex(
+        (col: DbColumnConfig) => col.key === "location"
+      );
+      const duplicateProjectExpenseIndices = columnsToSave
+        .map((col: DbColumnConfig, idx: number) => 
+          col.label === "Project of Expense" && col.key !== "location" ? idx : -1
+        )
+        .filter((idx: number) => idx !== -1);
+      
+      // Remove duplicates in reverse order to avoid index shifting
+      for (let i = duplicateProjectExpenseIndices.length - 1; i >= 0; i--) {
+        columnsToSave.splice(duplicateProjectExpenseIndices[i], 1);
+      }
 
       // Process columns before saving
       const processedColumns = await Promise.all(

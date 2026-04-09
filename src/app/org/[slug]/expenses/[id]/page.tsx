@@ -150,7 +150,19 @@ export default function ViewExpensePage() {
   const searchParams = useSearchParams();
   const eventIdFromQuery = searchParams.get("eventId");
   const fromTab = searchParams.get("fromTab");
+  const fromPage = searchParams.get("page");
   const nextId = searchParams.get("nextId"); // Next pending expense ID for sequential approval
+
+  const backToExpensesUrl = (() => {
+    const query = new URLSearchParams();
+    const tab = fromTab || "my";
+    query.set("tab", tab);
+    query.set("expID", expenseId);
+    if (fromPage) {
+      query.set("page", fromPage);
+    }
+    return `/org/${slug}/expenses?${query.toString()}`;
+  })();
 
   const [loading, setLoading] = useState(true);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -1368,7 +1380,7 @@ export default function ViewExpensePage() {
     getCustomFieldValue([
       "location_of_expense",
       "location of expense",
-      "Location of Expense",
+      "Project of Expense",
     ]) || expense.location;
 
   // Helper function to format field names
@@ -1738,7 +1750,7 @@ export default function ViewExpensePage() {
       <div className="mb-4">
         <Button
           variant="link"
-          onClick={() => router.push(`/org/${slug}/expenses`)}
+          onClick={() => router.push(backToExpensesUrl)}
         >
           <ArrowLeft />
           Back to Expenses
@@ -1919,7 +1931,7 @@ export default function ViewExpensePage() {
                 {/* ✅ Add this block to show Location */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
-                    Location
+                    Project of Expense
                   </p>
                   <p>{expenseLocationValue || "N/A"}</p>
                 </div>
@@ -2675,13 +2687,14 @@ export default function ViewExpensePage() {
 
                         return (
                           normalizedKey !== "location of expense" &&
+                          normalizedKey !== "project of expense" &&
                           normalizedKey !== "approver name" &&
                           normalizedKey !== "second approver name" &&
                           normalizedKey !== "second approver id" &&
                           normalizedKey !== "expense credit person" &&
                           normalizedKey !== "description"
                         );
-                      }) // Exclude Location Of Expense and description
+                      }) // Exclude Project Of Expense and description
                       .map(([key, value]) => {
                         const matchedField = customFields.find(
                           (field) => field.key === key

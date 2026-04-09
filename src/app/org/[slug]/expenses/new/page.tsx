@@ -1803,7 +1803,7 @@ export default function NewExpensePage() {
 
     // ✅ Validate single Location
     if (!formData.location) {
-      newErrors["location"] = "Location is required";
+      newErrors["location"] = "Project of expense is required";
     }
 
     // Receipt required for main expense if not in voucher mode
@@ -2687,7 +2687,7 @@ export default function NewExpensePage() {
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-3 text-sm">
-                          <span className="text-gray-600">Location of Expense</span>
+                          <span className="text-gray-600">Project of Expense</span>
                           <span className="font-medium text-gray-900">
                             {match.location}
                           </span>

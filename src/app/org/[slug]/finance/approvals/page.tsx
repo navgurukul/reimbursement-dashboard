@@ -375,10 +375,22 @@ export default function FinanceReview() {
     filteredExpenseList,
     highlightQuery,
     pageQuery,
-    pagination.currentPage,
     pagination.setCurrentPage,
     pagination.totalPages,
   ]);
+
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === pagination.currentPage) return;
+
+    pagination.setCurrentPage(nextPage);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", "approvals");
+    nextParams.set("page", String(nextPage));
+    nextParams.delete("expID");
+
+    router.replace(`?${nextParams.toString()}`, { scroll: false });
+  };
 
   useEffect(() => {
     if (!highlightId || hasAppliedHighlight) return;
@@ -592,7 +604,7 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Location</label>
+              <label className="text-sm font-medium">Project of Expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.location}
@@ -600,7 +612,7 @@ export default function FinanceReview() {
                   setFilters((prev) => ({ ...prev, location: e.target.value }))
                 }
               >
-                <option>All Locations</option>
+                <option>All Projects</option>
                 {locationOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -787,7 +799,7 @@ export default function FinanceReview() {
               <TableHead className="px-4 py-3 text-center">
                 Event Name
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Location</TableHead>
+              <TableHead className="px-4 py-3 text-center">Project of Expense</TableHead>
               <TableHead className="px-4 py-3 text-center">Amount</TableHead>
               <TableHead className="px-4 py-3 text-center">
                 TDS Deduction
@@ -948,7 +960,7 @@ export default function FinanceReview() {
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
-          onPageChange={pagination.setCurrentPage}
+          onPageChange={handlePageChange}
           isLoading={loading}
           itemLabel="Expenses"
         />

@@ -75,6 +75,9 @@ const calculateActualAmount = (
 const isDirectPaymentUniqueId = (value: unknown) =>
   String(value || "").trim().toLowerCase().includes("direct payment");
 
+const hasValue = (value: unknown) =>
+  value !== null && value !== undefined && value !== "";
+
 export default function PaymentProcessingOnly() {
   const { organization } = useOrgStore();
   const orgId = organization?.id;
@@ -215,6 +218,21 @@ export default function PaymentProcessingOnly() {
     );
 
     return actualAmount ?? 0;
+  };
+
+  const getExportAmountValue = (expense: any, fallback: string) => {
+    const hasApprovedAmount = hasValue(expense.approved_amount);
+    const hasRequestedAmount = hasValue(expense.amount);
+
+    if (!hasApprovedAmount && !hasRequestedAmount) {
+      return fallback;
+    }
+
+    if (hasTdsDeduction(expense) || hasSecurityDeposit(expense)) {
+      return getActualAmountValue(expense);
+    }
+
+    return Number(hasApprovedAmount ? expense.approved_amount : expense.amount);
   };
 
   const expenseTypeOptions = useMemo(
@@ -402,6 +420,49 @@ export default function PaymentProcessingOnly() {
     });
   };
 
+  const getPaidByBankLabelForAccountType = (
+    accountType: "NGIDFC" | "FCIDCF" | "KOTAK" | ""
+  ) => {
+    if (accountType === "NGIDFC") return "NGIDFC Current";
+    if (accountType === "FCIDCF") return "FCIDFC Current";
+    if (accountType === "KOTAK") return "KOTAK";
+    return "";
+  };
+
+  const getExportFileName = (extension: "csv" | "xlsx") => {
+    const accountTypeSuffix = selectedBankType
+      ? selectedBankType.toLowerCase()
+      : "all";
+    return `payment_processing_${accountTypeSuffix}.${extension}`;
+  };
+
+  const getExpensesForSelectedAccountType = () => {
+    const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
+    if (!bankLabel) return [];
+
+    return processingExpenses.filter(
+      (expense) => (paidByBank[expense.id] || "") === bankLabel
+    );
+  };
+
+  const validateSelectedAccountTypeForExport = () => {
+    const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
+    if (!bankLabel) {
+      toast.error("Please select an account type before exporting.");
+      return false;
+    }
+
+    const expensesForSelectedType = getExpensesForSelectedAccountType();
+    if (expensesForSelectedType.length === 0) {
+      toast.error(
+        `No expenses found with “${bankLabel}” selected in the “Paid By Bank” column.`
+      );
+      return false;
+    }
+
+    return true;
+  };
+
   // Use pagination hook
   const pagination = usePagination(filteredProcessingExpenses);
 
@@ -573,7 +634,20 @@ export default function PaymentProcessingOnly() {
     }
   }, [highlightedExpenseId, filteredProcessingExpenses, pagination.setCurrentPage]);
 
-  const exportToCSV = () => {
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === pagination.currentPage) return;
+
+    pagination.setCurrentPage(nextPage);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", "payments");
+    nextParams.set("page", String(nextPage));
+    nextParams.delete("expID");
+
+    router.replace(`?${nextParams.toString()}`, { scroll: false });
+  };
+
+  const exportToCSV = (expensesToExport: any[]) => {
     const headers = selectedColumns;
 
     // Descriptions for each column to match the provided Excel template
@@ -594,7 +668,7 @@ export default function PaymentProcessingOnly() {
       Remark: "Enter Remarks OPTIONAL",
     };
 
-    const rows = processingExpenses.map((exp) => {
+    const rows = expensesToExport.map((exp) => {
       const row: any[] = [];
 
       for (const col of headers) {
@@ -622,7 +696,7 @@ export default function PaymentProcessingOnly() {
             );
             break;
           case "Amount":
-            row.push(exp.approved_amount ?? exp.amount ?? "—");
+            row.push(getExportAmountValue(exp, "N/A"));
             break;
           case "Currency":
             row.push(exp.currency || "INR");
@@ -668,12 +742,12 @@ export default function PaymentProcessingOnly() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "payment_processing.csv");
+    link.setAttribute("download", getExportFileName("csv"));
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const exportToXLSX = () => {
+  const exportToXLSX = (expensesToExport: any[]) => {
     const headers = selectedColumns;
 
     const descriptionsMap: Record<string, string> = {
@@ -693,7 +767,7 @@ export default function PaymentProcessingOnly() {
       Remark: "Enter Remarks OPTIONAL",
     };
 
-    const rows = processingExpenses.map((exp) => {
+    const rows = expensesToExport.map((exp) => {
       const row: any[] = [];
 
       for (const col of headers) {
@@ -721,7 +795,7 @@ export default function PaymentProcessingOnly() {
             );
             break;
           case "Amount":
-            row.push(exp.approved_amount ?? exp.amount ?? "N/A");
+            row.push(getExportAmountValue(exp, "N/A"));
             break;
           case "Currency":
             row.push(exp.currency || "INR");
@@ -765,15 +839,15 @@ export default function PaymentProcessingOnly() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "payment_processing.xlsx";
+    link.download = getExportFileName("xlsx");
     link.click();
     URL.revokeObjectURL(url);
   };
 
   // Validate that if Transaction Date column is selected, all rows have a value_date
-  const validateTransactionDatesForExport = () => {
+  const validateTransactionDatesForExport = (expensesToExport: any[]) => {
     if (selectedColumns.includes("Transaction Date")) {
-      const missing = processingExpenses.filter((exp) => {
+      const missing = expensesToExport.filter((exp) => {
         return !exp.value_date || exp.value_date.trim() === "";
       });
       if (missing.length > 0) {
@@ -834,15 +908,19 @@ export default function PaymentProcessingOnly() {
   };
 
   const handleExportXLSX = () => {
-    if (!validateTransactionDatesForExport()) return;
-    exportToXLSX();
+    if (!validateSelectedAccountTypeForExport()) return;
+    const expensesToExport = getExpensesForSelectedAccountType();
+    if (!validateTransactionDatesForExport(expensesToExport)) return;
+    exportToXLSX(expensesToExport);
     setShowFormatModal(false);
     // setSelectedBankType("");
   };
 
   const handleExportCSV = () => {
-    if (!validateTransactionDatesForExport()) return;
-    exportToCSV();
+    if (!validateSelectedAccountTypeForExport()) return;
+    const expensesToExport = getExpensesForSelectedAccountType();
+    if (!validateTransactionDatesForExport(expensesToExport)) return;
+    exportToCSV(expensesToExport);
     setShowFormatModal(false);
     // setSelectedBankType("");
   };
@@ -1120,7 +1198,7 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Location</label>
+              <label className="text-sm font-medium">Project of Expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.location}
@@ -1128,7 +1206,7 @@ export default function PaymentProcessingOnly() {
                   setFilters((prev) => ({ ...prev, location: e.target.value }))
                 }
               >
-                <option>All Locations</option>
+                <option>All Projects</option>
                 {locationOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -1289,7 +1367,7 @@ export default function PaymentProcessingOnly() {
               <TableHead className="px-4 py-3 text-center">
                 Event Name
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Location</TableHead>
+              <TableHead className="px-4 py-3 text-center">Project of Expense</TableHead>
               <TableHead className="px-4 py-3 text-center">
                 Approved By
               </TableHead>
@@ -1785,7 +1863,7 @@ export default function PaymentProcessingOnly() {
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
-          onPageChange={pagination.setCurrentPage}
+          onPageChange={handlePageChange}
           isLoading={loading}
           itemLabel="Expenses"
         />
@@ -1796,6 +1874,7 @@ export default function PaymentProcessingOnly() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Select Account Type</DialogTitle>
+              Only expenses with a selected bank in 'Paid by Bank' will be exported.
           </DialogHeader>
 
           <div className="space-y-6">
@@ -1828,6 +1907,7 @@ export default function PaymentProcessingOnly() {
             </Button>
             <Button
               onClick={() => {
+                if (!validateSelectedAccountTypeForExport()) return;
                 setShowExportModal(false);
                 setShowColumnsModal(true);
               }}

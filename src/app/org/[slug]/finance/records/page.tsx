@@ -122,12 +122,14 @@ export default function PaymentRecords() {
     paidStartDate: "",
     paidEndDate: "",
     paidDateMode: "All Dates",
-    minAmount: 0,
-    maxAmount: 0,
+    minAmount: "",
+    maxAmount: "",
+    minActualAmount: "",
+    maxActualAmount: "",
+    tdsDeduction: "All TDS Deductions",
+    securityDeposit: "All Security Deposits",
     paidByBank: "All Banks",
   });
-
-  const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
   const [filterOpen, setFilterOpen] = useState(false);
   const [eventTitleLookup, setEventTitleLookup] = useState<
     Record<string, string>
@@ -150,11 +152,11 @@ export default function PaymentRecords() {
   // Bank filter tabs: All, NGIDFC Current, FCIDFC Current
   const [activeTab, setActiveTab] = useState<"all" | "ngidfc" | "fcidfc" | "kotak">("all");
   const BANK_STRING_MAP: Record<"ngidfc" | "fcidfc" | "kotak", "NGIDFC Current" | "FCIDFC Current" | "KOTAK"> =
-    {
-      ngidfc: "NGIDFC Current",
-      fcidfc: "FCIDFC Current",
-      kotak: "KOTAK",
-    };
+  {
+    ngidfc: "NGIDFC Current",
+    fcidfc: "FCIDFC Current",
+    kotak: "KOTAK",
+  };
 
   useEffect(() => {
     const tabParam = searchParams.get("activeTab");
@@ -320,6 +322,42 @@ export default function PaymentRecords() {
       return null;
     }
     return Number(amount);
+  };
+
+  const hasTdsDeduction = (record: any) => {
+    const stored = record.tds_deduction_amount;
+    if (stored !== null && stored !== undefined && stored !== "") {
+      return true;
+    }
+    return Number(record.tds_deduction_percentage ?? 0) > 0;
+  };
+
+  const getTdsDeductionPercentage = (record: any) =>
+    Number(record.tds_deduction_percentage ?? 0);
+
+  const getTdsDeductionOptionValue = (record: any) => {
+    if (!hasTdsDeduction(record)) return "N/A";
+
+    const percentage = getTdsDeductionPercentage(record);
+    const amount = getTdsAmount(record) ?? 0;
+    return `${percentage}|${amount.toFixed(2)}`;
+  };
+
+  const formatTdsDeductionOptionLabel = (optionValue: string) => {
+    if (optionValue === "N/A") return "N/A";
+
+    const [percentageText, amountText] = optionValue.split("|");
+    const percentage = Number(percentageText);
+    const amount = Number(amountText);
+    const percentageLabel =
+      Number.isFinite(percentage) && percentage > 0 ? `${percentage}%` : "—";
+
+    return `${percentageLabel} (${formatCurrency(amount)})`;
+  };
+
+  const hasSecurityDeposit = (record: any) => {
+    const amount = record.security_deposit_amount;
+    return !(amount === null || amount === undefined || amount === "");
   };
 
   const getActualAmount = (record: any) => {
@@ -541,10 +579,44 @@ export default function PaymentRecords() {
       )
         return false;
       const amt = Number(r.approved_amount) || 0;
-      if (filters.minAmount !== null && amt < Number(filters.minAmount))
+      if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
-      if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
+      if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
         return false;
+      const actualAmount = getActualAmount(r);
+      if (
+        filters.minActualAmount !== "" &&
+        (actualAmount === null || actualAmount < Number(filters.minActualAmount))
+      ) {
+        return false;
+      }
+      if (
+        filters.maxActualAmount !== "" &&
+        (actualAmount === null || actualAmount > Number(filters.maxActualAmount))
+      ) {
+        return false;
+      }
+      if (
+        filters.tdsDeduction !== "All TDS Deductions" &&
+        !(
+          (filters.tdsDeduction === "N/A" && !hasTdsDeduction(r)) ||
+          (filters.tdsDeduction !== "N/A" &&
+            filters.tdsDeduction === getTdsDeductionOptionValue(r))
+        )
+      ) {
+        return false;
+      }
+      const securityDepositAmount = getSecurityDepositAmount(r);
+      if (
+        filters.securityDeposit !== "All Security Deposits" &&
+        !(
+          (filters.securityDeposit === "N/A" && !hasSecurityDeposit(r)) ||
+          (filters.securityDeposit !== "N/A" &&
+            securityDepositAmount === Number(filters.securityDeposit))
+        )
+      ) {
+        return false;
+      }
 
       return true;
     });
@@ -619,10 +691,10 @@ export default function PaymentRecords() {
         record.utr || "—",
         record.paid_approval_time
           ? new Date(record.paid_approval_time).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
           : "—",
         record.payment_status || "",
         record.paid_by_bank || "N/A",
@@ -637,12 +709,12 @@ export default function PaymentRecords() {
     const baseRecords = exportBankType === "ALL_RECORDS"
       ? getAllTabFilteredRecords()
       : exportBankType
-      ? filteredRecords.filter((r) =>
+        ? filteredRecords.filter((r) =>
           exportBankType === "NO_BANK"
             ? !(r.paid_by_bank || "").trim()
             : (r.paid_by_bank || "") === exportBankType
         )
-      : filteredRecords;
+        : filteredRecords;
 
     return baseRecords.filter((record) => {
       const matchesExpenseDate = isDateWithinRange(
@@ -669,12 +741,12 @@ export default function PaymentRecords() {
     const baseRecords = exportBankType === "ALL_RECORDS"
       ? getAllTabFilteredRecords()
       : exportBankType
-      ? filteredRecords.filter((record) =>
+        ? filteredRecords.filter((record) =>
           exportBankType === "NO_BANK"
             ? !(record.paid_by_bank || "").trim()
             : (record.paid_by_bank || "") === exportBankType
         )
-      : filteredRecords;
+        : filteredRecords;
     const uniqueDates = new Set<string>();
     baseRecords.forEach((record) => {
       const dateOnly = toDateOnly(record.date);
@@ -791,12 +863,12 @@ export default function PaymentRecords() {
     const baseRecords = exportBankType === "ALL_RECORDS"
       ? getAllTabFilteredRecords()
       : exportBankType
-      ? filteredRecords.filter((record) =>
+        ? filteredRecords.filter((record) =>
           exportBankType === "NO_BANK"
             ? !(record.paid_by_bank || "").trim()
             : (record.paid_by_bank || "") === exportBankType
         )
-      : filteredRecords;
+        : filteredRecords;
     const uniqueDates = new Set<string>();
     baseRecords.forEach((record) => {
       const dateOnly = toDateOnly(record.paid_approval_time);
@@ -961,19 +1033,10 @@ export default function PaymentRecords() {
             };
           });
 
-          // compute amount bounds
-          const amounts = enriched.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
-          const min = amounts.length ? Math.min(...amounts) : 0;
-          const max = amounts.length ? Math.max(...amounts) : 0;
-
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
-          setAmountBounds({ min, max });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
           const fallback = sortByPaidApprovalTime(
@@ -994,18 +1057,10 @@ export default function PaymentRecords() {
                 : index + 1,
             };
           });
-          const amounts = fallback.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
-          const min = amounts.length ? Math.min(...amounts) : 0;
-          const max = amounts.length ? Math.max(...amounts) : 0;
-
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
-          setAmountBounds({ min, max });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         }
       } catch (err: any) {
         toast.error("Failed to load records", { description: err.message });
@@ -1033,30 +1088,65 @@ export default function PaymentRecords() {
   const uniqueIds = Array.from(
     new Set(records.map((r: any) => r.unique_id).filter(Boolean))
   );
+  const activeTabRecords = useMemo(() => {
+    return records.filter((r: any) => {
+      if (activeTab === "all") return true;
+      const expected = BANK_STRING_MAP[activeTab];
+      return (r.paid_by_bank || "") === expected;
+    });
+  }, [records, activeTab]);
   const dateOfExpenseOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
-    records.forEach((r: any) => {
-      if (activeTab !== "all") {
-        const expected = BANK_STRING_MAP[activeTab];
-        if ((r.paid_by_bank || "") !== expected) return;
-      }
+    activeTabRecords.forEach((r: any) => {
       const dateOnly = toDateOnly(r.date);
       if (dateOnly) uniqueDates.add(dateOnly);
     });
     return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
-  }, [records, activeTab]);
+  }, [activeTabRecords]);
   const paidDateFilterOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
-    records.forEach((r: any) => {
-      if (activeTab !== "all") {
-        const expected = BANK_STRING_MAP[activeTab];
-        if ((r.paid_by_bank || "") !== expected) return;
-      }
+    activeTabRecords.forEach((r: any) => {
       const dateOnly = toDateOnly(r.paid_approval_time);
       if (dateOnly) uniqueDates.add(dateOnly);
     });
     return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
-  }, [records, activeTab]);
+  }, [activeTabRecords]);
+  const tdsDeductionOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          activeTabRecords.map((record: any) =>
+            getTdsDeductionOptionValue(record)
+          )
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        const [aPercentage, aAmount] = a.split("|");
+        const [bPercentage, bAmount] = b.split("|");
+        const percentageDiff = Number(aPercentage) - Number(bPercentage);
+        if (percentageDiff !== 0) return percentageDiff;
+        return Number(aAmount) - Number(bAmount);
+      }),
+    [activeTabRecords]
+  );
+  const securityDepositOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          activeTabRecords.map((record: any) =>
+            hasSecurityDeposit(record)
+              ? String(getSecurityDepositAmount(record))
+              : "N/A"
+          )
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        return Number(a) - Number(b);
+      }),
+    [activeTabRecords]
+  );
   const paidByBankOptions = Array.from(
     new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
   );
@@ -1109,11 +1199,14 @@ export default function PaymentRecords() {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
-      if (
-        filters.paidByBank !== "All Banks" &&
-        (r.paid_by_bank || "") !== filters.paidByBank
-      )
-        return false;
+      if (filters.paidByBank !== "All Banks") {
+        const paidByBank = (r.paid_by_bank || "").trim();
+        if (filters.paidByBank === "No Bank Records (Not paid by bank)") {
+          if (paidByBank) return false;
+        } else if (paidByBank !== filters.paidByBank) {
+          return false;
+        }
+      }
       if (filters.utr && filters.utr !== "All UTRs") {
         if (filters.utr === "Has" && !r.utr) return false;
         if (filters.utr === "None" && r.utr) return false;
@@ -1136,10 +1229,44 @@ export default function PaymentRecords() {
       )
         return false;
       const amt = Number(r.approved_amount) || 0;
-      if (filters.minAmount !== null && amt < Number(filters.minAmount))
+      if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
-      if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
+      if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
         return false;
+      const actualAmount = getActualAmount(r);
+      if (
+        filters.minActualAmount !== "" &&
+        (actualAmount === null || actualAmount < Number(filters.minActualAmount))
+      ) {
+        return false;
+      }
+      if (
+        filters.maxActualAmount !== "" &&
+        (actualAmount === null || actualAmount > Number(filters.maxActualAmount))
+      ) {
+        return false;
+      }
+      if (
+        filters.tdsDeduction !== "All TDS Deductions" &&
+        !(
+          (filters.tdsDeduction === "N/A" && !hasTdsDeduction(r)) ||
+          (filters.tdsDeduction !== "N/A" &&
+            filters.tdsDeduction === getTdsDeductionOptionValue(r))
+        )
+      ) {
+        return false;
+      }
+      const securityDepositAmount = getSecurityDepositAmount(r);
+      if (
+        filters.securityDeposit !== "All Security Deposits" &&
+        !(
+          (filters.securityDeposit === "N/A" && !hasSecurityDeposit(r)) ||
+          (filters.securityDeposit !== "N/A" &&
+            securityDepositAmount === Number(filters.securityDeposit))
+        )
+      ) {
+        return false;
+      }
 
       return true;
     });
@@ -1177,8 +1304,12 @@ export default function PaymentRecords() {
       paidDateMode: "All Dates",
       paidStartDate: "",
       paidEndDate: "",
-      minAmount: amountBounds.min,
-      maxAmount: amountBounds.max,
+      minAmount: "",
+      maxAmount: "",
+      minActualAmount: "",
+      maxActualAmount: "",
+      tdsDeduction: "All TDS Deductions",
+      securityDeposit: "All Security Deposits",
       paidByBank: "All Banks",
     }));
     setFilteredRecords(records);
@@ -1352,9 +1483,9 @@ export default function PaymentRecords() {
             ? "FC Records"
             : exportBankType === "ALL_RECORDS"
               ? "All Records"
-            : exportBankType === "NO_BANK"
-              ? "No Bank Records"
-              : "KOTAK Records"
+              : exportBankType === "NO_BANK"
+                ? "No Bank Records"
+                : "KOTAK Records"
         : "All Records";
 
       const segments: string[] = [bankLabel];
@@ -1364,18 +1495,18 @@ export default function PaymentRecords() {
       }
 
       if (exportLocationFilter !== "All Locations") {
-        segments.push(`Location_${exportLocationFilter}`);
+        segments.push(`Project_of_expense_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
         const dateLabel = "Date-of-Expense";
         const monthlyLabel =
           exportRangeLabel === "Monthly" &&
-          exportDateFilters.expenseDateMode === "Custom Date"
+            exportDateFilters.expenseDateMode === "Custom Date"
             ? getMonthYearLabelForDateRange(
-                exportDateFilters.expenseStartDate,
-                exportDateFilters.expenseEndDate
-              )
+              exportDateFilters.expenseStartDate,
+              exportDateFilters.expenseEndDate
+            )
             : null;
         const formattedRange = `${formatExportDateForName(
           exportDateFilters.expenseStartDate
@@ -1384,9 +1515,9 @@ export default function PaymentRecords() {
           monthlyLabel
             ? monthlyLabel
             :
-          (exportDateFilters.expenseDateMode === "Single Date"
-            ? formatExportDateForName(exportDateFilters.expenseStartDate)
-            : formattedRange);
+            (exportDateFilters.expenseDateMode === "Single Date"
+              ? formatExportDateForName(exportDateFilters.expenseStartDate)
+              : formattedRange);
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1396,8 +1527,8 @@ export default function PaymentRecords() {
           exportDateFilters.paidDateMode === "Single Date"
             ? formatExportDateForName(exportDateFilters.paidStartDate)
             : `${formatExportDateForName(
-                exportDateFilters.paidStartDate
-              )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
+              exportDateFilters.paidStartDate
+            )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1436,30 +1567,30 @@ export default function PaymentRecords() {
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType && exportBankType !== "NO_BANK"
       ? new Map(
-          filteredRecords
-            .filter((record) => (record.paid_by_bank || "") === exportBankType)
-            .map((record, idx) => [record.id, idx + 1])
-        )
+        filteredRecords
+          .filter((record) => (record.paid_by_bank || "") === exportBankType)
+          .map((record, idx) => [record.id, idx + 1])
+      )
       : null;
     const headers = isKotakExport
       ? [
-          "Voucher Date",
-          "Voucher Type Name",
-          "Voucher Number",
-          "Ledger Name",
-          "Ledger Amount",
-          "Ledger Amount Dr/Cr",
-          "Ledger Narration",
-        ]
+        "Voucher Date",
+        "Voucher Type Name",
+        "Voucher Number",
+        "Ledger Name",
+        "Ledger Amount",
+        "Ledger Amount Dr/Cr",
+        "Ledger Narration",
+      ]
       : [
-          "Voucher Date",
-          "Voucher Type Name",
-          "Voucher Number",
-          "Ledger Name",
-          "TDS Amount",
-          "Ledger Amount Dr/Cr",
-          "Ledger Narration",
-        ];
+        "Voucher Date",
+        "Voucher Type Name",
+        "Voucher Number",
+        "Ledger Name",
+        "TDS Amount",
+        "Ledger Amount Dr/Cr",
+        "Ledger Narration",
+      ];
 
     const exportRecords = getExportRecords();
 
@@ -1614,9 +1745,9 @@ export default function PaymentRecords() {
             ? "FC Records"
             : exportBankType === "ALL_RECORDS"
               ? "All Records"
-            : exportBankType === "NO_BANK"
-              ? "No Bank Records"
-              : "KOTAK Records"
+              : exportBankType === "NO_BANK"
+                ? "No Bank Records"
+                : "KOTAK Records"
         : "All Records";
 
       const segments: string[] = [bankLabel];
@@ -1626,18 +1757,18 @@ export default function PaymentRecords() {
       }
 
       if (exportLocationFilter !== "All Locations") {
-        segments.push(`Location_${exportLocationFilter}`);
+        segments.push(`Project_of_expense_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
         const dateLabel = "Date-of-Expense";
         const monthlyLabel =
           exportRangeLabel === "Monthly" &&
-          exportDateFilters.expenseDateMode === "Custom Date"
+            exportDateFilters.expenseDateMode === "Custom Date"
             ? getMonthYearLabelForDateRange(
-                exportDateFilters.expenseStartDate,
-                exportDateFilters.expenseEndDate
-              )
+              exportDateFilters.expenseStartDate,
+              exportDateFilters.expenseEndDate
+            )
             : null;
         const formattedRange = `${formatExportDateForName(
           exportDateFilters.expenseStartDate
@@ -1646,9 +1777,9 @@ export default function PaymentRecords() {
           monthlyLabel
             ? monthlyLabel
             :
-          (exportDateFilters.expenseDateMode === "Single Date"
-            ? formatExportDateForName(exportDateFilters.expenseStartDate)
-            : formattedRange);
+            (exportDateFilters.expenseDateMode === "Single Date"
+              ? formatExportDateForName(exportDateFilters.expenseStartDate)
+              : formattedRange);
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1658,8 +1789,8 @@ export default function PaymentRecords() {
           exportDateFilters.paidDateMode === "Single Date"
             ? formatExportDateForName(exportDateFilters.paidStartDate)
             : `${formatExportDateForName(
-                exportDateFilters.paidStartDate
-              )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
+              exportDateFilters.paidStartDate
+            )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1707,30 +1838,30 @@ export default function PaymentRecords() {
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType && exportBankType !== "NO_BANK"
       ? new Map(
-          filteredRecords
-            .filter((record) => (record.paid_by_bank || "") === exportBankType)
-            .map((record, idx) => [record.id, idx + 1])
-        )
+        filteredRecords
+          .filter((record) => (record.paid_by_bank || "") === exportBankType)
+          .map((record, idx) => [record.id, idx + 1])
+      )
       : null;
     const headers = isKotakExport
       ? [
-          "Voucher Date",
-          "Voucher Type Name",
-          "Voucher Number",
-          "Ledger Name",
-          "Ledger Amount",
-          "Ledger Amount Dr/Cr",
-          "Ledger Narration",
-        ]
+        "Voucher Date",
+        "Voucher Type Name",
+        "Voucher Number",
+        "Ledger Name",
+        "Ledger Amount",
+        "Ledger Amount Dr/Cr",
+        "Ledger Narration",
+      ]
       : [
-          "Voucher Date",
-          "Voucher Type Name",
-          "Voucher Number",
-          "Ledger Name",
-          "TDS Amount",
-          "Ledger Amount Dr/Cr",
-          "Ledger Narration",
-        ];
+        "Voucher Date",
+        "Voucher Type Name",
+        "Voucher Number",
+        "Ledger Name",
+        "TDS Amount",
+        "Ledger Amount Dr/Cr",
+        "Ledger Narration",
+      ];
 
     const exportRecords = getExportRecords();
 
@@ -1995,7 +2126,7 @@ export default function PaymentRecords() {
       {/* Filter panel */}
       {filterOpen && (
         <div className="p-4 rounded-md border shadow-sm bg-white">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Expense Type</label>
               <select
@@ -2069,7 +2200,7 @@ export default function PaymentRecords() {
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Location</label>
+              <label className="text-sm font-medium">Project of Expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.location}
@@ -2077,7 +2208,7 @@ export default function PaymentRecords() {
                   setFilters((f) => ({ ...f, location: e.target.value }))
                 }
               >
-                <option>All Locations</option>
+                <option>All Projects</option>
                 {locations.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -2112,6 +2243,9 @@ export default function PaymentRecords() {
                   }
                 >
                   <option>All Banks</option>
+                  <option value="No Bank Records (Not paid by bank)">
+                    No Bank Records (Not paid by bank)
+                  </option>
                   {paidByBankOptions.map((bank) => (
                     <option key={bank} value={bank}>
                       {bank}
@@ -2305,33 +2439,103 @@ export default function PaymentRecords() {
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Min</label>
-              <input
-                type="number"
+              <label className="text-sm font-medium">TDS Deduction</label>
+              <select
                 className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.minAmount}
+                value={filters.tdsDeduction}
                 onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    minAmount: Number(e.target.value),
-                  }))
+                  setFilters((f) => ({ ...f, tdsDeduction: e.target.value }))
                 }
-              />
+              >
+                <option>All TDS Deductions</option>
+                {tdsDeductionOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {formatTdsDeductionOptionLabel(option)}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Max</label>
-              <input
-                type="number"
+              <label className="text-sm font-medium">Security Deposit</label>
+              <select
                 className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.maxAmount}
+                value={filters.securityDeposit}
                 onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    maxAmount: Number(e.target.value),
-                  }))
+                  setFilters((f) => ({ ...f, securityDeposit: e.target.value }))
                 }
-              />
+              >
+                <option>All Security Deposits</option>
+                {securityDepositOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.minAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.maxAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Actual Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.minActualAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minActualAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.maxActualAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxActualAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-3">
@@ -2358,7 +2562,7 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Unique ID</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
-              <TableHead className="text-center py-3">Location</TableHead>
+              <TableHead className="text-center py-3">Project of Expense</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">TDS Deduction</TableHead>
               <TableHead className="text-center py-3">Security Deposit</TableHead>
@@ -2697,11 +2901,10 @@ export default function PaymentRecords() {
                                       setMarkAdvanceModal({ open: true, id: record.id })
                                     }
                                     disabled={isMarkedAsAdvance}
-                                    className={`flex items-center gap-2 ${
-                                      isMarkedAsAdvance
+                                    className={`flex items-center gap-2 ${isMarkedAsAdvance
                                         ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
                                         : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
-                                    }`}
+                                      }`}
                                   >
                                     {isMarkedAsAdvance && <CheckCircle className="w-5 h-5 " />}
                                     {isMarkedAsAdvance ? "Mark as Advance" : "Mark as Advance"}
@@ -2912,7 +3115,7 @@ export default function PaymentRecords() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Location</label>
+                <label className="text-sm font-medium">Project of Expense</label>
                 <select
                   className="mt-1 block w-full border rounded px-3 py-2 bg-white"
                   value={editForm.location}
@@ -3534,13 +3737,13 @@ export default function PaymentRecords() {
               </RadioGroup>
             </div>
             <div>
-              <label className="text-sm font-medium">Location (Date of Expense)</label>
+              <label className="text-sm font-medium">Project of Expense (Date of Expense)</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2 bg-white"
                 value={quickExportLocation}
                 onChange={(e) => setQuickExportLocation(e.target.value)}
               >
-                <option value="All Locations">All Locations</option>
+                <option value="All Locations">All Projects</option>
                 {quickExportLocationOptions.map((location) => (
                   <option key={location} value={location}>
                     {location}

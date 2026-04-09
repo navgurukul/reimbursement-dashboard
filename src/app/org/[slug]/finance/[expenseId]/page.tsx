@@ -876,7 +876,7 @@ export default function FinanceExpenseDetails() {
                     </TableRow>
                   )}
                   <TableRow>
-                    <TableHead>Location of Expense</TableHead>
+                    <TableHead>Project of Expense</TableHead>
                     <TableCell>
                       {isEditingDetails ? (
                         <select

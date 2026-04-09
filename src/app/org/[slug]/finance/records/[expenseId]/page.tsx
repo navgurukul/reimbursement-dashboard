@@ -264,7 +264,7 @@ export default function RecordsDetails() {
                     </TableRow>
                   )}
                   <TableRow>
-                    <TableHead>Location of Expense</TableHead>
+                    <TableHead>Project of Expense</TableHead>
                     <TableCell>{expense.location || "N/A"}</TableCell>
                   </TableRow>
                   <TableRow>
