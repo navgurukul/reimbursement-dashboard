@@ -126,6 +126,15 @@ export interface OrganizationSettings {
   updated_at: string;
 }
 
+export interface ExpenseTypeDetail {
+  id: string;
+  group: string;
+  sub_group: string;
+  expense_ledger: string;
+  description: string | null;
+  created_at: string;
+}
+
 export type ExpenseStatus =
   | "submitted"
   | "approved"
@@ -1092,6 +1101,99 @@ export const orgSettings = {
       data: data as OrganizationSettings,
       error: null,
     };
+  },
+};
+
+export const expenseTypeDetails = {
+  getAll: async () => {
+    const { data, error } = await supabase
+      .from("expense_type_details")
+      .select("*")
+      .order("group", { ascending: true })
+      .order("sub_group", { ascending: true })
+      .order("expense_ledger", { ascending: true });
+
+    if (error) {
+      return { data: [], error: error as DatabaseError };
+    }
+
+    return {
+      data: (data || []) as ExpenseTypeDetail[],
+      error: null,
+    };
+  },
+
+  create: async (payload: {
+    group: string;
+    sub_group: string;
+    expense_ledger: string;
+    description?: string | null;
+  }) => {
+    const { data, error } = await supabase
+      .from("expense_type_details")
+      .insert([
+        {
+          group: payload.group.trim(),
+          sub_group: payload.sub_group.trim(),
+          expense_ledger: payload.expense_ledger.trim(),
+          description: payload.description?.trim() || null,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as ExpenseTypeDetail,
+      error: null,
+    };
+  },
+
+  update: async (
+    id: string,
+    payload: {
+      group: string;
+      sub_group: string;
+      expense_ledger: string;
+      description?: string | null;
+    }
+  ) => {
+    const { data, error } = await supabase
+      .from("expense_type_details")
+      .update({
+        group: payload.group.trim(),
+        sub_group: payload.sub_group.trim(),
+        expense_ledger: payload.expense_ledger.trim(),
+        description: payload.description?.trim() || null,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as ExpenseTypeDetail,
+      error: null,
+    };
+  },
+
+  delete: async (id: string) => {
+    const { error } = await supabase
+      .from("expense_type_details")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      return { error: error as DatabaseError };
+    }
+
+    return { error: null };
   },
 };
 

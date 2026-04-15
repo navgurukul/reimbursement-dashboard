@@ -4,8 +4,11 @@
 import { useState, useEffect } from "react";
 import { notFound, useRouter } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings } from "@/lib/db";
-import type { ColumnConfig as DbColumnConfig } from "@/lib/db";
+import { expenseTypeDetails, orgSettings } from "@/lib/db";
+import type {
+  ColumnConfig as DbColumnConfig,
+  ExpenseTypeDetail,
+} from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -25,7 +28,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -34,8 +36,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusCircle, Settings2, Trash2 } from "lucide-react";
+import { Edit, PlusCircle, Settings2, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { organizations } from "@/lib/db";
 import { profiles } from "@/lib/db";
 
@@ -54,6 +64,13 @@ interface ColumnConfig {
   visible: boolean;
   options?: string[] | { value: string; label: string }[]; // For dropdown, radio, checkbox
   required?: boolean;
+}
+
+interface ExpenseTypeDetailsForm {
+  group: string;
+  sub_group: string;
+  expense_ledger: string;
+  description: string;
 }
 
 export default function SettingsPage() {
@@ -119,6 +136,21 @@ export default function SettingsPage() {
   );
   const [showColumnDialog, setShowColumnDialog] = useState(false);
   const [newOptions, setNewOptions] = useState<string>("");
+  const [isAddingExpenseType, setIsAddingExpenseType] = useState(false);
+  const [isExpenseTypeDialogOpen, setIsExpenseTypeDialogOpen] = useState(false);
+  const [isEditingExpenseType, setIsEditingExpenseType] = useState(false);
+  const [editingExpenseTypeId, setEditingExpenseTypeId] = useState<string | null>(
+    null
+  );
+  const [expenseTypeRows, setExpenseTypeRows] = useState<ExpenseTypeDetail[]>([]);
+  const [isLoadingExpenseTypeRows, setIsLoadingExpenseTypeRows] = useState(false);
+  const [expenseTypeForm, setExpenseTypeForm] =
+    useState<ExpenseTypeDetailsForm>({
+      group: "",
+      sub_group: "",
+      expense_ledger: "",
+      description: "",
+    });
 
   // Preview uploaded logo
   useEffect(() => {
@@ -284,6 +316,28 @@ export default function SettingsPage() {
     }
 
     fetchSettings();
+  }, [orgId]);
+
+  useEffect(() => {
+    const fetchExpenseTypeRows = async () => {
+      if (!orgId) return;
+
+      setIsLoadingExpenseTypeRows(true);
+      const { data, error } = await expenseTypeDetails.getAll();
+
+      if (error) {
+        toast.error("Failed to load expense type details", {
+          description: error.message,
+        });
+        setExpenseTypeRows([]);
+      } else {
+        setExpenseTypeRows(data);
+      }
+
+      setIsLoadingExpenseTypeRows(false);
+    };
+
+    fetchExpenseTypeRows();
   }, [orgId]);
 
   const handleSaveBranding = async () => {
@@ -517,6 +571,139 @@ export default function SettingsPage() {
       console.error("Error saving column:", error);
       toast.error("An unexpected error occurred");
     }
+  };
+
+  const handleExpenseTypeFormChange = (
+    key: keyof ExpenseTypeDetailsForm,
+    value: string
+  ) => {
+    setExpenseTypeForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAddExpenseTypeDetails = async () => {
+    if (!orgId) return;
+
+    if (!expenseTypeForm.group.trim()) {
+      toast.error("Group is required");
+      return;
+    }
+
+    if (!expenseTypeForm.sub_group.trim()) {
+      toast.error("Sub-Group is required");
+      return;
+    }
+
+    if (!expenseTypeForm.expense_ledger.trim()) {
+      toast.error("Expense Ledger is required");
+      return;
+    }
+
+    setIsAddingExpenseType(true);
+
+    try {
+      const { data, error } = isEditingExpenseType
+        ? await expenseTypeDetails.update(editingExpenseTypeId!, {
+            group: expenseTypeForm.group,
+            sub_group: expenseTypeForm.sub_group,
+            expense_ledger: expenseTypeForm.expense_ledger,
+            description: expenseTypeForm.description,
+          })
+        : await expenseTypeDetails.create({
+            group: expenseTypeForm.group,
+            sub_group: expenseTypeForm.sub_group,
+            expense_ledger: expenseTypeForm.expense_ledger,
+            description: expenseTypeForm.description,
+          });
+
+      if (error) throw error;
+
+      toast.success(
+        isEditingExpenseType
+          ? "Expense type details updated"
+          : "Expense type details added"
+      );
+
+      if (data) {
+        if (isEditingExpenseType) {
+          setExpenseTypeRows((prev) =>
+            prev.map((row) => (row.id === data.id ? data : row))
+          );
+        } else {
+          setExpenseTypeRows((prev) =>
+            [...prev, data].sort((first, second) => {
+              if (first.group !== second.group) {
+                return first.group.localeCompare(second.group);
+              }
+
+              if (first.sub_group !== second.sub_group) {
+                return first.sub_group.localeCompare(second.sub_group);
+              }
+
+              return first.expense_ledger.localeCompare(second.expense_ledger);
+            })
+          );
+        }
+      }
+
+      setExpenseTypeForm({
+        group: "",
+        sub_group: "",
+        expense_ledger: "",
+        description: "",
+      });
+      setIsEditingExpenseType(false);
+      setEditingExpenseTypeId(null);
+      setIsExpenseTypeDialogOpen(false);
+    } catch (error: any) {
+      toast.error(
+        isEditingExpenseType
+          ? "Failed to update expense type details"
+          : "Failed to add expense type details",
+        {
+          description: error.message,
+        }
+      );
+    } finally {
+      setIsAddingExpenseType(false);
+    }
+  };
+
+  const openAddExpenseTypeDialog = () => {
+    setIsEditingExpenseType(false);
+    setEditingExpenseTypeId(null);
+    setExpenseTypeForm({
+      group: "",
+      sub_group: "",
+      expense_ledger: "",
+      description: "",
+    });
+    setIsExpenseTypeDialogOpen(true);
+  };
+
+  const openEditExpenseTypeDialog = (row: ExpenseTypeDetail) => {
+    setIsEditingExpenseType(true);
+    setEditingExpenseTypeId(row.id);
+    setExpenseTypeForm({
+      group: row.group,
+      sub_group: row.sub_group,
+      expense_ledger: row.expense_ledger,
+      description: row.description || "",
+    });
+    setIsExpenseTypeDialogOpen(true);
+  };
+
+  const handleDeleteExpenseTypeDetail = async (row: ExpenseTypeDetail) => {
+    const { error } = await expenseTypeDetails.delete(row.id);
+
+    if (error) {
+      toast.error("Failed to delete expense type details", {
+        description: error.message,
+      });
+      return;
+    }
+
+    setExpenseTypeRows((prev) => prev.filter((item) => item.id !== row.id));
+    toast.success("Expense type details deleted");
   };
 
   return (
@@ -754,6 +941,161 @@ export default function SettingsPage() {
 
                 <Button onClick={handleSaveColumn} className="w-full">
                   Save Column
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle>Expense Type Details</CardTitle>
+              <CardDescription>
+                Add and edit Group, Sub-Group, Expense Ledger, and Description
+                entries.
+              </CardDescription>
+            </div>
+            <Button onClick={openAddExpenseTypeDialog} variant="outline">
+              <PlusCircle className="w-4 h-4 mr-2" />
+              Add
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Group</TableHead>
+                <TableHead>Sub-Group</TableHead>
+                <TableHead>Expense Ledger</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoadingExpenseTypeRows ? (
+                <TableRow>
+                  <TableCell colSpan={5}>Loading expense type details...</TableCell>
+                </TableRow>
+              ) : expenseTypeRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5}>No expense type details found.</TableCell>
+                </TableRow>
+              ) : (
+                expenseTypeRows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>{row.group}</TableCell>
+                    <TableCell>{row.sub_group}</TableCell>
+                    <TableCell>{row.expense_ledger}</TableCell>
+                    <TableCell className="whitespace-normal">
+                      {row.description || "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditExpenseTypeDialog(row)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteExpenseTypeDetail(row)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+
+          <Dialog
+            open={isExpenseTypeDialogOpen}
+            onOpenChange={setIsExpenseTypeDialogOpen}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {isEditingExpenseType
+                    ? "Edit Expense Type Details"
+                    : "Add Expense Type Details"}
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="expense-type-group">Group</Label>
+                  <Input
+                    id="expense-type-group"
+                    value={expenseTypeForm.group}
+                    onChange={(e) =>
+                      handleExpenseTypeFormChange("group", e.target.value)
+                    }
+                    placeholder="e.g. Operational Expenses"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="expense-type-sub-group">Sub-Group</Label>
+                  <Input
+                    id="expense-type-sub-group"
+                    value={expenseTypeForm.sub_group}
+                    onChange={(e) =>
+                      handleExpenseTypeFormChange("sub_group", e.target.value)
+                    }
+                    placeholder="e.g. OE Utilities"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="expense-type-ledger">Expense Ledger</Label>
+                  <Input
+                    id="expense-type-ledger"
+                    value={expenseTypeForm.expense_ledger}
+                    onChange={(e) =>
+                      handleExpenseTypeFormChange(
+                        "expense_ledger",
+                        e.target.value
+                      )
+                    }
+                    placeholder="e.g. OU Electricity Charges"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="expense-type-description">Description</Label>
+                  <Textarea
+                    id="expense-type-description"
+                    value={expenseTypeForm.description}
+                    onChange={(e) =>
+                      handleExpenseTypeFormChange("description", e.target.value)
+                    }
+                    placeholder="Optional description"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleAddExpenseTypeDetails}
+                  disabled={isAddingExpenseType}
+                >
+                  {isAddingExpenseType
+                    ? isEditingExpenseType
+                      ? "Updating..."
+                      : "Adding..."
+                    : isEditingExpenseType
+                    ? "Update Expense Type Details"
+                    : "Add Expense Type Details"}
                 </Button>
               </div>
             </DialogContent>
