@@ -23,6 +23,7 @@ import {
   ChevronsUpDown,
   ChevronsUpDownIcon,
   Wallet,
+  Tags,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -170,7 +171,10 @@ export function AppSidebar() {
       href: `/org/${organization?.slug}/expenses`,
       icon: IndianRupee,
     },
-    { title: "Team", href: `/org/${organization?.slug}/team`, icon: Users },
+    { title: "Team", 
+      href: `/org/${organization?.slug}/team`, 
+      icon: Users 
+    },
     {
       title: "Policies",
       href: `/org/${organization?.slug}/policies`,
@@ -180,6 +184,11 @@ export function AppSidebar() {
       title: "Expense Events",
       href: `/org/${organization?.slug}/expense-events`,
       icon: Calendar,
+    },
+    {
+      title: "Expense Type Details",
+      href: `/org/${organization?.slug}/expense-type-details`,
+      icon: Tags,
     },
     ...(isAdmin
       ? [
