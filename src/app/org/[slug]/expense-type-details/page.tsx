@@ -18,11 +18,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ExpenseTypeDetailsPage() {
     const { organization, userRole } = useOrgStore();
-    const isAdmin = userRole === "owner" || userRole === "admin";
+    const canViewExpenseTypeDetails =
+        userRole === "owner" ||
+        userRole === "admin" ||
+        userRole === "manager" ||
+        userRole === "member";
     const [rows, setRows] = useState<ExpenseTypeDetail[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    if (!isAdmin) {
+    if (!canViewExpenseTypeDetails) {
         notFound();
     }
 
