@@ -15,6 +15,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
 export default function ExpenseTypeDetailsPage() {
     const { organization, userRole } = useOrgStore();
@@ -32,9 +33,13 @@ export default function ExpenseTypeDetailsPage() {
 
     useEffect(() => {
         const loadExpenseTypeDetails = async () => {
-            if (!organization?.id) return;
+            if (!organization?.id) {
+                setIsLoading(false);
+                return;
+            }
 
             setIsLoading(true);
+
             const { data, error } = await expenseTypeDetails.getAll();
 
             if (error) {
@@ -65,20 +70,27 @@ export default function ExpenseTypeDetailsPage() {
                     <CardTitle>Expense Type Details List</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <div className="overflow-x-auto">
+                    <Table className="min-w-[900px] table-fixed">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Group</TableHead>
-                                <TableHead>Sub-Group</TableHead>
-                                <TableHead>Expense Ledger</TableHead>
-                                <TableHead>Description</TableHead>
+                                <TableHead className="w-[18%] whitespace-normal break-words">
+                                    Group
+                                </TableHead>
+                                <TableHead className="w-[18%] whitespace-normal break-words">
+                                    Sub-Group
+                                </TableHead>
+                                <TableHead className="w-[24%] whitespace-normal break-words">
+                                    Expense Ledger / Expense Type
+                                </TableHead>
+                                <TableHead className="w-[40%] whitespace-normal break-words">
+                                    Description
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={4}>Loading expense type details...</TableCell>
-                                </TableRow>
+                                <TableSkeleton colSpan={4} rows={5} />
                             ) : rows.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={4}>No expense type details found.</TableCell>
@@ -86,15 +98,24 @@ export default function ExpenseTypeDetailsPage() {
                             ) : (
                                 rows.map((item) => (
                                     <TableRow key={item.id}>
-                                        <TableCell>{item.group}</TableCell>
-                                        <TableCell>{item.sub_group}</TableCell>
-                                        <TableCell>{item.expense_ledger}</TableCell>
-                                        <TableCell className="whitespace-normal">{item.description || "-"}</TableCell>
+                                        <TableCell className="whitespace-normal break-words align-top">
+                                            {item.group}
+                                        </TableCell>
+                                        <TableCell className="whitespace-normal break-words align-top">
+                                            {item.sub_group}
+                                        </TableCell>
+                                        <TableCell className="whitespace-normal break-words align-top">
+                                            {item.expense_ledger}
+                                        </TableCell>
+                                        <TableCell className="whitespace-normal break-words align-top">
+                                            {item.description || "-"}
+                                        </TableCell>
                                     </TableRow>
                                 ))
                             )}
                         </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
         </div>

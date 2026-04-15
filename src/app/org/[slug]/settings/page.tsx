@@ -46,6 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { organizations } from "@/lib/db";
 import { profiles } from "@/lib/db";
 
@@ -965,57 +966,73 @@ export default function SettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Group</TableHead>
-                <TableHead>Sub-Group</TableHead>
-                <TableHead>Expense Ledger</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoadingExpenseTypeRows ? (
+          <div className="overflow-x-auto">
+            <Table className="min-w-[980px] table-fixed">
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5}>Loading expense type details...</TableCell>
+                  <TableHead className="w-[18%] whitespace-normal break-words">
+                    Group
+                  </TableHead>
+                  <TableHead className="w-[18%] whitespace-normal break-words">
+                    Sub-Group
+                  </TableHead>
+                  <TableHead className="w-[24%] whitespace-normal break-words">
+                    Expense Ledger / Expense Type
+                  </TableHead>
+                  <TableHead className="w-[30%] whitespace-normal break-words">
+                    Description
+                  </TableHead>
+                  <TableHead className="w-[10%] text-right whitespace-normal break-words">
+                    Action
+                  </TableHead>
                 </TableRow>
-              ) : expenseTypeRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5}>No expense type details found.</TableCell>
-                </TableRow>
-              ) : (
-                expenseTypeRows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.group}</TableCell>
-                    <TableCell>{row.sub_group}</TableCell>
-                    <TableCell>{row.expense_ledger}</TableCell>
-                    <TableCell className="whitespace-normal">
-                      {row.description || "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditExpenseTypeDialog(row)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteExpenseTypeDetail(row)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+              </TableHeader>
+              <TableBody>
+                {isLoadingExpenseTypeRows ? (
+                  <TableSkeleton colSpan={5} rows={5} />
+                ) : expenseTypeRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5}>No expense type details found.</TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  expenseTypeRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.group}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.sub_group}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.expense_ledger}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.description || "-"}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditExpenseTypeDialog(row)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteExpenseTypeDetail(row)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
           <Dialog
             open={isExpenseTypeDialogOpen}
@@ -1056,7 +1073,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="expense-type-ledger">Expense Ledger</Label>
+                  <Label htmlFor="expense-type-ledger">Expense Ledger / Expense Type</Label>
                   <Input
                     id="expense-type-ledger"
                     value={expenseTypeForm.expense_ledger}
