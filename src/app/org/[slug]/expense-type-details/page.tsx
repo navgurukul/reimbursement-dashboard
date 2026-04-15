@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { notFound } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { Tags } from "lucide-react";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { Input } from "@/components/ui/input";
 
 export default function ExpenseTypeDetailsPage() {
     const { organization, userRole } = useOrgStore();
@@ -26,6 +27,27 @@ export default function ExpenseTypeDetailsPage() {
         userRole === "member";
     const [rows, setRows] = useState<ExpenseTypeDetail[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const filteredRows = useMemo(() => {
+        const normalizedQuery = searchQuery.trim().toLowerCase();
+
+        if (!normalizedQuery) return rows;
+
+        return rows.filter((item) => {
+            const groupValue = item.group?.toLowerCase() || "";
+            const subGroupValue = item.sub_group?.toLowerCase() || "";
+            const expenseLedgerValue = item.expense_ledger?.toLowerCase() || "";
+            const descriptionValue = item.description?.toLowerCase() || "";
+
+            return (
+                groupValue.includes(normalizedQuery) ||
+                subGroupValue.includes(normalizedQuery) ||
+                expenseLedgerValue.includes(normalizedQuery) ||
+                descriptionValue.includes(normalizedQuery)
+            );
+        });
+    }, [rows, searchQuery]);
 
     if (!canViewExpenseTypeDetails) {
         notFound();
@@ -70,6 +92,13 @@ export default function ExpenseTypeDetailsPage() {
                     <CardTitle>Expense Type Details List</CardTitle>
                 </CardHeader>
                 <CardContent>
+                    <div className="mb-4">
+                        <Input
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by Group, Sub-Group, Expense Ledger / Expense Type, Description"
+                        />
+                    </div>
                     <div className="overflow-x-auto">
                     <Table className="min-w-[900px] table-fixed">
                         <TableHeader>
@@ -91,12 +120,16 @@ export default function ExpenseTypeDetailsPage() {
                         <TableBody>
                             {isLoading ? (
                                 <TableSkeleton colSpan={4} rows={5} />
-                            ) : rows.length === 0 ? (
+                            ) : filteredRows.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={4}>No expense type details found.</TableCell>
+                                    <TableCell colSpan={4}>
+                                        {rows.length === 0
+                                            ? "No expense type details found."
+                                            : "No matching expense type details found."}
+                                    </TableCell>
                                 </TableRow>
                             ) : (
-                                rows.map((item) => (
+                                filteredRows.map((item) => (
                                     <TableRow key={item.id}>
                                         <TableCell className="whitespace-normal break-words align-top">
                                             {item.group}

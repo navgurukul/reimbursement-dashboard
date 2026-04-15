@@ -1,7 +1,7 @@
 // src/app/org/[slug]/settings/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { notFound, useRouter } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { expenseTypeDetails, orgSettings } from "@/lib/db";
@@ -145,6 +145,7 @@ export default function SettingsPage() {
   );
   const [expenseTypeRows, setExpenseTypeRows] = useState<ExpenseTypeDetail[]>([]);
   const [isLoadingExpenseTypeRows, setIsLoadingExpenseTypeRows] = useState(false);
+  const [expenseTypeSearchQuery, setExpenseTypeSearchQuery] = useState("");
   const [expenseTypeForm, setExpenseTypeForm] =
     useState<ExpenseTypeDetailsForm>({
       group: "",
@@ -152,6 +153,26 @@ export default function SettingsPage() {
       expense_ledger: "",
       description: "",
     });
+
+  const filteredExpenseTypeRows = useMemo(() => {
+    const normalizedQuery = expenseTypeSearchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) return expenseTypeRows;
+
+    return expenseTypeRows.filter((row) => {
+      const groupValue = row.group?.toLowerCase() || "";
+      const subGroupValue = row.sub_group?.toLowerCase() || "";
+      const expenseLedgerValue = row.expense_ledger?.toLowerCase() || "";
+      const descriptionValue = row.description?.toLowerCase() || "";
+
+      return (
+        groupValue.includes(normalizedQuery) ||
+        subGroupValue.includes(normalizedQuery) ||
+        expenseLedgerValue.includes(normalizedQuery) ||
+        descriptionValue.includes(normalizedQuery)
+      );
+    });
+  }, [expenseTypeRows, expenseTypeSearchQuery]);
 
   // Preview uploaded logo
   useEffect(() => {
@@ -966,6 +987,14 @@ export default function SettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div>
+            <Input
+              value={expenseTypeSearchQuery}
+              onChange={(e) => setExpenseTypeSearchQuery(e.target.value)}
+              placeholder="Search by Group, Sub-Group, Expense Ledger / Expense Type, Description"
+            />
+          </div>
+
           <div className="overflow-x-auto">
             <Table className="min-w-[980px] table-fixed">
               <TableHeader>
@@ -990,12 +1019,16 @@ export default function SettingsPage() {
               <TableBody>
                 {isLoadingExpenseTypeRows ? (
                   <TableSkeleton colSpan={5} rows={5} />
-                ) : expenseTypeRows.length === 0 ? (
+                ) : filteredExpenseTypeRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5}>No expense type details found.</TableCell>
+                    <TableCell colSpan={5}>
+                      {expenseTypeRows.length === 0
+                        ? "No expense type details found."
+                        : "No matching expense type details found."}
+                    </TableCell>
                   </TableRow>
                 ) : (
-                  expenseTypeRows.map((row) => (
+                  filteredExpenseTypeRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="whitespace-normal break-words align-top">
                         {row.group}
