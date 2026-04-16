@@ -186,7 +186,7 @@ export function AppSidebar() {
       icon: Calendar,
     },
     {
-      title: "Expense Type & Project Details",
+      title: "Expense Type Details",
       href: `/org/${organization?.slug}/expense-type-details`,
       icon: Tags,
     },

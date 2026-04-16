@@ -22,6 +22,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Input } from "@/components/ui/input";
+import { Pagination, usePagination } from "@/components/pagination";
 
 export default function ExpenseTypeDetailsPage() {
     const { organization, userRole } = useOrgStore();
@@ -73,6 +74,22 @@ export default function ExpenseTypeDetailsPage() {
         });
     }, [projectRows, projectSearchQuery]);
 
+    const {
+        currentPage: expenseTypeCurrentPage,
+        setCurrentPage: setExpenseTypeCurrentPage,
+        totalPages: expenseTypeTotalPages,
+        paginatedData: paginatedExpenseTypeRows,
+        totalItems: totalExpenseTypeItems,
+    } = usePagination(filteredRows);
+
+    const {
+        currentPage: projectCurrentPage,
+        setCurrentPage: setProjectCurrentPage,
+        totalPages: projectTotalPages,
+        paginatedData: paginatedProjectRows,
+        totalItems: totalProjectItems,
+    } = usePagination(filteredProjectRows);
+
     if (!canViewExpenseTypeDetails) {
         notFound();
     }
@@ -103,6 +120,26 @@ export default function ExpenseTypeDetailsPage() {
 
         loadExpenseTypeDetails();
     }, [organization?.id]);
+
+    useEffect(() => {
+        setExpenseTypeCurrentPage(1);
+    }, [searchQuery, setExpenseTypeCurrentPage]);
+
+    useEffect(() => {
+        setProjectCurrentPage(1);
+    }, [projectSearchQuery, setProjectCurrentPage]);
+
+    useEffect(() => {
+        if (expenseTypeCurrentPage > expenseTypeTotalPages) {
+            setExpenseTypeCurrentPage(expenseTypeTotalPages);
+        }
+    }, [expenseTypeCurrentPage, expenseTypeTotalPages, setExpenseTypeCurrentPage]);
+
+    useEffect(() => {
+        if (projectCurrentPage > projectTotalPages) {
+            setProjectCurrentPage(projectTotalPages);
+        }
+    }, [projectCurrentPage, projectTotalPages, setProjectCurrentPage]);
 
     useEffect(() => {
         const loadProjectOfExpenseDetails = async () => {
@@ -140,7 +177,7 @@ export default function ExpenseTypeDetailsPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Expense Type Details List</CardTitle>
+                    <CardTitle>Expense Type Details</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="mb-4">
@@ -180,7 +217,7 @@ export default function ExpenseTypeDetailsPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filteredRows.map((item) => (
+                                paginatedExpenseTypeRows.map((item) => (
                                     <TableRow key={item.id}>
                                         <TableCell className="whitespace-normal break-words align-top">
                                             {item.group}
@@ -200,6 +237,16 @@ export default function ExpenseTypeDetailsPage() {
                         </TableBody>
                     </Table>
                     </div>
+
+                    {!isLoading && filteredRows.length > 0 && (
+                        <Pagination
+                            currentPage={expenseTypeCurrentPage}
+                            totalPages={expenseTypeTotalPages}
+                            totalItems={totalExpenseTypeItems}
+                            onPageChange={setExpenseTypeCurrentPage}
+                            itemLabel="Expense Type Details"
+                        />
+                    )}
                 </CardContent>
             </Card>
 
@@ -240,7 +287,7 @@ export default function ExpenseTypeDetailsPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    filteredProjectRows.map((item) => (
+                                    paginatedProjectRows.map((item) => (
                                         <TableRow key={item.id}>
                                             <TableCell className="whitespace-normal break-words align-top">
                                                 {item.project_of_expense}
@@ -254,6 +301,16 @@ export default function ExpenseTypeDetailsPage() {
                             </TableBody>
                         </Table>
                     </div>
+
+                    {!isProjectLoading && filteredProjectRows.length > 0 && (
+                        <Pagination
+                            currentPage={projectCurrentPage}
+                            totalPages={projectTotalPages}
+                            totalItems={totalProjectItems}
+                            onPageChange={setProjectCurrentPage}
+                            itemLabel="Project of Expense Details"
+                        />
+                    )}
                 </CardContent>
             </Card>
         </div>

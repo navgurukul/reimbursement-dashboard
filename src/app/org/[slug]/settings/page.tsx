@@ -62,6 +62,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { Pagination, usePagination } from "@/components/pagination";
 import { organizations } from "@/lib/db";
 import { profiles } from "@/lib/db";
 
@@ -236,6 +237,46 @@ export default function SettingsPage() {
       );
     });
   }, [projectOfExpenseRows, projectOfExpenseSearchQuery]);
+
+  const {
+    currentPage: expenseTypeCurrentPage,
+    setCurrentPage: setExpenseTypeCurrentPage,
+    totalPages: expenseTypeTotalPages,
+    paginatedData: paginatedExpenseTypeRows,
+    totalItems: totalExpenseTypeItems,
+  } = usePagination(filteredExpenseTypeRows);
+
+  const {
+    currentPage: projectOfExpenseCurrentPage,
+    setCurrentPage: setProjectOfExpenseCurrentPage,
+    totalPages: projectOfExpenseTotalPages,
+    paginatedData: paginatedProjectOfExpenseRows,
+    totalItems: totalProjectOfExpenseItems,
+  } = usePagination(filteredProjectOfExpenseRows);
+
+  useEffect(() => {
+    setExpenseTypeCurrentPage(1);
+  }, [expenseTypeSearchQuery, setExpenseTypeCurrentPage]);
+
+  useEffect(() => {
+    setProjectOfExpenseCurrentPage(1);
+  }, [projectOfExpenseSearchQuery, setProjectOfExpenseCurrentPage]);
+
+  useEffect(() => {
+    if (expenseTypeCurrentPage > expenseTypeTotalPages) {
+      setExpenseTypeCurrentPage(expenseTypeTotalPages);
+    }
+  }, [expenseTypeCurrentPage, expenseTypeTotalPages, setExpenseTypeCurrentPage]);
+
+  useEffect(() => {
+    if (projectOfExpenseCurrentPage > projectOfExpenseTotalPages) {
+      setProjectOfExpenseCurrentPage(projectOfExpenseTotalPages);
+    }
+  }, [
+    projectOfExpenseCurrentPage,
+    projectOfExpenseTotalPages,
+    setProjectOfExpenseCurrentPage,
+  ]);
 
   // Preview uploaded logo
   useEffect(() => {
@@ -1186,7 +1227,7 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle>Expense Type Details</CardTitle>
+              <CardTitle className="mb-2">Expense Type Details</CardTitle>
               <CardDescription>
                 Add and edit Group, Sub-Group, Expense Ledger, and Description
                 entries.
@@ -1240,7 +1281,7 @@ export default function SettingsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredExpenseTypeRows.map((row) => (
+                  paginatedExpenseTypeRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="whitespace-normal break-words align-top">
                         {row.group}
@@ -1278,6 +1319,16 @@ export default function SettingsPage() {
               </TableBody>
             </Table>
           </div>
+
+          {!isLoadingExpenseTypeRows && filteredExpenseTypeRows.length > 0 && (
+            <Pagination
+              currentPage={expenseTypeCurrentPage}
+              totalPages={expenseTypeTotalPages}
+              totalItems={totalExpenseTypeItems}
+              onPageChange={setExpenseTypeCurrentPage}
+              itemLabel="Expense Type Details"
+            />
+          )}
 
           <Dialog
             open={isExpenseTypeDialogOpen}
@@ -1403,7 +1454,7 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle>Project of Expense Details</CardTitle>
+              <CardTitle className="mb-1">Project of Expense Details</CardTitle>
               <CardDescription>
                 Add and edit Project of Expense and Description entries.
               </CardDescription>
@@ -1450,7 +1501,7 @@ export default function SettingsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredProjectOfExpenseRows.map((row) => (
+                  paginatedProjectOfExpenseRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="whitespace-normal break-words align-top">
                         {row.project_of_expense}
@@ -1482,6 +1533,17 @@ export default function SettingsPage() {
               </TableBody>
             </Table>
           </div>
+
+          {!isLoadingProjectOfExpenseRows &&
+            filteredProjectOfExpenseRows.length > 0 && (
+              <Pagination
+                currentPage={projectOfExpenseCurrentPage}
+                totalPages={projectOfExpenseTotalPages}
+                totalItems={totalProjectOfExpenseItems}
+                onPageChange={setProjectOfExpenseCurrentPage}
+                itemLabel="Project of Expense Details"
+              />
+            )}
 
           <Dialog
             open={isProjectOfExpenseDialogOpen}
