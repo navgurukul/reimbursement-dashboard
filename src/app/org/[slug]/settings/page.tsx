@@ -4,10 +4,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { notFound, useRouter } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { expenseTypeDetails, orgSettings } from "@/lib/db";
+import {
+  expenseTypeDetails,
+  orgSettings,
+  projectOfExpenseDetails,
+} from "@/lib/db";
 import type {
   ColumnConfig as DbColumnConfig,
   ExpenseTypeDetail,
+  ProjectOfExpenseDetail,
 } from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -82,6 +87,11 @@ interface ExpenseTypeDetailsForm {
   sub_group: string;
   expense_ledger: string;
   description: string;
+}
+
+interface ProjectOfExpenseDetailsForm {
+  project_of_expense: string;
+  project_description: string;
 }
 
 export default function SettingsPage() {
@@ -166,6 +176,30 @@ export default function SettingsPage() {
       expense_ledger: "",
       description: "",
     });
+  const [projectOfExpenseRows, setProjectOfExpenseRows] = useState<
+    ProjectOfExpenseDetail[]
+  >([]);
+  const [isLoadingProjectOfExpenseRows, setIsLoadingProjectOfExpenseRows] =
+    useState(false);
+  const [projectOfExpenseSearchQuery, setProjectOfExpenseSearchQuery] =
+    useState("");
+  const [projectOfExpenseDeleteTarget, setProjectOfExpenseDeleteTarget] =
+    useState<ProjectOfExpenseDetail | null>(null);
+  const [isDeletingProjectOfExpense, setIsDeletingProjectOfExpense] =
+    useState(false);
+  const [isProjectOfExpenseDialogOpen, setIsProjectOfExpenseDialogOpen] =
+    useState(false);
+  const [isEditingProjectOfExpense, setIsEditingProjectOfExpense] =
+    useState(false);
+  const [editingProjectOfExpenseId, setEditingProjectOfExpenseId] =
+    useState<string | null>(null);
+  const [isAddingProjectOfExpense, setIsAddingProjectOfExpense] =
+    useState(false);
+  const [projectOfExpenseForm, setProjectOfExpenseForm] =
+    useState<ProjectOfExpenseDetailsForm>({
+      project_of_expense: "",
+      project_description: "",
+    });
 
   const filteredExpenseTypeRows = useMemo(() => {
     const normalizedQuery = expenseTypeSearchQuery.trim().toLowerCase();
@@ -186,6 +220,22 @@ export default function SettingsPage() {
       );
     });
   }, [expenseTypeRows, expenseTypeSearchQuery]);
+
+  const filteredProjectOfExpenseRows = useMemo(() => {
+    const normalizedQuery = projectOfExpenseSearchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) return projectOfExpenseRows;
+
+    return projectOfExpenseRows.filter((row) => {
+      const projectValue = row.project_of_expense?.toLowerCase() || "";
+      const descriptionValue = row.project_description?.toLowerCase() || "";
+
+      return (
+        projectValue.includes(normalizedQuery) ||
+        descriptionValue.includes(normalizedQuery)
+      );
+    });
+  }, [projectOfExpenseRows, projectOfExpenseSearchQuery]);
 
   // Preview uploaded logo
   useEffect(() => {
@@ -373,6 +423,28 @@ export default function SettingsPage() {
     };
 
     fetchExpenseTypeRows();
+  }, [orgId]);
+
+  useEffect(() => {
+    const fetchProjectOfExpenseRows = async () => {
+      if (!orgId) return;
+
+      setIsLoadingProjectOfExpenseRows(true);
+      const { data, error } = await projectOfExpenseDetails.getAll();
+
+      if (error) {
+        toast.error("Failed to load project of expense details", {
+          description: error.message,
+        });
+        setProjectOfExpenseRows([]);
+      } else {
+        setProjectOfExpenseRows(data);
+      }
+
+      setIsLoadingProjectOfExpenseRows(false);
+    };
+
+    fetchProjectOfExpenseRows();
   }, [orgId]);
 
   const handleSaveBranding = async () => {
@@ -748,6 +820,123 @@ export default function SettingsPage() {
       toast.success("Expense type details deleted");
     } finally {
       setIsDeletingExpenseType(false);
+    }
+  };
+
+  const handleProjectOfExpenseFormChange = (
+    key: keyof ProjectOfExpenseDetailsForm,
+    value: string
+  ) => {
+    setProjectOfExpenseForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAddProjectOfExpenseDetails = async () => {
+    if (!orgId) return;
+
+    if (!projectOfExpenseForm.project_of_expense.trim()) {
+      toast.error("Project of Expense is required");
+      return;
+    }
+
+    setIsAddingProjectOfExpense(true);
+
+    try {
+      const { data, error } = isEditingProjectOfExpense
+        ? await projectOfExpenseDetails.update(editingProjectOfExpenseId!, {
+            project_of_expense: projectOfExpenseForm.project_of_expense,
+            project_description: projectOfExpenseForm.project_description,
+          })
+        : await projectOfExpenseDetails.create({
+            project_of_expense: projectOfExpenseForm.project_of_expense,
+            project_description: projectOfExpenseForm.project_description,
+          });
+
+      if (error) throw error;
+
+      toast.success(
+        isEditingProjectOfExpense
+          ? "Project of expense details updated"
+          : "Project of expense details added"
+      );
+
+      if (data) {
+        if (isEditingProjectOfExpense) {
+          setProjectOfExpenseRows((prev) =>
+            prev.map((row) => (row.id === data.id ? data : row))
+          );
+        } else {
+          setProjectOfExpenseRows((prev) =>
+            [...prev, data].sort((first, second) =>
+              first.project_of_expense.localeCompare(second.project_of_expense)
+            )
+          );
+        }
+      }
+
+      setProjectOfExpenseForm({
+        project_of_expense: "",
+        project_description: "",
+      });
+      setIsEditingProjectOfExpense(false);
+      setEditingProjectOfExpenseId(null);
+      setIsProjectOfExpenseDialogOpen(false);
+    } catch (error: any) {
+      toast.error(
+        isEditingProjectOfExpense
+          ? "Failed to update project of expense details"
+          : "Failed to add project of expense details",
+        {
+          description: error.message,
+        }
+      );
+    } finally {
+      setIsAddingProjectOfExpense(false);
+    }
+  };
+
+  const openAddProjectOfExpenseDialog = () => {
+    setIsEditingProjectOfExpense(false);
+    setEditingProjectOfExpenseId(null);
+    setProjectOfExpenseForm({
+      project_of_expense: "",
+      project_description: "",
+    });
+    setIsProjectOfExpenseDialogOpen(true);
+  };
+
+  const openEditProjectOfExpenseDialog = (row: ProjectOfExpenseDetail) => {
+    setIsEditingProjectOfExpense(true);
+    setEditingProjectOfExpenseId(row.id);
+    setProjectOfExpenseForm({
+      project_of_expense: row.project_of_expense,
+      project_description: row.project_description || "",
+    });
+    setIsProjectOfExpenseDialogOpen(true);
+  };
+
+  const handleDeleteProjectOfExpenseDetail = async () => {
+    if (!projectOfExpenseDeleteTarget) return;
+
+    setIsDeletingProjectOfExpense(true);
+    try {
+      const { error } = await projectOfExpenseDetails.delete(
+        projectOfExpenseDeleteTarget.id
+      );
+
+      if (error) {
+        toast.error("Failed to delete project of expense details", {
+          description: error.message,
+        });
+        return;
+      }
+
+      setProjectOfExpenseRows((prev) =>
+        prev.filter((item) => item.id !== projectOfExpenseDeleteTarget.id)
+      );
+      setProjectOfExpenseDeleteTarget(null);
+      toast.success("Project of expense details deleted");
+    } finally {
+      setIsDeletingProjectOfExpense(false);
     }
   };
 
@@ -1203,6 +1392,193 @@ export default function SettingsPage() {
                   className="cursor-pointer"
                 >
                   {isDeletingExpenseType ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle>Project of Expense Details</CardTitle>
+              <CardDescription>
+                Add and edit Project of Expense and Description entries.
+              </CardDescription>
+            </div>
+            <Button onClick={openAddProjectOfExpenseDialog} variant="outline">
+              <PlusCircle className="w-4 h-4 mr-2" />
+              Add
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Input
+              value={projectOfExpenseSearchQuery}
+              onChange={(e) => setProjectOfExpenseSearchQuery(e.target.value)}
+              placeholder="Search by Project of Expense or Description"
+            />
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px] table-fixed">
+              <TableHeader className="bg-gray-300">
+                <TableRow>
+                  <TableHead className="w-[35%] whitespace-normal break-words">
+                    Project of Expense
+                  </TableHead>
+                  <TableHead className="w-[55%] whitespace-normal break-words">
+                    Project of Expense Description
+                  </TableHead>
+                  <TableHead className="w-[10%] text-right whitespace-normal break-words">
+                    Action
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoadingProjectOfExpenseRows ? (
+                  <TableSkeleton colSpan={3} rows={5} />
+                ) : filteredProjectOfExpenseRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3}>
+                      {projectOfExpenseRows.length === 0
+                        ? "No project of expense details found."
+                        : "No matching project of expense details found."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredProjectOfExpenseRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.project_of_expense}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.project_description || "-"}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditProjectOfExpenseDialog(row)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setProjectOfExpenseDeleteTarget(row)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <Dialog
+            open={isProjectOfExpenseDialogOpen}
+            onOpenChange={setIsProjectOfExpenseDialogOpen}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {isEditingProjectOfExpense
+                    ? "Edit Project of Expense Details"
+                    : "Add Project of Expense Details"}
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="project-of-expense-name">Project of Expense</Label>
+                  <Input
+                    id="project-of-expense-name"
+                    value={projectOfExpenseForm.project_of_expense}
+                    onChange={(e) =>
+                      handleProjectOfExpenseFormChange(
+                        "project_of_expense",
+                        e.target.value
+                      )
+                    }
+                    placeholder="e.g. Corporate Office"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="project-of-expense-description">
+                    Project of Expense Description
+                  </Label>
+                  <Textarea
+                    id="project-of-expense-description"
+                    value={projectOfExpenseForm.project_description}
+                    onChange={(e) =>
+                      handleProjectOfExpenseFormChange("project_description", e.target.value)
+                    }
+                    placeholder="Optional description"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleAddProjectOfExpenseDetails}
+                  disabled={isAddingProjectOfExpense}
+                >
+                  {isAddingProjectOfExpense
+                    ? isEditingProjectOfExpense
+                      ? "Updating..."
+                      : "Adding..."
+                    : isEditingProjectOfExpense
+                    ? "Update Project of Expense Details"
+                    : "Add Project of Expense Details"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <AlertDialog
+            open={Boolean(projectOfExpenseDeleteTarget)}
+            onOpenChange={(open) => {
+              if (!open && !isDeletingProjectOfExpense) {
+                setProjectOfExpenseDeleteTarget(null);
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete project of expense details?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete
+                  {projectOfExpenseDeleteTarget?.project_of_expense
+                    ? ` "${projectOfExpenseDeleteTarget.project_of_expense}"`
+                    : " this record"}
+                  ?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={isDeletingProjectOfExpense}
+                  className="cursor-pointer"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteProjectOfExpenseDetail}
+                  disabled={isDeletingProjectOfExpense}
+                  className="cursor-pointer"
+                >
+                  {isDeletingProjectOfExpense ? "Deleting..." : "Delete"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

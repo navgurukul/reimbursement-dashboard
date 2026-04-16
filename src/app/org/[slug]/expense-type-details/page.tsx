@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { notFound } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { Tags } from "lucide-react";
-import { ExpenseTypeDetail, expenseTypeDetails } from "@/lib/db";
+import {
+    ExpenseTypeDetail,
+    ProjectOfExpenseDetail,
+    expenseTypeDetails,
+    projectOfExpenseDetails,
+} from "@/lib/db";
 import { toast } from "sonner";
 import {
     Table,
@@ -28,6 +33,9 @@ export default function ExpenseTypeDetailsPage() {
     const [rows, setRows] = useState<ExpenseTypeDetail[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [projectRows, setProjectRows] = useState<ProjectOfExpenseDetail[]>([]);
+    const [isProjectLoading, setIsProjectLoading] = useState(true);
+    const [projectSearchQuery, setProjectSearchQuery] = useState("");
 
     const filteredRows = useMemo(() => {
         const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -48,6 +56,22 @@ export default function ExpenseTypeDetailsPage() {
             );
         });
     }, [rows, searchQuery]);
+
+    const filteredProjectRows = useMemo(() => {
+        const normalizedQuery = projectSearchQuery.trim().toLowerCase();
+
+        if (!normalizedQuery) return projectRows;
+
+        return projectRows.filter((item) => {
+            const projectValue = item.project_of_expense?.toLowerCase() || "";
+            const descriptionValue = item.project_description?.toLowerCase() || "";
+
+            return (
+                projectValue.includes(normalizedQuery) ||
+                descriptionValue.includes(normalizedQuery)
+            );
+        });
+    }, [projectRows, projectSearchQuery]);
 
     if (!canViewExpenseTypeDetails) {
         notFound();
@@ -80,17 +104,44 @@ export default function ExpenseTypeDetailsPage() {
         loadExpenseTypeDetails();
     }, [organization?.id]);
 
+    useEffect(() => {
+        const loadProjectOfExpenseDetails = async () => {
+            if (!organization?.id) {
+                setIsProjectLoading(false);
+                return;
+            }
+
+            setIsProjectLoading(true);
+
+            const { data, error } = await projectOfExpenseDetails.getAll();
+
+            if (error) {
+                toast.error("Failed to load project of expense details", {
+                    description: error.message,
+                });
+                setProjectRows([]);
+                setIsProjectLoading(false);
+                return;
+            }
+
+            setProjectRows(data);
+            setIsProjectLoading(false);
+        };
+
+        loadProjectOfExpenseDetails();
+    }, [organization?.id]);
+
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-2">
                 <Tags className="h-6 w-6 text-primary" />
-                <h1 className="text-3xl font-bold tracking-tight">Expense Type Details</h1>
+                <h1 className="text-xl font-bold tracking-tight">Expense Type Details & Project Of Expense Details</h1>
             </div>
 
             <Card>
-                {/* <CardHeader>
+                <CardHeader>
                     <CardTitle>Expense Type Details List</CardTitle>
-                </CardHeader> */}
+                </CardHeader>
                 <CardContent>
                     <div className="mb-4">
                         <Input
@@ -148,6 +199,60 @@ export default function ExpenseTypeDetailsPage() {
                             )}
                         </TableBody>
                     </Table>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Project of Expense Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="mb-4">
+                        <Input
+                            value={projectSearchQuery}
+                            onChange={(e) => setProjectSearchQuery(e.target.value)}
+                            placeholder="Search by Project of Expense or Description"
+                        />
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <Table className="min-w-[800px] table-fixed">
+                            <TableHeader className="bg-gray-300">
+                                <TableRow>
+                                    <TableHead className="w-[35%] whitespace-normal break-words">
+                                        Project of Expense
+                                    </TableHead>
+                                    <TableHead className="w-[65%] whitespace-normal break-words">
+                                        Project of Expense Description
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isProjectLoading ? (
+                                    <TableSkeleton colSpan={2} rows={5} />
+                                ) : filteredProjectRows.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={2}>
+                                            {projectRows.length === 0
+                                                ? "No project of expense details found."
+                                                : "No matching project of expense details found."}
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    filteredProjectRows.map((item) => (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="whitespace-normal break-words align-top">
+                                                {item.project_of_expense}
+                                            </TableCell>
+                                            <TableCell className="whitespace-normal break-words align-top">
+                                                {item.project_description || "-"}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
                     </div>
                 </CardContent>
             </Card>
