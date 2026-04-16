@@ -997,7 +997,7 @@ export default function SettingsPage() {
 
           <div className="overflow-x-auto">
             <Table className="min-w-[980px] table-fixed">
-              <TableHeader>
+              <TableHeader className="bg-gray-300">
                 <TableRow>
                   <TableHead className="w-[18%] whitespace-normal break-words">
                     Group
@@ -1009,7 +1009,7 @@ export default function SettingsPage() {
                     Expense Ledger / Expense Type
                   </TableHead>
                   <TableHead className="w-[30%] whitespace-normal break-words">
-                    Description
+                    Expense Type Description
                   </TableHead>
                   <TableHead className="w-[10%] text-right whitespace-normal break-words">
                     Action

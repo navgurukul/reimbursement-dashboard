@@ -88,9 +88,9 @@ export default function ExpenseTypeDetailsPage() {
             </div>
 
             <Card>
-                <CardHeader>
+                {/* <CardHeader>
                     <CardTitle>Expense Type Details List</CardTitle>
-                </CardHeader>
+                </CardHeader> */}
                 <CardContent>
                     <div className="mb-4">
                         <Input
@@ -101,7 +101,7 @@ export default function ExpenseTypeDetailsPage() {
                     </div>
                     <div className="overflow-x-auto">
                     <Table className="min-w-[900px] table-fixed">
-                        <TableHeader>
+                        <TableHeader className="bg-gray-300">
                             <TableRow>
                                 <TableHead className="w-[18%] whitespace-normal break-words">
                                     Group
@@ -113,7 +113,7 @@ export default function ExpenseTypeDetailsPage() {
                                     Expense Ledger / Expense Type
                                 </TableHead>
                                 <TableHead className="w-[40%] whitespace-normal break-words">
-                                    Description
+                                    Expense Type Description
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
