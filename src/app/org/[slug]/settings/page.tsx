@@ -24,6 +24,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -146,6 +156,9 @@ export default function SettingsPage() {
   const [expenseTypeRows, setExpenseTypeRows] = useState<ExpenseTypeDetail[]>([]);
   const [isLoadingExpenseTypeRows, setIsLoadingExpenseTypeRows] = useState(false);
   const [expenseTypeSearchQuery, setExpenseTypeSearchQuery] = useState("");
+  const [expenseTypeDeleteTarget, setExpenseTypeDeleteTarget] =
+    useState<ExpenseTypeDetail | null>(null);
+  const [isDeletingExpenseType, setIsDeletingExpenseType] = useState(false);
   const [expenseTypeForm, setExpenseTypeForm] =
     useState<ExpenseTypeDetailsForm>({
       group: "",
@@ -714,18 +727,28 @@ export default function SettingsPage() {
     setIsExpenseTypeDialogOpen(true);
   };
 
-  const handleDeleteExpenseTypeDetail = async (row: ExpenseTypeDetail) => {
-    const { error } = await expenseTypeDetails.delete(row.id);
+  const handleDeleteExpenseTypeDetail = async () => {
+    if (!expenseTypeDeleteTarget) return;
 
-    if (error) {
-      toast.error("Failed to delete expense type details", {
-        description: error.message,
-      });
-      return;
+    setIsDeletingExpenseType(true);
+    try {
+      const { error } = await expenseTypeDetails.delete(expenseTypeDeleteTarget.id);
+
+      if (error) {
+        toast.error("Failed to delete expense type details", {
+          description: error.message,
+        });
+        return;
+      }
+
+      setExpenseTypeRows((prev) =>
+        prev.filter((item) => item.id !== expenseTypeDeleteTarget.id)
+      );
+      setExpenseTypeDeleteTarget(null);
+      toast.success("Expense type details deleted");
+    } finally {
+      setIsDeletingExpenseType(false);
     }
-
-    setExpenseTypeRows((prev) => prev.filter((item) => item.id !== row.id));
-    toast.success("Expense type details deleted");
   };
 
   return (
@@ -1054,7 +1077,7 @@ export default function SettingsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteExpenseTypeDetail(row)}
+                            onClick={() => setExpenseTypeDeleteTarget(row)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -1150,6 +1173,40 @@ export default function SettingsPage() {
               </div>
             </DialogContent>
           </Dialog>
+
+          <AlertDialog
+            open={Boolean(expenseTypeDeleteTarget)}
+            onOpenChange={(open) => {
+              if (!open && !isDeletingExpenseType) {
+                setExpenseTypeDeleteTarget(null);
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete expense type details?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete
+                  {expenseTypeDeleteTarget?.expense_ledger
+                    ? ` \"${expenseTypeDeleteTarget.expense_ledger}\"`
+                    : " this record"}
+                  ?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeletingExpenseType} className="cursor-pointer">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteExpenseTypeDetail}
+                  disabled={isDeletingExpenseType}
+                  className="cursor-pointer"
+                >
+                  {isDeletingExpenseType ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
       {/* </TabsContent> */}
