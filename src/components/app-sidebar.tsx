@@ -186,8 +186,8 @@ export function AppSidebar() {
       icon: Calendar,
     },
     {
-      title: "Expense Type Details",
-      href: `/org/${organization?.slug}/expense-type-details`,
+      title: "Abbreviations",
+      href: `/org/${organization?.slug}/abbreviations`,
       icon: Tags,
     },
     ...(isAdmin
