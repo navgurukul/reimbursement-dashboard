@@ -2891,6 +2891,13 @@ export default function NewExpensePage() {
                               {errors[col.key]}
                             </p>
                           )}
+                          {(col.key === "expense_type" ||
+                            col.label?.trim().toLowerCase() ===
+                              "expense type") && (
+                            <p className="text-xs text-gray-600">
+                              Unsure about any expense type or abbreviation? Check the Abbreviations tab for details.
+                            </p>
+                          )}
                         </>
                       )}
 
@@ -3045,6 +3052,10 @@ export default function NewExpensePage() {
                 const isExpenseCreditPersonField =
                   col.key === "expense_credit_person" ||
                   col.label?.trim().toLowerCase() === "expense credit person";
+
+                const isProjectOfExpenseField =
+                  col.key === "location" ||
+                  col.label?.trim().toLowerCase() === "project of expense";
 
                 if (
                   isExpenseCreditPersonField &&
@@ -3264,6 +3275,11 @@ export default function NewExpensePage() {
                         id={`${col.key}-error`}
                       >
                         {errors[col.key]}
+                      </p>
+                    )}
+                    {isProjectOfExpenseField && (
+                      <p className="text-xs text-gray-600">
+                        Unsure about any project of expense? Check the Abbreviations tab for details.
                       </p>
                     )}
                   </div>
@@ -3501,6 +3517,13 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
+                                {(col.key === "expense_type" ||
+                                  col.label?.trim().toLowerCase() ===
+                                    "expense type") && (
+                                  <p className="text-xs text-gray-600">
+                                    Unsure about any expense type or abbreviation? Check the Abbreviations tab for details.
+                                  </p>
+                                )}
                               </>
                             )}
 
@@ -3646,6 +3669,9 @@ export default function NewExpensePage() {
                         col.key === "expense_credit_person" ||
                         col.label?.trim().toLowerCase() ===
                           "expense credit person";
+                      const isProjectOfExpenseField =
+                        col.key === "location" ||
+                        col.label?.trim().toLowerCase() === "project of expense";
                       const itemIsDirectPayment = isDirectPaymentValue(
                         expenseItemsData[id]?.unique_id ||
                           formData.unique_id ||
@@ -3950,6 +3976,11 @@ export default function NewExpensePage() {
                               id={`${col.key}-error`}
                             >
                               {errors[col.key]}
+                            </p>
+                          )}
+                          {isProjectOfExpenseField && (
+                            <p className="text-xs text-gray-600">
+                              Unsure about any project of expense? Check the Abbreviations tab for details.
                             </p>
                           )}
                         </div>
