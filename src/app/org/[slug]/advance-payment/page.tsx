@@ -105,6 +105,8 @@ export default function AdvancePaymentRecords() {
     dateMode: "All Dates",
     minAmount: 0,
     maxAmount: 0,
+    tdsDeduction: "All TDS Deductions",
+    securityDeposit: "All Security Deposits",
   });
 
   const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
@@ -312,6 +314,60 @@ export default function AdvancePaymentRecords() {
 
     return Number(amount);
   };
+
+  const hasTdsDeduction = (record: any) => {
+    const storedAmount = record.tds_deduction_amount;
+    if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
+      return true;
+    }
+    return Number(record.tds_deduction_percentage ?? 0) > 0;
+  };
+
+  const getTdsDeductionOptionValue = (record: any) => {
+    if (!hasTdsDeduction(record)) return "N/A";
+    const percentage = Number(record.tds_deduction_percentage ?? 0);
+    const amount = getTdsAmount(record) ?? 0;
+    return `${percentage}|${Number(amount).toFixed(2)}`;
+  };
+
+  const formatTdsDeductionOptionLabel = (optionValue: string) => {
+    if (optionValue === "N/A") return "N/A";
+    const [percentageText, amountText] = optionValue.split("|");
+    const percentage = Number(percentageText);
+    const amount = Number(amountText);
+    const percentageLabel = Number.isFinite(percentage) && percentage > 0 ? `${percentage}%` : "—";
+    return `${percentageLabel} (${formatCurrency(amount)})`;
+  };
+
+  const hasSecurityDeposit = (record: any) => {
+    const amount = record.security_deposit_amount;
+    return !(amount === null || amount === undefined || amount === "");
+  };
+
+  const activeTabRecords = React.useMemo(() => {
+    if (activeTab === "ngidfc") return records.filter(r => (r.paid_by_bank || "").includes("NGIDFC"));
+    if (activeTab === "fcidfc") return records.filter(r => (r.paid_by_bank || "").includes("FCIDFC"));
+    if (activeTab === "kotak") return records.filter(r => (r.paid_by_bank || "").includes("KOTAK"));
+    return records;
+  }, [records, activeTab]);
+
+  const tdsDeductionOptions = React.useMemo(() =>
+    Array.from(new Set(activeTabRecords.map((r: any) => getTdsDeductionOptionValue(r)))).sort((a, b) => {
+      if (a === "N/A") return 1;
+      if (b === "N/A") return -1;
+      const [aP, aA] = a.split("|");
+      const [bP, bA] = b.split("|");
+      const pDiff = Number(aP) - Number(bP);
+      if (pDiff !== 0) return pDiff;
+      return Number(aA) - Number(bA);
+    }), [activeTabRecords]);
+
+  const securityDepositOptions = React.useMemo(() =>
+    Array.from(new Set(activeTabRecords.map((r: any) => (hasSecurityDeposit(r) ? String(getSecurityDepositAmount(r)) : "N/A")))).sort((a, b) => {
+      if (a === "N/A") return 1;
+      if (b === "N/A") return -1;
+      return Number(a) - Number(b);
+    }), [activeTabRecords]);
 
   const getActualAmount = (record: any) => {
     const stored = record.actual_amount;
@@ -676,6 +732,31 @@ export default function AdvancePaymentRecords() {
       if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
         return false;
 
+      // TDS Deduction filter: option values generated from records (e.g. "N/A" or "10|25.00")
+      if (
+        filters.tdsDeduction &&
+        filters.tdsDeduction !== "All TDS Deductions"
+      ) {
+        if (filters.tdsDeduction === "N/A") {
+          if (hasTdsDeduction(r)) return false;
+        } else {
+          if (getTdsDeductionOptionValue(r) !== filters.tdsDeduction) return false;
+        }
+      }
+
+      // Security Deposit filter: string amounts or "N/A"
+      if (
+        filters.securityDeposit &&
+        filters.securityDeposit !== "All Security Deposits"
+      ) {
+        if (filters.securityDeposit === "N/A") {
+          if (hasSecurityDeposit(r)) return false;
+        } else {
+          const sec = getSecurityDepositAmount(r);
+          if (String(sec) !== filters.securityDeposit) return false;
+        }
+      }
+
       return true;
     });
 
@@ -718,8 +799,10 @@ export default function AdvancePaymentRecords() {
       dateMode: "All Dates",
       startDate: "",
       endDate: "",
-      minAmount: amountBounds.min,
-      maxAmount: amountBounds.max,
+        minAmount: amountBounds.min,
+        maxAmount: amountBounds.max,
+        tdsDeduction: "All TDS Deductions",
+        securityDeposit: "All Security Deposits",
     }));
 
     let tabFiltered = records;
@@ -1167,7 +1250,7 @@ export default function AdvancePaymentRecords() {
       {/* Filter panel */}
       {filterOpen && (
         <div className="p-4 rounded-md border shadow-sm bg-white">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Expense Type</label>
               <select
@@ -1270,6 +1353,42 @@ export default function AdvancePaymentRecords() {
                 <option>All Receipt/Voucher</option>
                 <option>Receipt</option>
                 <option>Voucher</option>
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">TDS Deduction</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.tdsDeduction}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, tdsDeduction: e.target.value }))
+                }
+              >
+                <option>All TDS Deductions</option>
+                {tdsDeductionOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {formatTdsDeductionOptionLabel(opt)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Security Deposit</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.securityDeposit}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, securityDeposit: e.target.value }))
+                }
+              >
+                <option>All Security Deposits</option>
+                {securityDepositOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt === "N/A" ? "N/A" : formatCurrency(Number(opt))}
+                  </option>
+                ))}
               </select>
             </div>
 
