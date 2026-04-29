@@ -49,6 +49,33 @@ import { Pagination, usePagination } from "@/components/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+const formatCurrency = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined || Number.isNaN(amount)) return "N/A";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount);
+};
+
+const calculateTdsAmount = (
+  baseAmount: number | null | undefined,
+  percentage: number | null | undefined
+) => {
+  if (!percentage || baseAmount === null || baseAmount === undefined) return null;
+  const amount = (Number(baseAmount) * percentage) / 100;
+  return Number(amount.toFixed(2));
+};
+
+const calculateActualAmount = (
+  baseAmount: number | null | undefined,
+  tdsAmount: number | null | undefined,
+  securityDepositAmount: number | null | undefined
+) => {
+  if (baseAmount === null || baseAmount === undefined) return null;
+  const amount = Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
+  return Number(amount.toFixed(2));
+};
+
 export default function AdvancePaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
@@ -235,6 +262,9 @@ export default function AdvancePaymentRecords() {
     "Event Name",
     "Location",
     "Amount",
+    "TDS Deduction",
+    "Security Deposit",
+    "Actual Amount",
     "Date of Expense",
     "Status",
     "UTR",
@@ -247,6 +277,43 @@ export default function AdvancePaymentRecords() {
   ]);
 
   const ADMIN_PASSWORD = "admin"; // your password
+
+  const getBaseAmount = (record: any) =>
+    Number(record.approved_amount ?? record.amount ?? 0);
+
+  const getTdsAmount = (record: any) => {
+    const storedAmount = record.tds_deduction_amount;
+    if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
+      return Number(storedAmount);
+    }
+
+    const percentage = Number(record.tds_deduction_percentage ?? 0);
+    if (!percentage) return null;
+
+    return calculateTdsAmount(getBaseAmount(record), percentage);
+  };
+
+  const getSecurityDepositAmount = (record: any) => {
+    const amount = record.security_deposit_amount;
+    if (amount === null || amount === undefined || amount === "") {
+      return null;
+    }
+
+    return Number(amount);
+  };
+
+  const getActualAmount = (record: any) => {
+    const stored = record.actual_amount;
+    if (stored !== null && stored !== undefined && stored !== "") {
+      return Number(stored);
+    }
+
+    return calculateActualAmount(
+      getBaseAmount(record),
+      getTdsAmount(record),
+      getSecurityDepositAmount(record)
+    );
+  };
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -697,6 +764,32 @@ export default function AdvancePaymentRecords() {
           case "Amount":
             row.push(record.approved_amount || record.amount || "—");
             break;
+          case "TDS Deduction": {
+            const tdsAmount = getTdsAmount(record);
+            const percentage = Number(record.tds_deduction_percentage ?? 0);
+            row.push(
+              percentage && tdsAmount !== null
+                ? `${percentage}% (${formatCurrency(tdsAmount)})`
+                : tdsAmount !== null
+                  ? formatCurrency(tdsAmount)
+                  : "N/A"
+            );
+            break;
+          }
+          case "Security Deposit": {
+            const securityDepositAmount = getSecurityDepositAmount(record);
+            row.push(
+              securityDepositAmount !== null
+                ? formatCurrency(securityDepositAmount)
+                : "N/A"
+            );
+            break;
+          }
+          case "Actual Amount": {
+            const actualAmount = getActualAmount(record);
+            row.push(actualAmount !== null ? formatCurrency(actualAmount) : "N/A");
+            break;
+          }
           case "Date of Expense":
             row.push(
               record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
@@ -777,6 +870,32 @@ export default function AdvancePaymentRecords() {
           case "Amount":
             row.push(record.approved_amount || record.amount || "—");
             break;
+          case "TDS Deduction": {
+            const tdsAmount = getTdsAmount(record);
+            const percentage = Number(record.tds_deduction_percentage ?? 0);
+            row.push(
+              percentage && tdsAmount !== null
+                ? `${percentage}% (${formatCurrency(tdsAmount)})`
+                : tdsAmount !== null
+                  ? formatCurrency(tdsAmount)
+                  : "N/A"
+            );
+            break;
+          }
+          case "Security Deposit": {
+            const securityDepositAmount = getSecurityDepositAmount(record);
+            row.push(
+              securityDepositAmount !== null
+                ? formatCurrency(securityDepositAmount)
+                : "N/A"
+            );
+            break;
+          }
+          case "Actual Amount": {
+            const actualAmount = getActualAmount(record);
+            row.push(actualAmount !== null ? formatCurrency(actualAmount) : "N/A");
+            break;
+          }
           case "Date of Expense":
             row.push(
               record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
@@ -1160,6 +1279,9 @@ export default function AdvancePaymentRecords() {
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Project of Expense</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
+              <TableHead className="text-center py-3">TDS Deduction</TableHead>
+              <TableHead className="text-center py-3">Security Deposit</TableHead>
+              <TableHead className="text-center py-3">Actual Amount</TableHead>
               <TableHead className="text-center py-3">Bills</TableHead>
               <TableHead className="text-center py-3">Date of expense</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
@@ -1212,11 +1334,11 @@ export default function AdvancePaymentRecords() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={16} rows={5} />
+              <TableSkeleton colSpan={19} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={16}
+                  colSpan={19}
                   className="text-center py-12 text-gray-500"
                 >
                   <div className="flex flex-col items-center gap-2">
@@ -1262,6 +1384,45 @@ export default function AdvancePaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     ₹{record.approved_amount}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const tdsAmount = getTdsAmount(record);
+                      const percentage = Number(record.tds_deduction_percentage ?? 0);
+
+                      if (percentage && tdsAmount !== null) {
+                        return (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm">{percentage}%</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatCurrency(tdsAmount)}
+                            </span>
+                          </div>
+                        );
+                      }
+
+                      if (tdsAmount !== null) {
+                        return formatCurrency(tdsAmount);
+                      }
+
+                      return "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const securityDepositAmount = getSecurityDepositAmount(record);
+                      return securityDepositAmount !== null
+                        ? formatCurrency(securityDepositAmount)
+                        : "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const actualAmount = getActualAmount(record);
+                      return actualAmount !== null
+                        ? formatCurrency(actualAmount)
+                        : "N/A";
+                    })()}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {record.receipt ? (
