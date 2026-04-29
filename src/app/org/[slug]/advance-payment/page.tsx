@@ -103,6 +103,9 @@ export default function AdvancePaymentRecords() {
     startDate: "",
     endDate: "",
     dateMode: "All Dates",
+    paidStartDate: "",
+    paidEndDate: "",
+    paidDateMode: "All Dates",
     minAmount: 0,
     maxAmount: 0,
     tdsDeduction: "All TDS Deductions",
@@ -593,6 +596,21 @@ export default function AdvancePaymentRecords() {
   const bankOptions = Array.from(
     new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
   );
+  const paidDateFilterOptions = Array.from(
+    new Set(
+      activeTabRecords
+        .map((r: any) => {
+          if (!r.paid_approval_time) return null;
+          const date = new Date(r.paid_approval_time);
+          if (Number.isNaN(date.getTime())) return null;
+          const year = date.getFullYear();
+          const month = `${date.getMonth() + 1}`.padStart(2, "0");
+          const day = `${date.getDate()}`.padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        })
+        .filter((x): x is string => Boolean(x))
+    )
+  ).sort((a, b) => b.localeCompare(a));
   const baseExportRecords = (() => {
     if (!exportBankType) return filteredRecords;
     if (exportBankType === "ALL_RECORDS") return filteredRecords;
@@ -726,6 +744,30 @@ export default function AdvancePaymentRecords() {
         end.setHours(23, 59, 59, 999);
         if (recDate > end) return false;
       }
+      const paidApprovalDate = r.paid_approval_time
+        ? new Date(r.paid_approval_time)
+        : null;
+      if (filters.paidDateMode === "Single Date" && filters.paidStartDate) {
+        const start = new Date(filters.paidStartDate);
+        const end = new Date(filters.paidStartDate);
+        end.setHours(23, 59, 59, 999);
+        if (!paidApprovalDate || Number.isNaN(paidApprovalDate.getTime()))
+          return false;
+        if (paidApprovalDate < start || paidApprovalDate > end) return false;
+      }
+      if (filters.paidDateMode === "Custom Date") {
+        if (!paidApprovalDate || Number.isNaN(paidApprovalDate.getTime()))
+          return false;
+        if (filters.paidStartDate) {
+          const start = new Date(filters.paidStartDate);
+          if (paidApprovalDate < start) return false;
+        }
+        if (filters.paidEndDate) {
+          const end = new Date(filters.paidEndDate);
+          end.setHours(23, 59, 59, 999);
+          if (paidApprovalDate > end) return false;
+        }
+      }
       const amt = Number(r.approved_amount) || 0;
       if (filters.minAmount !== null && amt < Number(filters.minAmount))
         return false;
@@ -799,6 +841,9 @@ export default function AdvancePaymentRecords() {
       dateMode: "All Dates",
       startDate: "",
       endDate: "",
+      paidDateMode: "All Dates",
+      paidStartDate: "",
+      paidEndDate: "",
         minAmount: amountBounds.min,
         maxAmount: amountBounds.max,
         tdsDeduction: "All TDS Deductions",
@@ -1356,42 +1401,6 @@ export default function AdvancePaymentRecords() {
               </select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">TDS Deduction</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.tdsDeduction}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, tdsDeduction: e.target.value }))
-                }
-              >
-                <option>All TDS Deductions</option>
-                {tdsDeductionOptions.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {formatTdsDeductionOptionLabel(opt)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Security Deposit</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.securityDeposit}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, securityDeposit: e.target.value }))
-                }
-              >
-                <option>All Security Deposits</option>
-                {securityDepositOptions.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt === "N/A" ? "N/A" : formatCurrency(Number(opt))}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {bankOptions.length > 0 && (
               <div className="col-span-3 sm:col-span-1">
                 <label className="text-sm font-medium">Paid by Bank</label>
@@ -1412,28 +1421,8 @@ export default function AdvancePaymentRecords() {
               </div>
             )}
 
-            {utrValues.length > 0 && (
-              <div className="col-span-3 sm:col-span-1">
-                <label className="text-sm font-medium">UTR</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2"
-                  value={filters.utr}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, utr: e.target.value }))
-                  }
-                >
-                  <option value="All UTRs">All UTRs</option>
-                  {utrValues.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Date</label>
+              <label className="text-sm font-medium">Date of expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.dateMode}
@@ -1507,6 +1496,143 @@ export default function AdvancePaymentRecords() {
                 ) : null}
               </div>
             </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Paid date</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.paidDateMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setFilters((f) => {
+                    if (mode === "All Dates")
+                      return {
+                        ...f,
+                        paidDateMode: mode,
+                        paidStartDate: "",
+                        paidEndDate: "",
+                      };
+                    if (mode === "Single Date")
+                      return {
+                        ...f,
+                        paidDateMode: mode,
+                        paidStartDate: f.paidStartDate || "",
+                        paidEndDate: f.paidStartDate || "",
+                      };
+                    return { ...f, paidDateMode: mode };
+                  });
+                }}
+              >
+                <option>All Dates</option>
+                <option>Single Date</option>
+                <option>Custom Date</option>
+              </select>
+
+              <div className="mt-2">
+                {filters.paidDateMode === "Single Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Select Date</label>
+                    <select
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidStartDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({
+                          ...f,
+                          paidStartDate: e.target.value,
+                          paidEndDate: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Select Paid Date</option>
+                      {paidDateFilterOptions.map((date) => (
+                        <option key={date} value={date}>
+                          {formatDateForDisplay(date)}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : filters.paidDateMode === "Custom Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Start Date</label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidStartDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, paidStartDate: e.target.value }))
+                      }
+                    />
+                    <label className="text-sm font-medium mt-2 block">
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidEndDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, paidEndDate: e.target.value }))
+                      }
+                    />
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">TDS Deduction</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.tdsDeduction}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, tdsDeduction: e.target.value }))
+                }
+              >
+                <option>All TDS Deductions</option>
+                {tdsDeductionOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {formatTdsDeductionOptionLabel(opt)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Security Deposit</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.securityDeposit}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, securityDeposit: e.target.value }))
+                }
+              >
+                <option>All Security Deposits</option>
+                {securityDepositOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt === "N/A" ? "N/A" : formatCurrency(Number(opt))}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {utrValues.length > 0 && (
+              <div className="col-span-3 sm:col-span-1">
+                <label className="text-sm font-medium">UTR</label>
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2"
+                  value={filters.utr}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, utr: e.target.value }))
+                  }
+                >
+                  <option value="All UTRs">All UTRs</option>
+                  {utrValues.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Amount Min</label>
