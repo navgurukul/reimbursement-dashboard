@@ -1300,22 +1300,24 @@ export default function AdvancePaymentRecords() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold flex flex-col sm:flex-row sm:items-center justify-start">Advance Payment Records</h1>
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="bg-muted rounded-lg">
-            <TabsTrigger value="all" className="cursor-pointer">All Expense</TabsTrigger>
-            <TabsTrigger value="ngidfc" className="cursor-pointer">NGIDFC Record</TabsTrigger>
-            <TabsTrigger value="fcidfc" className="cursor-pointer">FCIDFC Records</TabsTrigger>
-            <TabsTrigger value="kotak" className="cursor-pointer">KOTAK Records</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="w-full overflow-x-auto lg:w-auto">
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className="bg-muted rounded-lg w-max min-w-max">
+              <TabsTrigger value="all" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">All Expense</TabsTrigger>
+              <TabsTrigger value="ngidfc" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">NGIDFC Record</TabsTrigger>
+              <TabsTrigger value="fcidfc" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">FCIDFC Records</TabsTrigger>
+              <TabsTrigger value="kotak" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">KOTAK Records</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap gap-2 lg:w-auto">
           <Button
             onClick={() => setShowExportBankModal(true)}
             variant="outline"
-            className="flex items-center gap-2"
+            className="flex w-full items-center gap-2 sm:w-auto"
           >
             <Download className="w-4 h-4" />
             Export
@@ -1323,7 +1325,7 @@ export default function AdvancePaymentRecords() {
           <Button
             variant="outline"
             onClick={() => setFilterOpen((s) => !s)}
-            className="flex items-center gap-2"
+            className="flex w-full items-center gap-2 sm:w-auto"
           >
             <Filter className="w-4 h-4" />
             Filters
