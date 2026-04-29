@@ -106,13 +106,16 @@ export default function AdvancePaymentRecords() {
     paidStartDate: "",
     paidEndDate: "",
     paidDateMode: "All Dates",
-    minAmount: 0,
-    maxAmount: 0,
+    minAmount: "",
+    maxAmount: "",
+    actualMinAmount: "",
+    actualMaxAmount: "",
     tdsDeduction: "All TDS Deductions",
     securityDeposit: "All Security Deposits",
   });
 
   const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
+  const [actualAmountBounds, setActualAmountBounds] = useState({ min: 0, max: 0 });
   const [filterOpen, setFilterOpen] = useState(false);
   const [eventTitleLookup, setEventTitleLookup] = useState<
     Record<string, string>
@@ -524,18 +527,28 @@ export default function AdvancePaymentRecords() {
           });
 
           // compute amount bounds
-          const amounts = enriched.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
+          const amounts = enriched.map((r: any) => getBaseAmount(r));
+          const actualAmounts = enriched
+            .map((r: any) => getActualAmount(r))
+            .filter((amount: number | null): amount is number => amount !== null);
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
+          const actualMin = actualAmounts.length ? Math.min(...actualAmounts) : 0;
+          const actualMax = actualAmounts.length ? Math.max(...actualAmounts) : 0;
 
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
           setAmountBounds({ min, max });
+          setActualAmountBounds({ min: actualMin, max: actualMax });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
+          setFilters((prev) => ({
+            ...prev,
+            minAmount: "",
+            maxAmount: "",
+            actualMinAmount: "",
+            actualMaxAmount: "",
+          }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
           const fallback = sortByMarkedAsAdvanceTime(
@@ -554,18 +567,28 @@ export default function AdvancePaymentRecords() {
                 : index + 1,
             };
           });
-          const amounts = fallback.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
+          const amounts = fallback.map((r: any) => getBaseAmount(r));
+          const actualAmounts = fallback
+            .map((r: any) => getActualAmount(r))
+            .filter((amount: number | null): amount is number => amount !== null);
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
+          const actualMin = actualAmounts.length ? Math.min(...actualAmounts) : 0;
+          const actualMax = actualAmounts.length ? Math.max(...actualAmounts) : 0;
 
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
           setAmountBounds({ min, max });
+          setActualAmountBounds({ min: actualMin, max: actualMax });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
+          setFilters((prev) => ({
+            ...prev,
+            minAmount: "",
+            maxAmount: "",
+            actualMinAmount: "",
+            actualMaxAmount: "",
+          }));
         }
       } catch (err: any) {
         toast.error("Failed to load advance payment records", { description: err.message });
@@ -768,10 +791,24 @@ export default function AdvancePaymentRecords() {
           if (paidApprovalDate > end) return false;
         }
       }
-      const amt = Number(r.approved_amount) || 0;
-      if (filters.minAmount !== null && amt < Number(filters.minAmount))
+      const amt = getBaseAmount(r);
+      if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
-      if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
+      if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
+        return false;
+
+      const actualAmt = getActualAmount(r);
+      if (
+        filters.actualMinAmount !== "" &&
+        actualAmt !== null &&
+        actualAmt < Number(filters.actualMinAmount)
+      )
+        return false;
+      if (
+        filters.actualMaxAmount !== "" &&
+        actualAmt !== null &&
+        actualAmt > Number(filters.actualMaxAmount)
+      )
         return false;
 
       // TDS Deduction filter: option values generated from records (e.g. "N/A" or "10|25.00")
@@ -844,10 +881,12 @@ export default function AdvancePaymentRecords() {
       paidDateMode: "All Dates",
       paidStartDate: "",
       paidEndDate: "",
-        minAmount: amountBounds.min,
-        maxAmount: amountBounds.max,
-        tdsDeduction: "All TDS Deductions",
-        securityDeposit: "All Security Deposits",
+      minAmount: "",
+      maxAmount: "",
+      actualMinAmount: "",
+      actualMaxAmount: "",
+      tdsDeduction: "All TDS Deductions",
+      securityDeposit: "All Security Deposits",
     }));
 
     let tabFiltered = records;
@@ -1635,33 +1674,63 @@ export default function AdvancePaymentRecords() {
             )}
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Min</label>
-              <input
-                type="number"
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.minAmount}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    minAmount: Number(e.target.value),
-                  }))
-                }
-              />
+              <label className="text-sm font-medium">Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.minAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.maxAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Max</label>
-              <input
-                type="number"
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.maxAmount}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    maxAmount: Number(e.target.value),
-                  }))
-                }
-              />
+              <label className="text-sm font-medium">Actual Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.actualMinAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      actualMinAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.actualMaxAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      actualMaxAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-3">
