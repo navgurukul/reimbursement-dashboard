@@ -95,6 +95,18 @@ const formatDateForInput = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const formatDateForFileName = (date: Date | string | null | undefined) => {
+  if (!date) return "";
+
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) return "";
+
+  const day = `${value.getDate()}`.padStart(2, "0");
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const year = value.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 export default function AdvancePaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
@@ -812,36 +824,38 @@ export default function AdvancePaymentRecords() {
     }
     
     // For regular export
-    const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const timestamp = formatDateForFileName(new Date());
     
     const bankPart = (() => {
       if (!exportBankType) return "";
-      if (exportBankType === "ALL_RECORDS") return "all_records";
-      if (exportBankType === "NO_BANK") return "no_bank";
-      return sanitize(exportBankType).toLowerCase();
+      if (exportBankType === "ALL_RECORDS") return "All_Records";
+      if (exportBankType === "NO_BANK") return "No_Bank";
+      return sanitize(exportBankType);
     })();
 
     const expensePart = (() => {
       const m = exportDateFilters.expenseDateMode;
       if (m === "All Dates") return "";
-      if (m === "Single Date") return `expense_${exportDateFilters.expenseStartDate}`;
-      if (m === "Custom Date") return `expense_${exportDateFilters.expenseStartDate}_to_${exportDateFilters.expenseEndDate}`;
+      if (m === "Single Date") return `DateofExpense_${formatDateForFileName(exportDateFilters.expenseStartDate)}`;
+      if (m === "Custom Date") return `DateofExpense_${formatDateForFileName(exportDateFilters.expenseStartDate)}_to_${formatDateForFileName(exportDateFilters.expenseEndDate)}`;
       return "";
     })();
 
     const paidPart = (() => {
       const m = exportDateFilters.paidDateMode;
       if (m === "All Dates") return "";
-      if (m === "Single Date") return `paid_${exportDateFilters.paidStartDate}`;
-      if (m === "Custom Date") return `paid_${exportDateFilters.paidStartDate}_to_${exportDateFilters.paidEndDate}`;
+      if (m === "Single Date") return `PaidDate_${formatDateForFileName(exportDateFilters.paidStartDate)}`;
+      if (m === "Custom Date") return `PaidDate_${formatDateForFileName(exportDateFilters.paidStartDate)}_to_${formatDateForFileName(exportDateFilters.paidEndDate)}`;
       return "";
     })();
 
+    const dateParts = [expensePart, paidPart].filter(Boolean);
+    const dateScopePart = dateParts.length ? dateParts.join("_") : "all_dates";
+
     const parts = [
-      "advance_payment",
       bankPart,
-      expensePart,
-      paidPart,
+      "advance-payment",
+      dateScopePart,
       timestamp,
     ].filter((p) => p !== "");
     
