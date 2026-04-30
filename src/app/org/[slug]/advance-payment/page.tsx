@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -48,6 +48,8 @@ import {
 import { Pagination, usePagination } from "@/components/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || Number.isNaN(amount)) return "N/A";
@@ -74,6 +76,23 @@ const calculateActualAmount = (
   if (baseAmount === null || baseAmount === undefined) return null;
   const amount = Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
   return Number(amount.toFixed(2));
+};
+
+const toDateOnly = (value?: string | Date | null) => {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatDateForInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 export default function AdvancePaymentRecords() {
@@ -263,6 +282,13 @@ export default function AdvancePaymentRecords() {
   const [showFormatModal, setShowFormatModal] = useState(false);
   const [showExportBankModal, setShowExportBankModal] = useState(false);
   const [showExportDateModal, setShowExportDateModal] = useState(false);
+  const [showQuickExportModal, setShowQuickExportModal] = useState(false);
+  const [quickExportMode, setQuickExportMode] = useState<"weekly" | "monthly">("weekly");
+  const [quickExportDate, setQuickExportDate] = useState("");
+  const [exportLocationFilter, setExportLocationFilter] = useState("All Locations");
+  const [quickExportLocation, setQuickExportLocation] = useState("All Locations");
+  const [exportRangeLabel, setExportRangeLabel] = useState<"" | "Weekly" | "Monthly">("");
+  const [exportDateRangeLabel, setExportDateRangeLabel] = useState("");
   const [exportDateFilters, setExportDateFilters] = useState({
     expenseDateMode: "All Dates",
     expenseStartDate: "",
@@ -374,6 +400,110 @@ export default function AdvancePaymentRecords() {
       if (b === "N/A") return -1;
       return Number(a) - Number(b);
     }), [activeTabRecords]);
+
+  const quickExportLocationOptions = useMemo(() => {
+    const locations = new Set<string>();
+
+    filteredRecords.forEach((record) => {
+      const location = (record.location || "").trim();
+      if (location) locations.add(location);
+    });
+
+    return Array.from(locations).sort((a, b) => a.localeCompare(b));
+  }, [filteredRecords]);
+
+  const quickExpenseDateOptions = useMemo(() => {
+    const uniqueDates = new Set<string>();
+
+    filteredRecords.forEach((record) => {
+      if (
+        quickExportLocation !== "All Locations" &&
+        (record.location || "") !== quickExportLocation
+      ) {
+        return;
+      }
+
+      const dateOnly = toDateOnly(record.date);
+      if (dateOnly) uniqueDates.add(dateOnly);
+    });
+
+    return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
+  }, [filteredRecords, quickExportLocation]);
+
+  const weeklyExpenseOptions = useMemo(() => {
+    const weeks = new Map<
+      string,
+      {
+        start: Date;
+        end: Date;
+      }
+    >();
+
+    quickExpenseDateOptions.forEach((dateStr) => {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return;
+
+      const day = d.getDay(); // 0 (Sun) - 6 (Sat)
+      const diffToMonday = (day + 6) % 7;
+
+      const start = new Date(d);
+      start.setDate(d.getDate() - diffToMonday);
+
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+
+      const key = `${start.toISOString().slice(0, 10)}|${end.toISOString().slice(0, 10)}`;
+      if (!weeks.has(key)) {
+        weeks.set(key, { start, end });
+      }
+    });
+
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+    return Array.from(weeks.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([value, { start, end }]) => ({
+        value,
+        label: `${formatter.format(start)} - ${formatter.format(end)}`,
+      }));
+  }, [quickExpenseDateOptions]);
+
+  const monthlyExpenseOptions = useMemo(() => {
+    const months = new Set<string>();
+
+    quickExpenseDateOptions.forEach((dateStr) => {
+      if (!dateStr) return;
+      const [year, month] = dateStr.split("-");
+      if (!year || !month) return;
+      months.add(`${year}-${month}`);
+    });
+
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+      month: "long",
+      year: "numeric",
+    });
+
+    return Array.from(months)
+      .sort((a, b) => a.localeCompare(b))
+      .map((value) => {
+        const [yearStr, monthStr] = value.split("-");
+        const year = Number(yearStr);
+        const monthIndex = Number(monthStr) - 1;
+        const date = new Date(year, monthIndex, 1);
+        return {
+          value,
+          label: formatter.format(date),
+        };
+      });
+  }, [quickExpenseDateOptions]);
+
+  useEffect(() => {
+    setQuickExportDate("");
+  }, [quickExportMode, quickExportLocation]);
 
   const getActualAmount = (record: any) => {
     const stored = record.actual_amount;
@@ -671,31 +801,51 @@ export default function AdvancePaymentRecords() {
   const sanitize = (s: string) => String(s || "").replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_\-]/g, "");
 
   const buildExportFileName = (ext: string) => {
+    // For quick export (weekly/monthly), use special format
+    if (exportRangeLabel && exportDateRangeLabel) {
+      const label = exportRangeLabel.toLowerCase();
+      // Sanitize location name (replace spaces with underscores)
+      const locationPart = exportLocationFilter !== "All Locations" 
+        ? sanitize(exportLocationFilter).toLowerCase() 
+        : "all_projects";
+      return `${label}_advance_payment_record_${locationPart}_${exportDateRangeLabel}.${ext}`;
+    }
+    
+    // For regular export
+    const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    
     const bankPart = (() => {
-      if (!exportBankType) return "filtered";
-      if (exportBankType === "ALL_RECORDS") return "all";
+      if (!exportBankType) return "";
+      if (exportBankType === "ALL_RECORDS") return "all_records";
       if (exportBankType === "NO_BANK") return "no_bank";
-      return sanitize(exportBankType);
+      return sanitize(exportBankType).toLowerCase();
     })();
 
     const expensePart = (() => {
       const m = exportDateFilters.expenseDateMode;
-      if (m === "All Dates") return "all_expense_dates";
-      if (m === "Single Date") return exportDateFilters.expenseStartDate || "expense_single";
-      if (m === "Custom Date") return `${exportDateFilters.expenseStartDate || "start"}_to_${exportDateFilters.expenseEndDate || "end"}`;
-      return "expense_dates";
+      if (m === "All Dates") return "";
+      if (m === "Single Date") return `expense_${exportDateFilters.expenseStartDate}`;
+      if (m === "Custom Date") return `expense_${exportDateFilters.expenseStartDate}_to_${exportDateFilters.expenseEndDate}`;
+      return "";
     })();
 
     const paidPart = (() => {
       const m = exportDateFilters.paidDateMode;
-      if (m === "All Dates") return "all_paid_dates";
-      if (m === "Single Date") return exportDateFilters.paidStartDate || "paid_single";
-      if (m === "Custom Date") return `${exportDateFilters.paidStartDate || "start"}_to_${exportDateFilters.paidEndDate || "end"}`;
-      return "paid_dates";
+      if (m === "All Dates") return "";
+      if (m === "Single Date") return `paid_${exportDateFilters.paidStartDate}`;
+      if (m === "Custom Date") return `paid_${exportDateFilters.paidStartDate}_to_${exportDateFilters.paidEndDate}`;
+      return "";
     })();
 
-    const parts = ["advance_payment_records", bankPart, expensePart, paidPart].map(sanitize).filter(Boolean);
-    return `${parts.join("_")}.${sanitize(ext)}`;
+    const parts = [
+      "advance_payment",
+      bankPart,
+      expensePart,
+      paidPart,
+      timestamp,
+    ].filter((p) => p !== "");
+    
+    return `${parts.join("_")}.${ext}`;
   };
   const utrValues = Array.from(
     new Set(
@@ -988,6 +1138,10 @@ export default function AdvancePaymentRecords() {
           : filteredRecords.filter((r) => (r.paid_by_bank || "") === exportBankType);
 
     const applyDateFilters = (rec: any) => {
+      // Apply location filter if specified
+      if (exportLocationFilter !== "All Locations" && (rec.location || "") !== exportLocationFilter) {
+        return false;
+      }
       const toYMD = (dt: any) => {
         if (!dt) return null;
         try {
@@ -1152,6 +1306,10 @@ export default function AdvancePaymentRecords() {
     };
 
     const applyDateFilters = (rec: any) => {
+      // Apply location filter if specified
+      if (exportLocationFilter !== "All Locations" && (rec.location || "") !== exportLocationFilter) {
+        return false;
+      }
       const expenseYmd = toYMD(rec.date);
       const paidYmd = toYMD(rec.paid_approval_time);
 
@@ -1290,11 +1448,91 @@ export default function AdvancePaymentRecords() {
   const handleExportXLSX = () => {
     exportToXLSX();
     setShowFormatModal(false);
+    setExportLocationFilter("All Locations");
+    setExportRangeLabel("");
+    setExportDateRangeLabel("");
   };
 
   const handleExportCSV = () => {
     exportToCSV();
     setShowFormatModal(false);
+    setExportLocationFilter("All Locations");
+    setExportRangeLabel("");
+    setExportDateRangeLabel("");
+  };
+
+  const handleQuickExportConfirm = () => {
+    if (!quickExportDate) return;
+
+    let startDate: Date;
+    let endDate: Date;
+    let dateRangeLabel = "";
+
+    if (quickExportMode === "weekly") {
+      const [startStr, endStr] = quickExportDate.split("|");
+      if (!startStr || !endStr) return;
+      startDate = new Date(startStr);
+      endDate = new Date(endStr);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
+      
+      // Format: 02_Mar_2026-08_Mar_2026 (start and end both shown)
+      const formatter = new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      const startFormatted = formatter.format(startDate).replace(/ /g, "_");
+      const endFormatted = formatter.format(endDate).replace(/ /g, "_");
+      dateRangeLabel = `${startFormatted}_To_${endFormatted}`;
+    } else {
+      const [yearStr, monthStr] = quickExportDate.split("-");
+      if (!yearStr || !monthStr) return;
+      const year = Number(yearStr);
+      const monthIndex = Number(monthStr) - 1;
+      if (Number.isNaN(year) || Number.isNaN(monthIndex)) return;
+      startDate = new Date(year, monthIndex, 1);
+      endDate = new Date(year, monthIndex + 1, 0);
+      
+      // Format: January_2026
+      const formatter = new Intl.DateTimeFormat("en-GB", {
+        month: "long",
+        year: "numeric",
+      });
+      dateRangeLabel = formatter.format(startDate).replace(/ /g, "_");
+    }
+
+    // Set export bank type based on the currently active tab
+    if (activeTab === "all") {
+      setExportBankType("ALL_RECORDS");
+    } else {
+      const bankMap = {
+        ngidfc: "NGIDFC Current" as const,
+        fcidfc: "FCIDFC Current" as const,
+        kotak: "KOTAK" as const,
+      };
+      setExportBankType(bankMap[activeTab as keyof typeof bankMap] || "ALL_RECORDS");
+    }
+
+    // Label for file name based on quick export type
+    setExportRangeLabel(quickExportMode === "weekly" ? "Weekly" : "Monthly");
+    setExportDateRangeLabel(dateRangeLabel);
+    setExportLocationFilter(quickExportLocation);
+
+    // Pre-fill export date filters based on Date of Expense
+    setExportDateFilters((prev) => ({
+      ...prev,
+      expenseDateMode: "Custom Date",
+      expenseStartDate: formatDateForInput(startDate),
+      expenseEndDate: formatDateForInput(endDate),
+      paidDateMode: "All Dates",
+      paidStartDate: "",
+      paidEndDate: "",
+    }));
+
+    setShowQuickExportModal(false);
+    setShowExportBankModal(false);
+    setShowExportDateModal(false);
+    setShowFormatModal(true);
   };
 
   return (
@@ -1321,6 +1559,19 @@ export default function AdvancePaymentRecords() {
           >
             <Download className="w-4 h-4" />
             Export
+          </Button>
+          <Button
+            onClick={() => {
+              setQuickExportMode("weekly");
+              setQuickExportLocation("All Locations");
+              setQuickExportDate("");
+              setShowQuickExportModal(true);
+            }}
+            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+            variant="outline"
+          >
+            <Download className="w-4 h-4" />
+            Weekly / Monthly
           </Button>
           <Button
             variant="outline"
@@ -2755,6 +3006,108 @@ export default function AdvancePaymentRecords() {
               className="cursor-pointer"
             >
               Export as XLSX
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Weekly/Monthly Export Modal */}
+      <Dialog open={showQuickExportModal} onOpenChange={setShowQuickExportModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Weekly / Monthly Export</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Export Type</label>
+              <RadioGroup
+                className="mt-2 flex flex-wrap gap-6"
+                value={quickExportMode}
+                onValueChange={(v) => setQuickExportMode(v as "weekly" | "monthly")}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem id="weekly-export" value="weekly" />
+                  <Label htmlFor="weekly-export" className="text-sm cursor-pointer">
+                    Weekly Export
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem id="monthly-export" value="monthly" />
+                  <Label htmlFor="monthly-export" className="text-sm cursor-pointer">
+                    Monthly Export
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Project of Expense (Date of Expense)</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                value={quickExportLocation}
+                onChange={(e) => setQuickExportLocation(e.target.value)}
+              >
+                <option value="All Locations">All Projects</option>
+                {quickExportLocationOptions.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">
+                {quickExportMode === "monthly"
+                  ? "Month (Date of Expense)"
+                  : "Week (Date of Expense)"}
+              </label>
+              {quickExportMode === "weekly" ? (
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={quickExportDate}
+                  onChange={(e) => setQuickExportDate(e.target.value)}
+                >
+                  <option value="">Select week</option>
+                  {weeklyExpenseOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={quickExportDate}
+                  onChange={(e) => setQuickExportDate(e.target.value)}
+                >
+                  <option value="">Select month</option>
+                  {monthlyExpenseOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                {quickExportMode === "weekly"
+                  ? "Select the week (based on Date of Expense) whose records you want to export."
+                  : "Select the month (based on Date of Expense) whose records you want to export."}
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowQuickExportModal(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleQuickExportConfirm}
+              disabled={!quickExportDate}
+              className="cursor-pointer"
+            >
+              Next
             </Button>
           </DialogFooter>
         </DialogContent>
