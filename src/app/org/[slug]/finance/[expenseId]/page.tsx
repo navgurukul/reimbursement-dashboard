@@ -386,8 +386,9 @@ export default function FinanceExpenseDetails() {
       expense.security_deposit_amount !== undefined
         ? Number(expense.security_deposit_amount)
         : null;
+    // Calculate TDS on approved amount (if available) but deduct it from the original expense amount.
     const recalculatedActualAmount = calculateActualAmount(
-      baseAmountForCalculations,
+      amountValue,
       recalculatedTdsAmount,
       securityDepositAmount
     );
@@ -593,8 +594,9 @@ export default function FinanceExpenseDetails() {
       expense.security_deposit_amount !== undefined
         ? Number(expense.security_deposit_amount)
         : null;
+    // Use original expense amount as the base for actual amount deduction
     const actualAmount = calculateActualAmount(
-      baseAmount,
+      expense.amount ?? 0,
       tdsAmount,
       securityDepositAmount
     );
@@ -646,8 +648,9 @@ export default function FinanceExpenseDetails() {
     const derivedTdsAmount =
       expense.tds_deduction_amount ??
       calculateTdsAmount(baseAmount, expense.tds_deduction_percentage);
+    // Actual amount deduction must use the original expense amount
     const recalculatedActualAmount = calculateActualAmount(
-      baseAmount,
+      expense.amount ?? baseAmount,
       derivedTdsAmount,
       securityDepositAmount
     );
@@ -700,7 +703,7 @@ export default function FinanceExpenseDetails() {
       : null;
   const actualAmount =
     expense?.actual_amount ??
-    calculateActualAmount(tdsBaseAmount, tdsAmount, securityDepositAmount);
+    calculateActualAmount(expense?.amount ?? tdsBaseAmount, tdsAmount, securityDepositAmount);
   const expenseCreditPerson =
     expense?.expense_credit_person ||
     getCustomFieldValue(expense?.custom_fields, "expense_credit_person") ||

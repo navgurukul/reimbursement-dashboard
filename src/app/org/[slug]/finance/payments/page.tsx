@@ -172,6 +172,18 @@ export default function PaymentProcessingOnly() {
     return Number(expense.security_deposit_amount);
   };
 
+  const getStoredActualAmount = (expense: any) => {
+    if (
+      expense.actual_amount === null ||
+      expense.actual_amount === undefined ||
+      expense.actual_amount === ""
+    ) {
+      return null;
+    }
+
+    return Number(expense.actual_amount);
+  };
+
   const hasTdsDeduction = (expense: any) => {
     const storedAmount = expense.tds_deduction_amount;
     if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
@@ -211,6 +223,11 @@ export default function PaymentProcessingOnly() {
     );
 
   const getActualAmountValue = (expense: any) => {
+    const storedActualAmount = getStoredActualAmount(expense);
+    if (storedActualAmount !== null) {
+      return storedActualAmount;
+    }
+
     const actualAmount = calculateActualAmount(
       getBaseAmount(expense),
       getTdsDeductionAmount(expense),
@@ -1610,7 +1627,7 @@ export default function PaymentProcessingOnly() {
                     />
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    {formatCurrency(expense.approved_amount)}
+                    {formatCurrency(expense.amount)}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <div className="flex flex-col items-center gap-1">
@@ -1655,26 +1672,7 @@ export default function PaymentProcessingOnly() {
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {(() => {
-                      const baseAmount =
-                        expense.approved_amount ?? expense.amount ?? 0;
-                      const tdsAmount =
-                        expense.tds_deduction_amount ??
-                        (expense.tds_deduction_percentage
-                          ? calculateTdsAmount(
-                              baseAmount,
-                              expense.tds_deduction_percentage
-                            ) ?? 0
-                          : 0);
-                      const securityDepositAmount =
-                        expense.security_deposit_amount !== null &&
-                        expense.security_deposit_amount !== undefined
-                          ? Number(expense.security_deposit_amount)
-                          : null;
-                      const actualAmount = calculateActualAmount(
-                        baseAmount,
-                        tdsAmount,
-                        securityDepositAmount
-                      );
+                      const actualAmount = getActualAmountValue(expense);
 
                       return actualAmount !== null
                         ? formatCurrency(actualAmount)
