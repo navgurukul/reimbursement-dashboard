@@ -1627,7 +1627,7 @@ export default function PaymentProcessingOnly() {
                     />
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    {formatCurrency(expense.approved_amount)}
+                    {formatCurrency(expense.amount)}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <div className="flex flex-col items-center gap-1">
