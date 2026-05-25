@@ -15,9 +15,10 @@ import { Button } from "@/components/ui/button";
 type Props = {
   expense: any;
   defaultOpen?: boolean;
+  compact?: boolean;
 };
 
-export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
+export default function ReceiptPreview({ expense, defaultOpen = true, compact = false }: Props) {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = React.useState<string | null>(null);
   const [isOpen, setIsOpen] = React.useState<boolean>(defaultOpen);
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -92,8 +93,10 @@ export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
   }, [expense?.receipt?.path, expense]);
 
   return (
-    <div className="bg-white p-6 rounded shadow border">
-      <div className="border-b pb-4">
+    <div className={`bg-white rounded shadow border ${compact ? "p-4" : "p-6"}`}>
+      <div
+        className={`border-b ${compact ? "-mx-4 px-4 pb-3" : "-mx-6 px-6 pb-4"}`}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
@@ -144,7 +147,7 @@ export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
       </div>
 
       {isOpen && (
-        <div className="p-4">
+        <div className={compact ? "pt-3" : "p-4"}>
           {loading ? (
             <div className="flex h-64 items-center justify-center">
               <Spinner size="lg" />

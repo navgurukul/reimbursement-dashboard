@@ -24,6 +24,7 @@ import {
   ChevronsUpDownIcon,
   Wallet,
   Tags,
+  MapPin,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -190,6 +191,16 @@ export function AppSidebar() {
       href: `/org/${organization?.slug}/abbreviations`,
       icon: Tags,
     },
+    // Show CP Pune-SoSC to all roles except 'member'
+    ...(userRole !== "member"
+      ? [
+          {
+            title: "CP Pune-SoSC",
+            href: `/org/${organization?.slug}/pune-sosc`,
+            icon: MapPin,
+          },
+        ]
+      : []),
     ...(isAdmin
       ? [
         {
