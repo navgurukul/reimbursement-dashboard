@@ -64,7 +64,7 @@ function TooltipShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ExpensesByCategoryChart({ data }: { data: Expense[] }) {
+export function ExpensesByExpenseTypeChart({ data }: { data: Expense[] }) {
   const chartData = useMemo(() => {
     const categories: Record<string, number> = {};
     data.forEach((exp) => {
@@ -73,7 +73,7 @@ export function ExpensesByCategoryChart({ data }: { data: Expense[] }) {
     });
     return Object.entries(categories)
       .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => a.value - b.value);
   }, [data]);
 
   if (chartData.length === 0) return <div className="flex items-center justify-center h-full text-muted-foreground">No data available</div>;
@@ -100,70 +100,66 @@ export function ExpensesByCategoryChart({ data }: { data: Expense[] }) {
     );
   };
 
-  const renderCustomizedLegend = (props: any) => {
-    const { payload } = props;
-    if (!payload || !payload.length) return null;
-    return (
-      <div className="w-full flex flex-wrap gap-2 justify-center items-center px-1 py-2 mt-2">
-        {payload.map((entry: any, index: number) => {
-          const item = chartData.find(d => d.name === entry.value);
-          return (
+  return (
+    <div className="h-full flex flex-col">
+      <div className="h-[220px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={renderLabel}
+              outerRadius={88}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload || !payload.length) return null;
+                const item = payload[0];
+                const color = item.color || item.fill || '#111827';
+                return (
+                  <TooltipShell>
+                    <div className="font-medium" style={{ color }}>
+                      {item.name}
+                    </div>
+                    <div className="font-semibold" style={{ color }}>
+                      {formatCurrency(Number(item.value))}
+                    </div>
+                  </TooltipShell>
+                );
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-3 max-h-[80px] overflow-y-auto pr-1">
+        <div className="w-full flex flex-wrap gap-x-3 gap-y-2 justify-center items-center px-1 py-1">
+          {chartData.map((entry: any, index: number) => (
             <div key={`legend-${index}`} className="flex items-center gap-1.5 text-[13px] max-w-full">
               <span
-                style={{ backgroundColor: entry.color, minWidth: 10, height: 10, display: 'inline-block', borderRadius: 2 }}
+                style={{ backgroundColor: COLORS[index % COLORS.length], minWidth: 10, height: 10, display: 'inline-block', borderRadius: 2 }}
                 className="shrink-0"
               />
-              <span style={{ color: entry.color, fontWeight: 500 }} className="truncate">
-                {item ? `${item.name} (₹${Number(item.value).toLocaleString()})` : entry.value}
+              <span style={{ color: COLORS[index % COLORS.length], fontWeight: 500 }} className="truncate">
+                {`${entry.name} (₹${Number(entry.value).toLocaleString()})`}
               </span>
             </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  return (
-    <ResponsiveContainer width="100%" height={320}>
-      <PieChart>
-        <Pie
-          data={chartData}
-          cx="50%"
-          cy="45%"
-          labelLine={false}
-          label={renderLabel}
-          outerRadius={90}
-          fill="#8884d8"
-          dataKey="value"
-        >
-          {chartData.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
           ))}
-        </Pie>
-        <Tooltip
-          content={({ active, payload }) => {
-            if (!active || !payload || !payload.length) return null;
-            const item = payload[0];
-            const color = item.color || item.fill || '#111827';
-            return (
-              <TooltipShell>
-                <div className="font-medium" style={{ color }}>
-                  {item.name}
-                </div>
-                <div className="font-semibold" style={{ color }}>
-                  {formatCurrency(Number(item.value))}
-                </div>
-              </TooltipShell>
-            );
-          }}
-        />
-        <Legend content={renderCustomizedLegend} verticalAlign="bottom" />
-      </PieChart>
-    </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
   );
 }
 
-export function ExpensesOverTimeChart({ data }: { data: Expense[] }) {
+export function ExpensesAmountChart({ data }: { data: Expense[] }) {
   const chartData = useMemo(() => {
     const dates: Record<string, { amount: number; items: Array<any> }> = {};
     data.forEach((exp) => {
@@ -247,12 +243,12 @@ export function ExpensesOverTimeChart({ data }: { data: Expense[] }) {
     <ResponsiveContainer width="100%" height={320}>
       <BarChart
         data={barData}
-        margin={{ top: 20, right: 10, left: -20, bottom: 5 }}
+        margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
       >
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
         <XAxis dataKey="date" tick={{ fontSize: 12 }} tickFormatter={(d) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} />
 
-        <YAxis tickFormatter={(value) => `₹${value}`} />
+        <YAxis width={56} tickFormatter={(value) => `₹${value}`} />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f3f4f6' }} shared={false} />
         {Array.from({ length: maxItems }).map((_, i) => (
           <Bar
@@ -268,7 +264,7 @@ export function ExpensesOverTimeChart({ data }: { data: Expense[] }) {
   );
 }
 
-export function ExpensesTimeAggregationChart({ data, range: externalRange }: { data: Expense[]; range?: 'day' | 'weekly' | 'monthly' | 'quarterly' | 'halfyear' | 'year' }) {
+export function ExpensesTimeChart({ data, range: externalRange }: { data: Expense[]; range?: 'day' | 'weekly' | 'monthly' | 'quarterly' | 'halfyear' | 'year' }) {
   const [range, setRange] = useState<'day' | 'weekly' | 'monthly' | 'quarterly' | 'halfyear' | 'year'>(externalRange ?? 'monthly');
 
   useEffect(() => {
@@ -381,7 +377,7 @@ export function ExpensesTimeAggregationChart({ data, range: externalRange }: { d
       </div>
 
       <ResponsiveContainer width="100%" height={260}>
-        <AreaChart data={chartData} margin={{ top: 12, right: 10, left: -20, bottom: 5 }}>
+        <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="expenseAreaFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
@@ -390,7 +386,7 @@ export function ExpensesTimeAggregationChart({ data, range: externalRange }: { d
           </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
           <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
-          <YAxis tickFormatter={(v) => `₹${v}`} tick={{ fontSize: 12 }} />
+          <YAxis width={56} tickFormatter={(v) => `₹${v}`} tick={{ fontSize: 12 }} />
 
           <Tooltip
             formatter={(value: any) => formatCurrency(Number(value))}
@@ -425,65 +421,64 @@ export function ExpensesByStatusChart({ data }: { data: Expense[] }) {
         value,
         originalStatus: key
       }))
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => a.value - b.value);
   }, [data]);
 
   if (chartData.length === 0) return <div className="flex items-center justify-center h-full text-muted-foreground">No data available</div>;
 
-  const renderCustomizedLegend = (props: any) => {
-    const { payload } = props;
-    if (!payload || !payload.length) return null;
-    return (
-      <div className="w-full flex flex-wrap gap-2 justify-center items-center px-1 py-2 mt-2">
-        {chartData.map((entry: any, i: number) => (
-          <div key={`legend-${i}`} className="flex items-center gap-1.5 text-[13px] max-w-full">
-            <span
-              style={{ backgroundColor: STATUS_COLORS[entry.originalStatus] || COLORS[i % COLORS.length], minWidth: 10, height: 10, display: 'inline-block', borderRadius: 2 }}
-              className="shrink-0"
-            />
-            <span style={{ color: STATUS_COLORS[entry.originalStatus] || COLORS[i % COLORS.length], fontWeight: 600 }} className="truncate">{entry.name}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <PieChart>
-        <Pie
-          data={chartData}
-          cx="50%"
-          cy="45%"
-          innerRadius={50}
-          outerRadius={90}
-          fill="#8884d8"
-          paddingAngle={5}
-          dataKey="value"
-        >
-          {chartData.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.originalStatus] || COLORS[index % COLORS.length]} />
+    <div className="h-full flex flex-col">
+      <div className="h-[200px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              innerRadius={50}
+              outerRadius={88}
+              fill="#8884d8"
+              paddingAngle={5}
+              dataKey="value"
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.originalStatus] || COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload || !payload.length) return null;
+                const item = payload[0];
+                const color = STATUS_COLORS[item.payload?.originalStatus] || item.color || item.fill || '#111827';
+                return (
+                  <TooltipShell>
+                    <div className="font-medium" style={{ color }}>
+                      {item.name}
+                    </div>
+                    <div className="font-semibold" style={{ color }}>
+                      {typeof item.value === 'number' ? item.value : 0} expense{typeof item.value === 'number' && item.value > 1 ? 's' : ''}
+                    </div>
+                  </TooltipShell>
+                );
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-3 max-h-[110px] overflow-y-auto pr-1">
+        <div className="w-full flex flex-wrap gap-x-3 gap-y-2 justify-center items-center px-1 py-1">
+          {chartData.map((entry: any, i: number) => (
+            <div key={`legend-${i}`} className="flex items-center gap-1.5 text-[13px] max-w-full">
+              <span
+                style={{ backgroundColor: STATUS_COLORS[entry.originalStatus] || COLORS[i % COLORS.length], minWidth: 10, height: 10, display: 'inline-block', borderRadius: 2 }}
+                className="shrink-0"
+              />
+              <span style={{ color: STATUS_COLORS[entry.originalStatus] || COLORS[i % COLORS.length], fontWeight: 600 }} className="truncate">{entry.name}</span>
+            </div>
           ))}
-        </Pie>
-        <Tooltip
-          content={({ active, payload }) => {
-            if (!active || !payload || !payload.length) return null;
-            const item = payload[0];
-            const color = STATUS_COLORS[item.payload?.originalStatus] || item.color || item.fill || '#111827';
-            return (
-              <TooltipShell>
-                <div className="font-medium" style={{ color }}>
-                  {item.name}
-                </div>
-                <div className="font-semibold" style={{ color }}>
-                  {typeof item.value === 'number' ? item.value : 0} expense{typeof item.value === 'number' && item.value > 1 ? 's' : ''}
-                </div>
-              </TooltipShell>
-            );
-          }}
-        />
-        <Legend content={renderCustomizedLegend} verticalAlign="bottom" />
-      </PieChart>
-    </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
   );
 }

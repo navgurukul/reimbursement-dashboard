@@ -33,10 +33,10 @@ import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Pagination, usePagination } from "@/components/pagination";
 import { formatDateTime } from "@/lib/utils";
 import {
-  ExpensesByCategoryChart,
-  ExpensesOverTimeChart,
+  ExpensesByExpenseTypeChart,
+  ExpensesAmountChart,
   ExpensesByStatusChart,
-  ExpensesTimeAggregationChart,
+  ExpensesTimeChart,
 } from "@/components/DashboardCharts";
 import { Eye, FileText, IndianRupee, PieChart, BarChart as BarChartIcon } from "lucide-react";
 
@@ -98,6 +98,13 @@ export default function PuneSoSCDashboard() {
           creator_name: exp.creator?.full_name || exp.creator?.email || exp.user_id,
           approver_name: exp.approver_id ? approverMap[exp.approver_id] || exp.approver_id : "—",
         }));
+
+        // Sort by timestamp ascending (oldest first)
+        formattedData.sort((a: any, b: any) => {
+          const ta = a?.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b?.created_at ? new Date(b.created_at).getTime() : 0;
+          return ta - tb;
+        });
 
         setExpensesData(formattedData);
       } catch (error: any) {
@@ -296,7 +303,7 @@ export default function PuneSoSCDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
-            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesByCategoryChart data={filteredData} />}
+            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesByExpenseTypeChart data={filteredData} />}
           </CardContent>
         </Card>
 
@@ -308,7 +315,7 @@ export default function PuneSoSCDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
-            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesOverTimeChart data={filteredData} />}
+            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesAmountChart data={filteredData} />}
           </CardContent>
         </Card>
 
@@ -332,16 +339,16 @@ export default function PuneSoSCDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
-            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesTimeAggregationChart data={filteredData} range={filters.timeRange as any} />}
+            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesTimeChart data={filteredData} range={filters.timeRange as any} />}
           </CardContent>
         </Card>
       </div>
 
       {/* Expense Details Table */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-gray-50/50">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="h-5 w-5 text-gray-500" />
+      <Card className="gap-0 pt-0">
+        <CardHeader className="border-b bg-gray-300 rounded">
+          <CardTitle className="text-lg flex items-center gap-2 mt-2">
+            <FileText className="h-5 w-5 text-gray-900" />
             Pune SoSC Expense Details
           </CardTitle>
         </CardHeader>
