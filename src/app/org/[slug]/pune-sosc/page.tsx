@@ -80,6 +80,7 @@ export default function PuneSoSCDashboard() {
     uniqueId: "ALL",
     timeRange: "day",
   });
+  const [searchQuery, setSearchQuery] = useState("");
 
   const orgId = organization?.id;
 
@@ -230,9 +231,20 @@ export default function PuneSoSCDashboard() {
         if (expDate !== selectedDate) return false;
       }
 
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = (e.creator_name || "").toLowerCase().includes(query);
+        const matchesId = (e.unique_id || "").toLowerCase().includes(query);
+        const matchesExpenseType = (e.expense_type || "").toLowerCase().includes(query);
+        const matchesAmount = Number(e.amount || "").toString().includes(query);
+        const matchesApprover = (e.approver_name || "").toLowerCase().includes(query);
+        if (!matchesName && !matchesId && !matchesExpenseType && !matchesAmount && !matchesApprover) return false;
+      }
+
       return true;
     });
-  }, [timeRangeFilteredData, filters]);
+  }, [timeRangeFilteredData, filters, searchQuery]);
 
   // Chart data for categories: respect time range and other filters but NOT the expenseType filter.
   const categoryChartData = useMemo(() => {
@@ -841,37 +853,49 @@ export default function PuneSoSCDashboard() {
         </Card>
       </div>
 
-      {/* Expense Details Table */}
-      <Card className="gap-0 pt-0">
-        <CardHeader className="border-b bg-gray-300 rounded">
-          <CardTitle className="text-lg flex items-center gap-2 mt-2">
-            <FileText className="h-5 w-5 text-gray-900" />
-            Pune SoSC Expense Details
-          </CardTitle>
+      <Card className="gap-0 p-0 rounded-lg">
+        <CardHeader className="border-b bg-gray-300 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-0.5">
+              <CardTitle className="text-lg font-semibold text-gray-900">Pune SoSC Expense Details</CardTitle>
+              <p className="text-sm text-gray-500">All {filteredData.length} expenses</p>
+            </div>
+            <div className="flex-1 sm:flex-none sm:w-64">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search name, expense type"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm border-3 border-white rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <TooltipProvider>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="font-semibold whitespace-nowrap">S.No.</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Timestamp</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Unique ID</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Expense Type</TableHead>
-                    {/* <TableHead className="font-semibold whitespace-nowrap">Event Name</TableHead> */}
-                    <TableHead className="font-semibold whitespace-nowrap text-right">Amount</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Date</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Created By</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Approver</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Status</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap text-center">Actions</TableHead>
+                  <TableRow className="bg-gray-100">
+                    <TableHead className="font-semibold whitespace-nowrap">S.NO</TableHead>
+                    <TableHead className="font-semibold whitespace-nowrap">SUBMITTED</TableHead>
+                    <TableHead className="font-semibold whitespace-nowrap">USER</TableHead>
+                    <TableHead className="font-semibold whitespace-nowrap">EXPENSE TYPE</TableHead>
+                    <TableHead className="font-semibold whitespace-nowrap text-right">AMOUNT</TableHead>
+                    <TableHead className="font-semibold whitespace-nowrap">APPROVER</TableHead>
+                    <TableHead className="font-semibold whitespace-nowrap">STATUS</TableHead>
+                    <TableHead className="font-semibold whitespace-nowrap text-center">ACTIONS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                         <div className="flex justify-center items-center gap-2">
                           <div className="h-4 w-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"></div>
                           Loading data...
@@ -880,36 +904,35 @@ export default function PuneSoSCDashboard() {
                     </TableRow>
                   ) : pagination.paginatedData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                         No expenses found matching the filters
                       </TableCell>
                     </TableRow>
                   ) : (
                     pagination.paginatedData.map((expense, index) => (
                       <TableRow key={expense.id} className="hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="whitespace-nowrap text-sm text-center">
+                        <TableCell className="whitespace-nowrap text-sm text-center font-medium">
                           {pagination.getItemNumber(index)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
-                          {formatDateTime(expense.created_at)}
+                          {expense.created_at ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span>{new Date(expense.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                              <span className="text-sm text-gray-500">{new Date(expense.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                            </div>
+                          ) : '—'}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm font-mono">
-                          {expense.unique_id || '—'}
+                        <TableCell className="whitespace-nowrap text-sm">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">{expense.creator_name || '—'}</span>
+                            <span className="text-sm text-gray-500 font-mono">{expense.unique_id || '—'}</span>
+                          </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           {expense.expense_type || '—'}
                         </TableCell>
-                        {/* <TableCell className="whitespace-nowrap text-sm">
-                        {expense.event_title || expense.event_name || 'N/A'}
-                      </TableCell> */}
                         <TableCell className="text-right font-medium whitespace-nowrap">
-                          ₹{Number(expense.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {expense.date ? new Date(expense.date).toLocaleDateString('en-GB') : '—'}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {expense.creator_name || '—'}
+                          ₹{Number(expense.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           {expense.approver_name || expense.approver?.full_name || '—'}
