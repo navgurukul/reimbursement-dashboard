@@ -70,6 +70,7 @@ export default function PuneSoSCDashboard() {
     expenseType: "ALL",
     status: "ALL",
     date: "ALL",
+    month: "ALL",
     user: "ALL",
     uniqueId: "ALL",
     timeRange: "day",
@@ -207,7 +208,24 @@ export default function PuneSoSCDashboard() {
         })
         .filter(Boolean)
     );
-    return Array.from(dates).sort().reverse();
+    return Array.from(dates).sort();
+  }, [timeRangeFilteredData]);
+
+  const monthOptions = useMemo(() => {
+    const months = new Set(
+      timeRangeFilteredData
+        .map((e) => {
+          if (e.date) {
+            const date = new Date(e.date);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            return `${year}-${month}`;
+          }
+          return "";
+        })
+        .filter(Boolean)
+    );
+    return Array.from(months).sort();
   }, [timeRangeFilteredData]);
 
   // Apply filters
@@ -222,6 +240,15 @@ export default function PuneSoSCDashboard() {
         const selectedDate = filters.date;
         const expDate = new Date(e.date).toISOString().split('T')[0];
         if (expDate !== selectedDate) return false;
+      }
+
+      if (filters.month !== "ALL" && e.date) {
+        const selectedMonth = filters.month;
+        const date = new Date(e.date);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const expMonth = `${year}-${month}`;
+        if (expMonth !== selectedMonth) return false;
       }
 
       // Search filter
@@ -250,10 +277,18 @@ export default function PuneSoSCDashboard() {
         const expDate = new Date(e.date).toISOString().split('T')[0];
         if (expDate !== selectedDate) return false;
       }
+      if (filters.month !== "ALL" && e.date) {
+        const selectedMonth = filters.month;
+        const date = new Date(e.date);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const expMonth = `${year}-${month}`;
+        if (expMonth !== selectedMonth) return false;
+      }
 
       return true;
     });
-  }, [timeRangeFilteredData, filters.status, filters.user, filters.uniqueId, filters.date]);
+  }, [timeRangeFilteredData, filters.status, filters.user, filters.uniqueId, filters.date, filters.month]);
 
   // Chart data for top spenders: respect time range and other filters but NOT the user filter.
   const topSpendersChartData = useMemo(() => {
@@ -268,9 +303,18 @@ export default function PuneSoSCDashboard() {
         if (expDate !== selectedDate) return false;
       }
 
+      if (filters.month !== "ALL" && e.date) {
+        const selectedMonth = filters.month;
+        const date = new Date(e.date);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const expMonth = `${year}-${month}`;
+        if (expMonth !== selectedMonth) return false;
+      }
+
       return true;
     });
-  }, [timeRangeFilteredData, filters.expenseType, filters.status, filters.uniqueId, filters.date]);
+  }, [timeRangeFilteredData, filters.expenseType, filters.status, filters.uniqueId, filters.date, filters.month]);
 
   // Calculate high-level metrics
   const totalAmount = useMemo(() => {
@@ -567,9 +611,34 @@ export default function PuneSoSCDashboard() {
             ))}
           </SelectContent>
         </Select>
-      </div>
 
-      {/* Summary Cards */}
+        <Select value={filters.month} onValueChange={(val) => setFilters((f) => ({ ...f, month: val }))}>
+          <SelectTrigger className="w-full sm:w-[190px] rounded-xl">
+            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
+              <span className="text-muted-foreground">Month:</span>
+              <span className="truncate font-semibold">
+                {filters.month === "ALL"
+                  ? "All months"
+                  : new Date(filters.month + "-01").toLocaleDateString("en-GB", {
+                    year: "numeric",
+                    month: "long",
+                  })}
+              </span>
+            </div>
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value="ALL">All months</SelectItem>
+            {monthOptions.map((monthOption) => (
+              <SelectItem key={monthOption} value={monthOption}>
+                {new Date(monthOption + "-01").toLocaleDateString("en-GB", {
+                  year: "numeric",
+                  month: "long",
+                })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <CardContent className="relative p-3 pb-8">
