@@ -472,14 +472,14 @@ export default function PuneSoSCDashboard() {
             Pune SoSC Dashboard Overview
           </h1>
         </div>
-        <div className="flex w-full items-center justify-between gap-4 overflow-hidden">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between w-full overflow-hidden">
           <p className="min-w-0 flex-1 whitespace-nowrap text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{filteredData.length} expenses</span>
             <span> across </span>
             <span className="font-semibold text-foreground">{uniquePeopleCount} people</span>
             <span> · Last updated {getRelativeLastUpdated(lastUpdatedAt)}</span>
           </p>
-          <div className="inline-flex shrink-0 items-center rounded-xl border bg-background p-1 shadow-sm">
+          <div className="inline-flex shrink-0 items-center rounded-xl border bg-background p-1 shadow-sm md:shrink-0">
             {QUICK_RANGE_OPTIONS.map((option) => {
               const isActive = quickRange === option.value;
 
@@ -600,7 +600,7 @@ export default function PuneSoSCDashboard() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <CardContent className="relative p-5 pb-14">
+          <CardContent className="relative p-3 pb-8">
             <div className="relative z-10 flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-slate-500">
                 <IndianRupee className="h-4 w-4" />
@@ -645,7 +645,7 @@ export default function PuneSoSCDashboard() {
                     d={summaryCards.sparklineLinePath}
                     fill="none"
                     stroke="#8b5cf6"
-                    strokeWidth="1.6"
+                    strokeWidth="0.5"
                     strokeLinejoin="round"
                     strokeLinecap="round"
                   />
@@ -656,7 +656,7 @@ export default function PuneSoSCDashboard() {
         </Card>
 
         <Card className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-amber-50/60 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <CardContent className="p-5">
+          <CardContent className="p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-amber-700">
                 <Clock3 className="h-4 w-4" />
@@ -671,9 +671,9 @@ export default function PuneSoSCDashboard() {
               <p className="text-3xl font-bold tracking-tight text-slate-900">
                 {summaryCards.pendingCount} <span className="font-normal text-slate-400">·</span> {summaryCards.formatAmount(summaryCards.pendingAmount)}
               </p>
-              <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-500">
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <span>
+                <span className="whitespace-nowrap">
                   Oldest waiting{" "}
                   <span className="font-semibold text-amber-700">{summaryCards.oldestPendingAgeDays || 0} days</span>
                   {" · review now →"}
@@ -684,7 +684,7 @@ export default function PuneSoSCDashboard() {
         </Card>
 
         <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <CardContent className="p-5">
+          <CardContent className="p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-sky-600">
                 <BarChart2 className="h-4 w-4" />
@@ -705,7 +705,7 @@ export default function PuneSoSCDashboard() {
         </Card>
 
         <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <CardContent className="p-5">
+          <CardContent className="p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-rose-600">
                 <Sparkles className="h-4 w-4" />
