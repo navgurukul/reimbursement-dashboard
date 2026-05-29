@@ -40,6 +40,16 @@ import {
 } from "@/components/DashboardCharts";
 import { Eye, FileText, IndianRupee, PieChart, BarChart as BarChartIcon } from "lucide-react";
 
+const QUICK_RANGE_OPTIONS = [
+  { value: "7d", label: "7d" },
+  { value: "30d", label: "30d" },
+  { value: "90d", label: "90d" },
+  { value: "ytd", label: "YTD" },
+  { value: "all", label: "All time" },
+] as const;
+
+type QuickRangeValue = (typeof QUICK_RANGE_OPTIONS)[number]["value"];
+
 export default function PuneSoSCDashboard() {
   const { slug } = useParams();
   const router = useRouter();
@@ -49,6 +59,7 @@ export default function PuneSoSCDashboard() {
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [lastUpdatedTick, setLastUpdatedTick] = useState(Date.now());
+  const [quickRange, setQuickRange] = useState<QuickRangeValue>("all");
   const [filters, setFilters] = useState({
     expenseType: "ALL",
     status: "ALL",
@@ -128,34 +139,60 @@ export default function PuneSoSCDashboard() {
     return () => window.clearInterval(intervalId);
   }, []);
 
+  const timeRangeFilteredData = useMemo(() => {
+    if (quickRange === "all") {
+      return expensesData;
+    }
+
+    const now = new Date();
+    const nowMs = now.getTime();
+
+    return expensesData.filter((expense) => {
+      const rawDate = expense.date || expense.created_at;
+      if (!rawDate) return false;
+
+      const expenseDate = new Date(rawDate);
+      if (Number.isNaN(expenseDate.getTime())) return false;
+
+      if (quickRange === "ytd") {
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        return expenseDate >= yearStart && expenseDate <= now;
+      }
+
+      const days = quickRange === "7d" ? 7 : quickRange === "30d" ? 30 : 90;
+      const diffMs = nowMs - expenseDate.getTime();
+      return diffMs >= 0 && diffMs <= days * 24 * 60 * 60 * 1000;
+    });
+  }, [expensesData, quickRange]);
+
   // Derived unique options for filters
   const expenseTypeOptions = useMemo(() => {
-    const types = new Set(expensesData.map(e => e.expense_type).filter(Boolean));
+    const types = new Set(timeRangeFilteredData.map(e => e.expense_type).filter(Boolean));
     return Array.from(types);
-  }, [expensesData]);
+  }, [timeRangeFilteredData]);
 
   const statusOptions = useMemo(() => {
-    const statuses = new Set(expensesData.map(e => e.status).filter(Boolean));
+    const statuses = new Set(timeRangeFilteredData.map(e => e.status).filter(Boolean));
     return Array.from(statuses);
-  }, [expensesData]);
+  }, [timeRangeFilteredData]);
 
   const userOptions = useMemo(() => {
-    const users = new Set(expensesData.map(e => e.creator_name).filter(Boolean));
+    const users = new Set(timeRangeFilteredData.map(e => e.creator_name).filter(Boolean));
     return Array.from(users);
-  }, [expensesData]);
+  }, [timeRangeFilteredData]);
 
   const uniqueIdOptions = useMemo(() => {
     const uniqueIds = new Set(
-      expensesData
+      timeRangeFilteredData
         .map((e) => e.unique_id || e.uniqueId)
         .filter(Boolean)
     );
     return Array.from(uniqueIds);
-  }, [expensesData]);
+  }, [timeRangeFilteredData]);
 
   const dateOptions = useMemo(() => {
     const dates = new Set(
-      expensesData
+      timeRangeFilteredData
         .map((e) => {
           if (e.date) {
             return new Date(e.date).toISOString().split('T')[0];
@@ -165,11 +202,11 @@ export default function PuneSoSCDashboard() {
         .filter(Boolean)
     );
     return Array.from(dates).sort().reverse();
-  }, [expensesData]);
+  }, [timeRangeFilteredData]);
 
   // Apply filters
   const filteredData = useMemo(() => {
-    return expensesData.filter((e) => {
+    return timeRangeFilteredData.filter((e) => {
       if (filters.expenseType !== "ALL" && e.expense_type !== filters.expenseType) return false;
       if (filters.status !== "ALL" && e.status !== filters.status) return false;
       if (filters.user !== "ALL" && e.creator_name !== filters.user) return false;
@@ -183,7 +220,7 @@ export default function PuneSoSCDashboard() {
 
       return true;
     });
-  }, [expensesData, filters]);
+  }, [timeRangeFilteredData, filters]);
 
   // Calculate high-level metrics
   const totalAmount = useMemo(() => {
@@ -218,38 +255,53 @@ export default function PuneSoSCDashboard() {
 
   const pagination = usePagination(filteredData);
 
-  const RANGE_LABELS: Record<string, string> = {
-    day: 'Day',
-    weekly: 'Week',
-    monthly: 'Month',
-    quarterly: 'Quarter',
-    halfyear: 'Half Year',
-    year: 'Year',
-  };
-
-  function getRangeLabel(key: string | undefined) {
-    if (!key) return '';
-    return RANGE_LABELS[key] || key;
-  }
+  const chartRange = useMemo(() => {
+    if (quickRange === "7d") return "weekly";
+    if (quickRange === "30d") return "monthly";
+    if (quickRange === "90d") return "quarterly";
+    return "year";
+  }, [quickRange]);
 
   return (
     <div className="space-y-6 pt-0">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-0">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-black to-black bg-clip-text text-transparent">
             Pune SoSC Dashboard Overview
           </h1>
-          <p className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex w-full items-center justify-between gap-4 overflow-hidden">
+          <p className="min-w-0 flex-1 whitespace-nowrap text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{filteredData.length} expenses</span>
             <span> across </span>
             <span className="font-semibold text-foreground">{uniquePeopleCount} people</span>
             <span> · Last updated {getRelativeLastUpdated(lastUpdatedAt)}</span>
           </p>
+          <div className="inline-flex shrink-0 items-center rounded-xl border bg-background p-1 shadow-sm">
+            {QUICK_RANGE_OPTIONS.map((option) => {
+              const isActive = quickRange === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setQuickRange(option.value)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    isActive
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="w-fit bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 font-semibold shadow-sm border border-blue-100">
+        {/* <div className="w-fit bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 font-semibold shadow-sm border border-blue-100">
           <IndianRupee className="h-5 w-5" />
           <span>Total: {totalAmount.toLocaleString()}</span>
-        </div>
+        </div> */}
       </div>
 
       {/* Filters Section */}
@@ -390,7 +442,7 @@ export default function PuneSoSCDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
-            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesTimeChart data={filteredData} range={filters.timeRange as any} />}
+            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesTimeChart data={filteredData} range={chartRange as any} />}
           </CardContent>
         </Card>
       </div>
