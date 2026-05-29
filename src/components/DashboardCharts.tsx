@@ -43,14 +43,9 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   submitted: 'Submitted',
   approved: 'Manager Approved',
-  finance_approved: 'Finance Approved',
   rejected: 'Manager Rejected',
+  finance_approved: 'Finance Approved',
   finance_rejected: 'Finance Rejected',
-  payment_processed: 'Payment Successful',
-  payment_not_processed: 'Payment Rejected',
-  ready_for_payment: 'Ready for Payment',
-  draft: 'Draft',
-  reimbursed: 'Reimbursed',
 };
 
 function formatCurrency(value: number) {
@@ -612,6 +607,314 @@ export function WhereTheMoneyGoesChart({
                     <div
                       className="h-full rounded-full transition-all"
                       style={{ width: `${barWidth}%`, backgroundColor: isDisabled ? '#e6edf3' : row.barColor }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const PIPELINE_STATUS_ORDER = [
+  "submitted",
+  "approved",
+  "rejected",
+  "finance_approved",
+  "finance_rejected",
+] as const;
+
+const PIPELINE_BAR_COLORS: Record<string, string> = {
+  submitted: "#eab308",
+  approved: "#3b82f6",
+  rejected: "#f97316",
+  finance_rejected: "#ef4444",
+  finance_approved: "#22c55e",
+};
+
+const PENDING_PIPELINE_STATUSES = new Set([
+  "pending",
+  "submitted",
+  "awaiting approval",
+  "under review",
+  "in review",
+  "approval pending",
+]);
+
+function getPipelineStatusLabel(status: string) {
+  if (status === "submitted") return "Submitted (Pending)";
+  return STATUS_LABELS[status] || status.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+function getPersonInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+type PipelineRow = {
+  status: string;
+  label: string;
+  count: number;
+  percent: number;
+  totalAmount: number;
+  avgAmount: number;
+  barColor: string;
+};
+
+export function ApprovalPipelineChart({
+  data,
+  selectedStatus,
+  onStatusClick,
+}: {
+  data: Expense[];
+  selectedStatus?: string;
+  onStatusClick?: (status: string | null) => void;
+}) {
+  const { rows, pendingCount, totalClaims } = useMemo(() => {
+    const buckets: Record<string, { count: number; totalAmount: number }> = {};
+
+    data.forEach((exp) => {
+      const status = String(exp.status || "unknown").trim().toLowerCase();
+      if (!buckets[status]) buckets[status] = { count: 0, totalAmount: 0 };
+      buckets[status].count += 1;
+      buckets[status].totalAmount += Number(exp.amount) || 0;
+    });
+
+    const total = data.length;
+    const orderedStatuses = [
+      ...PIPELINE_STATUS_ORDER,
+      ...Object.keys(buckets).filter(
+        (status) => !PIPELINE_STATUS_ORDER.includes(status as (typeof PIPELINE_STATUS_ORDER)[number])
+      ),
+    ];
+
+    const pipelineRows: PipelineRow[] = orderedStatuses.map((status) => {
+      const bucket = buckets[status] || { count: 0, totalAmount: 0 };
+      return {
+        status,
+        label: getPipelineStatusLabel(status),
+        count: bucket.count,
+        percent: total > 0 ? (bucket.count / total) * 100 : 0,
+        totalAmount: bucket.totalAmount,
+        avgAmount: bucket.count > 0 ? bucket.totalAmount / bucket.count : 0,
+        barColor: PIPELINE_BAR_COLORS[status] || STATUS_COLORS[status] || "#64748b",
+      };
+    });
+
+    const pending = data.filter((exp) =>
+      PENDING_PIPELINE_STATUSES.has(String(exp.status || "").trim().toLowerCase())
+    ).length;
+
+    return {
+      rows: pipelineRows,
+      pendingCount: pending,
+      totalClaims: total,
+    };
+  }, [data]);
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex h-full min-h-[280px] items-center justify-center text-muted-foreground">
+        No data available
+      </div>
+    );
+  }
+
+  const hasSelection = typeof selectedStatus !== "undefined" && selectedStatus !== null && selectedStatus !== "ALL";
+
+  return (
+    <div className="flex h-full flex-col">
+      <p className="text-sm text-slate-500">
+        Where each claim stands.{" "}
+        <span className="font-semibold text-slate-700">
+          {pendingCount} pending
+        </span>{" "}
+        need your attention.
+        {onStatusClick ? " Click a status to filter the table." : ""}
+      </p>
+
+      <div className="mt-4 space-y-2">
+        {rows.map((row) => {
+          const isSelected = selectedStatus === row.status;
+          const isDisabled = hasSelection && !isSelected;
+
+          return (
+            <button
+              key={row.status}
+              type="button"
+              onClick={() => onStatusClick?.(isSelected ? null : row.status)}
+              className={`w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors ${isSelected ? "border-slate-300 bg-slate-50 ring-1 ring-slate-200" : "hover:border-slate-300 hover:bg-slate-50/80"
+                } ${onStatusClick ? "cursor-pointer" : "cursor-default"} ${isDisabled ? "opacity-60" : ""}`}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: isDisabled ? "#cbd5e1" : row.barColor }}
+                />
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className={`truncate text-sm font-semibold ${isDisabled ? "text-slate-400" : "text-slate-900"}`}>
+                        {row.label}
+                      </p>
+                      <p className={`mt-0.5 text-xs ${isDisabled ? "text-slate-400" : "text-slate-500"}`}>
+                        {row.count} claim{row.count === 1 ? "" : "s"} · {row.percent.toFixed(0)}% of total
+                      </p>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <p className={`text-sm font-semibold ${isDisabled ? "text-slate-400" : "text-slate-900"}`}>
+                        {formatCurrency(row.totalAmount)}
+                      </p>
+                      <p className={`text-xs ${isDisabled ? "text-slate-400" : "text-slate-500"}`}>
+                        avg {formatCurrency(row.avgAmount)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.max(row.percent, row.count > 0 ? 2 : 0)}%`,
+                        backgroundColor: isDisabled ? "#e2e8f0" : row.barColor,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type SpenderRow = {
+  key: string;
+  name: string;
+  initials: string;
+  amount: number;
+  claimCount: number;
+};
+
+export function TopSpendersChart({
+  data,
+  selectedUser,
+  onUserClick,
+  limit = 8,
+}: {
+  data: Expense[];
+  selectedUser?: string;
+  onUserClick?: (user: string | null) => void;
+  limit?: number;
+}) {
+  const { rows, top3Share } = useMemo(() => {
+    const spenders: Record<string, { amount: number; claimCount: number }> = {};
+
+    data.forEach((exp) => {
+      const name = (exp.creator_name || exp.user_id || "Unknown").trim();
+      if (!spenders[name]) spenders[name] = { amount: 0, claimCount: 0 };
+      spenders[name].amount += Number(exp.amount) || 0;
+      spenders[name].claimCount += 1;
+    });
+
+    const sorted: SpenderRow[] = Object.entries(spenders)
+      .map(([name, stats]) => ({
+        key: name,
+        name,
+        initials: getPersonInitials(name),
+        amount: stats.amount,
+        claimCount: stats.claimCount,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, limit);
+
+    const totalSpend = Object.values(spenders).reduce((sum, row) => sum + row.amount, 0);
+    const top3Amount = sorted.slice(0, 3).reduce((sum, row) => sum + row.amount, 0);
+    const top3Percent = totalSpend > 0 ? (top3Amount / totalSpend) * 100 : 0;
+
+    return {
+      rows: sorted,
+      top3Share: top3Percent,
+    };
+  }, [data, limit]);
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex h-full min-h-[280px] items-center justify-center text-muted-foreground">
+        No data available
+      </div>
+    );
+  }
+
+  const maxAmount = rows[0]?.amount ?? 1;
+  const showScrollbar = rows.length > 6;
+  const hasSelection = typeof selectedUser !== "undefined" && selectedUser !== null && selectedUser !== "ALL";
+
+  return (
+    <div className="flex h-full flex-col">
+      <p className="text-sm text-slate-500">
+        Who&apos;s claiming the most.{" "}
+        <span className="font-semibold text-slate-700">Top 3</span> account for{" "}
+        {top3Share.toFixed(0)}% of spend.
+        {onUserClick ? " Click a person to filter the table." : ""}
+      </p>
+
+      <div className={showScrollbar ? "mt-4 max-h-[360px] space-y-1 overflow-y-auto pr-1" : "mt-4 divide-y divide-slate-100"}>
+        {rows.map((row) => {
+          const isSelected = selectedUser === row.key;
+          const isDisabled = hasSelection && !isSelected;
+          const barWidth = maxAmount > 0 ? (row.amount / maxAmount) * 100 : 0;
+
+          return (
+            <button
+              key={row.key}
+              type="button"
+              onClick={() => onUserClick?.(isSelected ? null : row.key)}
+              className={`w-full px-1 py-3 text-left transition-colors first:pt-0 ${isSelected ? "rounded-xl bg-violet-50 px-2" : "hover:bg-slate-50"
+                } ${onUserClick ? "cursor-pointer" : "cursor-default"} ${isDisabled ? "opacity-60" : ""}`}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${isDisabled ? "bg-slate-100 text-slate-400" : "bg-violet-100 text-violet-700"
+                    }`}
+                >
+                  {row.initials}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className={`truncate text-sm font-semibold ${isDisabled ? "text-slate-400" : "text-slate-900"}`}>
+                      {row.name}
+                    </span>
+                    <div className="shrink-0 text-right">
+                      <p className={`text-sm font-semibold ${isDisabled ? "text-slate-400" : "text-slate-900"}`}>
+                        {formatCurrency(row.amount)}
+                      </p>
+                      <p className={`text-xs ${isDisabled ? "text-slate-400" : "text-slate-500"}`}>
+                        {row.claimCount} claim{row.claimCount === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${barWidth}%`,
+                        background: isDisabled
+                          ? "#e2e8f0"
+                          : "linear-gradient(90deg, #38bdf8 0%, #8b5cf6 100%)",
+                      }}
                     />
                   </div>
                 </div>

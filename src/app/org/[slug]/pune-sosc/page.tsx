@@ -37,6 +37,8 @@ import {
   ExpensesByStatusChart,
   WhereTheMoneyGoesChart,
   DailySpendTrendChart,
+  ApprovalPipelineChart,
+  TopSpendersChart,
 } from "@/components/DashboardCharts";
 import {
   AlertTriangle,
@@ -247,6 +249,23 @@ export default function PuneSoSCDashboard() {
       return true;
     });
   }, [timeRangeFilteredData, filters.status, filters.user, filters.uniqueId, filters.date]);
+
+  // Chart data for top spenders: respect time range and other filters but NOT the user filter.
+  const topSpendersChartData = useMemo(() => {
+    return timeRangeFilteredData.filter((e) => {
+      if (filters.expenseType !== "ALL" && e.expense_type !== filters.expenseType) return false;
+      if (filters.status !== "ALL" && e.status !== filters.status) return false;
+      if (filters.uniqueId !== "ALL" && (e.unique_id || e.uniqueId || "") !== filters.uniqueId) return false;
+
+      if (filters.date !== "ALL" && e.date) {
+        const selectedDate = filters.date;
+        const expDate = new Date(e.date).toISOString().split('T')[0];
+        if (expDate !== selectedDate) return false;
+      }
+
+      return true;
+    });
+  }, [timeRangeFilteredData, filters.expenseType, filters.status, filters.uniqueId, filters.date]);
 
   // Calculate high-level metrics
   const totalAmount = useMemo(() => {
@@ -740,6 +759,56 @@ export default function PuneSoSCDashboard() {
               <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
             ) : (
               <DailySpendTrendChart data={filteredData} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold text-slate-900">
+              Approval pipeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
+            {loading ? (
+              <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
+            ) : (
+              <ApprovalPipelineChart
+                data={filteredData}
+                selectedStatus={filters.status === "ALL" ? undefined : filters.status}
+                onStatusClick={(status) =>
+                  setFilters((current) => ({
+                    ...current,
+                    status: status ?? "ALL",
+                  }))
+                }
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold text-slate-900">
+              Top spenders
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
+            {loading ? (
+              <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
+            ) : (
+              <TopSpendersChart
+                data={topSpendersChartData}
+                selectedUser={filters.user === "ALL" ? undefined : filters.user}
+                onUserClick={(user) =>
+                  setFilters((current) => ({
+                    ...current,
+                    user: user ?? "ALL",
+                  }))
+                }
+              />
             )}
           </CardContent>
         </Card>
