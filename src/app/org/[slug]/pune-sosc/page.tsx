@@ -38,7 +38,17 @@ import {
   ExpensesByStatusChart,
   ExpensesTimeChart,
 } from "@/components/DashboardCharts";
-import { Eye, FileText, IndianRupee, PieChart, BarChart as BarChartIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart2,
+  BarChart as BarChartIcon,
+  Clock3,
+  Eye,
+  FileText,
+  IndianRupee,
+  PieChart,
+  Sparkles,
+} from "lucide-react";
 
 const QUICK_RANGE_OPTIONS = [
   { value: "7d", label: "7d" },
@@ -114,7 +124,7 @@ export default function PuneSoSCDashboard() {
 
         // Sort by timestamp ascending (oldest first)
         formattedData.sort((a: any, b: any) => {
-          const ta = a?.created_at ? new Date(a.created_at).getTime() : 0;
+          const ta = a?.created_at ? new Date(a.created_at).getTime() : 0;  
           const tb = b?.created_at ? new Date(b.created_at).getTime() : 0;
           return ta - tb;
         });
@@ -262,6 +272,158 @@ export default function PuneSoSCDashboard() {
     return "year";
   }, [quickRange]);
 
+  const summaryCards = useMemo(() => {
+    const now = new Date();
+    const formatAmount = (value: number) => `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+    const getExpenseDate = (expense: any) => {
+      const rawDate = expense.date || expense.created_at;
+      if (!rawDate) return null;
+
+      const parsed = new Date(rawDate);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const getRangeWindowDays = () => {
+      if (quickRange === "7d") return 7;
+      if (quickRange === "30d") return 30;
+      if (quickRange === "90d") return 90;
+      if (quickRange === "ytd") {
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        return Math.max(1, Math.ceil((now.getTime() - yearStart.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+      }
+
+      return 30;
+    };
+
+    const normalizedStatus = (status: string) => String(status || "").trim().toLowerCase();
+    const pendingStatuses = new Set([
+      "pending",
+      "submitted",
+      "awaiting approval",
+      "under review",
+      "in review",
+      "approval pending",
+    ]);
+
+    const pendingItems = filteredData.filter((expense) => pendingStatuses.has(normalizedStatus(expense.status)));
+    const pendingAmount = pendingItems.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+    const oldestPendingAgeDays = pendingItems.reduce((maxAge, expense) => {
+      const date = getExpenseDate(expense);
+      if (!date) return maxAge;
+
+      const age = Math.max(0, Math.floor((now.getTime() - date.getTime()) / (24 * 60 * 60 * 1000)));
+      return Math.max(maxAge, age);
+    }, 0);
+
+    const categoryTotals = filteredData.reduce((acc: Record<string, { amount: number; count: number }>, expense) => {
+      const key = expense.expense_type || "Uncategorized";
+      const amount = Number(expense.amount) || 0;
+      if (!acc[key]) acc[key] = { amount: 0, count: 0 };
+      acc[key].amount += amount;
+      acc[key].count += 1;
+      return acc;
+    }, {});
+
+    const largestCategoryEntry = Object.entries(categoryTotals).sort(([, a], [, b]) => b.amount - a.amount)[0];
+    const largestCategoryName = largestCategoryEntry?.[0] ?? "—";
+    const largestCategoryAmount = largestCategoryEntry?.[1].amount ?? 0;
+    const largestCategoryCount = largestCategoryEntry?.[1].count ?? 0;
+    const largestCategoryShare = totalAmount > 0 ? (largestCategoryAmount / totalAmount) * 100 : 0;
+
+    const dailyTotals = filteredData.reduce((acc: Record<string, number>, expense) => {
+      const date = getExpenseDate(expense);
+      if (!date) return acc;
+
+      const key = date.toISOString().split("T")[0];
+      acc[key] = (acc[key] || 0) + (Number(expense.amount) || 0);
+      return acc;
+    }, {});
+
+    const currentWindowDays = getRangeWindowDays();
+    const currentWindowStart = new Date(now);
+    currentWindowStart.setDate(now.getDate() - currentWindowDays);
+    const previousWindowStart = new Date(currentWindowStart);
+    previousWindowStart.setDate(currentWindowStart.getDate() - currentWindowDays);
+
+    const currentWindowTotal = filteredData
+      .filter((expense) => {
+        const date = getExpenseDate(expense);
+        return date ? date >= currentWindowStart && date <= now : false;
+      })
+      .reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+
+    const previousWindowTotal = filteredData
+      .filter((expense) => {
+        const date = getExpenseDate(expense);
+        return date ? date >= previousWindowStart && date < currentWindowStart : false;
+      })
+      .reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+
+    const totalChangePct = previousWindowTotal > 0 ? ((currentWindowTotal - previousWindowTotal) / previousWindowTotal) * 100 : null;
+    const totalChangeDirection = totalChangePct == null ? "neutral" : totalChangePct > 0 ? "up" : totalChangePct < 0 ? "down" : "neutral";
+
+    const sparkline = Object.entries(dailyTotals)
+      .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+      .slice(-14)
+      .map(([, amount]) => amount);
+
+    const sparklinePoints =
+      sparkline.length > 1
+        ? sparkline.map((value, index) => {
+            const x = (index / Math.max(1, sparkline.length - 1)) * 100;
+            const max = Math.max(...sparkline, 1);
+            const y = 30 - (value / max) * 22;
+            return { x, y };
+          })
+        : [];
+
+    const sparklineLinePath =
+      sparklinePoints.length > 1
+        ? sparklinePoints.reduce((path, point, index) => {
+            if (index === 0) return `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+
+            const prev = sparklinePoints[index - 1];
+            const midX = ((prev.x + point.x) / 2).toFixed(2);
+            return `${path} Q ${midX} ${prev.y.toFixed(2)} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+          }, "")
+        : "";
+
+    const sparklineAreaPath = sparklineLinePath ? `${sparklineLinePath} L 100 30 L 0 30 Z` : "";
+
+    const outlierDays = Object.entries(dailyTotals)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 2)
+      .map(([date, amount]) => ({
+        date,
+        amount,
+      }));
+
+    const totalChangeAmount = currentWindowTotal - previousWindowTotal;
+    const windowLabel = quickRange === "ytd" ? "vs previous period" : quickRange === "all" ? `vs last 30 days` : `vs last ${currentWindowDays} days`;
+
+    return {
+      totalAmount,
+      pendingAmount,
+      pendingCount: pendingItems.length,
+      oldestPendingAgeDays,
+      largestCategoryName,
+      largestCategoryAmount,
+      largestCategoryCount,
+      largestCategoryShare,
+      currentWindowTotal,
+      previousWindowTotal,
+      totalChangeAmount,
+      totalChangePct,
+      totalChangeDirection,
+      windowLabel,
+      sparkline,
+      sparklineLinePath,
+      sparklineAreaPath,
+      outlierDays,
+      formatAmount,
+    };
+  }, [filteredData, totalAmount, quickRange]);
+
   return (
     <div className="space-y-6 pt-0">
       <div className="flex flex-col gap-0">
@@ -286,11 +448,10 @@ export default function PuneSoSCDashboard() {
                   key={option.value}
                   type="button"
                   onClick={() => setQuickRange(option.value)}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
-                    isActive
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${isActive
                       ? "bg-foreground text-background"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   {option.label}
                 </button>
@@ -374,10 +535,10 @@ export default function PuneSoSCDashboard() {
                 {filters.date === "ALL"
                   ? "All dates"
                   : new Date(filters.date).toLocaleDateString("en-GB", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
               </span>
             </div>
           </SelectTrigger>
@@ -394,6 +555,143 @@ export default function PuneSoSCDashboard() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <CardContent className="relative p-5 pb-14">
+            <div className="relative z-10 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 text-slate-500">
+                <IndianRupee className="h-4 w-4" />
+                <span className="text-sm font-semibold text-slate-600">Total this period</span>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${summaryCards.totalChangeDirection === "up"
+                    ? "bg-rose-50 text-rose-600"
+                    : summaryCards.totalChangeDirection === "down"
+                      ? "bg-emerald-50 text-emerald-600"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+              >
+                {summaryCards.totalChangePct == null
+                  ? quickRange === "all"
+                    ? "All time"
+                    : "—"
+                  : `${summaryCards.totalChangePct > 0 ? "↑" : summaryCards.totalChangePct < 0 ? "↓" : "→"} ${Math.abs(summaryCards.totalChangePct).toFixed(1)}%`}
+              </span>
+            </div>
+
+            <div className="relative z-10 mt-3">
+              <p className="text-3xl font-bold tracking-tight text-slate-900">{summaryCards.formatAmount(summaryCards.totalAmount)}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {summaryCards.totalChangeAmount !== 0
+                  ? `${summaryCards.totalChangeAmount > 0 ? "+" : "−"}${summaryCards.formatAmount(Math.abs(summaryCards.totalChangeAmount))} ${summaryCards.windowLabel}`
+                  : summaryCards.windowLabel}
+              </p>
+            </div>
+
+            {summaryCards.sparkline.length > 1 ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14">
+                <svg viewBox="0 0 100 32" preserveAspectRatio="none" className="h-full w-full">
+                  <defs>
+                    <linearGradient id="pune-total-spark" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.22" />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path d={summaryCards.sparklineAreaPath} fill="url(#pune-total-spark)" />
+                  <path
+                    d={summaryCards.sparklineLinePath}
+                    fill="none"
+                    stroke="#8b5cf6"
+                    strokeWidth="1.6"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-amber-50/60 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 text-amber-700">
+                <Clock3 className="h-4 w-4" />
+                <span className="text-sm font-semibold text-slate-600">Pending your approval</span>
+              </div>
+              <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                {summaryCards.pendingCount} open
+              </span>
+            </div>
+
+            <div className="mt-3">
+              <p className="text-3xl font-bold tracking-tight text-slate-900">
+                {summaryCards.pendingCount} <span className="font-normal text-slate-400">·</span> {summaryCards.formatAmount(summaryCards.pendingAmount)}
+              </p>
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-500">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                <span>
+                  Oldest waiting{" "}
+                  <span className="font-semibold text-amber-700">{summaryCards.oldestPendingAgeDays || 0} days</span>
+                  {" · review now →"}
+                </span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 text-sky-600">
+                <BarChart2 className="h-4 w-4" />
+                <span className="text-sm font-semibold text-slate-600">Largest category</span>
+              </div>
+              <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                {summaryCards.largestCategoryShare.toFixed(0)}%
+              </span>
+            </div>
+
+            <div className="mt-3 min-w-0">
+              <p className="truncate text-3xl font-bold tracking-tight text-slate-900">{summaryCards.largestCategoryName}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {summaryCards.formatAmount(summaryCards.largestCategoryAmount)} across {summaryCards.largestCategoryCount} claims
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 text-rose-600">
+                <Sparkles className="h-4 w-4" />
+                <span className="text-sm font-semibold text-slate-600">Outlier days</span>
+              </div>
+              <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                {summaryCards.outlierDays.length} spikes
+              </span>
+            </div>
+
+            <div className="mt-3">
+              <p className="text-3xl font-bold tracking-tight text-slate-900">{summaryCards.outlierDays.length} spikes</p>
+              {summaryCards.outlierDays.length > 0 ? (
+                <p className="mt-1 text-sm text-slate-500">
+                  {summaryCards.outlierDays
+                    .map((item) =>
+                      `${new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${summaryCards.formatAmount(item.amount)}`
+                    )
+                    .join(" · ")}
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-slate-500">No outlier days found for the selected data.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Charts Section */}
