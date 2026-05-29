@@ -47,6 +47,8 @@ export default function PuneSoSCDashboard() {
 
   const [expensesData, setExpensesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [lastUpdatedTick, setLastUpdatedTick] = useState(Date.now());
   const [filters, setFilters] = useState({
     expenseType: "ALL",
     status: "ALL",
@@ -107,6 +109,7 @@ export default function PuneSoSCDashboard() {
         });
 
         setExpensesData(formattedData);
+        setLastUpdatedAt(new Date());
       } catch (error: any) {
         toast.error("Failed to load dashboard data", { description: error.message });
       } finally {
@@ -116,6 +119,14 @@ export default function PuneSoSCDashboard() {
 
     fetchData();
   }, [orgId]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setLastUpdatedTick(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   // Derived unique options for filters
   const expenseTypeOptions = useMemo(() => {
@@ -179,6 +190,32 @@ export default function PuneSoSCDashboard() {
     return filteredData.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
   }, [filteredData]);
 
+  const uniquePeopleCount = useMemo(() => {
+    const people = new Set(
+      filteredData
+        .map((exp) => exp.creator_name || exp.user_id)
+        .filter(Boolean)
+    );
+
+    return people.size;
+  }, [filteredData]);
+
+  function getRelativeLastUpdated(value: Date | null) {
+    if (!value) return "just now";
+
+    const diffMs = Math.max(0, lastUpdatedTick - value.getTime());
+    const minutes = Math.floor(diffMs / 60_000);
+
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? "" : "s"} ago`;
+  }
+
   const pagination = usePagination(filteredData);
 
   const RANGE_LABELS: Record<string, string> = {
@@ -198,9 +235,17 @@ export default function PuneSoSCDashboard() {
   return (
     <div className="space-y-6 pt-0">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-black to-black bg-clip-text text-transparent">
-          CP Pune-SoSC Dashboard
-        </h1>
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-black to-black bg-clip-text text-transparent">
+            Pune SoSC Dashboard Overview
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{filteredData.length} expenses</span>
+            <span> across </span>
+            <span className="font-semibold text-foreground">{uniquePeopleCount} people</span>
+            <span> · Last updated {getRelativeLastUpdated(lastUpdatedAt)}</span>
+          </p>
+        </div>
         <div className="w-fit bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 font-semibold shadow-sm border border-blue-100">
           <IndianRupee className="h-5 w-5" />
           <span>Total: {totalAmount.toLocaleString()}</span>
