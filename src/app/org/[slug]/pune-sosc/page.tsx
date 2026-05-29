@@ -33,10 +33,10 @@ import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Pagination, usePagination } from "@/components/pagination";
 import { formatDateTime } from "@/lib/utils";
 import {
-  ExpensesByExpenseTypeChart,
   ExpensesAmountChart,
   ExpensesByStatusChart,
-  ExpensesTimeChart,
+  WhereTheMoneyGoesChart,
+  DailySpendTrendChart,
 } from "@/components/DashboardCharts";
 import {
   AlertTriangle,
@@ -232,6 +232,22 @@ export default function PuneSoSCDashboard() {
     });
   }, [timeRangeFilteredData, filters]);
 
+  // Chart data for categories: respect time range and other filters but NOT the expenseType filter.
+  const categoryChartData = useMemo(() => {
+    return timeRangeFilteredData.filter((e) => {
+      if (filters.status !== "ALL" && e.status !== filters.status) return false;
+      if (filters.user !== "ALL" && e.creator_name !== filters.user) return false;
+      if (filters.uniqueId !== "ALL" && (e.unique_id || e.uniqueId || "") !== filters.uniqueId) return false;
+      if (filters.date !== "ALL" && e.date) {
+        const selectedDate = filters.date;
+        const expDate = new Date(e.date).toISOString().split('T')[0];
+        if (expDate !== selectedDate) return false;
+      }
+
+      return true;
+    });
+  }, [timeRangeFilteredData, filters.status, filters.user, filters.uniqueId, filters.date]);
+
   // Calculate high-level metrics
   const totalAmount = useMemo(() => {
     return filteredData.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
@@ -264,13 +280,6 @@ export default function PuneSoSCDashboard() {
   }
 
   const pagination = usePagination(filteredData);
-
-  const chartRange = useMemo(() => {
-    if (quickRange === "7d") return "weekly";
-    if (quickRange === "30d") return "monthly";
-    if (quickRange === "90d") return "quarterly";
-    return "year";
-  }, [quickRange]);
 
   const summaryCards = useMemo(() => {
     const now = new Date();
@@ -694,20 +703,50 @@ export default function PuneSoSCDashboard() {
         </Card>
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <PieChart className="h-4 w-4 text-blue-500" />
-              Expenses by Expense Type
+      {/* Primary charts */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold text-slate-900">
+              Where the money goes
             </CardTitle>
           </CardHeader>
-          <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
-            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesByExpenseTypeChart data={filteredData} />}
+          <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
+            {loading ? (
+              <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
+            ) : (
+              <WhereTheMoneyGoesChart
+                data={categoryChartData}
+                selectedCategory={filters.expenseType === "ALL" ? undefined : filters.expenseType}
+                onCategoryClick={(category) =>
+                  setFilters((current) => ({
+                    ...current,
+                    expenseType: category ?? "ALL",
+                  }))
+                }
+              />
+            )}
           </CardContent>
         </Card>
 
+        <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold text-slate-900">
+              Daily spend trend
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
+            {loading ? (
+              <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
+            ) : (
+              <DailySpendTrendChart data={filteredData} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Secondary charts */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card className="flex flex-col">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -729,18 +768,6 @@ export default function PuneSoSCDashboard() {
           </CardHeader>
           <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
             {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesByStatusChart data={filteredData} />}
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <PieChart className="h-4 w-4 text-purple-500" />
-              Expenses by Time
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
-            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesTimeChart data={filteredData} range={chartRange as any} />}
           </CardContent>
         </Card>
       </div>

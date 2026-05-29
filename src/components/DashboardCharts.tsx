@@ -16,7 +16,8 @@ import {
   LineChart,
   Line,
   AreaChart,
-  Area
+  Area,
+  ReferenceLine,
 } from 'recharts';
 
 interface Expense {
@@ -55,6 +56,34 @@ const STATUS_LABELS: Record<string, string> = {
 function formatCurrency(value: number) {
   return `₹${Number(value || 0).toLocaleString()}`;
 }
+
+function formatCompactCurrency(value: number) {
+  const amount = Number(value || 0);
+  if (amount >= 1000) {
+    const compact = amount / 1000;
+    const formatted = compact % 1 === 0 ? compact.toFixed(0) : compact.toFixed(1);
+    return `₹${formatted}k`;
+  }
+  return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+function getCategoryAbbreviation(name: string) {
+  const codeMatch = name.match(/^([A-Z]{2})\b/);
+  if (codeMatch) return codeMatch[1];
+
+  const words = name.split(/[\s/&.-]+/).filter(Boolean);
+  if (words.length >= 2) {
+    return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase();
+  }
+
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getCategoryDisplayName(name: string) {
+  return name.trim() || name;
+}
+
+const CATEGORY_BAR_COLORS = ["#8b5cf6", "#38bdf8", "#1d4ed8"] as const;
 
 function TooltipShell({ children }: { children: React.ReactNode }) {
   return (
@@ -477,6 +506,245 @@ export function ExpensesByStatusChart({ data }: { data: Expense[] }) {
               <span style={{ color: STATUS_COLORS[entry.originalStatus] || COLORS[i % COLORS.length], fontWeight: 600 }} className="truncate">{entry.name}</span>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type CategoryRow = {
+  key: string;
+  name: string;
+  displayName: string;
+  abbreviation: string;
+  amount: number;
+  percent: number;
+  barColor: string;
+};
+
+export function WhereTheMoneyGoesChart({
+  data,
+  selectedCategory,
+  onCategoryClick,
+}: {
+  data: Expense[];
+  selectedCategory?: string;
+  onCategoryClick?: (category: string | null) => void;
+}) {
+  const { rows, top3Share } = useMemo(() => {
+    const categories: Record<string, number> = {};
+    data.forEach((exp) => {
+      const key = exp.expense_type || "Uncategorized";
+      categories[key] = (categories[key] || 0) + (Number(exp.amount) || 0);
+    });
+
+    const totalAmount = Object.values(categories).reduce((sum, value) => sum + value, 0);
+    const sorted = Object.entries(categories)
+      .map(([name, amount]) => ({
+        key: name,
+        name,
+        displayName: getCategoryDisplayName(name),
+        abbreviation: getCategoryAbbreviation(name),
+        amount,
+        percent: totalAmount > 0 ? (amount / totalAmount) * 100 : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .map((row, index) => ({
+        ...row,
+        barColor: CATEGORY_BAR_COLORS[index % CATEGORY_BAR_COLORS.length],
+      }));
+
+    const top3Amount = sorted.slice(0, 3).reduce((sum, row) => sum + row.amount, 0);
+    const top3Percent = totalAmount > 0 ? (top3Amount / totalAmount) * 100 : 0;
+
+    return {
+      rows: sorted,
+      top3Share: top3Percent,
+    };
+  }, [data]);
+
+  if (rows.length === 0) {
+    return <div className="flex h-full min-h-[280px] items-center justify-center text-muted-foreground">No data available</div>;
+  }
+
+  const maxAmount = rows[0]?.amount ?? 1;
+
+  const hasSelection = typeof selectedCategory !== 'undefined' && selectedCategory !== null;
+
+  return (
+    <div className="flex h-full flex-col">
+      <p className="text-sm text-slate-500">
+        Spending by category. Top 3 expense types = {top3Share.toFixed(0)}% of all spend.
+        {onCategoryClick ? " Click a row to filter the table below." : ""}
+      </p>
+
+      <div className="mt-4 max-h-[360px] space-y-1 overflow-y-auto pr-1">
+        {rows.map((row: CategoryRow) => {
+          const isSelected = selectedCategory === row.key;
+          const isDisabled = hasSelection && !isSelected;
+          const barWidth = maxAmount > 0 ? (row.amount / maxAmount) * 100 : 0;
+
+          return (
+            <button
+              key={row.key}
+              type="button"
+              onClick={() => onCategoryClick?.(isSelected ? null : row.key)}
+              className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors ${isSelected ? "bg-sky-50" : "hover:bg-slate-50"
+                } ${onCategoryClick ? "cursor-pointer" : "cursor-default"} ${isDisabled ? 'opacity-60' : ''}`}
+            >
+              <div className="flex items-center gap-3">
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${isDisabled ? 'bg-slate-100 text-slate-400' : 'bg-sky-50 text-sky-700'}`}>
+                  {row.abbreviation}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className={`truncate text-sm font-medium ${isDisabled ? 'text-slate-400' : 'text-slate-900'}`}>{row.displayName}</span>
+                    <div className="shrink-0 text-right">
+                      <div className="flex items-center justify-end gap-2 text-sm font-semibold text-slate-900">
+                        <span className={`${isDisabled ? 'text-slate-400' : ''}`}>{formatCurrency(row.amount)}</span>
+                        <span className={`text-xs font-medium ${isDisabled ? 'text-slate-400' : 'text-slate-500'}`}>{row.percent.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${barWidth}%`, backgroundColor: isDisabled ? '#e6edf3' : row.barColor }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function DailySpendTrendChart({ data }: { data: Expense[] }) {
+  const { chartData, outlierDates, dayCount } = useMemo(() => {
+    const dailyTotals: Record<string, number> = {};
+
+    data.forEach((exp) => {
+      if (!exp.date) return;
+      const dateObj = new Date(exp.date);
+      if (Number.isNaN(dateObj.getTime())) return;
+
+      const key = dateObj.toISOString().slice(0, 10);
+      dailyTotals[key] = (dailyTotals[key] || 0) + (Number(exp.amount) || 0);
+    });
+
+    const series = Object.entries(dailyTotals)
+      .map(([date, amount]) => ({
+        date,
+        amount,
+        label: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const outliers = [...series].sort((a, b) => b.amount - a.amount).slice(0, 2).map((item) => item.date);
+
+    return {
+      chartData: series,
+      outlierDates: new Set(outliers),
+      dayCount: series.length,
+    };
+  }, [data]);
+
+  if (chartData.length === 0) {
+    return <div className="flex h-full min-h-[280px] items-center justify-center text-muted-foreground">No data available</div>;
+  }
+
+  const outlierCount = outlierDates.size;
+
+  const renderDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    if (!payload || !outlierDates.has(payload.date) || cx == null || cy == null) {
+      return null;
+    }
+
+    return <circle cx={cx} cy={cy} r={5} fill="#fff" stroke="#ef4444" strokeWidth={2} />;
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <p className="text-sm text-slate-500">
+        Over the last {dayCount} day{dayCount === 1 ? "" : "s"}. {outlierCount} outlier day
+        {outlierCount === 1 ? "" : "s"} highlighted — typically large travel reimbursements.
+      </p>
+
+      <div className="mt-4 h-[280px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="dailySpendFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.28} />
+                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 12, fill: "#64748b" }}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={28}
+            />
+            <YAxis
+              width={48}
+              tick={{ fontSize: 12, fill: "#64748b" }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(value) => formatCompactCurrency(Number(value))}
+            />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const item = payload[0].payload;
+                return (
+                  <TooltipShell>
+                    <div className="font-medium text-slate-900">{item.label}</div>
+                    <div className="font-semibold text-violet-600">{formatCurrency(item.amount)}</div>
+                  </TooltipShell>
+                );
+              }}
+            />
+            {chartData
+              .filter((point) => outlierDates.has(point.date))
+              .map((point) => (
+                <ReferenceLine
+                  key={point.date}
+                  x={point.label}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  strokeOpacity={0.7}
+                />
+              ))}
+            <Area
+              type="monotone"
+              dataKey="amount"
+              stroke="#8b5cf6"
+              strokeWidth={2}
+              fill="url(#dailySpendFill)"
+              dot={renderDot}
+              activeDot={{ r: 4, fill: "#8b5cf6", stroke: "#fff", strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-5 text-sm text-slate-600">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
+          <span>Daily spend</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-3 w-3 rounded-full border-2 border-rose-500 bg-white" />
+          <span>Outlier days (top 2)</span>
         </div>
       </div>
     </div>
