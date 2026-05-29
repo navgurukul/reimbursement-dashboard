@@ -208,90 +208,96 @@ export default function PuneSoSCDashboard() {
       </div>
 
       {/* Filters Section */}
-      <Card className="border-t-4 border-t-black">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <BarChartIcon className="h-5 w-5 text-indigo-500" />
-            Dashboard Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
-            <div className="space-y-1.5">
-              <Label>Expense Type</Label>
-              <Select value={filters.expenseType} onValueChange={(val) => setFilters(f => ({ ...f, expenseType: val }))}>
-                <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Expense Type</SelectItem>
-                  {expenseTypeOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                </SelectContent>
-              </Select>
+      <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        <Select value={filters.expenseType} onValueChange={(val) => setFilters((f) => ({ ...f, expenseType: val }))}>
+          <SelectTrigger className="w-full sm:w-[200px] rounded-xl">
+            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
+              <span className="text-muted-foreground">Type:</span>
+              <span className="truncate font-semibold">{filters.expenseType === "ALL" ? "All types" : filters.expenseType}</span>
             </div>
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value="ALL">All types</SelectItem>
+            {expenseTypeOptions.map((opt) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select value={filters.status} onValueChange={(val) => setFilters(f => ({ ...f, status: val }))}>
-                <SelectTrigger><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Statuses</SelectItem>
-                  {statusOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                </SelectContent>
-              </Select>
+        <Select value={filters.status} onValueChange={(val) => setFilters((f) => ({ ...f, status: val }))}>
+          <SelectTrigger className="w-full sm:w-[200px] rounded-xl">
+            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
+              <span className="text-muted-foreground">Status:</span>
+              <span className="truncate font-semibold">{filters.status === "ALL" ? "All statuses" : filters.status}</span>
             </div>
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value="ALL">All statuses</SelectItem>
+            {statusOptions.map((opt) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <div className="space-y-1.5">
-              <Label>User</Label>
-              <Select value={filters.user} onValueChange={(val) => setFilters(f => ({ ...f, user: val }))}>
-                <SelectTrigger><SelectValue placeholder="All Users" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Users</SelectItem>
-                  {userOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                </SelectContent>
-              </Select>
+        <Select value={filters.user} onValueChange={(val) => setFilters((f) => ({ ...f, user: val }))}>
+          <SelectTrigger className="w-full sm:w-[180px] rounded-xl">
+            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
+              <span className="text-muted-foreground">User:</span>
+              <span className="truncate font-semibold">{filters.user === "ALL" ? "All users" : filters.user}</span>
             </div>
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value="ALL">All users</SelectItem>
+            {userOptions.map((opt) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <div className="space-y-1.5">
-              <Label>Unique ID</Label>
-              <Select value={filters.uniqueId} onValueChange={(val) => setFilters(f => ({ ...f, uniqueId: val }))}>
-                <SelectTrigger><SelectValue placeholder="All Unique IDs" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Unique IDs</SelectItem>
-                  {uniqueIdOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                </SelectContent>
-              </Select>
+        <Select value={filters.uniqueId} onValueChange={(val) => setFilters((f) => ({ ...f, uniqueId: val }))}>
+          <SelectTrigger className="w-full sm:w-[190px] rounded-xl">
+            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
+              <span className="text-muted-foreground">Unique ID:</span>
+              <span className="truncate font-semibold">{filters.uniqueId === "ALL" ? "All IDs" : filters.uniqueId}</span>
             </div>
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value="ALL">All IDs</SelectItem>
+            {uniqueIdOptions.map((opt) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <div className="space-y-1.5">
-              <Label>Date</Label>
-              <Select value={filters.date} onValueChange={(val) => setFilters(f => ({ ...f, date: val }))}>
-                <SelectTrigger><SelectValue placeholder="All Dates" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Dates</SelectItem>
-                  {dateOptions.map(dateOption => (
-                    <SelectItem key={dateOption} value={dateOption}>
-                      {new Date(dateOption).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <Select value={filters.date} onValueChange={(val) => setFilters((f) => ({ ...f, date: val }))}>
+          <SelectTrigger className="w-full sm:w-[190px] rounded-xl">
+            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
+              <span className="text-muted-foreground">Date:</span>
+              <span className="truncate font-semibold">
+                {filters.date === "ALL"
+                  ? "All dates"
+                  : new Date(filters.date).toLocaleDateString("en-GB", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+              </span>
             </div>
-
-            <div className="space-y-1.5">
-              <Label>Time Range</Label>
-              <Select value={filters.timeRange} onValueChange={(val) => setFilters(f => ({ ...f, timeRange: val }))}>
-                <SelectTrigger><SelectValue placeholder="Time Range" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="day">Day</SelectItem>
-                  <SelectItem value="monthly">Month</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="halfyear">Half Year</SelectItem>
-                  <SelectItem value="year">Year</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value="ALL">All dates</SelectItem>
+            {dateOptions.map((dateOption) => (
+              <SelectItem key={dateOption} value={dateOption}>
+                {new Date(dateOption).toLocaleDateString("en-GB", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
