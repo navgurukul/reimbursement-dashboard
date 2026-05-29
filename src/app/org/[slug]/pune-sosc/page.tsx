@@ -33,8 +33,6 @@ import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Pagination, usePagination } from "@/components/pagination";
 import { formatDateTime } from "@/lib/utils";
 import {
-  ExpensesAmountChart,
-  ExpensesByStatusChart,
   WhereTheMoneyGoesChart,
   DailySpendTrendChart,
   ApprovalPipelineChart,
@@ -43,12 +41,9 @@ import {
 import {
   AlertTriangle,
   BarChart2,
-  BarChart as BarChartIcon,
   Clock3,
   Eye,
-  FileText,
   IndianRupee,
-  PieChart,
   Sparkles,
 } from "lucide-react";
 
@@ -69,7 +64,6 @@ export default function PuneSoSCDashboard() {
 
   const [expensesData, setExpensesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [lastUpdatedTick, setLastUpdatedTick] = useState(Date.now());
   const [quickRange, setQuickRange] = useState<QuickRangeValue>("all");
   const [filters, setFilters] = useState({
@@ -133,7 +127,6 @@ export default function PuneSoSCDashboard() {
         });
 
         setExpensesData(formattedData);
-        setLastUpdatedAt(new Date());
       } catch (error: any) {
         toast.error("Failed to load dashboard data", { description: error.message });
       } finally {
@@ -293,22 +286,6 @@ export default function PuneSoSCDashboard() {
 
     return people.size;
   }, [filteredData]);
-
-  function getRelativeLastUpdated(value: Date | null) {
-    if (!value) return "just now";
-
-    const diffMs = Math.max(0, lastUpdatedTick - value.getTime());
-    const minutes = Math.floor(diffMs / 60_000);
-
-    if (minutes < 1) return "just now";
-    if (minutes < 60) return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
-
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
-
-    const days = Math.floor(hours / 24);
-    return `${days} day${days === 1 ? "" : "s"} ago`;
-  }
 
   const pagination = usePagination(filteredData);
 
@@ -477,9 +454,8 @@ export default function PuneSoSCDashboard() {
             <span className="font-semibold text-foreground">{filteredData.length} expenses</span>
             <span> across </span>
             <span className="font-semibold text-foreground">{uniquePeopleCount} people</span>
-            <span> · Last updated {getRelativeLastUpdated(lastUpdatedAt)}</span>
           </p>
-          <div className="inline-flex shrink-0 items-center rounded-xl border bg-background p-1 shadow-sm md:shrink-0">
+          <div className="inline-flex shrink-0 items-center rounded-xl border bg-background p-1 md:shrink-0">
             {QUICK_RANGE_OPTIONS.map((option) => {
               const isActive = quickRange === option.value;
 
@@ -488,7 +464,7 @@ export default function PuneSoSCDashboard() {
                   key={option.value}
                   type="button"
                   onClick={() => setQuickRange(option.value)}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${isActive
+                  className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${isActive
                       ? "bg-foreground text-background"
                       : "text-muted-foreground hover:text-foreground"
                     }`}
@@ -499,10 +475,6 @@ export default function PuneSoSCDashboard() {
             })}
           </div>
         </div>
-        {/* <div className="w-fit bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 font-semibold shadow-sm border border-blue-100">
-          <IndianRupee className="h-5 w-5" />
-          <span>Total: {totalAmount.toLocaleString()}</span>
-        </div> */}
       </div>
 
       {/* Filters Section */}
@@ -822,33 +794,6 @@ export default function PuneSoSCDashboard() {
                 }
               />
             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Secondary charts */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BarChartIcon className="h-4 w-4 text-emerald-500" />
-              Expenses Amount
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
-            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesAmountChart data={filteredData} />}
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <PieChart className="h-4 w-4 text-purple-500" />
-              Expenses by Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-[350px] pt-4 pb-2 flex-1">
-            {loading ? <div className="animate-pulse bg-gray-100 h-full w-full rounded-md" /> : <ExpensesByStatusChart data={filteredData} />}
           </CardContent>
         </Card>
       </div>
