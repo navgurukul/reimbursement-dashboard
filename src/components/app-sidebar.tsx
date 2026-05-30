@@ -195,7 +195,7 @@ export function AppSidebar() {
     ...(userRole !== "member"
       ? [
           {
-            title: "CP Pune-SoSC",
+            title: "Pune SOSC Dashboard",
             href: `/org/${organization?.slug}/pune-sosc`,
             icon: MapPin,
           },

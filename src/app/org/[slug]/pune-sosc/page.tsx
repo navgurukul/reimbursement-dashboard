@@ -4,8 +4,6 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -947,7 +945,7 @@ export default function PuneSoSCDashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-sky-600">
                 <BarChart2 className="h-4 w-4" />
-                <span className="text-sm font-semibold text-slate-600">Largest category</span>
+                <span className="text-sm font-semibold text-slate-600">Largest Expense Type</span>
               </div>
               <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
                 {summaryCards.largestCategoryShare.toFixed(0)}%
@@ -1099,7 +1097,7 @@ export default function PuneSoSCDashboard() {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search name, expense type"
+                  placeholder="Search name, expense type..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-sm border-3 border-white rounded-lg"
