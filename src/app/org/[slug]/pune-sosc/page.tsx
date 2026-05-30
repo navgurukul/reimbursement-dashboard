@@ -337,7 +337,11 @@ export default function PuneSoSCDashboard() {
     ]);
 
   const getExportFileName = (extension: "csv" | "xlsx") => {
-    const dateStr = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, "0");
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const year = now.getFullYear();
+    const dateStr = `${day}-${month}-${year}`;
     const rangeLabel = quickRange === "all" ? "all-time" : quickRange;
     return `pune-sosc-expenses-${rangeLabel}-${dateStr}.${extension}`;
   };
