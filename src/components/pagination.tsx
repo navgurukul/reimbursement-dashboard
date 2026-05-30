@@ -27,22 +27,23 @@ export function Pagination({
 
   return (
     <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-sm text-black font-medium">
-        Showing {startItem} to {endItem} of {totalItems} {itemLabel}
+      <div className="text-sm text-black">
+        Showing {startItem}-{endItem} of {totalItems}
       </div>
 
-      <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+      <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
         <Button
           type="button"
           size="sm"
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage <= 1 || isLoading}
-          className="cursor-pointer caret-transparent"
+          className="cursor-pointer caret-transparent px-3 py-2 h-auto text-black hover:bg-gray-100 border border-gray-300 rounded-md"
+          variant="outline"
         >
-          Previous
+          ←
         </Button>
 
-        <div className="text-sm text-black font-medium">
+        <div className="text-sm text-slate-600 font-medium whitespace-nowrap">
           Page {currentPage} of {totalPages}
         </div>
 
@@ -51,9 +52,10 @@ export function Pagination({
           size="sm"
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage >= totalPages || isLoading}
-          className="cursor-pointer caret-transparent"
+          className="cursor-pointer caret-transparent px-3 py-2 h-auto text-black hover:bg-gray-100 border border-gray-300 rounded-md"
+          variant="outline"
         >
-          Next
+          →
         </Button>
       </div>
     </div>
