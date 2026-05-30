@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Clock,
@@ -60,6 +60,7 @@ async function getSignatureUrl(path: string): Promise<string | null> {
 export default function PuneSoSCExpenseDetailsPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const { organization } = useOrgStore();
 
   const slug = params.slug as string;
@@ -154,7 +155,13 @@ export default function PuneSoSCExpenseDetailsPage() {
         <Button
           variant="link"
           className="w-fit gap-2 -ml-2 text-gray-600 hover:text-gray-900"
-          onClick={() => router.push(`/org/${slug}/pune-sosc`)}
+          onClick={() => {
+            const query = new URLSearchParams();
+            const page = searchParams.get("page");
+            if (page) query.set("page", page);
+            if (expenseId) query.set("expID", expenseId as string);
+            router.push(`/org/${slug}/pune-sosc?${query.toString()}`);
+          }}
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Pune SoSC

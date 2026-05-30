@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,7 +30,7 @@ import {
 import { toast } from "sonner";
 import supabase from "@/lib/supabase";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
-import { Pagination, usePagination } from "@/components/pagination";
+import { Pagination, usePagination, PER_PAGE } from "@/components/pagination";
 import { formatDateTime } from "@/lib/utils";
 import {
   WhereTheMoneyGoesChart,
@@ -70,6 +70,7 @@ type QuickRangeValue = (typeof QUICK_RANGE_OPTIONS)[number]["value"];
 export default function PuneSoSCDashboard() {
   const { slug } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { organization, userRole } = useOrgStore();
 
   const [expensesData, setExpensesData] = useState<any[]>([]);
@@ -87,6 +88,11 @@ export default function PuneSoSCDashboard() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+  const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+  const hasReturnNavigationParams =
+    Number(searchParams.get("page")) > 0 || Boolean(searchParams.get("expID"));
+  const isRestoringViewedExpenseRef = useRef(hasReturnNavigationParams);
 
   const orgId = organization?.id;
 
@@ -156,6 +162,30 @@ export default function PuneSoSCDashboard() {
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  // Handle expID from URL parameter
+  useEffect(() => {
+    const expID = searchParams.get("expID");
+    if (expID) {
+      setHighlightedExpenseId(expID);
+    }
+  }, [searchParams]);
+
+  // Clear highlighted ID after 10 seconds
+  useEffect(() => {
+    if (!highlightedExpenseId) return;
+
+    const timer = window.setTimeout(() => {
+      setHighlightedExpenseId(null);
+    }, 10000);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId]);
+
+  // Update ref on navigation state changes
+  useEffect(() => {
+    isRestoringViewedExpenseRef.current = hasReturnNavigationParams;
+  }, [hasReturnNavigationParams]);
 
   const timeRangeFilteredData = useMemo(() => {
     if (quickRange === "all") {
@@ -458,6 +488,56 @@ export default function PuneSoSCDashboard() {
   }, [filteredData]);
 
   const pagination = usePagination(filteredData);
+
+  // Reset page when filters change (but not when restoring from detail view)
+  useEffect(() => {
+    if (!isRestoringViewedExpenseRef.current) {
+      pagination.resetPage();
+    }
+  }, [filters]);
+
+  // Handle page parameter from URL
+  useEffect(() => {
+    const pageParam = Number(searchParams.get("page"));
+    if (Number.isInteger(pageParam) && pageParam > 0) {
+      pagination.setCurrentPage(Math.min(pageParam, pagination.totalPages));
+    }
+  }, [searchParams, pagination.totalPages, pagination.setCurrentPage]);
+
+  // Move to the page containing the highlighted row
+  useEffect(() => {
+    const hasRequestedPage = Number(searchParams.get("page")) > 0;
+
+    if (highlightedExpenseId && filteredData.length > 0 && !hasRequestedPage) {
+      const recordIndex = filteredData.findIndex(r => r.id === highlightedExpenseId);
+      if (recordIndex !== -1) {
+        const pageNumber = Math.floor(recordIndex / PER_PAGE) + 1;
+        pagination.setCurrentPage(pageNumber);
+      }
+    }
+  }, [highlightedExpenseId, filteredData, searchParams, pagination.setCurrentPage]);
+
+  // Scroll to highlighted row after the target page renders
+  useEffect(() => {
+    if (!highlightedExpenseId || !highlightedRowRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      highlightedRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      if (hasReturnNavigationParams) {
+        isRestoringViewedExpenseRef.current = false;
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("page");
+        params.delete("expID");
+        router.replace(`?${params.toString()}`, { scroll: false });
+      }
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId, pagination.currentPage, pagination.paginatedData, hasReturnNavigationParams, searchParams, router]);
 
   const summaryCards = useMemo(() => {
     const now = new Date();
@@ -1062,7 +1142,15 @@ export default function PuneSoSCDashboard() {
                     </TableRow>
                   ) : (
                     pagination.paginatedData.map((expense, index) => (
-                      <TableRow key={expense.id} className="hover:bg-gray-50/50 transition-colors">
+                      <TableRow
+                        ref={expense.id === highlightedExpenseId ? highlightedRowRef : null}
+                        key={expense.id}
+                        className={`hover:bg-gray-50/50 transition-colors ${
+                          expense.id === highlightedExpenseId
+                            ? "border-2 border-yellow-400 bg-yellow-50"
+                            : ""
+                        }`}
+                      >
                         <TableCell className="whitespace-nowrap text-sm text-center font-medium">
                           {pagination.getItemNumber(index)}
                         </TableCell>
