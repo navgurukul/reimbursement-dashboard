@@ -42,10 +42,20 @@ import {
   AlertTriangle,
   BarChart2,
   Clock3,
+  Download,
   Eye,
   IndianRupee,
   Sparkles,
 } from "lucide-react";
+import * as XLSX from "xlsx";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const QUICK_RANGE_OPTIONS = [
   { value: "7d", label: "7d" },
@@ -76,6 +86,7 @@ export default function PuneSoSCDashboard() {
     timeRange: "day",
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const orgId = organization?.id;
 
@@ -265,6 +276,121 @@ export default function PuneSoSCDashboard() {
       return true;
     });
   }, [timeRangeFilteredData, filters, searchQuery]);
+
+  const EXPORT_HEADERS = [
+    "S.No",
+    "Submitted",
+    "User",
+    "Unique ID",
+    "Expense Type",
+    "Amount",
+    "Expense Date",
+    "Approver",
+    "Status",
+  ] as const;
+
+  const buildExportRows = (data: typeof filteredData) =>
+    data.map((expense, index) => [
+      index + 1,
+      expense.created_at ? formatDateTime(expense.created_at) : "—",
+      expense.creator_name || "—",
+      expense.unique_id || expense.uniqueId || "—",
+      expense.expense_type || "—",
+      Number(expense.amount) || 0,
+      expense.date
+        ? new Date(expense.date).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "—",
+      expense.approver_name || "—",
+      expense.status || "—",
+    ]);
+
+  const getExportFileName = (extension: "csv" | "xlsx") => {
+    const dateStr = new Date().toISOString().split("T")[0];
+    const rangeLabel = quickRange === "all" ? "all-time" : quickRange;
+    return `pune-sosc-expenses-${rangeLabel}-${dateStr}.${extension}`;
+  };
+
+  const exportToCSV = () => {
+    const rows = buildExportRows(filteredData);
+    const csvRows: string[] = [];
+    csvRows.push(EXPORT_HEADERS.map((h) => `"${h}"`).join(","));
+    csvRows.push(
+      ...rows.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      )
+    );
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", getExportFileName("csv"));
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToXLSX = () => {
+    const rows = buildExportRows(filteredData);
+    const sheetData = [Array.from(EXPORT_HEADERS), ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // Compute and set column widths so Excel shows data properly
+    try {
+      const cols = sheetData[0].map((_, colIndex) => {
+        let maxLen = 10;
+        for (let r = 0; r < sheetData.length; r++) {
+          const cell = sheetData[r][colIndex];
+          const str = cell == null ? "" : String(cell);
+          // approximate width using character count, give some padding
+          maxLen = Math.max(maxLen, str.length);
+        }
+        // cap width to a reasonable max to avoid extremely wide columns
+        return { wch: Math.min(50, maxLen + 5) };
+      });
+
+      (ws as any)["!cols"] = cols;
+    } catch (e) {
+      // If anything goes wrong, fall back to default sheet without widths
+      console.warn("Failed to set column widths for XLSX export", e);
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pune SoSC Expenses");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = getExportFileName("xlsx");
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = () => {
+    if (filteredData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+    exportToCSV();
+    setShowExportModal(false);
+    toast.success(`Exported ${filteredData.length} expenses as CSV`);
+  };
+
+  const handleExportXLSX = () => {
+    if (filteredData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+    exportToXLSX();
+    setShowExportModal(false);
+    toast.success(`Exported ${filteredData.length} expenses as Excel`);
+  };
 
   // Chart data for categories: respect time range and other filters but NOT the expenseType filter.
   const categoryChartData = useMemo(() => {
@@ -493,30 +619,42 @@ export default function PuneSoSCDashboard() {
             Pune SoSC Dashboard Overview
           </h1>
         </div>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between w-full overflow-hidden">
+        <div className="flex w-full flex-col gap-4 overflow-hidden md:flex-row md:items-center md:justify-between">
           <p className="min-w-0 flex-1 whitespace-nowrap text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{filteredData.length} expenses</span>
             <span> across </span>
             <span className="font-semibold text-foreground">{uniquePeopleCount} people</span>
           </p>
-          <div className="inline-flex shrink-0 items-center rounded-xl border bg-background p-1 md:shrink-0">
-            {QUICK_RANGE_OPTIONS.map((option) => {
-              const isActive = quickRange === option.value;
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto md:shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowExportModal(true)}
+              disabled={loading || filteredData.length === 0}
+              className="cursor-pointer rounded-xl px-5 py-5 sm:w-auto"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+            <div className="inline-flex w-full shrink-0 items-center justify-between gap-1 rounded-xl border bg-background p-1 sm:w-auto sm:justify-start md:shrink-0">
+              {QUICK_RANGE_OPTIONS.map((option) => {
+                const isActive = quickRange === option.value;
 
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setQuickRange(option.value)}
-                  className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${isActive
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:text-foreground"
-                    }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setQuickRange(option.value)}
+                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${isActive
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -988,6 +1126,25 @@ export default function PuneSoSCDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choose export format</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Export {filteredData.length} expense{filteredData.length === 1 ? "" : "s"} matching your current filters.
+          </p>
+          <DialogFooter className="mt-4 flex gap-2 sm:justify-start">
+            <Button onClick={handleExportCSV} className="cursor-pointer">
+              CSV
+            </Button>
+            <Button onClick={handleExportXLSX} variant="secondary" className="cursor-pointer">
+              Microsoft Excel (.xlsx)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
