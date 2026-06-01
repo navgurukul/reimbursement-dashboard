@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -48,6 +48,64 @@ import {
 import { Pagination, usePagination } from "@/components/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
+const formatCurrency = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined || Number.isNaN(amount)) return "N/A";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount);
+};
+
+const calculateTdsAmount = (
+  baseAmount: number | null | undefined,
+  percentage: number | null | undefined
+) => {
+  if (!percentage || baseAmount === null || baseAmount === undefined) return null;
+  const amount = (Number(baseAmount) * percentage) / 100;
+  return Number(amount.toFixed(2));
+};
+
+const calculateActualAmount = (
+  baseAmount: number | null | undefined,
+  tdsAmount: number | null | undefined,
+  securityDepositAmount: number | null | undefined
+) => {
+  if (baseAmount === null || baseAmount === undefined) return null;
+  const amount = Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
+  return Number(amount.toFixed(2));
+};
+
+const toDateOnly = (value?: string | Date | null) => {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatDateForInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatDateForFileName = (date: Date | string | null | undefined) => {
+  if (!date) return "";
+
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) return "";
+
+  const day = `${value.getDate()}`.padStart(2, "0");
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const year = value.getFullYear();
+  return `${day}-${month}-${year}`;
+};
 
 export default function AdvancePaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -76,11 +134,19 @@ export default function AdvancePaymentRecords() {
     startDate: "",
     endDate: "",
     dateMode: "All Dates",
-    minAmount: 0,
-    maxAmount: 0,
+    paidStartDate: "",
+    paidEndDate: "",
+    paidDateMode: "All Dates",
+    minAmount: "",
+    maxAmount: "",
+    actualMinAmount: "",
+    actualMaxAmount: "",
+    tdsDeduction: "All TDS Deductions",
+    securityDeposit: "All Security Deposits",
   });
 
   const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
+  const [actualAmountBounds, setActualAmountBounds] = useState({ min: 0, max: 0 });
   const [filterOpen, setFilterOpen] = useState(false);
   const [eventTitleLookup, setEventTitleLookup] = useState<
     Record<string, string>
@@ -226,6 +292,24 @@ export default function AdvancePaymentRecords() {
   // Export state
   const [showExportModal, setShowExportModal] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
+  const [showExportBankModal, setShowExportBankModal] = useState(false);
+  const [showExportDateModal, setShowExportDateModal] = useState(false);
+  const [showQuickExportModal, setShowQuickExportModal] = useState(false);
+  const [quickExportMode, setQuickExportMode] = useState<"weekly" | "monthly">("weekly");
+  const [quickExportDate, setQuickExportDate] = useState("");
+  const [exportLocationFilter, setExportLocationFilter] = useState("All Locations");
+  const [quickExportLocation, setQuickExportLocation] = useState("All Locations");
+  const [exportRangeLabel, setExportRangeLabel] = useState<"" | "Weekly" | "Monthly">("");
+  const [exportDateRangeLabel, setExportDateRangeLabel] = useState("");
+  const [exportDateFilters, setExportDateFilters] = useState({
+    expenseDateMode: "All Dates",
+    expenseStartDate: "",
+    expenseEndDate: "",
+    paidDateMode: "All Dates",
+    paidStartDate: "",
+    paidEndDate: "",
+  });
+  const [exportBankType, setExportBankType] = useState<"ALL_RECORDS" | "NGIDFC Current" | "FCIDFC Current" | "KOTAK" | "NO_BANK" | "">("");
 
   const allColumns = [
     "Timestamp",
@@ -235,6 +319,9 @@ export default function AdvancePaymentRecords() {
     "Event Name",
     "Location",
     "Amount",
+    "TDS Deduction",
+    "Security Deposit",
+    "Actual Amount",
     "Date of Expense",
     "Status",
     "UTR",
@@ -247,6 +334,201 @@ export default function AdvancePaymentRecords() {
   ]);
 
   const ADMIN_PASSWORD = "admin"; // your password
+
+  const getBaseAmount = (record: any) =>
+    Number(record.approved_amount ?? record.amount ?? 0);
+
+  const getTdsAmount = (record: any) => {
+    const storedAmount = record.tds_deduction_amount;
+    if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
+      return Number(storedAmount);
+    }
+
+    const percentage = Number(record.tds_deduction_percentage ?? 0);
+    if (!percentage) return null;
+
+    return calculateTdsAmount(getBaseAmount(record), percentage);
+  };
+
+  const getSecurityDepositAmount = (record: any) => {
+    const amount = record.security_deposit_amount;
+    if (amount === null || amount === undefined || amount === "") {
+      return null;
+    }
+
+    return Number(amount);
+  };
+
+  const hasTdsDeduction = (record: any) => {
+    const storedAmount = record.tds_deduction_amount;
+    if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
+      return true;
+    }
+    return Number(record.tds_deduction_percentage ?? 0) > 0;
+  };
+
+  const getTdsDeductionOptionValue = (record: any) => {
+    if (!hasTdsDeduction(record)) return "N/A";
+    const percentage = Number(record.tds_deduction_percentage ?? 0);
+    const amount = getTdsAmount(record) ?? 0;
+    return `${percentage}|${Number(amount).toFixed(2)}`;
+  };
+
+  const formatTdsDeductionOptionLabel = (optionValue: string) => {
+    if (optionValue === "N/A") return "N/A";
+    const [percentageText, amountText] = optionValue.split("|");
+    const percentage = Number(percentageText);
+    const amount = Number(amountText);
+    const percentageLabel = Number.isFinite(percentage) && percentage > 0 ? `${percentage}%` : "—";
+    return `${percentageLabel} (${formatCurrency(amount)})`;
+  };
+
+  const hasSecurityDeposit = (record: any) => {
+    const amount = record.security_deposit_amount;
+    return !(amount === null || amount === undefined || amount === "");
+  };
+
+  const activeTabRecords = React.useMemo(() => {
+    if (activeTab === "ngidfc") return records.filter(r => (r.paid_by_bank || "").includes("NGIDFC"));
+    if (activeTab === "fcidfc") return records.filter(r => (r.paid_by_bank || "").includes("FCIDFC"));
+    if (activeTab === "kotak") return records.filter(r => (r.paid_by_bank || "").includes("KOTAK"));
+    return records;
+  }, [records, activeTab]);
+
+  const tdsDeductionOptions = React.useMemo(() =>
+    Array.from(new Set(activeTabRecords.map((r: any) => getTdsDeductionOptionValue(r)))).sort((a, b) => {
+      if (a === "N/A") return 1;
+      if (b === "N/A") return -1;
+      const [aP, aA] = a.split("|");
+      const [bP, bA] = b.split("|");
+      const pDiff = Number(aP) - Number(bP);
+      if (pDiff !== 0) return pDiff;
+      return Number(aA) - Number(bA);
+    }), [activeTabRecords]);
+
+  const securityDepositOptions = React.useMemo(() =>
+    Array.from(new Set(activeTabRecords.map((r: any) => (hasSecurityDeposit(r) ? String(getSecurityDepositAmount(r)) : "N/A")))).sort((a, b) => {
+      if (a === "N/A") return 1;
+      if (b === "N/A") return -1;
+      return Number(a) - Number(b);
+    }), [activeTabRecords]);
+
+  const quickExportLocationOptions = useMemo(() => {
+    const locations = new Set<string>();
+
+    filteredRecords.forEach((record) => {
+      const location = (record.location || "").trim();
+      if (location) locations.add(location);
+    });
+
+    return Array.from(locations).sort((a, b) => a.localeCompare(b));
+  }, [filteredRecords]);
+
+  const quickExpenseDateOptions = useMemo(() => {
+    const uniqueDates = new Set<string>();
+
+    filteredRecords.forEach((record) => {
+      if (
+        quickExportLocation !== "All Locations" &&
+        (record.location || "") !== quickExportLocation
+      ) {
+        return;
+      }
+
+      const dateOnly = toDateOnly(record.date);
+      if (dateOnly) uniqueDates.add(dateOnly);
+    });
+
+    return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
+  }, [filteredRecords, quickExportLocation]);
+
+  const weeklyExpenseOptions = useMemo(() => {
+    const weeks = new Map<
+      string,
+      {
+        start: Date;
+        end: Date;
+      }
+    >();
+
+    quickExpenseDateOptions.forEach((dateStr) => {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return;
+
+      const day = d.getDay(); // 0 (Sun) - 6 (Sat)
+      const diffToMonday = (day + 6) % 7;
+
+      const start = new Date(d);
+      start.setDate(d.getDate() - diffToMonday);
+
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+
+      const key = `${start.toISOString().slice(0, 10)}|${end.toISOString().slice(0, 10)}`;
+      if (!weeks.has(key)) {
+        weeks.set(key, { start, end });
+      }
+    });
+
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+    return Array.from(weeks.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([value, { start, end }]) => ({
+        value,
+        label: `${formatter.format(start)} - ${formatter.format(end)}`,
+      }));
+  }, [quickExpenseDateOptions]);
+
+  const monthlyExpenseOptions = useMemo(() => {
+    const months = new Set<string>();
+
+    quickExpenseDateOptions.forEach((dateStr) => {
+      if (!dateStr) return;
+      const [year, month] = dateStr.split("-");
+      if (!year || !month) return;
+      months.add(`${year}-${month}`);
+    });
+
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+      month: "long",
+      year: "numeric",
+    });
+
+    return Array.from(months)
+      .sort((a, b) => a.localeCompare(b))
+      .map((value) => {
+        const [yearStr, monthStr] = value.split("-");
+        const year = Number(yearStr);
+        const monthIndex = Number(monthStr) - 1;
+        const date = new Date(year, monthIndex, 1);
+        return {
+          value,
+          label: formatter.format(date),
+        };
+      });
+  }, [quickExpenseDateOptions]);
+
+  useEffect(() => {
+    setQuickExportDate("");
+  }, [quickExportMode, quickExportLocation]);
+
+  const getActualAmount = (record: any) => {
+    const stored = record.actual_amount;
+    if (stored !== null && stored !== undefined && stored !== "") {
+      return Number(stored);
+    }
+
+    return calculateActualAmount(
+      getBaseAmount(record),
+      getTdsAmount(record),
+      getSecurityDepositAmount(record)
+    );
+  };
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -387,18 +669,28 @@ export default function AdvancePaymentRecords() {
           });
 
           // compute amount bounds
-          const amounts = enriched.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
+          const amounts = enriched.map((r: any) => getBaseAmount(r));
+          const actualAmounts = enriched
+            .map((r: any) => getActualAmount(r))
+            .filter((amount: number | null): amount is number => amount !== null);
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
+          const actualMin = actualAmounts.length ? Math.min(...actualAmounts) : 0;
+          const actualMax = actualAmounts.length ? Math.max(...actualAmounts) : 0;
 
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
           setAmountBounds({ min, max });
+          setActualAmountBounds({ min: actualMin, max: actualMax });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
+          setFilters((prev) => ({
+            ...prev,
+            minAmount: "",
+            maxAmount: "",
+            actualMinAmount: "",
+            actualMaxAmount: "",
+          }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
           const fallback = sortByMarkedAsAdvanceTime(
@@ -417,18 +709,28 @@ export default function AdvancePaymentRecords() {
                 : index + 1,
             };
           });
-          const amounts = fallback.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
+          const amounts = fallback.map((r: any) => getBaseAmount(r));
+          const actualAmounts = fallback
+            .map((r: any) => getActualAmount(r))
+            .filter((amount: number | null): amount is number => amount !== null);
           const min = amounts.length ? Math.min(...amounts) : 0;
           const max = amounts.length ? Math.max(...amounts) : 0;
+          const actualMin = actualAmounts.length ? Math.min(...actualAmounts) : 0;
+          const actualMax = actualAmounts.length ? Math.max(...actualAmounts) : 0;
 
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
           setAmountBounds({ min, max });
+          setActualAmountBounds({ min: actualMin, max: actualMax });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
+          setFilters((prev) => ({
+            ...prev,
+            minAmount: "",
+            maxAmount: "",
+            actualMinAmount: "",
+            actualMaxAmount: "",
+          }));
         }
       } catch (err: any) {
         toast.error("Failed to load advance payment records", { description: err.message });
@@ -459,6 +761,106 @@ export default function AdvancePaymentRecords() {
   const bankOptions = Array.from(
     new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
   );
+  const paidDateFilterOptions = Array.from(
+    new Set(
+      activeTabRecords
+        .map((r: any) => {
+          if (!r.paid_approval_time) return null;
+          const date = new Date(r.paid_approval_time);
+          if (Number.isNaN(date.getTime())) return null;
+          const year = date.getFullYear();
+          const month = `${date.getMonth() + 1}`.padStart(2, "0");
+          const day = `${date.getDate()}`.padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        })
+        .filter((x): x is string => Boolean(x))
+    )
+  ).sort((a, b) => b.localeCompare(a));
+  const baseExportRecords = (() => {
+    if (!exportBankType) return filteredRecords;
+    if (exportBankType === "ALL_RECORDS") return filteredRecords;
+    if (exportBankType === "NO_BANK") return filteredRecords.filter((r: any) => !(r.paid_by_bank || "").trim());
+    return filteredRecords.filter((r: any) => (r.paid_by_bank || "") === exportBankType);
+  })();
+
+  const expenseDateOptions: string[] = Array.from(
+    new Set(
+      baseExportRecords
+        .map((r: any) => (r.date ? new Date(r.date).toISOString().slice(0, 10) : null))
+        .filter((x): x is string => Boolean(x))
+    )
+  ).sort();
+  const paidDateOptions: string[] = Array.from(
+    new Set(
+      baseExportRecords
+        .map((r: any) => (r.paid_approval_time ? new Date(r.paid_approval_time).toISOString().slice(0, 10) : null))
+        .filter((x): x is string => Boolean(x))
+    )
+  ).sort();
+
+  const formatDateForDisplay = (d: string) => {
+    try {
+      return new Date(d).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return d;
+    }
+  };
+
+  const sanitize = (s: string) => String(s || "").replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_\-]/g, "");
+
+  const buildExportFileName = (ext: string) => {
+    // For quick export (weekly/monthly), use special format
+    if (exportRangeLabel && exportDateRangeLabel) {
+      const label = exportRangeLabel.toLowerCase();
+      // Sanitize location name (replace spaces with underscores)
+      const locationPart = exportLocationFilter !== "All Locations" 
+        ? sanitize(exportLocationFilter).toLowerCase() 
+        : "all_projects";
+      return `${label}_advance_payment_record_${locationPart}_${exportDateRangeLabel}.${ext}`;
+    }
+    
+    // For regular export
+    const timestamp = formatDateForFileName(new Date());
+    
+    const bankPart = (() => {
+      if (!exportBankType) return "";
+      if (exportBankType === "ALL_RECORDS") return "All_Records";
+      if (exportBankType === "NO_BANK") return "No_Bank";
+      return sanitize(exportBankType);
+    })();
+
+    const expensePart = (() => {
+      const m = exportDateFilters.expenseDateMode;
+      if (m === "All Dates") return "";
+      if (m === "Single Date") return `DateofExpense_${formatDateForFileName(exportDateFilters.expenseStartDate)}`;
+      if (m === "Custom Date") return `DateofExpense_${formatDateForFileName(exportDateFilters.expenseStartDate)}_to_${formatDateForFileName(exportDateFilters.expenseEndDate)}`;
+      return "";
+    })();
+
+    const paidPart = (() => {
+      const m = exportDateFilters.paidDateMode;
+      if (m === "All Dates") return "";
+      if (m === "Single Date") return `PaidDate_${formatDateForFileName(exportDateFilters.paidStartDate)}`;
+      if (m === "Custom Date") return `PaidDate_${formatDateForFileName(exportDateFilters.paidStartDate)}_to_${formatDateForFileName(exportDateFilters.paidEndDate)}`;
+      return "";
+    })();
+
+    const dateParts = [expensePart, paidPart].filter(Boolean);
+    const dateScopePart = dateParts.length ? dateParts.join("_") : "all_dates";
+
+    const parts = [
+      bankPart,
+      "advance-payment",
+      dateScopePart,
+      timestamp,
+    ].filter((p) => p !== "");
+    
+    return `${parts.join("_")}.${ext}`;
+  };
   const utrValues = Array.from(
     new Set(
       (filters.uniqueId && filters.uniqueId !== "All Unique IDs"
@@ -529,11 +931,74 @@ export default function AdvancePaymentRecords() {
         end.setHours(23, 59, 59, 999);
         if (recDate > end) return false;
       }
-      const amt = Number(r.approved_amount) || 0;
-      if (filters.minAmount !== null && amt < Number(filters.minAmount))
+      const paidApprovalDate = r.paid_approval_time
+        ? new Date(r.paid_approval_time)
+        : null;
+      if (filters.paidDateMode === "Single Date" && filters.paidStartDate) {
+        const start = new Date(filters.paidStartDate);
+        const end = new Date(filters.paidStartDate);
+        end.setHours(23, 59, 59, 999);
+        if (!paidApprovalDate || Number.isNaN(paidApprovalDate.getTime()))
+          return false;
+        if (paidApprovalDate < start || paidApprovalDate > end) return false;
+      }
+      if (filters.paidDateMode === "Custom Date") {
+        if (!paidApprovalDate || Number.isNaN(paidApprovalDate.getTime()))
+          return false;
+        if (filters.paidStartDate) {
+          const start = new Date(filters.paidStartDate);
+          if (paidApprovalDate < start) return false;
+        }
+        if (filters.paidEndDate) {
+          const end = new Date(filters.paidEndDate);
+          end.setHours(23, 59, 59, 999);
+          if (paidApprovalDate > end) return false;
+        }
+      }
+      const amt = getBaseAmount(r);
+      if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
-      if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
+      if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
         return false;
+
+      const actualAmt = getActualAmount(r);
+      if (
+        filters.actualMinAmount !== "" &&
+        actualAmt !== null &&
+        actualAmt < Number(filters.actualMinAmount)
+      )
+        return false;
+      if (
+        filters.actualMaxAmount !== "" &&
+        actualAmt !== null &&
+        actualAmt > Number(filters.actualMaxAmount)
+      )
+        return false;
+
+      // TDS Deduction filter: option values generated from records (e.g. "N/A" or "10|25.00")
+      if (
+        filters.tdsDeduction &&
+        filters.tdsDeduction !== "All TDS Deductions"
+      ) {
+        if (filters.tdsDeduction === "N/A") {
+          if (hasTdsDeduction(r)) return false;
+        } else {
+          if (getTdsDeductionOptionValue(r) !== filters.tdsDeduction) return false;
+        }
+      }
+
+      // Security Deposit filter: string amounts or "N/A"
+      if (
+        filters.securityDeposit &&
+        filters.securityDeposit !== "All Security Deposits"
+      ) {
+        if (filters.securityDeposit === "N/A") {
+          if (hasSecurityDeposit(r)) return false;
+        } else {
+          const sec = getSecurityDepositAmount(r);
+          if (String(sec) !== filters.securityDeposit) return false;
+        }
+      }
 
       return true;
     });
@@ -577,8 +1042,15 @@ export default function AdvancePaymentRecords() {
       dateMode: "All Dates",
       startDate: "",
       endDate: "",
-      minAmount: amountBounds.min,
-      maxAmount: amountBounds.max,
+      paidDateMode: "All Dates",
+      paidStartDate: "",
+      paidEndDate: "",
+      minAmount: "",
+      maxAmount: "",
+      actualMinAmount: "",
+      actualMaxAmount: "",
+      tdsDeduction: "All TDS Deductions",
+      securityDeposit: "All Security Deposits",
     }));
 
     let tabFiltered = records;
@@ -671,7 +1143,57 @@ export default function AdvancePaymentRecords() {
   const exportToCSV = () => {
     const headers = selectedColumns;
 
-    const rows = filteredRecords.map((record) => {
+    const baseRecords = exportBankType === ""
+      ? filteredRecords
+      : exportBankType === "ALL_RECORDS"
+        ? filteredRecords
+        : exportBankType === "NO_BANK"
+          ? filteredRecords.filter((r) => !(r.paid_by_bank || "").trim())
+          : filteredRecords.filter((r) => (r.paid_by_bank || "") === exportBankType);
+
+    const applyDateFilters = (rec: any) => {
+      // Apply location filter if specified
+      if (exportLocationFilter !== "All Locations" && (rec.location || "") !== exportLocationFilter) {
+        return false;
+      }
+      const toYMD = (dt: any) => {
+        if (!dt) return null;
+        try {
+          return new Date(dt).toISOString().slice(0, 10);
+        } catch {
+          return null;
+        }
+      };
+
+      const expenseYmd = toYMD(rec.date);
+      const paidYmd = toYMD(rec.paid_approval_time);
+
+      const edMode = exportDateFilters.expenseDateMode;
+      if (edMode === "Single Date") {
+        if (!exportDateFilters.expenseStartDate) return false;
+        if (expenseYmd !== exportDateFilters.expenseStartDate) return false;
+      } else if (edMode === "Custom Date") {
+        if (!exportDateFilters.expenseStartDate || !exportDateFilters.expenseEndDate) return false;
+        if (!expenseYmd) return false;
+        if (expenseYmd < exportDateFilters.expenseStartDate || expenseYmd > exportDateFilters.expenseEndDate) return false;
+      }
+
+      const pdMode = exportDateFilters.paidDateMode;
+      if (pdMode === "Single Date") {
+        if (!exportDateFilters.paidStartDate) return false;
+        if (paidYmd !== exportDateFilters.paidStartDate) return false;
+      } else if (pdMode === "Custom Date") {
+        if (!exportDateFilters.paidStartDate || !exportDateFilters.paidEndDate) return false;
+        if (!paidYmd) return false;
+        if (paidYmd < exportDateFilters.paidStartDate || paidYmd > exportDateFilters.paidEndDate) return false;
+      }
+
+      return true;
+    };
+
+    const filteredByDate = baseRecords.filter(applyDateFilters);
+
+    const rows = filteredByDate.map((record) => {
       const row: any[] = [];
 
       for (const col of headers) {
@@ -697,6 +1219,32 @@ export default function AdvancePaymentRecords() {
           case "Amount":
             row.push(record.approved_amount || record.amount || "—");
             break;
+          case "TDS Deduction": {
+            const tdsAmount = getTdsAmount(record);
+            const percentage = Number(record.tds_deduction_percentage ?? 0);
+            row.push(
+              percentage && tdsAmount !== null
+                ? `${percentage}% (${formatCurrency(tdsAmount)})`
+                : tdsAmount !== null
+                  ? formatCurrency(tdsAmount)
+                  : "N/A"
+            );
+            break;
+          }
+          case "Security Deposit": {
+            const securityDepositAmount = getSecurityDepositAmount(record);
+            row.push(
+              securityDepositAmount !== null
+                ? formatCurrency(securityDepositAmount)
+                : "N/A"
+            );
+            break;
+          }
+          case "Actual Amount": {
+            const actualAmount = getActualAmount(record);
+            row.push(actualAmount !== null ? formatCurrency(actualAmount) : "N/A");
+            break;
+          }
           case "Date of Expense":
             row.push(
               record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
@@ -746,7 +1294,7 @@ export default function AdvancePaymentRecords() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "advance_payment_records.csv");
+    link.setAttribute("download", buildExportFileName("csv"));
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -754,7 +1302,57 @@ export default function AdvancePaymentRecords() {
   const exportToXLSX = () => {
     const headers = selectedColumns;
 
-    const rows = filteredRecords.map((record) => {
+    const baseRecords = exportBankType === ""
+      ? filteredRecords
+      : exportBankType === "ALL_RECORDS"
+        ? filteredRecords
+        : exportBankType === "NO_BANK"
+          ? filteredRecords.filter((r) => !(r.paid_by_bank || "").trim())
+          : filteredRecords.filter((r) => (r.paid_by_bank || "") === exportBankType);
+
+    const toYMD = (dt: any) => {
+      if (!dt) return null;
+      try {
+        return new Date(dt).toISOString().slice(0, 10);
+      } catch {
+        return null;
+      }
+    };
+
+    const applyDateFilters = (rec: any) => {
+      // Apply location filter if specified
+      if (exportLocationFilter !== "All Locations" && (rec.location || "") !== exportLocationFilter) {
+        return false;
+      }
+      const expenseYmd = toYMD(rec.date);
+      const paidYmd = toYMD(rec.paid_approval_time);
+
+      const edMode = exportDateFilters.expenseDateMode;
+      if (edMode === "Single Date") {
+        if (!exportDateFilters.expenseStartDate) return false;
+        if (expenseYmd !== exportDateFilters.expenseStartDate) return false;
+      } else if (edMode === "Custom Date") {
+        if (!exportDateFilters.expenseStartDate || !exportDateFilters.expenseEndDate) return false;
+        if (!expenseYmd) return false;
+        if (expenseYmd < exportDateFilters.expenseStartDate || expenseYmd > exportDateFilters.expenseEndDate) return false;
+      }
+
+      const pdMode = exportDateFilters.paidDateMode;
+      if (pdMode === "Single Date") {
+        if (!exportDateFilters.paidStartDate) return false;
+        if (paidYmd !== exportDateFilters.paidStartDate) return false;
+      } else if (pdMode === "Custom Date") {
+        if (!exportDateFilters.paidStartDate || !exportDateFilters.paidEndDate) return false;
+        if (!paidYmd) return false;
+        if (paidYmd < exportDateFilters.paidStartDate || paidYmd > exportDateFilters.paidEndDate) return false;
+      }
+
+      return true;
+    };
+
+    const filteredByDate = baseRecords.filter(applyDateFilters);
+
+    const rows = filteredByDate.map((record) => {
       const row: any[] = [];
 
       for (const col of headers) {
@@ -777,6 +1375,32 @@ export default function AdvancePaymentRecords() {
           case "Amount":
             row.push(record.approved_amount || record.amount || "—");
             break;
+          case "TDS Deduction": {
+            const tdsAmount = getTdsAmount(record);
+            const percentage = Number(record.tds_deduction_percentage ?? 0);
+            row.push(
+              percentage && tdsAmount !== null
+                ? `${percentage}% (${formatCurrency(tdsAmount)})`
+                : tdsAmount !== null
+                  ? formatCurrency(tdsAmount)
+                  : "N/A"
+            );
+            break;
+          }
+          case "Security Deposit": {
+            const securityDepositAmount = getSecurityDepositAmount(record);
+            row.push(
+              securityDepositAmount !== null
+                ? formatCurrency(securityDepositAmount)
+                : "N/A"
+            );
+            break;
+          }
+          case "Actual Amount": {
+            const actualAmount = getActualAmount(record);
+            row.push(actualAmount !== null ? formatCurrency(actualAmount) : "N/A");
+            break;
+          }
           case "Date of Expense":
             row.push(
               record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—"
@@ -830,7 +1454,7 @@ export default function AdvancePaymentRecords() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "advance_payment_records.xlsx";
+    link.download = buildExportFileName("xlsx");
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -838,40 +1462,135 @@ export default function AdvancePaymentRecords() {
   const handleExportXLSX = () => {
     exportToXLSX();
     setShowFormatModal(false);
+    setExportLocationFilter("All Locations");
+    setExportRangeLabel("");
+    setExportDateRangeLabel("");
   };
 
   const handleExportCSV = () => {
     exportToCSV();
     setShowFormatModal(false);
+    setExportLocationFilter("All Locations");
+    setExportRangeLabel("");
+    setExportDateRangeLabel("");
+  };
+
+  const handleQuickExportConfirm = () => {
+    if (!quickExportDate) return;
+
+    let startDate: Date;
+    let endDate: Date;
+    let dateRangeLabel = "";
+
+    if (quickExportMode === "weekly") {
+      const [startStr, endStr] = quickExportDate.split("|");
+      if (!startStr || !endStr) return;
+      startDate = new Date(startStr);
+      endDate = new Date(endStr);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
+      
+      // Format: 02_Mar_2026-08_Mar_2026 (start and end both shown)
+      const formatter = new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      const startFormatted = formatter.format(startDate).replace(/ /g, "_");
+      const endFormatted = formatter.format(endDate).replace(/ /g, "_");
+      dateRangeLabel = `${startFormatted}_To_${endFormatted}`;
+    } else {
+      const [yearStr, monthStr] = quickExportDate.split("-");
+      if (!yearStr || !monthStr) return;
+      const year = Number(yearStr);
+      const monthIndex = Number(monthStr) - 1;
+      if (Number.isNaN(year) || Number.isNaN(monthIndex)) return;
+      startDate = new Date(year, monthIndex, 1);
+      endDate = new Date(year, monthIndex + 1, 0);
+      
+      // Format: January_2026
+      const formatter = new Intl.DateTimeFormat("en-GB", {
+        month: "long",
+        year: "numeric",
+      });
+      dateRangeLabel = formatter.format(startDate).replace(/ /g, "_");
+    }
+
+    // Set export bank type based on the currently active tab
+    if (activeTab === "all") {
+      setExportBankType("ALL_RECORDS");
+    } else {
+      const bankMap = {
+        ngidfc: "NGIDFC Current" as const,
+        fcidfc: "FCIDFC Current" as const,
+        kotak: "KOTAK" as const,
+      };
+      setExportBankType(bankMap[activeTab as keyof typeof bankMap] || "ALL_RECORDS");
+    }
+
+    // Label for file name based on quick export type
+    setExportRangeLabel(quickExportMode === "weekly" ? "Weekly" : "Monthly");
+    setExportDateRangeLabel(dateRangeLabel);
+    setExportLocationFilter(quickExportLocation);
+
+    // Pre-fill export date filters based on Date of Expense
+    setExportDateFilters((prev) => ({
+      ...prev,
+      expenseDateMode: "Custom Date",
+      expenseStartDate: formatDateForInput(startDate),
+      expenseEndDate: formatDateForInput(endDate),
+      paidDateMode: "All Dates",
+      paidStartDate: "",
+      paidEndDate: "",
+    }));
+
+    setShowQuickExportModal(false);
+    setShowExportBankModal(false);
+    setShowExportDateModal(false);
+    setShowFormatModal(true);
   };
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold flex flex-col sm:flex-row sm:items-center justify-start">Advance Payment Records</h1>
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="bg-muted rounded-lg">
-            <TabsTrigger value="all" className="cursor-pointer">All Expense</TabsTrigger>
-            <TabsTrigger value="ngidfc" className="cursor-pointer">NGIDFC Record</TabsTrigger>
-            <TabsTrigger value="fcidfc" className="cursor-pointer">FCIDFC Records</TabsTrigger>
-            <TabsTrigger value="kotak" className="cursor-pointer">KOTAK Records</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="w-full overflow-x-auto lg:w-auto">
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className="bg-muted rounded-lg w-max min-w-max">
+              <TabsTrigger value="all" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">All Expense</TabsTrigger>
+              <TabsTrigger value="ngidfc" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">NGIDFC Record</TabsTrigger>
+              <TabsTrigger value="fcidfc" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">FCIDFC Records</TabsTrigger>
+              <TabsTrigger value="kotak" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">KOTAK Records</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap gap-2 lg:w-auto">
           <Button
-            onClick={() => setShowExportModal(true)}
+            onClick={() => setShowExportBankModal(true)}
             variant="outline"
-            className="flex items-center gap-2"
+            className="flex w-full items-center gap-2 sm:w-auto"
           >
             <Download className="w-4 h-4" />
             Export
           </Button>
           <Button
+            onClick={() => {
+              setQuickExportMode("weekly");
+              setQuickExportLocation("All Locations");
+              setQuickExportDate("");
+              setShowQuickExportModal(true);
+            }}
+            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+            variant="outline"
+          >
+            <Download className="w-4 h-4" />
+            Weekly / Monthly
+          </Button>
+          <Button
             variant="outline"
             onClick={() => setFilterOpen((s) => !s)}
-            className="flex items-center gap-2"
+            className="flex w-full items-center gap-2 sm:w-auto"
           >
             <Filter className="w-4 h-4" />
             Filters
@@ -882,7 +1601,7 @@ export default function AdvancePaymentRecords() {
       {/* Filter panel */}
       {filterOpen && (
         <div className="p-4 rounded-md border shadow-sm bg-white">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Expense Type</label>
               <select
@@ -1008,28 +1727,8 @@ export default function AdvancePaymentRecords() {
               </div>
             )}
 
-            {utrValues.length > 0 && (
-              <div className="col-span-3 sm:col-span-1">
-                <label className="text-sm font-medium">UTR</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2"
-                  value={filters.utr}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, utr: e.target.value }))
-                  }
-                >
-                  <option value="All UTRs">All UTRs</option>
-                  {utrValues.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Date</label>
+              <label className="text-sm font-medium">Date of expense</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2"
                 value={filters.dateMode}
@@ -1105,33 +1804,200 @@ export default function AdvancePaymentRecords() {
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Min</label>
-              <input
-                type="number"
+              <label className="text-sm font-medium">Paid date</label>
+              <select
                 className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.minAmount}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    minAmount: Number(e.target.value),
-                  }))
-                }
-              />
+                value={filters.paidDateMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setFilters((f) => {
+                    if (mode === "All Dates")
+                      return {
+                        ...f,
+                        paidDateMode: mode,
+                        paidStartDate: "",
+                        paidEndDate: "",
+                      };
+                    if (mode === "Single Date")
+                      return {
+                        ...f,
+                        paidDateMode: mode,
+                        paidStartDate: f.paidStartDate || "",
+                        paidEndDate: f.paidStartDate || "",
+                      };
+                    return { ...f, paidDateMode: mode };
+                  });
+                }}
+              >
+                <option>All Dates</option>
+                <option>Single Date</option>
+                <option>Custom Date</option>
+              </select>
+
+              <div className="mt-2">
+                {filters.paidDateMode === "Single Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Select Date</label>
+                    <select
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidStartDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({
+                          ...f,
+                          paidStartDate: e.target.value,
+                          paidEndDate: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Select Paid Date</option>
+                      {paidDateFilterOptions.map((date) => (
+                        <option key={date} value={date}>
+                          {formatDateForDisplay(date)}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : filters.paidDateMode === "Custom Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Start Date</label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidStartDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, paidStartDate: e.target.value }))
+                      }
+                    />
+                    <label className="text-sm font-medium mt-2 block">
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full border rounded px-3 py-2"
+                      value={filters.paidEndDate}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, paidEndDate: e.target.value }))
+                      }
+                    />
+                  </>
+                ) : null}
+              </div>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Max</label>
-              <input
-                type="number"
+              <label className="text-sm font-medium">TDS Deduction</label>
+              <select
                 className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.maxAmount}
+                value={filters.tdsDeduction}
                 onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    maxAmount: Number(e.target.value),
-                  }))
+                  setFilters((f) => ({ ...f, tdsDeduction: e.target.value }))
                 }
-              />
+              >
+                <option>All TDS Deductions</option>
+                {tdsDeductionOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {formatTdsDeductionOptionLabel(opt)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Security Deposit</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2"
+                value={filters.securityDeposit}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, securityDeposit: e.target.value }))
+                }
+              >
+                <option>All Security Deposits</option>
+                {securityDepositOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt === "N/A" ? "N/A" : formatCurrency(Number(opt))}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {utrValues.length > 0 && (
+              <div className="col-span-3 sm:col-span-1">
+                <label className="text-sm font-medium">UTR</label>
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2"
+                  value={filters.utr}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, utr: e.target.value }))
+                  }
+                >
+                  <option value="All UTRs">All UTRs</option>
+                  {utrValues.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.minAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.maxAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Actual Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.actualMinAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      actualMinAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className="block w-full border rounded px-3 py-2"
+                  value={filters.actualMaxAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      actualMaxAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-3">
@@ -1160,6 +2026,9 @@ export default function AdvancePaymentRecords() {
               <TableHead className="text-center py-3">Event Name</TableHead>
               <TableHead className="text-center py-3">Project of Expense</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
+              <TableHead className="text-center py-3">TDS Deduction</TableHead>
+              <TableHead className="text-center py-3">Security Deposit</TableHead>
+              <TableHead className="text-center py-3">Actual Amount</TableHead>
               <TableHead className="text-center py-3">Bills</TableHead>
               <TableHead className="text-center py-3">Date of expense</TableHead>
               <TableHead className="text-center py-3">Status</TableHead>
@@ -1212,11 +2081,11 @@ export default function AdvancePaymentRecords() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={16} rows={5} />
+              <TableSkeleton colSpan={19} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={16}
+                  colSpan={19}
                   className="text-center py-12 text-gray-500"
                 >
                   <div className="flex flex-col items-center gap-2">
@@ -1262,6 +2131,45 @@ export default function AdvancePaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     ₹{record.approved_amount}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const tdsAmount = getTdsAmount(record);
+                      const percentage = Number(record.tds_deduction_percentage ?? 0);
+
+                      if (percentage && tdsAmount !== null) {
+                        return (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm">{percentage}%</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatCurrency(tdsAmount)}
+                            </span>
+                          </div>
+                        );
+                      }
+
+                      if (tdsAmount !== null) {
+                        return formatCurrency(tdsAmount);
+                      }
+
+                      return "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const securityDepositAmount = getSecurityDepositAmount(record);
+                      return securityDepositAmount !== null
+                        ? formatCurrency(securityDepositAmount)
+                        : "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const actualAmount = getActualAmount(record);
+                      return actualAmount !== null
+                        ? formatCurrency(actualAmount)
+                        : "N/A";
+                    })()}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {record.receipt ? (
@@ -1759,6 +2667,336 @@ export default function AdvancePaymentRecords() {
         </DialogContent>
       </Dialog>
 
+      {/* Bank selection modal (pre-export) */}
+      <Dialog open={showExportBankModal} onOpenChange={setShowExportBankModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Advance Pyament Records to Export</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="all_records"
+                name="export_bank"
+                checked={exportBankType === "ALL_RECORDS"}
+                onChange={() => setExportBankType("ALL_RECORDS")}
+              />
+              <label htmlFor="all_records" className="ml-2 cursor-pointer">All Records</label>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="ngidfc"
+                name="export_bank"
+                checked={exportBankType === "NGIDFC Current"}
+                onChange={() => setExportBankType("NGIDFC Current")}
+              />
+              <label htmlFor="ngidfc" className="ml-2 cursor-pointer">NG Records (NGIDFC Current)</label>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="fcidfc"
+                name="export_bank"
+                checked={exportBankType === "FCIDFC Current"}
+                onChange={() => setExportBankType("FCIDFC Current")}
+              />
+              <label htmlFor="fcidfc" className="ml-2 cursor-pointer">FC Records (FCIDFC Current)</label>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="kotak"
+                name="export_bank"
+                checked={exportBankType === "KOTAK"}
+                onChange={() => setExportBankType("KOTAK")}
+              />
+              <label htmlFor="kotak" className="ml-2 cursor-pointer">KOTAK Records</label>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="no_bank"
+                name="export_bank"
+                checked={exportBankType === "NO_BANK"}
+                onChange={() => setExportBankType("NO_BANK")}
+              />
+              <label htmlFor="no_bank" className="ml-2 cursor-pointer">No Bank Records (Not paid by bank)</label>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowExportBankModal(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setShowExportBankModal(false);
+                if (exportBankType === "ALL_RECORDS") {
+                  setExportDateFilters({
+                    expenseDateMode: "All Dates",
+                    expenseStartDate: "",
+                    expenseEndDate: "",
+                    paidDateMode: "All Dates",
+                    paidStartDate: "",
+                    paidEndDate: "",
+                  });
+                  setShowFormatModal(true);
+                  return;
+                }
+                setShowExportDateModal(true);
+              }}
+              disabled={exportBankType === ""}
+            >
+              Next
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Date Selection Modal */}
+      <Dialog open={showExportDateModal} onOpenChange={setShowExportDateModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Date Range</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date of Expense</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                value={exportDateFilters.expenseDateMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setExportDateFilters((prev) => {
+                    if (mode === "Single Date") {
+                      return {
+                        ...prev,
+                        expenseDateMode: mode,
+                        expenseStartDate: prev.expenseStartDate || "",
+                        expenseEndDate: prev.expenseStartDate || "",
+                      };
+                    }
+                    if (mode === "Custom Date") {
+                      return {
+                        ...prev,
+                        expenseDateMode: mode,
+                      };
+                    }
+                    return {
+                      ...prev,
+                      expenseDateMode: mode,
+                      expenseStartDate: "",
+                      expenseEndDate: "",
+                    };
+                  });
+                }}
+              >
+                <option>All Dates</option>
+                <option>Single Date</option>
+                <option>Custom Date</option>
+              </select>
+
+              <div className="mt-2">
+                {exportDateFilters.expenseDateMode === "Single Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Select Date</label>
+                    <select
+                      className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                      value={exportDateFilters.expenseStartDate}
+                      onChange={(e) =>
+                        setExportDateFilters((prev) => ({
+                          ...prev,
+                          expenseStartDate: e.target.value,
+                          expenseEndDate: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Select Date</option>
+                      {expenseDateOptions.map((date) => (
+                        <option key={date} value={date}>
+                          {formatDateForDisplay(date)}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : exportDateFilters.expenseDateMode === "Custom Date" ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-sm font-medium">From</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full border rounded px-3 py-2"
+                        value={exportDateFilters.expenseStartDate}
+                        onChange={(e) =>
+                          setExportDateFilters((prev) => ({
+                            ...prev,
+                            expenseStartDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">To</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full border rounded px-3 py-2"
+                        value={exportDateFilters.expenseEndDate}
+                        onChange={(e) =>
+                          setExportDateFilters((prev) => ({
+                            ...prev,
+                            expenseEndDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Paid Date</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                value={exportDateFilters.paidDateMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setExportDateFilters((prev) => {
+                    if (mode === "Single Date") {
+                      return {
+                        ...prev,
+                        paidDateMode: mode,
+                        paidStartDate: prev.paidStartDate || "",
+                        paidEndDate: prev.paidStartDate || "",
+                      };
+                    }
+                    if (mode === "Custom Date") {
+                      return {
+                        ...prev,
+                        paidDateMode: mode,
+                      };
+                    }
+                    return {
+                      ...prev,
+                      paidDateMode: mode,
+                      paidStartDate: "",
+                      paidEndDate: "",
+                    };
+                  });
+                }}
+              >
+                <option>All Dates</option>
+                <option>Single Date</option>
+                <option>Custom Date</option>
+              </select>
+
+              <div className="mt-2">
+                {exportDateFilters.paidDateMode === "Single Date" ? (
+                  <>
+                    <label className="text-sm font-medium">Select Date</label>
+                    <select
+                      className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                      value={exportDateFilters.paidStartDate}
+                      onChange={(e) =>
+                        setExportDateFilters((prev) => ({
+                          ...prev,
+                          paidStartDate: e.target.value,
+                          paidEndDate: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Select Date</option>
+                      {paidDateOptions.map((date) => (
+                        <option key={date} value={date}>
+                          {formatDateForDisplay(date)}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : exportDateFilters.paidDateMode === "Custom Date" ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-sm font-medium">From</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full border rounded px-3 py-2"
+                        value={exportDateFilters.paidStartDate}
+                        onChange={(e) =>
+                          setExportDateFilters((prev) => ({
+                            ...prev,
+                            paidStartDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">To</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full border rounded px-3 py-2"
+                        value={exportDateFilters.paidEndDate}
+                        onChange={(e) =>
+                          setExportDateFilters((prev) => ({
+                            ...prev,
+                            paidEndDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowExportDateModal(false);
+                setShowExportBankModal(true);
+              }}
+              className="cursor-pointer"
+            >
+              Back
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowExportDateModal(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                // basic validation
+                const { expenseDateMode, expenseStartDate, expenseEndDate, paidDateMode, paidStartDate, paidEndDate } = exportDateFilters;
+                if (expenseDateMode === "Single Date" && !expenseStartDate) {
+                  toast.error("Please select expense date");
+                  return;
+                }
+                if (expenseDateMode === "Custom Date" && (!expenseStartDate || !expenseEndDate)) {
+                  toast.error("Please select expense date range");
+                  return;
+                }
+                if (paidDateMode === "Single Date" && !paidStartDate) {
+                  toast.error("Please select paid date");
+                  return;
+                }
+                if (paidDateMode === "Custom Date" && (!paidStartDate || !paidEndDate)) {
+                  toast.error("Please select paid date range");
+                  return;
+                }
+
+                setShowExportDateModal(false);
+                setShowFormatModal(true);
+              }}
+              className="cursor-pointer"
+            >
+              Next
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Format Selection Modal */}
       <Dialog open={showFormatModal} onOpenChange={setShowFormatModal}>
         <DialogContent className="max-w-md">
@@ -1782,6 +3020,108 @@ export default function AdvancePaymentRecords() {
               className="cursor-pointer"
             >
               Export as XLSX
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Weekly/Monthly Export Modal */}
+      <Dialog open={showQuickExportModal} onOpenChange={setShowQuickExportModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Weekly / Monthly Export</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Export Type</label>
+              <RadioGroup
+                className="mt-2 flex flex-wrap gap-6"
+                value={quickExportMode}
+                onValueChange={(v) => setQuickExportMode(v as "weekly" | "monthly")}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem id="weekly-export" value="weekly" />
+                  <Label htmlFor="weekly-export" className="text-sm cursor-pointer">
+                    Weekly Export
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem id="monthly-export" value="monthly" />
+                  <Label htmlFor="monthly-export" className="text-sm cursor-pointer">
+                    Monthly Export
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Project of Expense (Date of Expense)</label>
+              <select
+                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                value={quickExportLocation}
+                onChange={(e) => setQuickExportLocation(e.target.value)}
+              >
+                <option value="All Locations">All Projects</option>
+                {quickExportLocationOptions.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">
+                {quickExportMode === "monthly"
+                  ? "Month (Date of Expense)"
+                  : "Week (Date of Expense)"}
+              </label>
+              {quickExportMode === "weekly" ? (
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={quickExportDate}
+                  onChange={(e) => setQuickExportDate(e.target.value)}
+                >
+                  <option value="">Select week</option>
+                  {weeklyExpenseOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  value={quickExportDate}
+                  onChange={(e) => setQuickExportDate(e.target.value)}
+                >
+                  <option value="">Select month</option>
+                  {monthlyExpenseOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                {quickExportMode === "weekly"
+                  ? "Select the week (based on Date of Expense) whose records you want to export."
+                  : "Select the month (based on Date of Expense) whose records you want to export."}
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowQuickExportModal(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleQuickExportConfirm}
+              disabled={!quickExportDate}
+              className="cursor-pointer"
+            >
+              Next
             </Button>
           </DialogFooter>
         </DialogContent>

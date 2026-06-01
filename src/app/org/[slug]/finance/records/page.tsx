@@ -272,7 +272,7 @@ export default function PaymentRecords() {
     expense_type: "",
     event_id: "",
     location: "",
-    approved_amount: "",
+    amount: "",
     utr: "",
     unique_id: "",
   });
@@ -1002,19 +1002,37 @@ export default function PaymentRecords() {
             .select("*");
           if (bankError) throw bankError;
 
+          const bankDetailsByUniqueId = new Map<string, any>();
+          const bankDetailsByEmail = new Map<string, any>();
+
+          bankData?.forEach((bankDetail: any) => {
+            const uniqueId = String(bankDetail.unique_id || "").trim();
+            // const email = String(bankDetail.email || "").trim().toLowerCase();
+
+            if (uniqueId) {
+              bankDetailsByUniqueId.set(uniqueId, bankDetail);
+            }
+
+            // if (email) {
+            //   bankDetailsByEmail.set(email, bankDetail);
+            // }
+          });
+
           const enriched = withTitles.map((r: any) => {
-            const matched = bankData?.find(
-              (b: any) => b.email === r.creator_email
-            );
+            const uniqueId = String(r.unique_id || "").trim();
+            // const email = String(r.creator_email || "").trim().toLowerCase();
+            // Match bank details strictly by unique_id only (preferred by user)
+            const matched = bankDetailsByUniqueId.get(uniqueId) || null;
+
+            const matchedAccountHolder = matched?.account_holder || null;
             return {
               ...r,
               unique_id: r.unique_id || matched?.unique_id || "N/A",
+              account_holder:
+                matchedAccountHolder ||
+                null,
               beneficiary_name:
-                r.beneficiary_name ||
-                matched?.account_holder ||
-                r.creator_name ||
-                r.creator?.full_name ||
-                r.creator_email ||
+                matchedAccountHolder ||
                 "N/A",
             };
           });
@@ -1397,9 +1415,9 @@ export default function PaymentRecords() {
       expense_type: record.expense_type || "",
       event_id: record.event_id || "",
       location: record.location || "",
-      approved_amount:
-        record.approved_amount !== undefined
-          ? String(record.approved_amount)
+      amount:
+        record.amount !== undefined
+          ? String(record.amount)
           : record.amount !== undefined
             ? String(record.amount)
             : "",
@@ -1412,9 +1430,9 @@ export default function PaymentRecords() {
   const handleSaveEdit = async () => {
     if (!editModal.record) return;
 
-    const parsedAmount = Number(editForm.approved_amount);
+    const parsedAmount = Number(editForm.amount);
     if (
-      editForm.approved_amount !== "" &&
+      editForm.amount !== "" &&
       !Number.isFinite(parsedAmount)
     ) {
       toast.error("Please enter a valid amount");
@@ -1427,7 +1445,7 @@ export default function PaymentRecords() {
       event_id: editForm.event_id || editModal.record.event_id || null,
       location: editForm.location || editModal.record.location || null,
       approved_amount:
-        editForm.approved_amount === ""
+        editForm.amount === ""
           ? editModal.record.approved_amount ?? null
           : parsedAmount,
       utr: editForm.utr.trim() || null,
@@ -2662,7 +2680,7 @@ export default function PaymentRecords() {
                     {record.location || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    ₹{record.approved_amount}
+                    ₹{record.amount}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {(() => {
@@ -3140,11 +3158,11 @@ export default function PaymentRecords() {
                   type="number"
                   step="0.01"
                   className="mt-1 block w-full border rounded px-3 py-2"
-                  value={editForm.approved_amount}
+                  value={editForm.amount}
                   onChange={(e) =>
                     setEditForm((prev) => ({
                       ...prev,
-                      approved_amount: e.target.value,
+                      amount: e.target.value,
                     }))
                   }
                 />
