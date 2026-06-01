@@ -5,13 +5,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableHeader,
   TableRow,
@@ -19,51 +12,32 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import supabase from "@/lib/supabase";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Pagination, usePagination, PER_PAGE } from "@/components/pagination";
-import { formatDateTime } from "@/lib/utils";
 import {
   WhereTheMoneyGoesChart,
-  DailySpendTrendChart,
+  MonthlyTrendChart,
   ApprovalPipelineChart,
+  SpendingPatternChart,
   TopSpendersChart,
 } from "@/components/DashboardCharts";
 import {
-  AlertTriangle,
-  BarChart2,
-  Clock3,
-  Download,
-  Eye,
+  Calendar,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
   IndianRupee,
-  Sparkles,
+  LayoutGrid,
+  PieChart,
+  Users,
 } from "lucide-react";
-import * as XLSX from "xlsx";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+ 
 
-const QUICK_RANGE_OPTIONS = [
-  { value: "7d", label: "7d" },
-  { value: "30d", label: "30d" },
-  { value: "90d", label: "90d" },
-  { value: "ytd", label: "YTD" },
-  { value: "all", label: "All time" },
-] as const;
-
-type QuickRangeValue = (typeof QUICK_RANGE_OPTIONS)[number]["value"];
+type QuickRangeValue = "7d" | "30d" | "90d" | "ytd" | "all";
+type DashboardTab = "overview" | "categories" | "people" | "timeline" | "approvals";
 
 export default function PuneSoSCDashboard() {
   const { slug } = useParams();
@@ -84,9 +58,9 @@ export default function PuneSoSCDashboard() {
     uniqueId: "ALL",
     timeRange: "day",
   });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showExportModal, setShowExportModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+  const [isExpensesOpen, setIsExpensesOpen] = useState(false);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
   const hasReturnNavigationParams =
     Number(searchParams.get("page")) > 0 || Boolean(searchParams.get("expID"));
@@ -137,7 +111,7 @@ export default function PuneSoSCDashboard() {
 
         // Sort by timestamp ascending (oldest first)
         formattedData.sort((a: any, b: any) => {
-          const ta = a?.created_at ? new Date(a.created_at).getTime() : 0;  
+          const ta = a?.created_at ? new Date(a.created_at).getTime() : 0;
           const tb = b?.created_at ? new Date(b.created_at).getTime() : 0;
           return ta - tb;
         });
@@ -211,62 +185,6 @@ export default function PuneSoSCDashboard() {
     });
   }, [expensesData, quickRange]);
 
-  // Derived unique options for filters
-  const expenseTypeOptions = useMemo(() => {
-    const types = new Set(timeRangeFilteredData.map(e => e.expense_type).filter(Boolean));
-    return Array.from(types);
-  }, [timeRangeFilteredData]);
-
-  const statusOptions = useMemo(() => {
-    const statuses = new Set(timeRangeFilteredData.map(e => e.status).filter(Boolean));
-    return Array.from(statuses);
-  }, [timeRangeFilteredData]);
-
-  const userOptions = useMemo(() => {
-    const users = new Set(timeRangeFilteredData.map(e => e.creator_name).filter(Boolean));
-    return Array.from(users);
-  }, [timeRangeFilteredData]);
-
-  const uniqueIdOptions = useMemo(() => {
-    const uniqueIds = new Set(
-      timeRangeFilteredData
-        .map((e) => e.unique_id || e.uniqueId)
-        .filter(Boolean)
-    );
-    return Array.from(uniqueIds);
-  }, [timeRangeFilteredData]);
-
-  const dateOptions = useMemo(() => {
-    const dates = new Set(
-      timeRangeFilteredData
-        .map((e) => {
-          if (e.date) {
-            return new Date(e.date).toISOString().split('T')[0];
-          }
-          return "";
-        })
-        .filter(Boolean)
-    );
-    return Array.from(dates).sort();
-  }, [timeRangeFilteredData]);
-
-  const monthOptions = useMemo(() => {
-    const months = new Set(
-      timeRangeFilteredData
-        .map((e) => {
-          if (e.date) {
-            const date = new Date(e.date);
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            return `${year}-${month}`;
-          }
-          return "";
-        })
-        .filter(Boolean)
-    );
-    return Array.from(months).sort();
-  }, [timeRangeFilteredData]);
-
   // Apply filters
   const filteredData = useMemo(() => {
     return timeRangeFilteredData.filter((e) => {
@@ -290,139 +208,9 @@ export default function PuneSoSCDashboard() {
         if (expMonth !== selectedMonth) return false;
       }
 
-      // Search filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesName = (e.creator_name || "").toLowerCase().includes(query);
-        const matchesId = (e.unique_id || "").toLowerCase().includes(query);
-        const matchesExpenseType = (e.expense_type || "").toLowerCase().includes(query);
-        const matchesAmount = Number(e.amount || "").toString().includes(query);
-        const matchesApprover = (e.approver_name || "").toLowerCase().includes(query);
-        if (!matchesName && !matchesId && !matchesExpenseType && !matchesAmount && !matchesApprover) return false;
-      }
-
       return true;
     });
-  }, [timeRangeFilteredData, filters, searchQuery]);
-
-  const EXPORT_HEADERS = [
-    "S.No",
-    "Submitted",
-    "User",
-    "Unique ID",
-    "Expense Type",
-    "Amount",
-    "Expense Date",
-    "Approver",
-    "Status",
-  ] as const;
-
-  const buildExportRows = (data: typeof filteredData) =>
-    data.map((expense, index) => [
-      index + 1,
-      expense.created_at ? formatDateTime(expense.created_at) : "—",
-      expense.creator_name || "—",
-      expense.unique_id || expense.uniqueId || "—",
-      expense.expense_type || "—",
-      Number(expense.amount) || 0,
-      expense.date
-        ? new Date(expense.date).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-        : "—",
-      expense.approver_name || "—",
-      expense.status || "—",
-    ]);
-
-  const getExportFileName = (extension: "csv" | "xlsx") => {
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, "0");
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const year = now.getFullYear();
-    const dateStr = `${day}-${month}-${year}`;
-    const rangeLabel = quickRange === "all" ? "all-time" : quickRange;
-    return `pune-sosc-expenses-${rangeLabel}-${dateStr}.${extension}`;
-  };
-
-  const exportToCSV = () => {
-    const rows = buildExportRows(filteredData);
-    const csvRows: string[] = [];
-    csvRows.push(EXPORT_HEADERS.map((h) => `"${h}"`).join(","));
-    csvRows.push(
-      ...rows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-      )
-    );
-
-    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", getExportFileName("csv"));
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const exportToXLSX = () => {
-    const rows = buildExportRows(filteredData);
-    const sheetData = [Array.from(EXPORT_HEADERS), ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-    // Compute and set column widths so Excel shows data properly
-    try {
-      const cols = sheetData[0].map((_, colIndex) => {
-        let maxLen = 10;
-        for (let r = 0; r < sheetData.length; r++) {
-          const cell = sheetData[r][colIndex];
-          const str = cell == null ? "" : String(cell);
-          // approximate width using character count, give some padding
-          maxLen = Math.max(maxLen, str.length);
-        }
-        // cap width to a reasonable max to avoid extremely wide columns
-        return { wch: Math.min(50, maxLen + 5) };
-      });
-
-      (ws as any)["!cols"] = cols;
-    } catch (e) {
-      // If anything goes wrong, fall back to default sheet without widths
-      console.warn("Failed to set column widths for XLSX export", e);
-    }
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Pune SoSC Expenses");
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([wbout], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = getExportFileName("xlsx");
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportCSV = () => {
-    if (filteredData.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-    exportToCSV();
-    setShowExportModal(false);
-    toast.success(`Exported ${filteredData.length} expenses as CSV`);
-  };
-
-  const handleExportXLSX = () => {
-    if (filteredData.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-    exportToXLSX();
-    setShowExportModal(false);
-    toast.success(`Exported ${filteredData.length} expenses as Excel`);
-  };
+  }, [timeRangeFilteredData, filters]);
 
   // Chart data for categories: respect time range and other filters but NOT the expenseType filter.
   const categoryChartData = useMemo(() => {
@@ -487,6 +275,36 @@ export default function PuneSoSCDashboard() {
     );
 
     return people.size;
+  }, [filteredData]);
+
+  const reportingPeriod = useMemo(() => {
+    const expenseDates = filteredData
+      .map((expense) => expense.date || expense.created_at)
+      .filter(Boolean)
+      .map((value) => new Date(value))
+      .filter((value) => !Number.isNaN(value.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    if (expenseDates.length === 0) {
+      return "—";
+    }
+
+    const startDate = expenseDates[0];
+    const endDate = expenseDates[expenseDates.length - 1];
+
+    const startLabel = startDate.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: startDate.getFullYear() === endDate.getFullYear() ? undefined : "numeric",
+    });
+
+    const endLabel = endDate.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    return `${startLabel} → ${endLabel}`;
   }, [filteredData]);
 
   const pagination = usePagination(filteredData);
@@ -639,22 +457,22 @@ export default function PuneSoSCDashboard() {
     const sparklinePoints =
       sparkline.length > 1
         ? sparkline.map((value, index) => {
-            const x = (index / Math.max(1, sparkline.length - 1)) * 100;
-            const max = Math.max(...sparkline, 1);
-            const y = 30 - (value / max) * 22;
-            return { x, y };
-          })
+          const x = (index / Math.max(1, sparkline.length - 1)) * 100;
+          const max = Math.max(...sparkline, 1);
+          const y = 30 - (value / max) * 22;
+          return { x, y };
+        })
         : [];
 
     const sparklineLinePath =
       sparklinePoints.length > 1
         ? sparklinePoints.reduce((path, point, index) => {
-            if (index === 0) return `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+          if (index === 0) return `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
 
-            const prev = sparklinePoints[index - 1];
-            const midX = ((prev.x + point.x) / 2).toFixed(2);
-            return `${path} Q ${midX} ${prev.y.toFixed(2)} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
-          }, "")
+          const prev = sparklinePoints[index - 1];
+          const midX = ((prev.x + point.x) / 2).toFixed(2);
+          return `${path} Q ${midX} ${prev.y.toFixed(2)} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+        }, "")
         : "";
 
     const sparklineAreaPath = sparklineLinePath ? `${sparklineLinePath} L 100 30 L 0 30 Z` : "";
@@ -693,548 +511,368 @@ export default function PuneSoSCDashboard() {
     };
   }, [filteredData, totalAmount, quickRange]);
 
-  return (
-    <div className="space-y-6 pt-0">
-      <div className="flex flex-col gap-0">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-black to-black bg-clip-text text-transparent">
-            Pune SoSC Dashboard Overview
-          </h1>
-        </div>
-        <div className="flex w-full flex-col gap-4 overflow-hidden md:flex-row md:items-center md:justify-between">
-          <p className="min-w-0 flex-1 whitespace-nowrap text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{filteredData.length} expenses</span>
-            <span> across </span>
-            <span className="font-semibold text-foreground">{uniquePeopleCount} people</span>
-          </p>
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto md:shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowExportModal(true)}
-              disabled={loading || filteredData.length === 0}
-              className="cursor-pointer rounded-xl px-5 py-5 sm:w-auto"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-            <div className="inline-flex w-full shrink-0 items-center justify-between gap-1 rounded-xl border bg-background p-1 sm:w-auto sm:justify-start md:shrink-0">
-              {QUICK_RANGE_OPTIONS.map((option) => {
-                const isActive = quickRange === option.value;
+  const isOverviewTab = activeTab === "overview";
+  const showCategoriesTab = isOverviewTab || activeTab === "categories";
+  const showPeopleTab = isOverviewTab || activeTab === "people";
+  const showTimelineTab = isOverviewTab || activeTab === "timeline";
+  const showApprovalsTab = isOverviewTab || activeTab === "approvals";
 
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setQuickRange(option.value)}
-                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${isActive
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:text-foreground"
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+  return (
+    <div className="space-y-6 bg-[#f4f6f8] min-h-screen -m-6 p-6">
+      <div className="flex w-full flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Program expenses</h1>
+          <p className="text-xl text-muted-foreground">
+            CP Pune-SoSC · {filteredData.length} expenses across {uniquePeopleCount} people
+          </p>
         </div>
+        <div className="md:text-right">
+          <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Reporting period</p>
+          <p className="text-xl font-semibold text-foreground">{reportingPeriod}</p>
+        </div>
+      </div>
+
+      {/* Tabs*/}
+      <div className="w-full overflow-x-auto">
+        <div className="inline-flex min-w-max items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("overview")}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "overview"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Overview
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("categories")}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "categories"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+          >
+            <PieChart className="h-4 w-4" />
+            Categories
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("people")}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "people"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+          >
+            <Users className="h-4 w-4" />
+            People
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("timeline")}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "timeline"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+          >
+            <Calendar className="h-4 w-4" />
+            Timeline
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("approvals")}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "approvals"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+          >
+            <CheckCircle className="h-4 w-4" />
+            Approvals
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Total Spent Card */}
+        <Card className="rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-[#5c7afc] via-[#7b7efb] to-[#9d83f8] text-white">
+          <CardContent className="p-8 flex flex-col h-full">
+            <div>
+              <p className="text-[13px] font-bold tracking-widest text-white/80 uppercase mb-3">Total spent</p>
+              <div className="text-5xl font-bold text-white tracking-tight leading-none mb-1">
+                {summaryCards.formatAmount(summaryCards.totalAmount)}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-3">
+              <div className="inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-[13px] font-semibold backdrop-blur-md">
+                {summaryCards.totalChangePct != null ? (
+                  <>
+                    {summaryCards.totalChangeDirection === "up" ? "▲" : summaryCards.totalChangeDirection === "down" ? "▼" : "—"}
+                    {" "}
+                    {Math.abs(summaryCards.totalChangePct).toFixed(0)}% vs last period
+                  </>
+                ) : (
+                  "No prior data"
+                )}
+              </div>
+              <span className="text-[14px] font-medium text-white/90">
+                {filteredData.length} claims
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Monthly Trend Chart */}
+        <Card className="lg:col-span-2 rounded-2xl border border-slate-200/80 bg-white shadow-sm flex flex-col">
+          <CardContent className="p-6 md:p-8 flex-1">
+            <MonthlyTrendChart data={filteredData} />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters Section */}
-      <div className="flex flex-wrap items-center gap-2 md:gap-3">
-        <Select value={filters.expenseType} onValueChange={(val) => setFilters((f) => ({ ...f, expenseType: val }))}>
-          <SelectTrigger className="w-full sm:w-[200px] rounded-xl">
-            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
-              <span className="text-muted-foreground">Type:</span>
-              <span className="truncate font-semibold">{filters.expenseType === "ALL" ? "All types" : filters.expenseType}</span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="ALL">All types</SelectItem>
-            {expenseTypeOptions.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.status} onValueChange={(val) => setFilters((f) => ({ ...f, status: val }))}>
-          <SelectTrigger className="w-full sm:w-[200px] rounded-xl">
-            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
-              <span className="text-muted-foreground">Status:</span>
-              <span className="truncate font-semibold">{filters.status === "ALL" ? "All statuses" : filters.status}</span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="ALL">All statuses</SelectItem>
-            {statusOptions.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.user} onValueChange={(val) => setFilters((f) => ({ ...f, user: val }))}>
-          <SelectTrigger className="w-full sm:w-[180px] rounded-xl">
-            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
-              <span className="text-muted-foreground">User:</span>
-              <span className="truncate font-semibold">{filters.user === "ALL" ? "All users" : filters.user}</span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="ALL">All users</SelectItem>
-            {userOptions.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.uniqueId} onValueChange={(val) => setFilters((f) => ({ ...f, uniqueId: val }))}>
-          <SelectTrigger className="w-full sm:w-[190px] rounded-xl">
-            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
-              <span className="text-muted-foreground">Unique ID:</span>
-              <span className="truncate font-semibold">{filters.uniqueId === "ALL" ? "All IDs" : filters.uniqueId}</span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="ALL">All IDs</SelectItem>
-            {uniqueIdOptions.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.date} onValueChange={(val) => setFilters((f) => ({ ...f, date: val }))}>
-          <SelectTrigger className="w-full sm:w-[190px] rounded-xl">
-            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
-              <span className="text-muted-foreground">Date:</span>
-              <span className="truncate font-semibold">
-                {filters.date === "ALL"
-                  ? "All dates"
-                  : new Date(filters.date).toLocaleDateString("en-GB", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
-              </span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="ALL">All dates</SelectItem>
-            {dateOptions.map((dateOption) => (
-              <SelectItem key={dateOption} value={dateOption}>
-                {new Date(dateOption).toLocaleDateString("en-GB", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.month} onValueChange={(val) => setFilters((f) => ({ ...f, month: val }))}>
-          <SelectTrigger className="w-full sm:w-[190px] rounded-xl">
-            <div className="flex w-full items-center gap-2 overflow-hidden text-sm">
-              <span className="text-muted-foreground">Month:</span>
-              <span className="truncate font-semibold">
-                {filters.month === "ALL"
-                  ? "All months"
-                  : new Date(filters.month + "-01").toLocaleDateString("en-GB", {
-                    year: "numeric",
-                    month: "long",
-                  })}
-              </span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="ALL">All months</SelectItem>
-            {monthOptions.map((monthOption) => (
-              <SelectItem key={monthOption} value={monthOption}>
-                {new Date(monthOption + "-01").toLocaleDateString("en-GB", {
-                  year: "numeric",
-                  month: "long",
-                })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <CardContent className="relative p-3 pb-8">
-            <div className="relative z-10 flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 text-slate-500">
-                <IndianRupee className="h-4 w-4" />
-                <span className="text-sm font-semibold text-slate-600">Total this period</span>
-              </div>
-              <span
-                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${summaryCards.totalChangeDirection === "up"
-                    ? "bg-rose-50 text-rose-600"
-                    : summaryCards.totalChangeDirection === "down"
-                      ? "bg-emerald-50 text-emerald-600"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-              >
-                {summaryCards.totalChangePct == null
-                  ? quickRange === "all"
-                    ? "All time"
-                    : "—"
-                  : `${summaryCards.totalChangePct > 0 ? "↑" : summaryCards.totalChangePct < 0 ? "↓" : "→"} ${Math.abs(summaryCards.totalChangePct).toFixed(1)}%`}
-              </span>
-            </div>
-
-            <div className="relative z-10 mt-3">
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{summaryCards.formatAmount(summaryCards.totalAmount)}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {summaryCards.totalChangeAmount !== 0
-                  ? `${summaryCards.totalChangeAmount > 0 ? "+" : "−"}${summaryCards.formatAmount(Math.abs(summaryCards.totalChangeAmount))} ${summaryCards.windowLabel}`
-                  : summaryCards.windowLabel}
-              </p>
-            </div>
-
-            {summaryCards.sparkline.length > 1 ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14">
-                <svg viewBox="0 0 100 32" preserveAspectRatio="none" className="h-full w-full">
-                  <defs>
-                    <linearGradient id="pune-total-spark" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.22" />
-                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path d={summaryCards.sparklineAreaPath} fill="url(#pune-total-spark)" />
-                  <path
-                    d={summaryCards.sparklineLinePath}
-                    fill="none"
-                    stroke="#8b5cf6"
-                    strokeWidth="0.5"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-amber-50/60 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <CardContent className="p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 text-amber-700">
-                <Clock3 className="h-4 w-4" />
-                <span className="text-sm font-semibold text-slate-600">Pending your approval</span>
-              </div>
-              <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                {summaryCards.pendingCount} open
-              </span>
-            </div>
-
-            <div className="mt-3">
-              <p className="text-3xl font-bold tracking-tight text-slate-900">
-                {summaryCards.pendingCount} <span className="font-normal text-slate-400">·</span> {summaryCards.formatAmount(summaryCards.pendingAmount)}
-              </p>
-              <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <span className="whitespace-nowrap">
-                  Oldest waiting{" "}
-                  <span className="font-semibold text-amber-700">{summaryCards.oldestPendingAgeDays || 0} days</span>
-                  {" · review now →"}
-                </span>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <CardContent className="p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 text-sky-600">
-                <BarChart2 className="h-4 w-4" />
-                <span className="text-sm font-semibold text-slate-600">Largest Expense Type</span>
-              </div>
-              <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
-                {summaryCards.largestCategoryShare.toFixed(0)}%
-              </span>
-            </div>
-
-            <div className="mt-3 min-w-0">
-              <p className="truncate text-3xl font-bold tracking-tight text-slate-900">{summaryCards.largestCategoryName}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {summaryCards.formatAmount(summaryCards.largestCategoryAmount)} across {summaryCards.largestCategoryCount} claims
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <CardContent className="p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 text-rose-600">
-                <Sparkles className="h-4 w-4" />
-                <span className="text-sm font-semibold text-slate-600">Outlier days</span>
-              </div>
-              <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                {summaryCards.outlierDays.length} spikes
-              </span>
-            </div>
-
-            <div className="mt-3">
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{summaryCards.outlierDays.length} spikes</p>
-              {summaryCards.outlierDays.length > 0 ? (
-                <p className="mt-1 text-sm text-slate-500">
-                  {summaryCards.outlierDays
-                    .map((item) =>
-                      `${new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${summaryCards.formatAmount(item.amount)}`
-                    )
-                    .join(" · ")}
-                </p>
-              ) : (
-                <p className="mt-1 text-sm text-slate-500">No outlier days found for the selected data.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Primary charts */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-slate-900">
+      {showCategoriesTab ? (
+        <div id="where-money-goes-section" className="grid grid-cols-1 gap-5">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 px-0 pb-0">
+            <CardTitle className="text-2xl font-semibold text-slate-900">
               Where the money goes
             </CardTitle>
+            <p className="text-sm text-slate-500">Top 5 shown · expand to see all</p>
           </CardHeader>
-          <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
-            {loading ? (
-              <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
-            ) : (
-              <WhereTheMoneyGoesChart
-                data={categoryChartData}
-                selectedCategory={filters.expenseType === "ALL" ? undefined : filters.expenseType}
-                onCategoryClick={(category) =>
-                  setFilters((current) => ({
-                    ...current,
-                    expenseType: category ?? "ALL",
-                  }))
-                }
-              />
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-slate-900">
-              Daily spend trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
-            {loading ? (
-              <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
-            ) : (
-              <DailySpendTrendChart data={filteredData} />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-slate-900">
-              Approval pipeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
-            {loading ? (
-              <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
-            ) : (
-              <ApprovalPipelineChart
-                data={filteredData}
-                selectedStatus={filters.status === "ALL" ? undefined : filters.status}
-                onStatusClick={(status) =>
-                  setFilters((current) => ({
-                    ...current,
-                    status: status ?? "ALL",
-                  }))
-                }
-              />
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-slate-900">
-              Top spenders
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
-            {loading ? (
-              <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
-            ) : (
-              <TopSpendersChart
-                data={topSpendersChartData}
-                selectedUser={filters.user === "ALL" ? undefined : filters.user}
-                onUserClick={(user) =>
-                  setFilters((current) => ({
-                    ...current,
-                    user: user ?? "ALL",
-                  }))
-                }
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="gap-0 p-0 rounded-lg">
-        <CardHeader className="border-b bg-gray-300 p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-0.5">
-              <CardTitle className="text-lg font-semibold text-gray-900">Pune SoSC Expense Details</CardTitle>
-              <p className="text-sm text-gray-500">All {filteredData.length} expenses</p>
-            </div>
-            <div className="flex-1 sm:flex-none sm:w-64">
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search name, expense type..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm border-3 border-white rounded-lg"
+          <Card className="flex flex-col gap-0">
+            <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
+              {loading ? (
+                <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
+              ) : (
+                <WhereTheMoneyGoesChart
+                  data={categoryChartData}
+                  selectedCategory={filters.expenseType === "ALL" ? undefined : filters.expenseType}
+                  onCategoryClick={(category) =>
+                    setFilters((current) => ({
+                      ...current,
+                      expenseType: category ?? "ALL",
+                    }))
+                  }
                 />
-              </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {(showApprovalsTab || showPeopleTab || showTimelineTab) ? (
+        <div className="flex flex-col gap-5">
+          <div className={`grid grid-cols-1 gap-5 ${showApprovalsTab && showTimelineTab ? "lg:grid-cols-2" : ""}`}>
+            {showTimelineTab ? (
+              <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-[17px] font-bold text-slate-900">
+                    Spending pattern
+                  </CardTitle>
+                  <span className="text-[13px] text-slate-500">Darker = busier day</span>
+                </CardHeader>
+                <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
+                  {loading ? (
+                    <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
+                  ) : (
+                    <SpendingPatternChart data={topSpendersChartData} />
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {showApprovalsTab ? (
+              <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-[17px] font-bold text-slate-900">
+                    Approval pipeline
+                  </CardTitle>
+                  <span className="text-[13px] text-slate-500">{filteredData.length} total claims</span>
+                </CardHeader>
+                <CardContent className="min-h-[380px] flex-1 pb-4 pt-0">
+                  {loading ? (
+                    <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
+                  ) : (
+                    <ApprovalPipelineChart
+                      data={filteredData}
+                      selectedStatus={filters.status === "ALL" ? undefined : filters.status}
+                      onStatusClick={(status) =>
+                        setFilters((current) => ({
+                          ...current,
+                          status: status ?? "ALL",
+                        }))
+                      }
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+
+          {showPeopleTab ? (
+            <div className="flex flex-col gap-0 mt-2">
+              <CardHeader className="flex flex-row items-center justify-between gap-3 px-0 pb-4">
+                <CardTitle className="text-2xl font-semibold text-slate-900">
+                  Who's claiming
+                </CardTitle>
+                <p className="text-sm text-slate-500">Bars sized by total claimed</p>
+              </CardHeader>
+              <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0 p-6">
+                {loading ? (
+                  <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
+                ) : (
+                  <TopSpendersChart
+                    data={topSpendersChartData}
+                    selectedUser={filters.user === "ALL" ? undefined : filters.user}
+                    onUserClick={(user) =>
+                      setFilters((current) => ({
+                        ...current,
+                        user: user ?? "ALL",
+                      }))
+                    }
+                    hideHeader={true}
+                  />
+                )}
+              </Card>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isOverviewTab ? (
+        <Card className="gap-0 p-0 mb-10 rounded-2xl border border-slate-200/80 shadow-sm bg-white">
+          <div 
+            className={`p-6 cursor-pointer flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-slate-50 rounded-2xl ${isExpensesOpen ? "border-b border-gray-100 rounded-b-none" : ""}`}
+            onClick={() => setIsExpensesOpen(!isExpensesOpen)}
+          >
+            <div className="flex flex-col gap-1">
+              <h3 className="text-[17px] font-bold text-slate-900">All expenses</h3>
+              <p className="text-[13px] text-slate-500">Tap to see the full list of {filteredData.length} claims</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <button 
+                type="button" 
+                className="text-slate-500 hover:text-slate-900 transition-colors"
+              >
+                {isExpensesOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              </button>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <TooltipProvider>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-100">
-                    <TableHead className="font-semibold whitespace-nowrap">S.NO</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">SUBMITTED</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">USER</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">EXPENSE TYPE</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap text-right">AMOUNT</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">APPROVER</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">STATUS</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap text-center">ACTIONS</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
+          {isExpensesOpen && (
+          <CardContent className="pl-5 pr-5">
+            <TooltipProvider>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                        <div className="flex justify-center items-center gap-2">
-                          <div className="h-4 w-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"></div>
-                          Loading data...
-                        </div>
-                      </TableCell>
+                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">#</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">DATE</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">WHO</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">CATEGORY</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">AMOUNT</TableHead>
+                      {/* <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">APPROVER</TableHead> */}
+                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">STATUS</TableHead>
+                      {/* <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra text-center">ACTIONS</TableHead> */}
                     </TableRow>
-                  ) : pagination.paginatedData.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                        No expenses found matching the filters
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    pagination.paginatedData.map((expense, index) => (
-                      <TableRow
-                        ref={expense.id === highlightedExpenseId ? highlightedRowRef : null}
-                        key={expense.id}
-                        className={`hover:bg-gray-50/50 transition-colors ${
-                          expense.id === highlightedExpenseId
-                            ? "border-2 border-yellow-400 bg-yellow-50"
-                            : ""
-                        }`}
-                      >
-                        <TableCell className="whitespace-nowrap text-sm text-center font-medium">
-                          {pagination.getItemNumber(index)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {expense.created_at ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span>{new Date(expense.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                              <span className="text-sm text-gray-500">{new Date(expense.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
-                            </div>
-                          ) : '—'}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium">{expense.creator_name || '—'}</span>
-                            <span className="text-sm text-gray-500 font-mono">{expense.unique_id || '—'}</span>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                          <div className="flex justify-center items-center gap-2">
+                            <div className="h-4 w-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"></div>
+                            Loading data...
                           </div>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {expense.expense_type || '—'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium whitespace-nowrap">
-                          ₹{Number(expense.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {expense.approver_name || expense.approver?.full_name || '—'}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-left">
-                          <ExpenseStatusBadge status={expense.status} />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                aria-label="View Expense"
-                                className="inline-flex items-center justify-center rounded-md p-1 text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
-                                onClick={() => router.push(`/org/${slug}/pune-sosc/${expense.id}`)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>View Expense</TooltipContent>
-                          </Tooltip>
+                      </TableRow>
+                    ) : pagination.paginatedData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                          No expenses found matching the filters
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      pagination.paginatedData.map((expense, index) => (
+                        <TableRow
+                          ref={expense.id === highlightedExpenseId ? highlightedRowRef : null}
+                          key={expense.id}
+                          className={`hover:bg-gray-50/50 transition-colors ${expense.id === highlightedExpenseId
+                              ? "border-2 border-yellow-400 bg-yellow-50"
+                              : ""
+                            }`}
+                        >
+                          <TableCell className="whitespace-nowrap text-[13px] font-medium text-slate-400">
+                            {pagination.getItemNumber(index)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-[13px] font-medium text-slate-900">
+                            {expense.created_at ? (
+                              <div className="flex flex-col gap-0.5">
+                                <span>{new Date(expense.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                {/* <span className="text-sm text-gray-500">{new Date(expense.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span> */}
+                              </div>
+                            ) : '—'}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-[13px] font-medium text-slate-900">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{expense.creator_name || '—'}</span>
+                              {/* <span className="text-sm text-gray-500 font-mono">{expense.unique_id || '—'}</span> */}
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-[13px] text-slate-500">
+                            {expense.expense_type || '—'}
+                          </TableCell>
+                          <TableCell className="text-[13px] font-bold text-slate-900 whitespace-nowrap">
+                            ₹{Number(expense.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          </TableCell>
+                          {/* <TableCell className="whitespace-nowrap text-sm">
+                            {expense.approver_name || expense.approver?.full_name || '—'}
+                          </TableCell> */}
+                          <TableCell className="whitespace-nowrap text-left">
+                            <ExpenseStatusBadge status={expense.status} />
+                          </TableCell>
+                          {/* <TableCell className="text-center">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  aria-label="View Expense"
+                                  className="inline-flex items-center justify-center rounded-md p-1 text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
+                                  onClick={() => router.push(`/org/${slug}/pune-sosc/${expense.id}`)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>View Expense</TooltipContent>
+                            </Tooltip>
+                          </TableCell> */}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </TooltipProvider>
+
+            <div className="p-4 border-t border-gray-100">
+              <Pagination
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                itemLabel="Expenses"
+                onPageChange={pagination.setCurrentPage}
+              />
             </div>
-          </TooltipProvider>
+          </CardContent>
+          )}
+        </Card>
+      ) : null}
 
-          <div className="p-4 border-t">
-            <Pagination
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              totalItems={pagination.totalItems}
-              itemLabel="Expenses"
-              onPageChange={pagination.setCurrentPage}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Choose export format</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Export {filteredData.length} expense{filteredData.length === 1 ? "" : "s"} matching your current filters.
-          </p>
-          <DialogFooter className="mt-4 flex gap-2 sm:justify-start">
-            <Button onClick={handleExportCSV} className="cursor-pointer">
-              CSV
-            </Button>
-            <Button onClick={handleExportXLSX} variant="secondary" className="cursor-pointer">
-              Microsoft Excel (.xlsx)
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
