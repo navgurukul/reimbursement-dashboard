@@ -29,11 +29,19 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  Download,
   IndianRupee,
   LayoutGrid,
   PieChart,
   Users,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
  
 
 type QuickRangeValue = "7d" | "30d" | "90d" | "ytd" | "all";
@@ -511,6 +519,83 @@ export default function PuneSoSCDashboard() {
     };
   }, [filteredData, totalAmount, quickRange]);
 
+  // Compute unique filter options from data
+  const filterOptions = useMemo(() => {
+    const types = Array.from(new Set(timeRangeFilteredData.map((e) => e.expense_type).filter((v): v is string => !!v))).sort();
+    const statuses = Array.from(new Set(timeRangeFilteredData.map((e) => e.status).filter((v): v is string => !!v))).sort();
+    const users = Array.from(new Set(timeRangeFilteredData.map((e) => e.creator_name).filter((v): v is string => !!v))).sort();
+    const uniqueIds = Array.from(new Set(timeRangeFilteredData.map((e) => e.unique_id || e.uniqueId).filter((v): v is string => !!v))).sort();
+    const dates = Array.from(
+      new Set(
+        timeRangeFilteredData
+          .map((e): string | null => {
+            if (!e.date) return null;
+            const d = new Date(e.date);
+            return Number.isNaN(d.getTime()) ? null : d.toISOString().split("T")[0];
+          })
+          .filter((v): v is string => v != null)
+      )
+    ).sort();
+    const months = Array.from(
+      new Set(
+        timeRangeFilteredData
+          .map((e): string | null => {
+            if (!e.date) return null;
+            const d = new Date(e.date);
+            if (Number.isNaN(d.getTime())) return null;
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          })
+          .filter((v): v is string => v != null)
+      )
+    ).sort();
+
+    return { types, statuses, users, uniqueIds, dates, months };
+  }, [timeRangeFilteredData]);
+
+  const formatMonthLabel = (ym: string) => {
+    const [year, month] = ym.split("-");
+    const d = new Date(Number(year), Number(month) - 1);
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  };
+
+  const formatDateLabel = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  const exportToCSV = () => {
+    if (filteredData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+    const headers = ["Date", "Name", "Category", "Amount", "Status", "Unique ID"];
+    const rows = filteredData.map((e) => [
+      e.date ? new Date(e.date).toLocaleDateString("en-US") : e.created_at ? new Date(e.created_at).toLocaleDateString("en-US") : "",
+      e.creator_name || "",
+      e.expense_type || "",
+      e.amount || 0,
+      e.status || "",
+      e.unique_id || e.uniqueId || "",
+    ]);
+    const csvContent = [headers, ...rows].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pune-sosc-expenses-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredData.length} records`);
+  };
+
+  const activeFilterCount = [
+    filters.expenseType !== "ALL",
+    filters.status !== "ALL",
+    filters.user !== "ALL",
+    filters.date !== "ALL",
+    filters.month !== "ALL",
+  ].filter(Boolean).length;
+
   const isOverviewTab = activeTab === "overview";
   const showCategoriesTab = isOverviewTab || activeTab === "categories";
   const showPeopleTab = isOverviewTab || activeTab === "people";
@@ -521,15 +606,140 @@ export default function PuneSoSCDashboard() {
     <div className="space-y-6 bg-[#f4f6f8] min-h-screen -m-6 p-6">
       <div className="flex w-full flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Program expenses</h1>
-          <p className="text-xl text-muted-foreground">
-            CP Pune-SoSC · {filteredData.length} expenses across {uniquePeopleCount} people
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Pune SoSC Dashboard Overview</h1>
+          <p className="text-base text-muted-foreground">
+            {filteredData.length} expenses across {uniquePeopleCount} people
           </p>
         </div>
-        <div className="md:text-right">
-          <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Reporting period</p>
-          <p className="text-xl font-semibold text-foreground">{reportingPeriod}</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={exportToCSV}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </button>
+          <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+            {(["7d", "30d", "90d", "ytd", "all"] as QuickRangeValue[]).map((range) => (
+              <button
+                key={range}
+                type="button"
+                onClick={() => setQuickRange(range)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  quickRange === range
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {range === "all" ? "All time" : range === "ytd" ? "YTD" : range.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Select
+          value={filters.expenseType}
+          onValueChange={(value) => setFilters((f) => ({ ...f, expenseType: value }))}
+        >
+          <SelectTrigger className="w-[170px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
+            <span className="text-slate-400 mr-1">Type:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All types</SelectItem>
+            {filterOptions.types.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.status}
+          onValueChange={(value) => setFilters((f) => ({ ...f, status: value }))}
+        >
+          <SelectTrigger className="w-[180px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
+            <span className="text-slate-400 mr-1">Status:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All statuses</SelectItem>
+            {filterOptions.statuses.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.user}
+          onValueChange={(value) => setFilters((f) => ({ ...f, user: value }))}
+        >
+          <SelectTrigger className="w-[180px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
+            <span className="text-slate-400 mr-1">User:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All users</SelectItem>
+            {filterOptions.users.map((u) => (
+              <SelectItem key={u} value={u}>{u}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.date}
+          onValueChange={(value) => setFilters((f) => ({ ...f, date: value }))}
+        >
+          <SelectTrigger className="w-[190px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
+            <span className="text-slate-400 mr-1">Date:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All dates</SelectItem>
+            {filterOptions.dates.map((d) => (
+              <SelectItem key={d} value={d}>{formatDateLabel(d)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.month}
+          onValueChange={(value) => setFilters((f) => ({ ...f, month: value }))}
+        >
+          <SelectTrigger className="w-[180px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
+            <span className="text-slate-400 mr-1">Month:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All months</SelectItem>
+            {filterOptions.months.map((m) => (
+              <SelectItem key={m} value={m}>{formatMonthLabel(m)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              setFilters({
+                expenseType: "ALL",
+                status: "ALL",
+                date: "ALL",
+                month: "ALL",
+                user: "ALL",
+                uniqueId: "ALL",
+                timeRange: "day",
+              })
+            }
+            className="text-sm font-medium text-slate-500 hover:text-slate-900 underline underline-offset-2 transition-colors"
+          >
+            Clear filters ({activeFilterCount})
+          </button>
+        )}
       </div>
 
       {/* Tabs*/}
