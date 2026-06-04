@@ -603,7 +603,7 @@ export default function PuneSoSCDashboard() {
   const showApprovalsTab = isOverviewTab || activeTab === "approvals";
 
   return (
-    <div className="space-y-6 bg-[#f4f6f8] min-h-screen -m-6 p-6">
+    <div className="space-y-6 bg-[#f4f6f8] min-h-screen -m-6 p-6 overflow-x-hidden">
       <div className="flex w-full flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Pune SoSC Dashboard Overview</h1>
@@ -611,7 +611,7 @@ export default function PuneSoSCDashboard() {
             {filteredData.length} expenses across {uniquePeopleCount} people
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={exportToCSV}
@@ -620,7 +620,7 @@ export default function PuneSoSCDashboard() {
             <Download className="h-4 w-4" />
             Export
           </button>
-          <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+          <div className="flex flex-wrap items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
             {(["7d", "30d", "90d", "ytd", "all"] as QuickRangeValue[]).map((range) => (
               <button
                 key={range}
@@ -849,7 +849,7 @@ export default function PuneSoSCDashboard() {
       {/* Primary charts */}
       {showCategoriesTab ? (
         <div id="where-money-goes-section" className="grid grid-cols-1 gap-5">
-          <CardHeader className="flex flex-row items-center justify-between gap-3 px-0 pb-0">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-3 px-0 pb-0">
             <CardTitle className="text-2xl font-semibold text-slate-900">
               Where the money goes
             </CardTitle>
@@ -881,7 +881,7 @@ export default function PuneSoSCDashboard() {
           <div className={`grid grid-cols-1 gap-5 ${showApprovalsTab && showTimelineTab ? "lg:grid-cols-2" : ""}`}>
             {showTimelineTab ? (
               <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-0 pb-2">
                   <CardTitle className="text-[17px] font-bold text-slate-900">
                     Spending pattern
                   </CardTitle>
@@ -899,7 +899,7 @@ export default function PuneSoSCDashboard() {
 
             {showApprovalsTab ? (
               <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-0 pb-2">
                   <CardTitle className="text-[17px] font-bold text-slate-900">
                     Approval pipeline
                   </CardTitle>
@@ -927,7 +927,7 @@ export default function PuneSoSCDashboard() {
 
           {showPeopleTab ? (
             <div className="flex flex-col gap-0 mt-2">
-              <CardHeader className="flex flex-row items-center justify-between gap-3 px-0 pb-4">
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-3 px-0 pb-4">
                 <CardTitle className="text-2xl font-semibold text-slate-900">
                   Who's claiming
                 </CardTitle>

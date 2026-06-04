@@ -953,9 +953,9 @@ export function MonthlyTrendChart({ data }: { data: Expense[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
         <div className="text-[22px] font-bold text-slate-900 tracking-tight">Monthly trend</div>
-        <div className="flex items-center gap-4 text-sm font-medium text-slate-500">
+        <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-500">
           <div className="flex items-center gap-2">
             <span className="h-3 w-3 rounded-full bg-[#5b8def]" />
             <span>This year</span>
@@ -971,7 +971,7 @@ export function MonthlyTrendChart({ data }: { data: Expense[] }) {
 
       <div className="h-[200px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }} style={{ cursor: 'pointer' }}>
             <defs>
               <linearGradient id="monthlyTrendFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#5b8def" stopOpacity={0.25} />
@@ -985,17 +985,32 @@ export function MonthlyTrendChart({ data }: { data: Expense[] }) {
               cursor={false}
               offset={0}
               allowEscapeViewBox={{ x: true, y: true }}
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
+              content={(props: any) => {
+                const { active, payload, coordinate, viewBox } = props;
+                if (!active || !payload?.length || !coordinate) return null;
 
                 const point = payload[0]?.payload as MonthlyTrendPoint | undefined;
                 if (!point) return null;
+
+                const isFirst = chartData.length > 0 && point.label === chartData[0].label;
+                const isLast = chartData.length > 0 && point.label === chartData[chartData.length - 1].label;
+                
+                let transform = 'translate(-50%, -100%)';
+                let arrowLeft = '50%';
+                
+                if (isFirst) {
+                  transform = 'translate(-15%, -100%)';
+                  arrowLeft = '15%';
+                } else if (isLast) {
+                  transform = 'translate(-85%, -100%)';
+                  arrowLeft = '85%';
+                }
 
                 return (
                   <div
                     className="relative rounded-[10px] bg-[#1e1e24] px-4 py-2.5 text-[15px] shadow-2xl w-max pointer-events-none"
                     style={{
-                      transform: 'translate(-50%, -100%)',
+                      transform,
                       marginTop: '-16px'
                     }}
                   >
@@ -1006,7 +1021,10 @@ export function MonthlyTrendChart({ data }: { data: Expense[] }) {
                       {point.deltaPct == null ? "No last-year comparison" : `${point.deltaPct >= 0 ? "+" : ""}${point.deltaPct.toFixed(0)}% vs last year`}
                     </div>
                     {/* The triangle arrow */}
-                    <div className="absolute left-1/2 -bottom-[6px] -translate-x-1/2 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#1e1e24]" />
+                    <div 
+                      className="absolute -bottom-[6px] -translate-x-1/2 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#1e1e24]"
+                      style={{ left: arrowLeft }}
+                    />
                   </div>
                 );
               }}
