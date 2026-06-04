@@ -953,9 +953,9 @@ export function MonthlyTrendChart({ data }: { data: Expense[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
         <div className="text-[22px] font-bold text-slate-900 tracking-tight">Monthly trend</div>
-        <div className="flex items-center gap-4 text-sm font-medium text-slate-500">
+        <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-500">
           <div className="flex items-center gap-2">
             <span className="h-3 w-3 rounded-full bg-[#5b8def]" />
             <span>This year</span>
