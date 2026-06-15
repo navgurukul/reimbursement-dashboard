@@ -1636,16 +1636,22 @@ export default function PaymentRecords() {
         "Ledger Name",
         "Ledger Amount",
         "Ledger Amount Dr/Cr",
-        "Ledger Narration",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Project",
+        "Cost Allocation for - Amount",
       ]
       : [
         "Voucher Date",
         "Voucher Type Name",
         "Voucher Number",
         "Ledger Name",
-        "TDS Amount",
+        "Ledger Amount",
         "Ledger Amount Dr/Cr",
-        "Ledger Narration",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Project",
+        "Cost Allocation for - Amount",
       ];
 
     const exportRecords = getExportRecords();
@@ -1692,6 +1698,9 @@ export default function PaymentRecords() {
             ledgerAmount,
             "Dr",
             narration,
+            "Project",
+            record.location || "N/A",
+            ledgerAmount,
           ],
           [
             "",
@@ -1700,6 +1709,9 @@ export default function PaymentRecords() {
             expenseCreditPerson,
             ledgerAmount,
             "Cr",
+            "",
+            "",
+            "",
             "",
           ],
         ];
@@ -1724,6 +1736,9 @@ export default function PaymentRecords() {
           formatAmountValue(baseAmount),
           "Dr",
           narration,
+          "Project",
+          record.location || "N/A",
+          formatAmountValue(baseAmount),
         ],
         [
           "",
@@ -1732,6 +1747,9 @@ export default function PaymentRecords() {
           beneficiaryName,
           formatAmountValue(actualAmount ?? baseAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ],
       ];
@@ -1745,6 +1763,9 @@ export default function PaymentRecords() {
           formatAmountValue(tdsAmount),
           "Cr",
           "",
+          "",
+          "",
+          "",
         ]);
       }
 
@@ -1756,6 +1777,9 @@ export default function PaymentRecords() {
           "Security Deposit",
           formatAmountValue(securityDepositAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ]);
       }
@@ -1907,16 +1931,22 @@ export default function PaymentRecords() {
         "Ledger Name",
         "Ledger Amount",
         "Ledger Amount Dr/Cr",
-        "Ledger Narration",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Project",
+        "Cost Allocation for - Amount",
       ]
       : [
         "Voucher Date",
         "Voucher Type Name",
         "Voucher Number",
         "Ledger Name",
-        "TDS Amount",
+        "Ledger Amount",
         "Ledger Amount Dr/Cr",
-        "Ledger Narration",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Project",
+        "Cost Allocation for - Amount",
       ];
 
     const exportRecords = getExportRecords();
@@ -1963,6 +1993,9 @@ export default function PaymentRecords() {
             ledgerAmount,
             "Dr",
             narration,
+            "Project",
+            record.location || "N/A",
+            ledgerAmount,
           ],
           [
             "",
@@ -1971,6 +2004,9 @@ export default function PaymentRecords() {
             expenseCreditPerson,
             ledgerAmount,
             "Cr",
+            "",
+            "",
+            "",
             "",
           ],
         ];
@@ -1995,6 +2031,9 @@ export default function PaymentRecords() {
           formatAmountValue(baseAmount),
           "Dr",
           narration,
+          "Project",
+          record.location || "N/A",
+          formatAmountValue(baseAmount),
         ],
         [
           "",
@@ -2003,6 +2042,9 @@ export default function PaymentRecords() {
           beneficiaryName,
           formatAmountValue(actualAmount ?? baseAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ],
       ];
@@ -2016,6 +2058,9 @@ export default function PaymentRecords() {
           formatAmountValue(tdsAmount),
           "Cr",
           "",
+          "",
+          "",
+          "",
         ]);
       }
 
@@ -2027,6 +2072,9 @@ export default function PaymentRecords() {
           "Security Deposit",
           formatAmountValue(securityDepositAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ]);
       }
