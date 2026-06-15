@@ -34,6 +34,7 @@ import {
   Pencil,
   Copy,
   Trash2,
+  Search,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
@@ -115,6 +116,15 @@ export default function ExpensesPage() {
     approver: "",
     status: "",
     uniqueId: "",
+  });
+  const [searchQuery, setSearchQuery] = useState({
+    expenseType: "",
+    projectOfExpense: "",
+    status: "",
+    dateFrom: "",
+    createdBy: "",
+    uniqueId: "",
+    approver: "",
   });
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -936,11 +946,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Expense Type" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search expense type..."
+                          searchValue={searchQuery.expenseType}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, expenseType: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Expense Types
                           </SelectItem>
-                          {expenseTypeOptions.map((opt: string) => (
+                          {expenseTypeOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -962,11 +978,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Project of Expense" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search projects..."
+                          searchValue={searchQuery.projectOfExpense}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, projectOfExpense: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Projects
                           </SelectItem>
-                          {locationOptions.map((opt: string) => (
+                          {locationOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.projectOfExpense.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1014,11 +1036,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Status" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search status..."
+                          searchValue={searchQuery.status}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, status: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Statuses
                           </SelectItem>
-                          {statusOptions.map((opt: string) => (
+                          {statusOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.status.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1116,10 +1144,16 @@ export default function ExpensesPage() {
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select Date" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent
+                                searchPlaceholder="Search date..."
+                                searchValue={searchQuery.dateFrom}
+                                onSearchChange={(v) => setSearchQuery({ ...searchQuery, dateFrom: v })}
+                              >
                                 <SelectItem value={OPTION_ALL}>All Dates</SelectItem>
                                 {singleDateOptions.length > 0 ? (
-                                  singleDateOptions.map((dateKey: string) => (
+                                  singleDateOptions
+                                    .filter((dateKey: string) => formatDate(dateKey).toLowerCase().includes(searchQuery.dateFrom.toLowerCase()))
+                                    .map((dateKey: string) => (
                                     <SelectItem key={dateKey} value={dateKey}>
                                       {formatDate(dateKey)}
                                     </SelectItem>
@@ -1178,11 +1212,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Created By" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search creator..."
+                          searchValue={searchQuery.createdBy}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, createdBy: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Created By
                           </SelectItem>
-                          {creatorOptions.map((opt: string) => (
+                          {creatorOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1204,9 +1244,15 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Unique ID" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search unique ID..."
+                          searchValue={searchQuery.uniqueId}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, uniqueId: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>All Unique IDs</SelectItem>
-                          {uniqueIdOptions.map((opt: string) => (
+                          {uniqueIdOptions
+                            .filter((opt: string) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1228,11 +1274,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Approver" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search approver..."
+                          searchValue={searchQuery.approver}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, approver: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Approvers
                           </SelectItem>
-                          {approverOptions.map((opt: string) => (
+                          {approverOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.approver.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1244,7 +1296,7 @@ export default function ExpensesPage() {
                   <div className="flex justify-end gap-2">
                     <Button
                       variant="outline"
-                      onClick={() =>
+                      onClick={() => {
                         setFilters({
                           expenseType: "",
                           eventName: "",
@@ -1258,8 +1310,17 @@ export default function ExpensesPage() {
                           approver: "",
                           status: "",
                           uniqueId: "",
-                        })
-                      }
+                        });
+                        setSearchQuery({
+                          expenseType: "",
+                          projectOfExpense: "",
+                          status: "",
+                          dateFrom: "",
+                          createdBy: "",
+                          uniqueId: "",
+                          approver: "",
+                        });
+                      }}
                     >
                       Clear
                     </Button>
