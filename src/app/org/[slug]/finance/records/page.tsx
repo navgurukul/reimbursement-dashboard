@@ -1022,10 +1022,18 @@ export default function PaymentRecords() {
 
           bankData?.forEach((bankDetail: any) => {
             const uniqueId = String(bankDetail.unique_id || "").trim();
+            const advanceUniqueId = String(bankDetail.advance_unique_id || "").trim();
+            const directPaymentUniqueId = String(bankDetail.direct_payment_unique_id || "").trim();
             // const email = String(bankDetail.email || "").trim().toLowerCase();
 
             if (uniqueId) {
               bankDetailsByUniqueId.set(uniqueId, bankDetail);
+            }
+            if (advanceUniqueId) {
+              bankDetailsByUniqueId.set(advanceUniqueId, bankDetail);
+            }
+            if (directPaymentUniqueId) {
+              bankDetailsByUniqueId.set(directPaymentUniqueId, bankDetail);
             }
 
             // if (email) {
