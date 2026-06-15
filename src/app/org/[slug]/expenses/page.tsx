@@ -105,6 +105,7 @@ export default function ExpensesPage() {
   const [filters, setFilters] = useState({
     expenseType: "",
     eventName: "",
+    projectOfExpense: "",
     amountMin: "",
     amountMax: "",
     dateFrom: "",
@@ -166,6 +167,11 @@ export default function ExpensesPage() {
 
   const eventNameOptions = useMemo(
     () => unique(allDataCombined.map((e: any) => e.event_title)),
+    [allDataCombined]
+  );
+
+  const locationOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.location || e.custom_fields?.location)),
     [allDataCombined]
   );
 
@@ -283,13 +289,29 @@ export default function ExpensesPage() {
         // ✅ Remove any existing 'description' columns
         expenseColumns = expenseColumns.filter((c) => c.key !== "description");
 
-        // Remove any existing 'Location of Expense' or 'Project of Expense' columns (by key or label)
-        expenseColumns = expenseColumns.filter(
+        // Move or ensure 'Project of Expense' column exists after 'category'
+        const projectColIdx = expenseColumns.findIndex(
           (c) =>
-            c.key !== "location" &&
-            c.label !== "Project of Expense" &&
-            c.key !== "Project of Expense"
+            c.key === "location" ||
+            c.label === "Project of Expense" ||
+            c.key === "Project of Expense"
         );
+        
+        let projectCol: any = {
+          key: "location",
+          label: "Project of Expense",
+          visible: true,
+          type: "text",
+        };
+
+        if (projectColIdx >= 0) {
+          projectCol = expenseColumns[projectColIdx];
+          expenseColumns.splice(projectColIdx, 1);
+        }
+
+        const catIdx = expenseColumns.findIndex((c) => c.key === "category" || c.key === "expense_type" || c.label === "Expense Type");
+        const insertPos = catIdx >= 0 ? catIdx + 1 : 2;
+        expenseColumns.splice(insertPos, 0, projectCol);
 
         // Remove any existing 'Expense Credit Person' columns (by key or label)
         expenseColumns = expenseColumns.filter(
@@ -309,19 +331,21 @@ export default function ExpensesPage() {
         }
 
         // Ensure event_title column exists
-        if (!expenseColumns.some((c) => c.key === "event_title")) {
-          // Place Event after Category if present, else near the start
-          const categoryIdx = expenseColumns.findIndex(
-            (c) => c.key === "category"
-          );
-          const insertIdx = categoryIdx >= 0 ? categoryIdx + 1 : 1;
-          expenseColumns.splice(insertIdx, 0, {
-            key: "event_title",
-            label: "Event Name",
-            visible: true,
-            type: "text",
-          });
-        }
+        // if (!expenseColumns.some((c) => c.key === "event_title")) {
+        //   // Place Event after Project of Expense if present, else after Category
+        //   const projIdx = expenseColumns.findIndex((c) => c.key === "location" || c.label === "Project of Expense" || c.key === "Project of Expense");
+        //   const categoryIdx = expenseColumns.findIndex((c) => c.key === "category" || c.key === "expense_type" || c.label === "Expense Type");
+        //   let insertIdx = 1;
+        //   if (projIdx >= 0) insertIdx = projIdx + 1;
+        //   else if (categoryIdx >= 0) insertIdx = categoryIdx + 1;
+          
+        //   expenseColumns.splice(insertIdx, 0, {
+        //     key: "event_title",
+        //     label: "Event Name",
+        //     visible: true,
+        //     type: "text",
+        //   });
+        // }
 
         setColumns(expenseColumns);
       }
@@ -578,6 +602,10 @@ export default function ExpensesPage() {
         return false;
 
       if (filters.eventName && e.event_title !== filters.eventName)
+        return false;
+
+      const location = e.location || e.custom_fields?.location;
+      if (filters.projectOfExpense && location !== filters.projectOfExpense)
         return false;
 
       if (minAmt !== undefined && Number(e.amount) < minAmt) return false;
@@ -921,6 +949,32 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
+                      <Label>Project of Expense</Label>
+                      <Select
+                        value={filters.projectOfExpense || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({
+                            ...filters,
+                            projectOfExpense: v === OPTION_ALL ? "" : v,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Project of Expense" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OPTION_ALL}>
+                            All Projects
+                          </SelectItem>
+                          {locationOptions.map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* <div className="space-y-1">
                       <Label>Event</Label>
                       <Select
                         value={filters.eventName || OPTION_ALL}
@@ -945,7 +999,7 @@ export default function ExpensesPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
+                    </div> */}
                     <div className="space-y-1">
                       <Label>Status</Label>
                       <Select
@@ -1194,6 +1248,7 @@ export default function ExpensesPage() {
                         setFilters({
                           expenseType: "",
                           eventName: "",
+                          projectOfExpense: "",
                           amountMin: "",
                           amountMax: "",
                           dateFrom: "",
