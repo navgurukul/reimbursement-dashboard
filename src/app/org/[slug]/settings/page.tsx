@@ -1123,7 +1123,7 @@ export default function SettingsPage() {
                     : "Edit Column"}
                 </DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
                 <div className="space-y-2">
                   <Label>Column Label</Label>
                   <Input
@@ -1190,6 +1190,7 @@ export default function SettingsPage() {
                         onChange={(e) => setNewOptions(e.target.value)}
                         placeholder="Enter options..."
                         rows={5}
+                        className="max-h-48 overflow-y-auto"
                       />
                     </div>
                   )}
@@ -1343,7 +1344,7 @@ export default function SettingsPage() {
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2 max-h-[70vh] overflow-y-auto pr-2">
                 <div className="space-y-2">
                   <Label htmlFor="expense-type-group">Group</Label>
                   <Input
@@ -1558,7 +1559,7 @@ export default function SettingsPage() {
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="grid gap-4">
+              <div className="grid gap-4 max-h-[70vh] overflow-y-auto pr-2">
                 <div className="space-y-2">
                   <Label htmlFor="project-of-expense-name">Project of Expense</Label>
                   <Input
