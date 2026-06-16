@@ -267,6 +267,11 @@ export default function NewExpensePage() {
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateMatchDetails, setDuplicateMatchDetails] =
     useState<DuplicateMatchDetails[]>([]);
+  const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
+
+  const handleSearchChange = (key: string, value: string) => {
+    setSearchQueries((prev) => ({ ...prev, [key]: value }));
+  };
   const uploadFileHashCacheRef = useRef<Map<string, Promise<string | null>>>(
     new Map()
   );
@@ -2770,9 +2775,15 @@ export default function NewExpensePage() {
                 <SelectTrigger id="event_id" className="w-full">
                   <SelectValue placeholder="Select expense type (optional)" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent
+                  searchPlaceholder="Search event..."
+                  searchValue={searchQueries["event_id"] || ""}
+                  onSearchChange={(v) => handleSearchChange("event_id", v)}
+                >
                   <SelectItem value="none">No event</SelectItem>
-                  {events.map((event) => (
+                  {events
+                    .filter((event) => event.title.toLowerCase().includes((searchQueries["event_id"] || "").toLowerCase()))
+                    .map((event) => (
                     <SelectItem key={event.id} value={event.id}>
                       {event.title} (
                       {new Date(event.start_date).toLocaleDateString()} -{" "}
@@ -2872,8 +2883,17 @@ export default function NewExpensePage() {
                             >
                               <SelectValue placeholder="Please Select" />
                             </SelectTrigger>
-                            <SelectContent>
-                              {col.options.map((option: any) => {
+                            <SelectContent
+                              searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                              searchValue={searchQueries[col.key] || ""}
+                              onSearchChange={(v) => handleSearchChange(col.key, v)}
+                            >
+                              {col.options
+                                .filter((option: any) => {
+                                  const label = typeof option === "string" ? option : option.label;
+                                  return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                                })
+                                .map((option: any) => {
                                 const value =
                                   typeof option === "string"
                                     ? option
@@ -2927,8 +2947,17 @@ export default function NewExpensePage() {
                             >
                               <SelectValue placeholder="Select expense type" />
                             </SelectTrigger>
-                            <SelectContent>
-                              {col.options.map((option: any) => {
+                            <SelectContent
+                              searchPlaceholder={`Search ${col.label?.toLowerCase() || "expense type"}...`}
+                              searchValue={searchQueries[col.key] || ""}
+                              onSearchChange={(v) => handleSearchChange(col.key, v)}
+                            >
+                              {col.options
+                                .filter((option: any) => {
+                                  const label = typeof option === "string" ? option : option.label;
+                                  return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                                })
+                                .map((option: any) => {
                                 const value =
                                   typeof option === "string"
                                     ? option
@@ -3166,8 +3195,17 @@ export default function NewExpensePage() {
                           >
                             <SelectValue placeholder="Please Select" />
                           </SelectTrigger>
-                          <SelectContent>
-                            {col.options.map((option: any) => {
+                          <SelectContent
+                            searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                            searchValue={searchQueries[col.key] || ""}
+                            onSearchChange={(v) => handleSearchChange(col.key, v)}
+                          >
+                            {col.options
+                              .filter((option: any) => {
+                                const label = typeof option === "string" ? option : option.label;
+                                return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                              })
+                              .map((option: any) => {
                               const value =
                                 typeof option === "string"
                                   ? option
@@ -3463,14 +3501,14 @@ export default function NewExpensePage() {
                               <>
                                 <Select
                                   value={
-                                    getExpenseItemValue(id, "expense_type") !==
+                                    getExpenseItemValue(id, col.key as keyof ExpenseItemData) !==
                                       undefined &&
-                                      getExpenseItemValue(id, "expense_type") !==
+                                      getExpenseItemValue(id, col.key as keyof ExpenseItemData) !==
                                       null
                                       ? String(
                                         getExpenseItemValue(
                                           id,
-                                          "expense_type"
+                                          col.key as keyof ExpenseItemData
                                         )
                                       )
                                       : undefined
@@ -3478,7 +3516,7 @@ export default function NewExpensePage() {
                                   onValueChange={(value) =>
                                     handleExpenseItemChange(
                                       id,
-                                      "expense_type",
+                                      col.key as keyof ExpenseItemData,
                                       value
                                     )
                                   }
@@ -3490,10 +3528,19 @@ export default function NewExpensePage() {
                                         : ""
                                       }`}
                                   >
-                                    <SelectValue placeholder="Select expense type" />
+                                    <SelectValue placeholder={`Select ${col.label?.toLowerCase() || "option"}`} />
                                   </SelectTrigger>
-                                  <SelectContent>
-                                    {col.options.map((option: any) => {
+                                  <SelectContent
+                                    searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                    searchValue={searchQueries[`${id}-${col.key}`] || ""}
+                                    onSearchChange={(v) => handleSearchChange(`${id}-${col.key}`, v)}
+                                  >
+                                    {col.options
+                                      .filter((option: any) => {
+                                        const label = typeof option === "string" ? option : option.label;
+                                        return String(label).toLowerCase().includes((searchQueries[`${id}-${col.key}`] || "").toLowerCase());
+                                      })
+                                      .map((option: any) => {
                                       const value =
                                         typeof option === "string"
                                           ? option
@@ -3816,8 +3863,17 @@ export default function NewExpensePage() {
                                 >
                                   <SelectValue placeholder="Please Select" />
                                 </SelectTrigger>
-                                <SelectContent>
-                                  {col.options.map((option: any) => {
+                                <SelectContent
+                                  searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                  searchValue={searchQueries[`${id}-${col.key}`] || ""}
+                                  onSearchChange={(v) => handleSearchChange(`${id}-${col.key}`, v)}
+                                >
+                                  {col.options
+                                    .filter((option: any) => {
+                                      const label = typeof option === "string" ? option : option.label;
+                                      return String(label).toLowerCase().includes((searchQueries[`${id}-${col.key}`] || "").toLowerCase());
+                                    })
+                                    .map((option: any) => {
                                     const value =
                                       typeof option === "string"
                                         ? option
