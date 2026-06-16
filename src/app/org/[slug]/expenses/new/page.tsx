@@ -731,10 +731,10 @@ export default function NewExpensePage() {
       if (next) {
         const expenseAmount = expenseItemsData[index]?.amount;
         const expenseDate = expenseItemsData[index]?.date;
-        
+
         // Sanitize amount to ensure it's never NaN
         const sanitizedAmount = !isNaN(Number(expenseAmount)) ? expenseAmount : 0;
-        
+
         setVoucherDataMap((prevData) => ({
           ...prevData,
           [index]: {
@@ -1216,16 +1216,14 @@ export default function NewExpensePage() {
     }
 
     const receiptSignature = candidate.receiptFile
-      ? `receipt:${
-          normalizeHash(candidate.receiptHash) ||
-          `${normalizeFileName(candidate.receiptFile.name)}:${candidate.receiptFile.size}`
-        }`
+      ? `receipt:${normalizeHash(candidate.receiptHash) ||
+      `${normalizeFileName(candidate.receiptFile.name)}:${candidate.receiptFile.size}`
+      }`
       : "";
     const voucherFileSignature = candidate.voucherFile
-      ? `voucher:${
-          normalizeHash(candidate.voucherHash) ||
-          `${normalizeFileName(candidate.voucherFile.name)}:${candidate.voucherFile.size}`
-        }`
+      ? `voucher:${normalizeHash(candidate.voucherHash) ||
+      `${normalizeFileName(candidate.voucherFile.name)}:${candidate.voucherFile.size}`
+      }`
       : "";
 
     const voucherDetailsSignature = candidate.isVoucher
@@ -1483,7 +1481,7 @@ export default function NewExpensePage() {
             normalizeVoucherText(voucher?.your_name) === normalizedYourName &&
             normalizeVoucherText(voucher?.purpose) === normalizedPurpose &&
             normalizeVoucherText(voucher?.credit_person) ===
-              normalizedCreditPerson;
+            normalizedCreditPerson;
 
           const isFullVoucherMatch = isAttachmentMatch && isVoucherDetailsMatch;
 
@@ -1585,10 +1583,10 @@ export default function NewExpensePage() {
           : "",
         voucherCreditPerson: itemIsVoucher
           ? String(
-              itemVoucherData.voucherCreditPerson ||
-                formData.voucherCreditPerson ||
-                ""
-            )
+            itemVoucherData.voucherCreditPerson ||
+            formData.voucherCreditPerson ||
+            ""
+          )
           : "",
         sourceLabel: `Expense Item ${index + 1}`,
       });
@@ -1695,24 +1693,24 @@ export default function NewExpensePage() {
       formData.unique_id || ""
     );
 
-    if (isDirectPaymentSelected) {
-      // Resolve the actual top-level "Expense Credit Person" value, even if
-      // the settings use a different column key for this label.
-      let topLevelExpenseCreditPerson = formData.expense_credit_person;
+    // Resolve the actual top-level "Expense Credit Person" value, even if
+    // the settings use a different column key for this label.
+    let topLevelExpenseCreditPerson = formData.expense_credit_person;
 
-      if (!topLevelExpenseCreditPerson) {
-        const expenseCreditCol = columns.find(
-          (col) =>
-            col.visible &&
-            (col.key === "expense_credit_person" ||
-              col.label?.trim().toLowerCase() === "expense credit person")
-        );
+    if (!topLevelExpenseCreditPerson) {
+      const expenseCreditCol = columns.find(
+        (col) =>
+          col.visible &&
+          (col.key === "expense_credit_person" ||
+            col.label?.trim().toLowerCase() === "expense credit person")
+      );
 
-        if (expenseCreditCol) {
-          topLevelExpenseCreditPerson = formData[expenseCreditCol.key];
-        }
+      if (expenseCreditCol) {
+        topLevelExpenseCreditPerson = formData[expenseCreditCol.key] as string;
       }
+    }
 
+    if (isDirectPaymentSelected) {
       if (!String(topLevelExpenseCreditPerson || "").trim()) {
         newErrors["expense_credit_person"] =
           "Expense credit person is required";
@@ -2019,7 +2017,7 @@ export default function NewExpensePage() {
         expense_credit_person: isDirectPaymentValue(
           formData.unique_id || ""
         )
-          ? formData.expense_credit_person || null
+          ? topLevelExpenseCreditPerson || null
           : null,
         signature_url: signature_url_to_use ?? undefined,
         receipt: null,
@@ -2163,6 +2161,19 @@ export default function NewExpensePage() {
             }
           });
 
+          let itemExpenseCreditPerson = item.expense_credit_person;
+          if (!itemExpenseCreditPerson) {
+            const expenseCreditCol = columns.find(
+              (col) =>
+                col.visible &&
+                (col.key === "expense_credit_person" ||
+                  col.label?.trim().toLowerCase() === "expense credit person")
+            );
+            if (expenseCreditCol) {
+              itemExpenseCreditPerson = item[expenseCreditCol.key] as string;
+            }
+          }
+
           const individualExpenseData = {
             org_id: organization.id,
             user_id: user.id,
@@ -2175,7 +2186,7 @@ export default function NewExpensePage() {
             // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
             unique_id: item.unique_id || formData.unique_id || undefined,
             expense_credit_person: itemIsDirectPayment
-              ? item.expense_credit_person || null
+              ? itemExpenseCreditPerson || null
               : null,
             signature_url: isVoucher
               ? signature_url_to_use ?? undefined
@@ -2271,7 +2282,7 @@ export default function NewExpensePage() {
               );
             }
           }
-          
+
           // Log history entry
           void (async () => {
             try {
@@ -2457,11 +2468,10 @@ export default function NewExpensePage() {
                       ? "Unique ID not available"
                       : "Enter payment unique ID"
                   }
-                  className={`w-full border ${
-                    errors["unique_id"]
+                  className={`w-full border ${errors["unique_id"]
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                       : "border-gray-300"
-                  } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
+                    } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
                   disabled={
                     !!prefilledUniqueId ||
                     (uniqueIdUnavailable && !formData.unique_id)
@@ -2606,7 +2616,7 @@ export default function NewExpensePage() {
                                       Direct Payment
                                     </p>
                                     <p className="mt-2 inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 font-mono text-sm font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-100">
-                                      {row.direct_payment|| "Direct payment not available"}
+                                      {row.direct_payment || "Direct payment not available"}
                                     </p>
                                   </button>
                                 )}
@@ -2739,7 +2749,7 @@ export default function NewExpensePage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            
+
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
               <div className="flex items-center space-x-3 mb-2">
@@ -2822,11 +2832,10 @@ export default function NewExpensePage() {
                             onChange={(e) =>
                               handleInputChange(col.key, e.target.value)
                             }
-                            className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
-                              errors[col.key]
+                            className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
-                            }`}
+                              }`}
                             min={dateBounds.min}
                             max={dateBounds.max}
                           />
@@ -2856,11 +2865,10 @@ export default function NewExpensePage() {
                           >
                             <SelectTrigger
                               id={col.key}
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                             >
                               <SelectValue placeholder="Please Select" />
                             </SelectTrigger>
@@ -2893,11 +2901,11 @@ export default function NewExpensePage() {
                           )}
                           {(col.key === "expense_type" ||
                             col.label?.trim().toLowerCase() ===
-                              "expense type") && (
-                            <p className="text-xs text-gray-600">
-                              Unsure about any expense type or abbreviation? Check the Abbreviations tab for details.
-                            </p>
-                          )}
+                            "expense type") && (
+                              <p className="text-xs text-gray-600">
+                                Unsure about any expense type or abbreviation? Check the Abbreviations tab for details.
+                              </p>
+                            )}
                         </>
                       )}
 
@@ -2912,11 +2920,10 @@ export default function NewExpensePage() {
                           >
                             <SelectTrigger
                               id={col.key}
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                             >
                               <SelectValue placeholder="Select expense type" />
                             </SelectTrigger>
@@ -2964,11 +2971,10 @@ export default function NewExpensePage() {
                                 parseFloat(e.target.value)
                               )
                             }
-                            className={`w-full ${
-                              errors[col.key]
+                            className={`w-full ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
-                            }`}
+                              }`}
                             placeholder="Enter amount"
                           />
                           {errors[col.key] && (
@@ -3009,11 +3015,10 @@ export default function NewExpensePage() {
                       onChange={(e) =>
                         handleInputChange(col.key, e.target.value)
                       }
-                      className={`w-full min-h-[75px] ${
-                        errors[col.key]
+                      className={`w-full min-h-[75px] ${errors[col.key]
                           ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                           : ""
-                      }`}
+                        }`}
                       placeholder="Brief description of this expense report..."
                     />
                     {errors[col.key] && (
@@ -3084,11 +3089,10 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`w-full ${
-                          errors[col.key]
+                        className={`w-full ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         placeholder={`Enter ${col.label}`}
                       />
                     )}
@@ -3106,11 +3110,10 @@ export default function NewExpensePage() {
                               : e.target.value
                           )
                         }
-                        className={`w-full ${
-                          errors[col.key]
+                        className={`w-full ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         placeholder={`Enter ${col.label}`}
                       />
                     )}
@@ -3123,11 +3126,10 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
-                          errors[col.key]
+                        className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         min={dateBounds.min}
                         max={dateBounds.max}
                       />
@@ -3140,11 +3142,10 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`w-full min-h-[75px] ${
-                          errors[col.key]
+                        className={`w-full min-h-[75px] ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         placeholder="Brief description of this expense report..."
                       />
                     )}
@@ -3158,11 +3159,10 @@ export default function NewExpensePage() {
                         >
                           <SelectTrigger
                             id={col.key}
-                            className={`w-full ${
-                              errors[col.key]
+                            className={`w-full ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
-                            }`}
+                              }`}
                           >
                             <SelectValue placeholder="Please Select" />
                           </SelectTrigger>
@@ -3286,7 +3286,7 @@ export default function NewExpensePage() {
                 );
                 return null;
               })}
-            </div>            
+            </div>
 
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
@@ -3390,9 +3390,9 @@ export default function NewExpensePage() {
                   selectedEvent={
                     selectedEvent
                       ? {
-                          start_date: selectedEvent.start_date,
-                          end_date: selectedEvent.end_date,
-                        }
+                        start_date: selectedEvent.start_date,
+                        end_date: selectedEvent.end_date,
+                      }
                       : undefined
                   }
                   errors={errors}
@@ -3443,9 +3443,8 @@ export default function NewExpensePage() {
                         .map((col) => (
                           <div
                             key={col.key}
-                            className={`space-y-2 ${
-                              col.key === "date" ? "md:col-span-2" : ""
-                            }`}
+                            className={`space-y-2 ${col.key === "date" ? "md:col-span-2" : ""
+                              }`}
                           >
                             <Label
                               htmlFor={col.key}
@@ -3466,14 +3465,14 @@ export default function NewExpensePage() {
                                   value={
                                     getExpenseItemValue(id, "expense_type") !==
                                       undefined &&
-                                    getExpenseItemValue(id, "expense_type") !==
+                                      getExpenseItemValue(id, "expense_type") !==
                                       null
                                       ? String(
-                                          getExpenseItemValue(
-                                            id,
-                                            "expense_type"
-                                          )
+                                        getExpenseItemValue(
+                                          id,
+                                          "expense_type"
                                         )
+                                      )
                                       : undefined
                                   }
                                   onValueChange={(value) =>
@@ -3486,11 +3485,10 @@ export default function NewExpensePage() {
                                 >
                                   <SelectTrigger
                                     id={col.key}
-                                    className={`w-full ${
-                                      errors[col.key]
+                                    className={`w-full ${errors[col.key]
                                         ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                         : ""
-                                    }`}
+                                      }`}
                                   >
                                     <SelectValue placeholder="Select expense type" />
                                   </SelectTrigger>
@@ -3519,11 +3517,11 @@ export default function NewExpensePage() {
                                 )}
                                 {(col.key === "expense_type" ||
                                   col.label?.trim().toLowerCase() ===
-                                    "expense type") && (
-                                  <p className="text-xs text-gray-600">
-                                    Unsure about any expense type or abbreviation? Check the Abbreviations tab for details.
-                                  </p>
-                                )}
+                                  "expense type") && (
+                                    <p className="text-xs text-gray-600">
+                                      Unsure about any expense type or abbreviation? Check the Abbreviations tab for details.
+                                    </p>
+                                  )}
                               </>
                             )}
 
@@ -3542,11 +3540,10 @@ export default function NewExpensePage() {
                                       e.target.value
                                     )
                                   }
-                                  className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
-                                    errors[col.key]
+                                  className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
-                                  }`}
+                                    }`}
                                   min={dateBounds.min}
                                   max={dateBounds.max}
                                 />
@@ -3578,11 +3575,10 @@ export default function NewExpensePage() {
                                       parseFloat(e.target.value)
                                     )
                                   }
-                                  className={`w-full ${
-                                    errors[col.key]
+                                  className={`w-full ${errors[col.key]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
-                                  }`}
+                                    }`}
                                 />
                                 {errors[col.key] && (
                                   <p className="text-red-500 text-sm">
@@ -3629,11 +3625,10 @@ export default function NewExpensePage() {
                                 e.target.value
                               )
                             }
-                            className={`w-full min-h-[50px] ${
-                              errors[col.key]
+                            className={`w-full min-h-[50px] ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
-                            }`}
+                              }`}
                             placeholder="Brief description of this expense report..."
                           />
                           <p className="text-xs text-gray-500">
@@ -3668,14 +3663,14 @@ export default function NewExpensePage() {
                       const isExpenseCreditPersonField =
                         col.key === "expense_credit_person" ||
                         col.label?.trim().toLowerCase() ===
-                          "expense credit person";
+                        "expense credit person";
                       const isProjectOfExpenseField =
                         col.key === "location" ||
                         col.label?.trim().toLowerCase() === "project of expense";
                       const itemIsDirectPayment = isDirectPaymentValue(
                         expenseItemsData[id]?.unique_id ||
-                          formData.unique_id ||
-                          ""
+                        formData.unique_id ||
+                        ""
                       );
 
                       if (isExpenseCreditPersonField && !itemIsDirectPayment) {
@@ -3713,11 +3708,10 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                               placeholder={`Enter ${col.label}`}
                             />
                           )}
@@ -3741,11 +3735,10 @@ export default function NewExpensePage() {
                                     : e.target.value
                                 )
                               }
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                               placeholder={`Enter ${col.label}`}
                             />
                           )}
@@ -3767,11 +3760,10 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                             />
                           )}
                           {col.type === "textarea" && (
@@ -3791,11 +3783,10 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full min-h-[75px] ${
-                                errors[col.key]
+                              className={`w-full min-h-[75px] ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                               placeholder="Brief description of this expense report..."
                             />
                           )}
@@ -3818,11 +3809,10 @@ export default function NewExpensePage() {
                               >
                                 <SelectTrigger
                                   id={col.key}
-                                  className={`w-full ${
-                                    errors[col.key]
+                                  className={`w-full ${errors[col.key]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
-                                  }`}
+                                    }`}
                                 >
                                   <SelectValue placeholder="Please Select" />
                                 </SelectTrigger>
@@ -3864,7 +3854,7 @@ export default function NewExpensePage() {
                                 );
                                 const selectedRadioValue =
                                   typeof currentValue === "string" ||
-                                  typeof currentValue === "number"
+                                    typeof currentValue === "number"
                                     ? String(currentValue)
                                     : "";
                                 return (
@@ -4122,9 +4112,9 @@ export default function NewExpensePage() {
                           selectedEvent={
                             selectedEvent
                               ? {
-                                  start_date: selectedEvent.start_date,
-                                  end_date: selectedEvent.end_date,
-                                }
+                                start_date: selectedEvent.start_date,
+                                end_date: selectedEvent.end_date,
+                              }
                               : undefined
                           }
                           errors={errors}
@@ -4205,7 +4195,7 @@ export default function NewExpensePage() {
 
                     {savedUserSignature &&
                       formData.expense_signature_preview !==
-                        savedUserSignature && (
+                      savedUserSignature && (
                         <p className="text-xs text-blue-600">
                           * You're using a new signature. This will replace your
                           saved signature when you submit.
