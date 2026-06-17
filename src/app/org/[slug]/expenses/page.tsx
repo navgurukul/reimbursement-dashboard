@@ -34,6 +34,7 @@ import {
   Pencil,
   Copy,
   Trash2,
+  Search,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
@@ -105,6 +106,7 @@ export default function ExpensesPage() {
   const [filters, setFilters] = useState({
     expenseType: "",
     eventName: "",
+    projectOfExpense: "",
     amountMin: "",
     amountMax: "",
     dateFrom: "",
@@ -114,6 +116,15 @@ export default function ExpensesPage() {
     approver: "",
     status: "",
     uniqueId: "",
+  });
+  const [searchQuery, setSearchQuery] = useState({
+    expenseType: "",
+    projectOfExpense: "",
+    status: "",
+    dateFrom: "",
+    createdBy: "",
+    uniqueId: "",
+    approver: "",
   });
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -166,6 +177,11 @@ export default function ExpensesPage() {
 
   const eventNameOptions = useMemo(
     () => unique(allDataCombined.map((e: any) => e.event_title)),
+    [allDataCombined]
+  );
+
+  const locationOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.location || e.custom_fields?.location)),
     [allDataCombined]
   );
 
@@ -283,13 +299,29 @@ export default function ExpensesPage() {
         // ✅ Remove any existing 'description' columns
         expenseColumns = expenseColumns.filter((c) => c.key !== "description");
 
-        // Remove any existing 'Location of Expense' or 'Project of Expense' columns (by key or label)
-        expenseColumns = expenseColumns.filter(
+        // Move or ensure 'Project of Expense' column exists after 'category'
+        const projectColIdx = expenseColumns.findIndex(
           (c) =>
-            c.key !== "location" &&
-            c.label !== "Project of Expense" &&
-            c.key !== "Project of Expense"
+            c.key === "location" ||
+            c.label === "Project of Expense" ||
+            c.key === "Project of Expense"
         );
+        
+        let projectCol: any = {
+          key: "location",
+          label: "Project of Expense",
+          visible: true,
+          type: "text",
+        };
+
+        if (projectColIdx >= 0) {
+          projectCol = expenseColumns[projectColIdx];
+          expenseColumns.splice(projectColIdx, 1);
+        }
+
+        const catIdx = expenseColumns.findIndex((c) => c.key === "category" || c.key === "expense_type" || c.label === "Expense Type");
+        const insertPos = catIdx >= 0 ? catIdx + 1 : 2;
+        expenseColumns.splice(insertPos, 0, projectCol);
 
         // Remove any existing 'Expense Credit Person' columns (by key or label)
         expenseColumns = expenseColumns.filter(
@@ -309,19 +341,21 @@ export default function ExpensesPage() {
         }
 
         // Ensure event_title column exists
-        if (!expenseColumns.some((c) => c.key === "event_title")) {
-          // Place Event after Category if present, else near the start
-          const categoryIdx = expenseColumns.findIndex(
-            (c) => c.key === "category"
-          );
-          const insertIdx = categoryIdx >= 0 ? categoryIdx + 1 : 1;
-          expenseColumns.splice(insertIdx, 0, {
-            key: "event_title",
-            label: "Event Name",
-            visible: true,
-            type: "text",
-          });
-        }
+        // if (!expenseColumns.some((c) => c.key === "event_title")) {
+        //   // Place Event after Project of Expense if present, else after Category
+        //   const projIdx = expenseColumns.findIndex((c) => c.key === "location" || c.label === "Project of Expense" || c.key === "Project of Expense");
+        //   const categoryIdx = expenseColumns.findIndex((c) => c.key === "category" || c.key === "expense_type" || c.label === "Expense Type");
+        //   let insertIdx = 1;
+        //   if (projIdx >= 0) insertIdx = projIdx + 1;
+        //   else if (categoryIdx >= 0) insertIdx = categoryIdx + 1;
+          
+        //   expenseColumns.splice(insertIdx, 0, {
+        //     key: "event_title",
+        //     label: "Event Name",
+        //     visible: true,
+        //     type: "text",
+        //   });
+        // }
 
         setColumns(expenseColumns);
       }
@@ -578,6 +612,10 @@ export default function ExpensesPage() {
         return false;
 
       if (filters.eventName && e.event_title !== filters.eventName)
+        return false;
+
+      const location = e.location || e.custom_fields?.location;
+      if (filters.projectOfExpense && location !== filters.projectOfExpense)
         return false;
 
       if (minAmt !== undefined && Number(e.amount) < minAmt) return false;
@@ -908,11 +946,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Expense Type" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search expense type..."
+                          searchValue={searchQuery.expenseType}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, expenseType: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Expense Types
                           </SelectItem>
-                          {expenseTypeOptions.map((opt: string) => (
+                          {expenseTypeOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -921,6 +965,38 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
+                      <Label>Project of Expense</Label>
+                      <Select
+                        value={filters.projectOfExpense || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({
+                            ...filters,
+                            projectOfExpense: v === OPTION_ALL ? "" : v,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Project of Expense" />
+                        </SelectTrigger>
+                        <SelectContent
+                          searchPlaceholder="Search projects..."
+                          searchValue={searchQuery.projectOfExpense}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, projectOfExpense: v })}
+                        >
+                          <SelectItem value={OPTION_ALL}>
+                            All Projects
+                          </SelectItem>
+                          {locationOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.projectOfExpense.toLowerCase()))
+                            .map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* <div className="space-y-1">
                       <Label>Event</Label>
                       <Select
                         value={filters.eventName || OPTION_ALL}
@@ -945,7 +1021,7 @@ export default function ExpensesPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
+                    </div> */}
                     <div className="space-y-1">
                       <Label>Status</Label>
                       <Select
@@ -960,11 +1036,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Status" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search status..."
+                          searchValue={searchQuery.status}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, status: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Statuses
                           </SelectItem>
-                          {statusOptions.map((opt: string) => (
+                          {statusOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.status.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1062,10 +1144,16 @@ export default function ExpensesPage() {
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select Date" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent
+                                searchPlaceholder="Search date..."
+                                searchValue={searchQuery.dateFrom}
+                                onSearchChange={(v) => setSearchQuery({ ...searchQuery, dateFrom: v })}
+                              >
                                 <SelectItem value={OPTION_ALL}>All Dates</SelectItem>
                                 {singleDateOptions.length > 0 ? (
-                                  singleDateOptions.map((dateKey: string) => (
+                                  singleDateOptions
+                                    .filter((dateKey: string) => formatDate(dateKey).toLowerCase().includes(searchQuery.dateFrom.toLowerCase()))
+                                    .map((dateKey: string) => (
                                     <SelectItem key={dateKey} value={dateKey}>
                                       {formatDate(dateKey)}
                                     </SelectItem>
@@ -1124,11 +1212,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Created By" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search creator..."
+                          searchValue={searchQuery.createdBy}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, createdBy: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Created By
                           </SelectItem>
-                          {creatorOptions.map((opt: string) => (
+                          {creatorOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1150,9 +1244,15 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Unique ID" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search unique ID..."
+                          searchValue={searchQuery.uniqueId}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, uniqueId: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>All Unique IDs</SelectItem>
-                          {uniqueIdOptions.map((opt: string) => (
+                          {uniqueIdOptions
+                            .filter((opt: string) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1174,11 +1274,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Approver" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search approver..."
+                          searchValue={searchQuery.approver}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, approver: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Approvers
                           </SelectItem>
-                          {approverOptions.map((opt: string) => (
+                          {approverOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.approver.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1190,10 +1296,11 @@ export default function ExpensesPage() {
                   <div className="flex justify-end gap-2">
                     <Button
                       variant="outline"
-                      onClick={() =>
+                      onClick={() => {
                         setFilters({
                           expenseType: "",
                           eventName: "",
+                          projectOfExpense: "",
                           amountMin: "",
                           amountMax: "",
                           dateFrom: "",
@@ -1203,8 +1310,17 @@ export default function ExpensesPage() {
                           approver: "",
                           status: "",
                           uniqueId: "",
-                        })
-                      }
+                        });
+                        setSearchQuery({
+                          expenseType: "",
+                          projectOfExpense: "",
+                          status: "",
+                          dateFrom: "",
+                          createdBy: "",
+                          uniqueId: "",
+                          approver: "",
+                        });
+                      }}
                     >
                       Clear
                     </Button>

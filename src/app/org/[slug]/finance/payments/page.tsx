@@ -40,6 +40,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Pagination, usePagination } from "@/components/pagination";
@@ -93,6 +100,17 @@ export default function PaymentProcessingOnly() {
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState({
+    expenseType: "",
+    createdBy: "",
+    email: "",
+    eventName: "",
+    location: "",
+    approvedBy: "",
+    uniqueId: "",
+    tdsDeduction: "",
+    securityDeposit: "",
+  });
   const [filters, setFilters] = useState({
     expenseType: "All Expense Type",
     createdBy: "All Creators",
@@ -434,6 +452,17 @@ export default function PaymentProcessingOnly() {
       securityDeposit: "All Security Deposits",
       minActualAmount: "",
       maxActualAmount: "",
+    });
+    setSearchQuery({
+      expenseType: "",
+      createdBy: "",
+      email: "",
+      eventName: "",
+      location: "",
+      approvedBy: "",
+      uniqueId: "",
+      tdsDeduction: "",
+      securityDeposit: "",
     });
   };
 
@@ -1144,164 +1173,254 @@ export default function PaymentProcessingOnly() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="text-sm font-medium">Expense Type</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.expenseType}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, expenseType: e.target.value }))
+              <Select
+                value={filters.expenseType || "All Expense Type"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, expenseType: v }))
                 }
               >
-                <option>All Expense Type</option>
-                {expenseTypeOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Expense Type" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search expense type..."
+                  searchValue={searchQuery.expenseType}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, expenseType: v }))}
+                >
+                  <SelectItem value="All Expense Type">All Expense Type</SelectItem>
+                  {expenseTypeOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">Created By</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.createdBy}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, createdBy: e.target.value }))
+              <Select
+                value={filters.createdBy || "All Creators"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, createdBy: v }))
                 }
               >
-                <option>All Creators</option>
-                {createdByOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Creators" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search creator..."
+                  searchValue={searchQuery.createdBy}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, createdBy: v }))}
+                >
+                  <SelectItem value="All Creators">All Creators</SelectItem>
+                  {createdByOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">Email</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.email}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, email: e.target.value }))
+              <Select
+                value={filters.email || "All Emails"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, email: v }))
                 }
               >
-                <option>All Emails</option>
-                {emailOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Emails" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search email..."
+                  searchValue={searchQuery.email}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, email: v }))}
+                >
+                  <SelectItem value="All Emails">All Emails</SelectItem>
+                  {emailOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.email.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">Event Name</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.eventName}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, eventName: e.target.value }))
+              <Select
+                value={filters.eventName || "All Events"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, eventName: v }))
                 }
               >
-                <option>All Events</option>
-                {eventNameOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Events" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search event..."
+                  searchValue={searchQuery.eventName}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, eventName: v }))}
+                >
+                  <SelectItem value="All Events">All Events</SelectItem>
+                  {eventNameOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.eventName.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">Project of Expense</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.location}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, location: e.target.value }))
+              <Select
+                value={filters.location || "All Locations"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, location: v }))
                 }
               >
-                <option>All Projects</option>
-                {locationOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search project..."
+                  searchValue={searchQuery.location}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, location: v }))}
+                >
+                  <SelectItem value="All Locations">All Projects</SelectItem>
+                  {locationOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.location.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">Approved By</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.approvedBy}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, approvedBy: e.target.value }))
+              <Select
+                value={filters.approvedBy || "All Approvers"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, approvedBy: v }))
                 }
               >
-                <option>All Approvers</option>
-                {approvedByOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Approvers" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search approver..."
+                  searchValue={searchQuery.approvedBy}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, approvedBy: v }))}
+                >
+                  <SelectItem value="All Approvers">All Approvers</SelectItem>
+                  {approvedByOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.approvedBy.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">Unique ID</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.uniqueId}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, uniqueId: e.target.value }))
+              <Select
+                value={filters.uniqueId || "All Unique IDs"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, uniqueId: v }))
                 }
               >
-                <option>All Unique IDs</option>
-                {uniqueIdOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Unique IDs" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search unique ID..."
+                  searchValue={searchQuery.uniqueId}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, uniqueId: v }))}
+                >
+                  <SelectItem value="All Unique IDs">All Unique IDs</SelectItem>
+                  {uniqueIdOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">TDS Deduction</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.tdsDeduction}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, tdsDeduction: e.target.value }))
+              <Select
+                value={filters.tdsDeduction || "All TDS Deductions"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, tdsDeduction: v }))
                 }
               >
-                <option>All TDS Deductions</option>
-                {tdsDeductionOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {formatTdsDeductionOptionLabel(option)}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All TDS Deductions" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search TDS..."
+                  searchValue={searchQuery.tdsDeduction}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, tdsDeduction: v }))}
+                >
+                  <SelectItem value="All TDS Deductions">All TDS Deductions</SelectItem>
+                  {tdsDeductionOptions
+                    .filter((opt) => formatTdsDeductionOptionLabel(opt).toLowerCase().includes(searchQuery.tdsDeduction.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {formatTdsDeductionOptionLabel(option)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">Security Deposit</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.securityDeposit}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, securityDeposit: e.target.value }))
+              <Select
+                value={filters.securityDeposit || "All Security Deposits"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, securityDeposit: v }))
                 }
               >
-                <option>All Security Deposits</option>
-                {securityDepositOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Security Deposits" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search security deposit..."
+                  searchValue={searchQuery.securityDeposit}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, securityDeposit: v }))}
+                >
+                  <SelectItem value="All Security Deposits">All Security Deposits</SelectItem>
+                  {securityDepositOptions
+                    .filter((opt) => (opt === "N/A" ? "N/A" : formatCurrency(Number(opt))).toLowerCase().includes(searchQuery.securityDeposit.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -1311,7 +1430,7 @@ export default function PaymentProcessingOnly() {
                   type="number"
                   min={0}
                   placeholder="Min"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 bg-white"
                   value={filters.minAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, minAmount: e.target.value }))
@@ -1321,7 +1440,7 @@ export default function PaymentProcessingOnly() {
                   type="number"
                   min={0}
                   placeholder="Max"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 bg-white"
                   value={filters.maxAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))
@@ -1337,7 +1456,7 @@ export default function PaymentProcessingOnly() {
                   type="number"
                   min={0}
                   placeholder="Min"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 bg-white"
                   value={filters.minActualAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, minActualAmount: e.target.value }))
@@ -1347,7 +1466,7 @@ export default function PaymentProcessingOnly() {
                   type="number"
                   min={0}
                   placeholder="Max"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 bg-white"
                   value={filters.maxActualAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, maxActualAmount: e.target.value }))

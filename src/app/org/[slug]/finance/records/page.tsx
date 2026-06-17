@@ -107,6 +107,21 @@ export default function PaymentRecords() {
   const isRestoringViewedExpenseRef = useRef(hasReturnNavigationParams);
 
   // Filter state
+  const [searchQuery, setSearchQuery] = useState({
+    expenseType: "",
+    eventName: "",
+    createdBy: "",
+    email: "",
+    uniqueId: "",
+    location: "",
+    bills: "",
+    utr: "",
+    startDate: "",
+    paidStartDate: "",
+    tdsDeduction: "",
+    securityDeposit: "",
+    paidByBank: "",
+  });
   const [filters, setFilters] = useState({
     expenseType: "All Expense Type",
     eventName: "All Events",
@@ -114,7 +129,7 @@ export default function PaymentRecords() {
     email: "All Emails",
     uniqueId: "All Unique IDs",
     location: "All Locations",
-    bills: "All Bills",
+    bills: "All Receipt/Voucher",
     utr: "All UTRs",
     startDate: "",
     endDate: "",
@@ -385,19 +400,19 @@ export default function PaymentRecords() {
     if (!dateValue) return "—";
     try {
       const d = new Date(dateValue);
-      const month = d.toLocaleString("en-US", {
-        month: "short",
+      const day = d.toLocaleString("en-GB", {
+        day: "2-digit",
         timeZone: "Asia/Kolkata",
       });
-      const day = d.toLocaleString("en-US", {
-        day: "numeric",
+      const month = d.toLocaleString("en-GB", {
+        month: "2-digit",
         timeZone: "Asia/Kolkata",
       });
-      const year = d.toLocaleString("en-US", {
+      const year = d.toLocaleString("en-GB", {
         year: "numeric",
         timeZone: "Asia/Kolkata",
       });
-      return `${month}-${day}-${year}`;
+      return `${day}-${month}-${year}`;
     } catch (err) {
       return "—";
     }
@@ -548,7 +563,7 @@ export default function PaymentRecords() {
         (r.location || "") !== filters.location
       )
         return false;
-      if (filters.bills !== "All Bills") {
+      if (filters.bills !== "All Receipt/Voucher") {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
@@ -1007,10 +1022,18 @@ export default function PaymentRecords() {
 
           bankData?.forEach((bankDetail: any) => {
             const uniqueId = String(bankDetail.unique_id || "").trim();
+            const advanceUniqueId = String(bankDetail.advance_unique_id || "").trim();
+            const directPaymentUniqueId = String(bankDetail.direct_payment_unique_id || "").trim();
             // const email = String(bankDetail.email || "").trim().toLowerCase();
 
             if (uniqueId) {
               bankDetailsByUniqueId.set(uniqueId, bankDetail);
+            }
+            if (advanceUniqueId) {
+              bankDetailsByUniqueId.set(advanceUniqueId, bankDetail);
+            }
+            if (directPaymentUniqueId) {
+              bankDetailsByUniqueId.set(directPaymentUniqueId, bankDetail);
             }
 
             // if (email) {
@@ -1314,7 +1337,7 @@ export default function PaymentRecords() {
       email: "All Emails",
       uniqueId: "All Unique IDs",
       location: "All Locations",
-      bills: "All Bills",
+      bills: "All Receipt/Voucher",
       utr: "All UTRs",
       dateMode: "All Dates",
       startDate: "",
@@ -1330,6 +1353,21 @@ export default function PaymentRecords() {
       securityDeposit: "All Security Deposits",
       paidByBank: "All Banks",
     }));
+    setSearchQuery({
+      expenseType: "",
+      eventName: "",
+      createdBy: "",
+      email: "",
+      uniqueId: "",
+      location: "",
+      bills: "",
+      utr: "",
+      startDate: "",
+      paidStartDate: "",
+      tdsDeduction: "",
+      securityDeposit: "",
+      paidByBank: "",
+    });
     setFilteredRecords(records);
   };
 
@@ -1598,16 +1636,22 @@ export default function PaymentRecords() {
         "Ledger Name",
         "Ledger Amount",
         "Ledger Amount Dr/Cr",
-        "Ledger Narration",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Cost Center",
+        "Cost Allocation for - Amount",
       ]
       : [
         "Voucher Date",
         "Voucher Type Name",
         "Voucher Number",
         "Ledger Name",
-        "TDS Amount",
+        "Ledger Amount",
         "Ledger Amount Dr/Cr",
-        "Ledger Narration",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Cost Center",
+        "Cost Allocation for - Amount",
       ];
 
     const exportRecords = getExportRecords();
@@ -1648,12 +1692,15 @@ export default function PaymentRecords() {
         return [
           [
             voucherDate,
-            "Expense",
+            "Expense Kotak",
             "",
             record.expense_type || "—",
             ledgerAmount,
             "Dr",
             narration,
+            "Project",
+            record.location || "N/A",
+            ledgerAmount,
           ],
           [
             "",
@@ -1663,12 +1710,15 @@ export default function PaymentRecords() {
             ledgerAmount,
             "Cr",
             "",
+            "",
+            "",
+            "",
           ],
         ];
       }
 
       const voucherDate = record.paid_approval_time
-        ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
+        ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
       const serialNumber = record.serialNumber ?? index + 1;
       const refNo =
@@ -1677,15 +1727,24 @@ export default function PaymentRecords() {
           : bankRefNoMap?.get(record.id) ?? serialNumber;
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
+      const voucherTypeName = exportBankType === "NGIDFC Current"
+        ? "Expense IDFC"
+        : exportBankType === "FCIDFC Current"
+          ? "Expense SBI FC"
+          : "Expense";
+
       const rowsForRecord: any[] = [
         [
           voucherDate,
-          "Expense",
+          voucherTypeName,
           "",
           record.expense_type || "—",
           formatAmountValue(baseAmount),
           "Dr",
           narration,
+          "Project",
+          record.location || "N/A",
+          formatAmountValue(baseAmount),
         ],
         [
           "",
@@ -1694,6 +1753,9 @@ export default function PaymentRecords() {
           beneficiaryName,
           formatAmountValue(actualAmount ?? baseAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ],
       ];
@@ -1707,6 +1769,9 @@ export default function PaymentRecords() {
           formatAmountValue(tdsAmount),
           "Cr",
           "",
+          "",
+          "",
+          "",
         ]);
       }
 
@@ -1718,6 +1783,9 @@ export default function PaymentRecords() {
           "Security Deposit",
           formatAmountValue(securityDepositAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ]);
       }
@@ -1869,16 +1937,22 @@ export default function PaymentRecords() {
         "Ledger Name",
         "Ledger Amount",
         "Ledger Amount Dr/Cr",
-        "Ledger Narration",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Cost Center",
+        "Cost Allocation for - Amount",
       ]
       : [
         "Voucher Date",
         "Voucher Type Name",
         "Voucher Number",
         "Ledger Name",
-        "TDS Amount",
+        "Ledger Amount",
         "Ledger Amount Dr/Cr",
-        "Ledger Narration",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Cost Center",
+        "Cost Allocation for - Amount",
       ];
 
     const exportRecords = getExportRecords();
@@ -1919,12 +1993,15 @@ export default function PaymentRecords() {
         return [
           [
             voucherDate,
-            "Expense",
+            "Expense Kotak",
             "",
             record.expense_type || "—",
             ledgerAmount,
             "Dr",
             narration,
+            "Project",
+            record.location || "N/A",
+            ledgerAmount,
           ],
           [
             "",
@@ -1934,12 +2011,15 @@ export default function PaymentRecords() {
             ledgerAmount,
             "Cr",
             "",
+            "",
+            "",
+            "",
           ],
         ];
       }
 
       const voucherDate = record.paid_approval_time
-        ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
+        ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
       const serialNumber = record.serialNumber ?? index + 1;
       const refNo =
@@ -1948,15 +2028,24 @@ export default function PaymentRecords() {
           : bankRefNoMap?.get(record.id) ?? serialNumber;
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
+      const voucherTypeName = exportBankType === "NGIDFC Current"
+        ? "Expense IDFC"
+        : exportBankType === "FCIDFC Current"
+          ? "Expense SBI FC"
+          : "Expense";
+
       const rowsForRecord: any[] = [
         [
           voucherDate,
-          "Expense",
+          voucherTypeName,
           "",
           record.expense_type || "—",
           formatAmountValue(baseAmount),
           "Dr",
           narration,
+          "Project",
+          record.location || "N/A",
+          formatAmountValue(baseAmount),
         ],
         [
           "",
@@ -1965,6 +2054,9 @@ export default function PaymentRecords() {
           beneficiaryName,
           formatAmountValue(actualAmount ?? baseAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ],
       ];
@@ -1978,6 +2070,9 @@ export default function PaymentRecords() {
           formatAmountValue(tdsAmount),
           "Cr",
           "",
+          "",
+          "",
+          "",
         ]);
       }
 
@@ -1989,6 +2084,9 @@ export default function PaymentRecords() {
           "Security Deposit",
           formatAmountValue(securityDepositAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ]);
       }
@@ -2147,159 +2245,239 @@ export default function PaymentRecords() {
           <div className="grid grid-cols-4 gap-4">
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Expense Type</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2 bg-gray-50 dark:bg-gray-800"
-                value={filters.expenseType}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, expenseType: e.target.value }))
+              <Select
+                value={filters.expenseType || "All Expense Type"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, expenseType: v }))
                 }
               >
-                <option>All Expense Type</option>
-                {expenseTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-gray-50 dark:bg-gray-800">
+                  <SelectValue placeholder="All Expense Type" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search expense type..."
+                  searchValue={searchQuery.expenseType}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, expenseType: v }))}
+                >
+                  <SelectItem value="All Expense Type">All Expense Type</SelectItem>
+                  {expenseTypes
+                    .filter((t) => String(t).toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
+                    .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Event</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.eventName}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, eventName: e.target.value }))
+              <Select
+                value={filters.eventName || "All Events"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, eventName: v }))
                 }
               >
-                <option>All Events</option>
-                {eventNames.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Events" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search event..."
+                  searchValue={searchQuery.eventName}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, eventName: v }))}
+                >
+                  <SelectItem value="All Events">All Events</SelectItem>
+                  {eventNames
+                    .filter((t) => String(t).toLowerCase().includes(searchQuery.eventName.toLowerCase()))
+                    .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Email</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.email}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, email: e.target.value }))
+              <Select
+                value={filters.email || "All Emails"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, email: v }))
                 }
               >
-                <option>All Emails</option>
-                {creators.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Emails" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search email..."
+                  searchValue={searchQuery.email}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, email: v }))}
+                >
+                  <SelectItem value="All Emails">All Emails</SelectItem>
+                  {creators
+                    .filter((t) => String(t).toLowerCase().includes(searchQuery.email.toLowerCase()))
+                    .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Unique ID</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.uniqueId}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, uniqueId: e.target.value }))
+              <Select
+                value={filters.uniqueId || "All Unique IDs"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, uniqueId: v }))
                 }
               >
-                <option>All Unique IDs</option>
-                {uniqueIds.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Unique IDs" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search unique ID..."
+                  searchValue={searchQuery.uniqueId}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, uniqueId: v }))}
+                >
+                  <SelectItem value="All Unique IDs">All Unique IDs</SelectItem>
+                  {uniqueIds
+                    .filter((id) => String(id).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
+                    .map((id) => (
+                    <SelectItem key={id} value={id}>
+                      {id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Project of Expense</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.location}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, location: e.target.value }))
+              <Select
+                value={filters.location || "All Locations"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, location: v }))
                 }
               >
-                <option>All Projects</option>
-                {locations.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search project..."
+                  searchValue={searchQuery.location}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, location: v }))}
+                >
+                  <SelectItem value="All Locations">All Projects</SelectItem>
+                  {locations
+                    .filter((t) => String(t).toLowerCase().includes(searchQuery.location.toLowerCase()))
+                    .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Bills</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.bills}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, bills: e.target.value }))
+              <Select
+                value={filters.bills || "All Receipt/Voucher"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, bills: v }))
                 }
               >
-                <option>All Receipt/Voucher</option>
-                <option>Receipt</option>
-                <option>Voucher</option>
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Receipt/Voucher" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search bills..."
+                  searchValue={searchQuery.bills}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, bills: v }))}
+                >
+                  <SelectItem value="All Receipt/Voucher">All Receipt/Voucher</SelectItem>
+                  {["Receipt", "Voucher"]
+                    .filter((b) => b.toLowerCase().includes(searchQuery.bills.toLowerCase()))
+                    .map((b) => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {paidByBankOptions.length > 0 && (
               <div className="col-span-3 sm:col-span-1">
                 <label className="text-sm font-medium">Paid by bank</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2"
-                  value={filters.paidByBank}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, paidByBank: e.target.value }))
+                <Select
+                  value={filters.paidByBank || "All Banks"}
+                  onValueChange={(v) =>
+                    setFilters((f) => ({ ...f, paidByBank: v }))
                   }
                 >
-                  <option>All Banks</option>
-                  <option value="No Bank Records (Not paid by bank)">
-                    No Bank Records (Not paid by bank)
-                  </option>
-                  {paidByBankOptions.map((bank) => (
-                    <option key={bank} value={bank}>
-                      {bank}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="mt-1 w-full bg-white">
+                    <SelectValue placeholder="All Banks" />
+                  </SelectTrigger>
+                  <SelectContent
+                    searchPlaceholder="Search bank..."
+                    searchValue={searchQuery.paidByBank}
+                    onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, paidByBank: v }))}
+                  >
+                    <SelectItem value="All Banks">All Banks</SelectItem>
+                    <SelectItem value="No Bank Records (Not paid by bank)">
+                      No Bank Records (Not paid by bank)
+                    </SelectItem>
+                    {paidByBankOptions
+                      .filter((bank) => String(bank).toLowerCase().includes(searchQuery.paidByBank.toLowerCase()))
+                      .map((bank) => (
+                      <SelectItem key={bank} value={bank}>
+                        {bank}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
             {utrValues.length > 0 && (
               <div className="col-span-3 sm:col-span-1">
                 <label className="text-sm font-medium">UTR</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2"
-                  value={filters.utr}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, utr: e.target.value }))
+                <Select
+                  value={filters.utr || "All UTRs"}
+                  onValueChange={(v) =>
+                    setFilters((f) => ({ ...f, utr: v }))
                   }
                 >
-                  <option value="All UTRs">All UTRs</option>
-                  {utrValues.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="mt-1 w-full bg-white">
+                    <SelectValue placeholder="All UTRs" />
+                  </SelectTrigger>
+                  <SelectContent
+                    searchPlaceholder="Search UTR..."
+                    searchValue={searchQuery.utr}
+                    onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, utr: v }))}
+                  >
+                    <SelectItem value="All UTRs">All UTRs</SelectItem>
+                    {utrValues
+                      .filter((u) => String(u).toLowerCase().includes(searchQuery.utr.toLowerCase()))
+                      .map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Date of expense</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.dateMode}
-                onChange={(e) => {
-                  const mode = e.target.value;
+              <Select
+                value={filters.dateMode || "All Dates"}
+                onValueChange={(v) => {
+                  const mode = v;
                   setFilters((f) => {
                     if (mode === "All Dates")
                       return {
@@ -2319,34 +2497,49 @@ export default function PaymentRecords() {
                   });
                 }}
               >
-                <option>All Dates</option>
-                <option>Single Date</option>
-                <option>Custom Date</option>
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All Dates">All Dates</SelectItem>
+                  <SelectItem value="Single Date">Single Date</SelectItem>
+                  <SelectItem value="Custom Date">Custom Date</SelectItem>
+                </SelectContent>
+              </Select>
 
               {/* Conditional inputs shown below the Date of expense selector */}
               <div className="mt-2">
                 {filters.dateMode === "Single Date" ? (
                   <>
                     <label className="text-sm font-medium">Select Date of expense</label>
-                    <select
-                      className="mt-1 block w-full border rounded px-3 py-2"
-                      value={filters.startDate}
-                      onChange={(e) =>
+                    <Select
+                      value={filters.startDate || "none"}
+                      onValueChange={(v) =>
                         setFilters((f) => ({
                           ...f,
-                          startDate: e.target.value,
-                          endDate: e.target.value,
+                          startDate: v === "none" ? "" : v,
+                          endDate: v === "none" ? "" : v,
                         }))
                       }
                     >
-                      <option value="">Select Date of expense</option>
-                      {dateOfExpenseOptions.map((date) => (
-                        <option key={date} value={date}>
-                          {formatDateForDisplay(date)}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="mt-1 w-full bg-white">
+                        <SelectValue placeholder="Select Date of expense" />
+                      </SelectTrigger>
+                      <SelectContent
+                        searchPlaceholder="Search date..."
+                        searchValue={searchQuery.startDate}
+                        onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, startDate: v }))}
+                      >
+                        <SelectItem value="none">Select Date of expense</SelectItem>
+                        {dateOfExpenseOptions
+                          .filter((date) => formatDateForDisplay(date).toLowerCase().includes(searchQuery.startDate.toLowerCase()))
+                          .map((date) => (
+                          <SelectItem key={date} value={date}>
+                            {formatDateForDisplay(date)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </>
                 ) : filters.dateMode === "Custom Date" ? (
                   <>
@@ -2377,11 +2570,10 @@ export default function PaymentRecords() {
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Paid date</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.paidDateMode}
-                onChange={(e) => {
-                  const mode = e.target.value;
+              <Select
+                value={filters.paidDateMode || "All Dates"}
+                onValueChange={(v) => {
+                  const mode = v;
                   setFilters((f) => {
                     if (mode === "All Dates")
                       return {
@@ -2401,33 +2593,48 @@ export default function PaymentRecords() {
                   });
                 }}
               >
-                <option>All Dates</option>
-                <option>Single Date</option>
-                <option>Custom Date</option>
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All Dates">All Dates</SelectItem>
+                  <SelectItem value="Single Date">Single Date</SelectItem>
+                  <SelectItem value="Custom Date">Custom Date</SelectItem>
+                </SelectContent>
+              </Select>
 
               <div className="mt-2">
                 {filters.paidDateMode === "Single Date" ? (
                   <>
                     <label className="text-sm font-medium">Select Paid date</label>
-                    <select
-                      className="mt-1 block w-full border rounded px-3 py-2"
-                      value={filters.paidStartDate}
-                      onChange={(e) =>
+                    <Select
+                      value={filters.paidStartDate || "none"}
+                      onValueChange={(v) =>
                         setFilters((f) => ({
                           ...f,
-                          paidStartDate: e.target.value,
-                          paidEndDate: e.target.value,
+                          paidStartDate: v === "none" ? "" : v,
+                          paidEndDate: v === "none" ? "" : v,
                         }))
                       }
                     >
-                      <option value="">Select Paid date</option>
-                      {paidDateFilterOptions.map((date) => (
-                        <option key={date} value={date}>
-                          {formatDateForDisplay(date)}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="mt-1 w-full bg-white">
+                        <SelectValue placeholder="Select Paid date" />
+                      </SelectTrigger>
+                      <SelectContent
+                        searchPlaceholder="Search date..."
+                        searchValue={searchQuery.paidStartDate}
+                        onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, paidStartDate: v }))}
+                      >
+                        <SelectItem value="none">Select Paid date</SelectItem>
+                        {paidDateFilterOptions
+                          .filter((date) => formatDateForDisplay(date).toLowerCase().includes(searchQuery.paidStartDate.toLowerCase()))
+                          .map((date) => (
+                          <SelectItem key={date} value={date}>
+                            {formatDateForDisplay(date)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </>
                 ) : filters.paidDateMode === "Custom Date" ? (
                   <>
@@ -2458,38 +2665,58 @@ export default function PaymentRecords() {
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">TDS Deduction</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.tdsDeduction}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, tdsDeduction: e.target.value }))
+              <Select
+                value={filters.tdsDeduction || "All TDS Deductions"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, tdsDeduction: v }))
                 }
               >
-                <option>All TDS Deductions</option>
-                {tdsDeductionOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {formatTdsDeductionOptionLabel(option)}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All TDS Deductions" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search TDS..."
+                  searchValue={searchQuery.tdsDeduction}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, tdsDeduction: v }))}
+                >
+                  <SelectItem value="All TDS Deductions">All TDS Deductions</SelectItem>
+                  {tdsDeductionOptions
+                    .filter((opt) => formatTdsDeductionOptionLabel(opt).toLowerCase().includes(searchQuery.tdsDeduction.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {formatTdsDeductionOptionLabel(option)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Security Deposit</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.securityDeposit}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, securityDeposit: e.target.value }))
+              <Select
+                value={filters.securityDeposit || "All Security Deposits"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, securityDeposit: v }))
                 }
               >
-                <option>All Security Deposits</option>
-                {securityDepositOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Security Deposits" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search security deposit..."
+                  searchValue={searchQuery.securityDeposit}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, securityDeposit: v }))}
+                >
+                  <SelectItem value="All Security Deposits">All Security Deposits</SelectItem>
+                  {securityDepositOptions
+                    .filter((opt) => (opt === "N/A" ? "N/A" : formatCurrency(Number(opt))).toLowerCase().includes(searchQuery.securityDeposit.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
