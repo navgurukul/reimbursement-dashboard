@@ -400,19 +400,19 @@ export default function PaymentRecords() {
     if (!dateValue) return "—";
     try {
       const d = new Date(dateValue);
-      const month = d.toLocaleString("en-US", {
-        month: "short",
+      const day = d.toLocaleString("en-GB", {
+        day: "2-digit",
         timeZone: "Asia/Kolkata",
       });
-      const day = d.toLocaleString("en-US", {
-        day: "numeric",
+      const month = d.toLocaleString("en-GB", {
+        month: "2-digit",
         timeZone: "Asia/Kolkata",
       });
-      const year = d.toLocaleString("en-US", {
+      const year = d.toLocaleString("en-GB", {
         year: "numeric",
         timeZone: "Asia/Kolkata",
       });
-      return `${month}-${day}-${year}`;
+      return `${day}-${month}-${year}`;
     } catch (err) {
       return "—";
     }
@@ -1638,7 +1638,7 @@ export default function PaymentRecords() {
         "Ledger Amount Dr/Cr",
         "Voucher Narration",
         "Category Name",
-        "Cost Allocation for - Project",
+        "Cost Allocation for - Cost Center",
         "Cost Allocation for - Amount",
       ]
       : [
@@ -1650,7 +1650,7 @@ export default function PaymentRecords() {
         "Ledger Amount Dr/Cr",
         "Voucher Narration",
         "Category Name",
-        "Cost Allocation for - Project",
+        "Cost Allocation for - Cost Center",
         "Cost Allocation for - Amount",
       ];
 
@@ -1692,7 +1692,7 @@ export default function PaymentRecords() {
         return [
           [
             voucherDate,
-            "Expense",
+            "Expense Kotak",
             "",
             record.expense_type || "—",
             ledgerAmount,
@@ -1718,7 +1718,7 @@ export default function PaymentRecords() {
       }
 
       const voucherDate = record.paid_approval_time
-        ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
+        ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
       const serialNumber = record.serialNumber ?? index + 1;
       const refNo =
@@ -1727,10 +1727,16 @@ export default function PaymentRecords() {
           : bankRefNoMap?.get(record.id) ?? serialNumber;
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
+      const voucherTypeName = exportBankType === "NGIDFC Current"
+        ? "Expense IDFC"
+        : exportBankType === "FCIDFC Current"
+          ? "Expense SBI FC"
+          : "Expense";
+
       const rowsForRecord: any[] = [
         [
           voucherDate,
-          "Expense",
+          voucherTypeName,
           "",
           record.expense_type || "—",
           formatAmountValue(baseAmount),
@@ -1933,7 +1939,7 @@ export default function PaymentRecords() {
         "Ledger Amount Dr/Cr",
         "Voucher Narration",
         "Category Name",
-        "Cost Allocation for - Project",
+        "Cost Allocation for - Cost Center",
         "Cost Allocation for - Amount",
       ]
       : [
@@ -1945,7 +1951,7 @@ export default function PaymentRecords() {
         "Ledger Amount Dr/Cr",
         "Voucher Narration",
         "Category Name",
-        "Cost Allocation for - Project",
+        "Cost Allocation for - Cost Center",
         "Cost Allocation for - Amount",
       ];
 
@@ -1987,7 +1993,7 @@ export default function PaymentRecords() {
         return [
           [
             voucherDate,
-            "Expense",
+            "Expense Kotak",
             "",
             record.expense_type || "—",
             ledgerAmount,
@@ -2013,7 +2019,7 @@ export default function PaymentRecords() {
       }
 
       const voucherDate = record.paid_approval_time
-        ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
+        ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
       const serialNumber = record.serialNumber ?? index + 1;
       const refNo =
@@ -2022,10 +2028,16 @@ export default function PaymentRecords() {
           : bankRefNoMap?.get(record.id) ?? serialNumber;
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
+      const voucherTypeName = exportBankType === "NGIDFC Current"
+        ? "Expense IDFC"
+        : exportBankType === "FCIDFC Current"
+          ? "Expense SBI FC"
+          : "Expense";
+
       const rowsForRecord: any[] = [
         [
           voucherDate,
-          "Expense",
+          voucherTypeName,
           "",
           record.expense_type || "—",
           formatAmountValue(baseAmount),
