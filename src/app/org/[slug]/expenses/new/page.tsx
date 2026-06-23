@@ -1108,8 +1108,8 @@ export default function NewExpensePage() {
     const expenseTypeEntry =
       selectedExpenseType && expenseTypeApproverMapping?.length
         ? expenseTypeApproverMapping.find(
-            (m) => m.expense_type === selectedExpenseType
-          )
+          (m) => m.expense_type === selectedExpenseType
+        )
         : undefined;
 
     // 2) Then look for location-based mappings.
@@ -1157,15 +1157,15 @@ export default function NewExpensePage() {
           ? normalizeIds(activeEntry?.second_approver_id)
           : resolveIdsFromNames(activeEntry?.second_approver_name)
         : Array.from(
-            new Set([
-              ...(normalizeIds(activeEntry?.approver_id).length
-                ? normalizeIds(activeEntry?.approver_id)
-                : resolveIdsFromNames(activeEntry?.approver_name)),
-              ...(normalizeIds(activeEntry?.second_approver_id).length
-                ? normalizeIds(activeEntry?.second_approver_id)
-                : resolveIdsFromNames(activeEntry?.second_approver_name)),
-            ])
-          );
+          new Set([
+            ...(normalizeIds(activeEntry?.approver_id).length
+              ? normalizeIds(activeEntry?.approver_id)
+              : resolveIdsFromNames(activeEntry?.approver_name)),
+            ...(normalizeIds(activeEntry?.second_approver_id).length
+              ? normalizeIds(activeEntry?.second_approver_id)
+              : resolveIdsFromNames(activeEntry?.second_approver_name)),
+          ])
+        );
 
     if (!mappedIds.length) {
       return [];
@@ -2150,8 +2150,8 @@ export default function NewExpensePage() {
     // Validate required fields from columns
     for (const col of columns) {
       const isExpenseCreditPersonField =
-      col.key === "expense_credit_person" ||
-      col.label?.trim().toLowerCase() === "expense credit person";
+        col.key === "expense_credit_person" ||
+        col.label?.trim().toLowerCase() === "expense credit person";
 
       // For "Expense Credit Person", only require it when top-level Payment Unique ID is Direct Payment
       if (
@@ -2878,8 +2878,8 @@ export default function NewExpensePage() {
                       : "Enter payment unique ID"
                   }
                   className={`w-full border ${errors["unique_id"]
-                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                      : "border-gray-300"
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                    : "border-gray-300"
                     } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
                   disabled={
                     !!prefilledUniqueId ||
@@ -3188,12 +3188,12 @@ export default function NewExpensePage() {
                   {events
                     .filter((event) => event.title.toLowerCase().includes((searchQueries["event_id"] || "").toLowerCase()))
                     .map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.title} (
-                      {new Date(event.start_date).toLocaleDateString()} -{" "}
-                      {new Date(event.end_date).toLocaleDateString()})
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.title} (
+                        {new Date(event.start_date).toLocaleDateString()} -{" "}
+                        {new Date(event.end_date).toLocaleDateString()})
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-600 mt-2">
@@ -3233,11 +3233,10 @@ export default function NewExpensePage() {
                       >
                         <SelectTrigger
                           id={col.key}
-                          className={`w-full ${
-                            errors[col.key]
+                          className={`w-full ${errors[col.key]
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : ""
-                          }`}
+                            }`}
                         >
                           <SelectValue placeholder="Please Select" />
                         </SelectTrigger>
@@ -3252,20 +3251,20 @@ export default function NewExpensePage() {
                               return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
                             })
                             .map((option: any) => {
-                            const value =
-                              typeof option === "string"
-                                ? option
-                                : option.value;
-                            const label =
-                              typeof option === "string"
-                                ? option
-                                : option.label;
-                            return (
-                              <SelectItem key={value} value={value}>
-                                {label}
-                              </SelectItem>
-                            );
-                          })}
+                              const value =
+                                typeof option === "string"
+                                  ? option
+                                  : option.value;
+                              const label =
+                                typeof option === "string"
+                                  ? option
+                                  : option.label;
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              );
+                            })}
                         </SelectContent>
                       </Select>
                     )}
@@ -3278,11 +3277,10 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`w-full ${
-                          errors[col.key]
+                        className={`w-full ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         placeholder={`Enter ${col.label}`}
                       />
                     )}
@@ -3340,8 +3338,8 @@ export default function NewExpensePage() {
                               handleInputChange(col.key, e.target.value)
                             }
                             className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
                               }`}
                             min={dateBounds.min}
                             max={dateBounds.max}
@@ -3371,48 +3369,47 @@ export default function NewExpensePage() {
                               isLocationApproverUnavailable("approver");
 
                             return (
-                          <Select
-                            value={formData.approver || ""}
-                            onValueChange={(value: string) =>
-                              handleInputChange(col.key, value)
-                            }
-                          >
-                            <SelectTrigger
-                              id={col.key}
-                              className={`w-full ${
-                                errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
-                              }`}
-                            >
-                              <SelectValue
-                                placeholder={
-                                  approverUnavailable
-                                    ? "Not Availble"
-                                    : "Select approver"
+                              <Select
+                                value={formData.approver || ""}
+                                onValueChange={(value: string) =>
+                                  handleInputChange(col.key, value)
                                 }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {approverOptions.map(
-                                (option: any) => {
-                                  const value =
-                                    typeof option === "string"
-                                      ? option
-                                      : option.value;
-                                  const label =
-                                    typeof option === "string"
-                                      ? option
-                                      : option.label;
-                                  return (
-                                    <SelectItem key={value} value={value}>
-                                      {label}
-                                    </SelectItem>
-                                  );
-                                }
-                              )}
-                            </SelectContent>
-                          </Select>
+                              >
+                                <SelectTrigger
+                                  id={col.key}
+                                  className={`w-full ${errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                    }`}
+                                >
+                                  <SelectValue
+                                    placeholder={
+                                      approverUnavailable
+                                        ? "Not Availble"
+                                        : "Select approver"
+                                    }
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {approverOptions.map(
+                                    (option: any) => {
+                                      const value =
+                                        typeof option === "string"
+                                          ? option
+                                          : option.value;
+                                      const label =
+                                        typeof option === "string"
+                                          ? option
+                                          : option.label;
+                                      return (
+                                        <SelectItem key={value} value={value}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    }
+                                  )}
+                                </SelectContent>
+                              </Select>
                             );
                           })()}
                           {errors[col.key] && (
@@ -3439,8 +3436,8 @@ export default function NewExpensePage() {
                             <SelectTrigger
                               id={col.key}
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             >
                               <SelectValue placeholder="Please Select" />
@@ -3456,20 +3453,20 @@ export default function NewExpensePage() {
                                   return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
                                 })
                                 .map((option: any) => {
-                                const value =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.value;
-                                const label =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.label;
-                                return (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                );
-                              })}
+                                  const value =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.value;
+                                  const label =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.label;
+                                  return (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                })}
                             </SelectContent>
                           </Select>
                           {errors[col.key] && (
@@ -3503,8 +3500,8 @@ export default function NewExpensePage() {
                             <SelectTrigger
                               id={col.key}
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             >
                               <SelectValue placeholder="Select expense type" />
@@ -3520,20 +3517,20 @@ export default function NewExpensePage() {
                                   return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
                                 })
                                 .map((option: any) => {
-                                const value =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.value;
-                                const label =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.label;
-                                return (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                );
-                              })}
+                                  const value =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.value;
+                                  const label =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.label;
+                                  return (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                })}
                             </SelectContent>
                           </Select>
                           {errors[col.key] && (
@@ -3563,8 +3560,8 @@ export default function NewExpensePage() {
                               )
                             }
                             className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
                               }`}
                             placeholder="Enter amount"
                           />
@@ -3607,8 +3604,8 @@ export default function NewExpensePage() {
                         handleInputChange(col.key, e.target.value)
                       }
                       className={`w-full min-h-[75px] ${errors[col.key]
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                          : ""
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                        : ""
                         }`}
                       placeholder="Brief description of this expense report..."
                     />
@@ -3682,8 +3679,8 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`w-full ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder={`Enter ${col.label}`}
                       />
@@ -3703,8 +3700,8 @@ export default function NewExpensePage() {
                           )
                         }
                         className={`w-full ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder={`Enter ${col.label}`}
                       />
@@ -3719,8 +3716,8 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         min={dateBounds.min}
                         max={dateBounds.max}
@@ -3735,8 +3732,8 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`w-full min-h-[75px] ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder="Brief description of this expense report..."
                       />
@@ -3748,8 +3745,8 @@ export default function NewExpensePage() {
                             col.key === "second_approver_id";
                           const optionsToRender = isSecondApproverField
                             ? getLocationSpecificApproverOptions(
-                                "second_approver_id"
-                              )
+                              "second_approver_id"
+                            )
                             : col.options;
                           const secondApproverUnavailable =
                             isSecondApproverField &&
@@ -3758,54 +3755,54 @@ export default function NewExpensePage() {
                             );
 
                           return (
-                        <Select
-                          value={formData[col.key] || ""}
-                          onValueChange={(value: string) =>
-                            handleInputChange(col.key, value)
-                          }
-                        >
-                          <SelectTrigger
-                            id={col.key}
-                            className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                              }`}
-                          >
-                            <SelectValue
-                              placeholder={
-                                secondApproverUnavailable
-                                  ? "Not Availble"
-                                  : "Please Select"
+                            <Select
+                              value={formData[col.key] || ""}
+                              onValueChange={(value: string) =>
+                                handleInputChange(col.key, value)
                               }
-                            />
-                          </SelectTrigger>
-                          <SelectContent
-                            searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
-                            searchValue={searchQueries[col.key] || ""}
-                            onSearchChange={(v) => handleSearchChange(col.key, v)}
-                          >
-                            {col.options
-                              .filter((option: any) => {
-                                const label = typeof option === "string" ? option : option.label;
-                                return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
-                              })
-                              .map((option: any) => {
-                              const value =
-                                typeof option === "string"
-                                  ? option
-                                  : option.value;
-                              const label =
-                                typeof option === "string"
-                                  ? option
-                                  : option.label;
-                              return (
-                                <SelectItem key={value} value={value}>
-                                  {label}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
+                            >
+                              <SelectTrigger
+                                id={col.key}
+                                className={`w-full ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                  }`}
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    secondApproverUnavailable
+                                      ? "Not Availble"
+                                      : "Please Select"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent
+                                searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                searchValue={searchQueries[col.key] || ""}
+                                onSearchChange={(v) => handleSearchChange(col.key, v)}
+                              >
+                                {col.options
+                                  .filter((option: any) => {
+                                    const label = typeof option === "string" ? option : option.label;
+                                    return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                                  })
+                                  .map((option: any) => {
+                                    const value =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.value;
+                                    const label =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.label;
+                                    return (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    );
+                                  })}
+                              </SelectContent>
+                            </Select>
                           );
                         })()}
                       </>
@@ -4077,11 +4074,10 @@ export default function NewExpensePage() {
                             >
                               <SelectTrigger
                                 id={`${col.key}-${id}`}
-                                className={`w-full ${
-                                  errors[col.key]
+                                className={`w-full ${errors[col.key]
                                     ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                     : ""
-                                }`}
+                                  }`}
                               >
                                 <SelectValue placeholder="Please Select" />
                               </SelectTrigger>
@@ -4096,20 +4092,20 @@ export default function NewExpensePage() {
                                     return String(label).toLowerCase().includes((searchQueries[`${col.key}-${id}`] || "").toLowerCase());
                                   })
                                   .map((option: any) => {
-                                  const value =
-                                    typeof option === "string"
-                                      ? option
-                                      : option.value;
-                                  const label =
-                                    typeof option === "string"
-                                      ? option
-                                      : option.label;
-                                  return (
-                                    <SelectItem key={value} value={value}>
-                                      {label}
-                                    </SelectItem>
-                                  );
-                                })}
+                                    const value =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.value;
+                                    const label =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.label;
+                                    return (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    );
+                                  })}
                               </SelectContent>
                             </Select>
                           )}
@@ -4132,11 +4128,10 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                               placeholder={`Enter ${col.label}`}
                             />
                           )}
@@ -4172,9 +4167,7 @@ export default function NewExpensePage() {
                         .map((col) => (
                           <div
                             key={col.key}
-                            className={`space-y-2 ${
-                              col.key === "date" ? "md:col-span-2" : ""
-                            }`}
+                            className="space-y-2"
                           >
                             <Label
                               htmlFor={col.key}
@@ -4235,11 +4228,10 @@ export default function NewExpensePage() {
                                     >
                                       <SelectTrigger
                                         id={col.key}
-                                        className={`w-full ${
-                                          errors[col.key]
+                                        className={`w-full ${errors[col.key]
                                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                             : ""
-                                        }`}
+                                          }`}
                                       >
                                         <SelectValue
                                           placeholder={
@@ -4304,8 +4296,8 @@ export default function NewExpensePage() {
                                   <SelectTrigger
                                     id={col.key}
                                     className={`w-full ${errors[col.key]
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
                                       }`}
                                   >
                                     <SelectValue placeholder={`Select ${col.label?.toLowerCase() || "option"}`} />
@@ -4321,20 +4313,20 @@ export default function NewExpensePage() {
                                         return String(label).toLowerCase().includes((searchQueries[`${id}-${col.key}`] || "").toLowerCase());
                                       })
                                       .map((option: any) => {
-                                      const value =
-                                        typeof option === "string"
-                                          ? option
-                                          : option.value;
-                                      const label =
-                                        typeof option === "string"
-                                          ? option
-                                          : option.label;
-                                      return (
-                                        <SelectItem key={value} value={value}>
-                                          {label}
-                                        </SelectItem>
-                                      );
-                                    })}
+                                        const value =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.value;
+                                        const label =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.label;
+                                        return (
+                                          <SelectItem key={value} value={value}>
+                                            {label}
+                                          </SelectItem>
+                                        );
+                                      })}
                                   </SelectContent>
                                 </Select>
                                 {errors[col.key] && (
@@ -4368,8 +4360,8 @@ export default function NewExpensePage() {
                                     )
                                   }
                                   className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
                                     }`}
                                   min={dateBounds.min}
                                   max={dateBounds.max}
@@ -4402,8 +4394,8 @@ export default function NewExpensePage() {
                                     )
                                   }
                                   className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
                                     }`}
                                 />
                                 {errors[col.key] && (
@@ -4451,8 +4443,7 @@ export default function NewExpensePage() {
                                 e.target.value
                               )
                             }
-                            className={`w-full min-h-[50px] ${
-                              errors[col.key]
+                            className={`w-full min-h-[50px] ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                               }`}
@@ -4536,8 +4527,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder={`Enter ${col.label}`}
                             />
@@ -4563,8 +4554,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder={`Enter ${col.label}`}
                             />
@@ -4588,8 +4579,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             />
                           )}
@@ -4611,8 +4602,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full min-h-[75px] ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder="Brief description of this expense report..."
                             />
@@ -4636,10 +4627,10 @@ export default function NewExpensePage() {
                                 );
                                 const optionsToRender = isSecondApproverField
                                   ? getLocationSpecificApproverOptions(
-                                      "second_approver_id",
-                                      selectedItemLocation,
-                                      selectedItemExpenseType
-                                    )
+                                    "second_approver_id",
+                                    selectedItemLocation,
+                                    selectedItemExpenseType
+                                  )
                                   : col.options;
                                 const secondApproverUnavailable =
                                   isSecondApproverField &&
@@ -4650,54 +4641,54 @@ export default function NewExpensePage() {
                                   );
 
                                 return (
-                              <Select
-                                value={String(
-                                  getExpenseItemValue(
-                                    id,
-                                    col.key as keyof ExpenseItemData
-                                  ) || ""
-                                )}
-                                onValueChange={(value: string) =>
-                                  handleExpenseItemChange(
-                                    id,
-                                    col.key as keyof ExpenseItemData,
-                                    value
-                                  )
-                                }
-                              >
-                                <SelectTrigger
-                                  id={col.key}
-                                  className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                    }`}
-                                >
-                                  <SelectValue
-                                    placeholder={
-                                      secondApproverUnavailable
-                                        ? "Not Availble"
-                                        : "Please Select"
+                                  <Select
+                                    value={String(
+                                      getExpenseItemValue(
+                                        id,
+                                        col.key as keyof ExpenseItemData
+                                      ) || ""
+                                    )}
+                                    onValueChange={(value: string) =>
+                                      handleExpenseItemChange(
+                                        id,
+                                        col.key as keyof ExpenseItemData,
+                                        value
+                                      )
                                     }
-                                  />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {col.options.map((option: any) => {
-                                    const value =
-                                      typeof option === "string"
-                                        ? option
-                                        : option.value;
-                                    const label =
-                                      typeof option === "string"
-                                        ? option
-                                        : option.label;
-                                    return (
-                                      <SelectItem key={value} value={value}>
-                                        {label}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
+                                  >
+                                    <SelectTrigger
+                                      id={col.key}
+                                      className={`w-full ${errors[col.key]
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                        }`}
+                                    >
+                                      <SelectValue
+                                        placeholder={
+                                          secondApproverUnavailable
+                                            ? "Not Availble"
+                                            : "Please Select"
+                                        }
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {col.options.map((option: any) => {
+                                        const value =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.value;
+                                        const label =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.label;
+                                        return (
+                                          <SelectItem key={value} value={value}>
+                                            {label}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
                                 );
                               })()}
                             </>
