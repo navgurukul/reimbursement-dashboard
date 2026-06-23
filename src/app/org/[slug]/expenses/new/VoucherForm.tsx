@@ -52,6 +52,9 @@ export default function VoucherForm({
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const [isEditingAmount, setIsEditingAmount] = useState(false);
   const amountInputRef = useRef<HTMLInputElement | null>(null);
+  const [isEditingCreditPerson, setIsEditingCreditPerson] = useState(false);
+  const creditPersonInputRef = useRef<HTMLInputElement | null>(null);
+  const hasTriedCreditPersonPrefill = useRef(false);
 
   const formatDateInput = (date: Date) => {
     const year = date.getFullYear();
@@ -106,6 +109,39 @@ export default function VoucherForm({
       if (prefName) onInputChange("yourName", prefName);
     }
   }, [formData.yourName, profile, user, onInputChange]);
+
+  // Prefill Voucher Credit Person from logged-in user's bank_details.account_holder
+  useEffect(() => {
+    const fetchAccountHolderName = async () => {
+      if (hasTriedCreditPersonPrefill.current) return;
+      if (formData.voucherCreditPerson) return;
+      if (!user?.email) return;
+      hasTriedCreditPersonPrefill.current = true;
+
+      try {
+        const { data, error } = await supabase
+          .from("bank_details")
+          .select("account_holder")
+          .eq("email", user.email)
+          .not("account_holder", "is", null)
+          .limit(1);
+
+        if (error) {
+          console.error("Failed to prefill voucher credit person:", error);
+          return;
+        }
+
+        const accountHolderName = String(data?.[0]?.account_holder || "").trim();
+        if (accountHolderName) {
+          onInputChange("voucherCreditPerson", accountHolderName);
+        }
+      } catch (err) {
+        console.error("Unexpected error while prefilling voucher credit person:", err);
+      }
+    };
+
+    fetchAccountHolderName();
+  }, [formData.voucherCreditPerson, user?.email, onInputChange]);
 
   // Use the saved signature if no voucher signature is set
   useEffect(() => {
@@ -182,7 +218,7 @@ export default function VoucherForm({
                 onChange={(e) => onInputChange("yourName", e.target.value)}
                 aria-invalid={getError("yourName") ? "true" : "false"}
                 aria-describedby={getError("yourName") ? "yourName-error" : undefined}
-                className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingName ? "bg-gray-50" : ""}`}
+                className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500 " : ""} ${!isEditingName ? "bg-white" : ""}`}
                 readOnly={!isEditingName}
                 ref={nameInputRef}
               />
@@ -200,7 +236,7 @@ export default function VoucherForm({
                         onInputChange("yourName", (formData.yourName || "").trim());
                       }
                     }}
-                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white"
+                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white cursor-pointer"
                   >
                     {isEditingName ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
                   </button>
@@ -261,7 +297,7 @@ export default function VoucherForm({
                 readOnly={!isEditingAmount}
                 aria-invalid={getError("voucherAmount") ? "true" : "false"}
                 aria-describedby={getError("voucherAmount") ? "voucherAmount-error" : undefined}
-                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingAmount ? "bg-gray-50" : ""}`}
+                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingAmount ? "bg-white" : ""}`}
               />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -280,7 +316,7 @@ export default function VoucherForm({
                         onInputChange("voucherAmount", num);
                       }
                     }}
-                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white"
+                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white cursor-pointer"
                   >
                     {isEditingAmount ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
                   </button>
@@ -321,22 +357,57 @@ export default function VoucherForm({
           <Label htmlFor="voucherCreditPerson" className="text-sm font-medium">
             Voucher Credit Person <span className="text-red-500">*</span>
           </Label>
-          <Input
-            id="voucherCreditPerson"
-            name="voucherCreditPerson"
-            value={formData.voucherCreditPerson || ""}
-            onChange={(e) => onInputChange("voucherCreditPerson", e.target.value)}
-            aria-invalid={getError("voucherCreditPerson") ? "true" : "false"}
-            aria-describedby={getError("voucherCreditPerson") ? "voucherCreditPerson-error" : undefined}
-            className={`w-full ${getError("voucherCreditPerson") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-          />
+          <div className="relative">
+            <Input
+              id="voucherCreditPerson"
+              name="voucherCreditPerson"
+              value={formData.voucherCreditPerson || ""}
+              onChange={(e) => onInputChange("voucherCreditPerson", e.target.value)}
+              ref={creditPersonInputRef}
+              readOnly={!isEditingCreditPerson}
+              aria-invalid={getError("voucherCreditPerson") ? "true" : "false"}
+              aria-describedby={getError("voucherCreditPerson") ? "voucherCreditPerson-error" : undefined}
+              className={`w-full ${getError("voucherCreditPerson") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingCreditPerson ? "bg-white" : ""}`}
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={isEditingCreditPerson ? "Save credit person" : "Edit credit person"}
+                  onClick={() => {
+                    if (!isEditingCreditPerson) {
+                      setIsEditingCreditPerson(true);
+                      setTimeout(() => creditPersonInputRef.current?.focus(), 50);
+                    } else {
+                      setIsEditingCreditPerson(false);
+                      onInputChange(
+                        "voucherCreditPerson",
+                        String(formData.voucherCreditPerson || "").trim()
+                      );
+                    }
+                  }}
+                  className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white cursor-pointer"
+                >
+                  {isEditingCreditPerson ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Edit3 className="h-4 w-4" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={6}>
+                {isEditingCreditPerson ? "Save" : "Edit Credit Person"}
+              </TooltipContent>
+            </Tooltip>
+          </div>
           {getError("voucherCreditPerson") && (
             <p id="voucherCreditPerson-error" className="text-red-500 text-sm mt-1" role="alert">
               {getError("voucherCreditPerson")}
             </p>
           )}
           <p className="text-sm text-gray-500">
-            credit person name description should beName of the person or vendor who will receive the payment from NavGurukul.
+            Credit Person name description should be Name of the person or vendor who will receive the payment from NavGurukul.<br />
+            Voucher Credit Person will be prefilled with the logged-in user's account holder name.
           </p>
         </div>
 

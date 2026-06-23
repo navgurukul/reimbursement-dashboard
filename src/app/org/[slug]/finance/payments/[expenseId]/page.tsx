@@ -349,10 +349,19 @@ export default function PaymentProcessingDetails() {
     ? expense?.tds_deduction_amount ??
       Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
     : expense?.tds_deduction_amount ?? null;
+  const securityDepositAmount =
+    expense?.security_deposit_amount !== null &&
+    expense?.security_deposit_amount !== undefined
+      ? Number(expense.security_deposit_amount)
+      : null;
   const actualAmount =
     expense?.actual_amount ??
     (tdsBaseAmount !== null && tdsBaseAmount !== undefined
-      ? Number(tdsBaseAmount) - (tdsAmount ?? 0)
+      ? Number(
+          (Number(tdsBaseAmount) -
+            (tdsAmount ?? 0) -
+            (securityDepositAmount ?? 0)).toFixed(2)
+        )
       : null);
 
   return (
@@ -435,7 +444,7 @@ export default function PaymentProcessingDetails() {
                     </TableRow>
                   )}
                   <TableRow>
-                    <TableHead>Location of Expense</TableHead>
+                    <TableHead>Project of Expense</TableHead>
                     <TableCell>{expense.location || "N/A"}</TableCell>
                   </TableRow>
                   <TableRow>
@@ -470,6 +479,14 @@ export default function PaymentProcessingDetails() {
                       ) : (
                         "N/A"
                       )}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Security Deposit Deduction</TableHead>
+                    <TableCell>
+                      {securityDepositAmount !== null
+                        ? formatCurrency(securityDepositAmount)
+                        : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>

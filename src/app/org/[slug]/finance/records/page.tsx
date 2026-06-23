@@ -93,6 +93,7 @@ const getCustomFieldValue = (
 };
 
 export default function PaymentRecords() {
+  const RECORDS_PER_PAGE = 100;
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,8 +102,26 @@ export default function PaymentRecords() {
   const searchParams = useSearchParams();
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+  const hasReturnNavigationParams =
+    Number(searchParams.get("page")) > 0 || Boolean(searchParams.get("expID"));
+  const isRestoringViewedExpenseRef = useRef(hasReturnNavigationParams);
 
   // Filter state
+  const [searchQuery, setSearchQuery] = useState({
+    expenseType: "",
+    eventName: "",
+    createdBy: "",
+    email: "",
+    uniqueId: "",
+    location: "",
+    bills: "",
+    utr: "",
+    startDate: "",
+    paidStartDate: "",
+    tdsDeduction: "",
+    securityDeposit: "",
+    paidByBank: "",
+  });
   const [filters, setFilters] = useState({
     expenseType: "All Expense Type",
     eventName: "All Events",
@@ -110,7 +129,7 @@ export default function PaymentRecords() {
     email: "All Emails",
     uniqueId: "All Unique IDs",
     location: "All Locations",
-    bills: "All Bills",
+    bills: "All Receipt/Voucher",
     utr: "All UTRs",
     startDate: "",
     endDate: "",
@@ -118,12 +137,14 @@ export default function PaymentRecords() {
     paidStartDate: "",
     paidEndDate: "",
     paidDateMode: "All Dates",
-    minAmount: 0,
-    maxAmount: 0,
+    minAmount: "",
+    maxAmount: "",
+    minActualAmount: "",
+    maxActualAmount: "",
+    tdsDeduction: "All TDS Deductions",
+    securityDeposit: "All Security Deposits",
     paidByBank: "All Banks",
   });
-
-  const [amountBounds, setAmountBounds] = useState({ min: 0, max: 0 });
   const [filterOpen, setFilterOpen] = useState(false);
   const [eventTitleLookup, setEventTitleLookup] = useState<
     Record<string, string>
@@ -146,11 +167,11 @@ export default function PaymentRecords() {
   // Bank filter tabs: All, NGIDFC Current, FCIDFC Current
   const [activeTab, setActiveTab] = useState<"all" | "ngidfc" | "fcidfc" | "kotak">("all");
   const BANK_STRING_MAP: Record<"ngidfc" | "fcidfc" | "kotak", "NGIDFC Current" | "FCIDFC Current" | "KOTAK"> =
-    {
-      ngidfc: "NGIDFC Current",
-      fcidfc: "FCIDFC Current",
-      kotak: "KOTAK",
-    };
+  {
+    ngidfc: "NGIDFC Current",
+    fcidfc: "FCIDFC Current",
+    kotak: "KOTAK",
+  };
 
   useEffect(() => {
     const tabParam = searchParams.get("activeTab");
@@ -158,6 +179,10 @@ export default function PaymentRecords() {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    isRestoringViewedExpenseRef.current = hasReturnNavigationParams;
+  }, [hasReturnNavigationParams]);
 
   const handleBankTabChange = (value: "all" | "ngidfc" | "fcidfc" | "kotak") => {
     setActiveTab(value);
@@ -169,11 +194,13 @@ export default function PaymentRecords() {
   };
 
   // Use pagination hook
-  const pagination = usePagination(filteredRecords, 100);
+  const pagination = usePagination(filteredRecords, RECORDS_PER_PAGE);
 
   // Reset page when filters change
   useEffect(() => {
-    pagination.resetPage();
+    if (!isRestoringViewedExpenseRef.current) {
+      pagination.resetPage();
+    }
   }, [filters]);
 
   // Handle expID from URL parameter
@@ -181,34 +208,60 @@ export default function PaymentRecords() {
     const expID = searchParams.get("expID");
     if (expID) {
       setHighlightedExpenseId(expID);
-      // Clear the expID after 10 seconds
-      const timer = setTimeout(() => {
-        setHighlightedExpenseId(null);
-      }, 10000);
-      return () => clearTimeout(timer);
     }
   }, [searchParams]);
 
-  // Scroll to highlighted row when it's set
   useEffect(() => {
-    if (highlightedExpenseId && filteredRecords.length > 0) {
-      // Find which page the highlighted expense is on
+    if (!highlightedExpenseId) return;
+
+    const timer = window.setTimeout(() => {
+      setHighlightedExpenseId(null);
+    }, 10000);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId]);
+
+  useEffect(() => {
+    const pageParam = Number(searchParams.get("page"));
+    if (Number.isInteger(pageParam) && pageParam > 0) {
+      pagination.setCurrentPage(Math.min(pageParam, pagination.totalPages));
+    }
+  }, [searchParams, pagination.totalPages, pagination.setCurrentPage]);
+
+  // Move to the page containing the highlighted row
+  useEffect(() => {
+    const hasRequestedPage = Number(searchParams.get("page")) > 0;
+
+    if (highlightedExpenseId && filteredRecords.length > 0 && !hasRequestedPage) {
       const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
       if (recordIndex !== -1) {
-        const itemsPerPage = 100;
-        const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
+        const pageNumber = Math.floor(recordIndex / RECORDS_PER_PAGE) + 1;
         pagination.setCurrentPage(pageNumber);
-
-        // Scroll to the highlighted row after pagination updates
-        setTimeout(() => {
-          highlightedRowRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }, 200);
       }
     }
-  }, [highlightedExpenseId, filteredRecords]);
+  }, [highlightedExpenseId, filteredRecords, searchParams, RECORDS_PER_PAGE, pagination.setCurrentPage]);
+
+  // Scroll to highlighted row after the target page renders
+  useEffect(() => {
+    if (!highlightedExpenseId || !highlightedRowRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      highlightedRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      if (hasReturnNavigationParams) {
+        isRestoringViewedExpenseRef.current = false;
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("page");
+        params.delete("expID");
+        router.replace(`?${params.toString()}`, { scroll: false });
+      }
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId, pagination.currentPage, pagination.paginatedData, hasReturnNavigationParams, searchParams, router]);
   const [deleteModal, setDeleteModal] = useState<{
     open: boolean;
     id: string | null;
@@ -234,7 +287,7 @@ export default function PaymentRecords() {
     expense_type: "",
     event_id: "",
     location: "",
-    approved_amount: "",
+    amount: "",
     utr: "",
     unique_id: "",
   });
@@ -278,6 +331,50 @@ export default function PaymentRecords() {
     return Number(((base * percentage) / 100).toFixed(2));
   };
 
+  const getSecurityDepositAmount = (record: any) => {
+    const amount = record.security_deposit_amount;
+    if (amount === null || amount === undefined || amount === "") {
+      return null;
+    }
+    return Number(amount);
+  };
+
+  const hasTdsDeduction = (record: any) => {
+    const stored = record.tds_deduction_amount;
+    if (stored !== null && stored !== undefined && stored !== "") {
+      return true;
+    }
+    return Number(record.tds_deduction_percentage ?? 0) > 0;
+  };
+
+  const getTdsDeductionPercentage = (record: any) =>
+    Number(record.tds_deduction_percentage ?? 0);
+
+  const getTdsDeductionOptionValue = (record: any) => {
+    if (!hasTdsDeduction(record)) return "N/A";
+
+    const percentage = getTdsDeductionPercentage(record);
+    const amount = getTdsAmount(record) ?? 0;
+    return `${percentage}|${amount.toFixed(2)}`;
+  };
+
+  const formatTdsDeductionOptionLabel = (optionValue: string) => {
+    if (optionValue === "N/A") return "N/A";
+
+    const [percentageText, amountText] = optionValue.split("|");
+    const percentage = Number(percentageText);
+    const amount = Number(amountText);
+    const percentageLabel =
+      Number.isFinite(percentage) && percentage > 0 ? `${percentage}%` : "—";
+
+    return `${percentageLabel} (${formatCurrency(amount)})`;
+  };
+
+  const hasSecurityDeposit = (record: any) => {
+    const amount = record.security_deposit_amount;
+    return !(amount === null || amount === undefined || amount === "");
+  };
+
   const getActualAmount = (record: any) => {
     const stored = record.actual_amount;
     if (stored !== null && stored !== undefined && stored !== "") {
@@ -285,27 +382,37 @@ export default function PaymentRecords() {
     }
     const base = getBaseAmount(record);
     const tdsAmount = getTdsAmount(record);
-    if (!base && !tdsAmount && !record.tds_deduction_percentage) return null;
-    return base - (tdsAmount ?? 0);
+    const securityDepositAmount = getSecurityDepositAmount(record);
+    if (
+      !base &&
+      !tdsAmount &&
+      !record.tds_deduction_percentage &&
+      !securityDepositAmount
+    ) {
+      return null;
+    }
+    return Number(
+      (base - (tdsAmount ?? 0) - (securityDepositAmount ?? 0)).toFixed(2)
+    );
   };
 
   const formatKotakVoucherDate = (dateValue?: string | Date | null) => {
     if (!dateValue) return "—";
     try {
       const d = new Date(dateValue);
-      const month = d.toLocaleString("en-US", {
-        month: "short",
+      const day = d.toLocaleString("en-GB", {
+        day: "2-digit",
         timeZone: "Asia/Kolkata",
       });
-      const day = d.toLocaleString("en-US", {
-        day: "numeric",
+      const month = d.toLocaleString("en-GB", {
+        month: "2-digit",
         timeZone: "Asia/Kolkata",
       });
-      const year = d.toLocaleString("en-US", {
+      const year = d.toLocaleString("en-GB", {
         year: "numeric",
         timeZone: "Asia/Kolkata",
       });
-      return `${month}-${day}-${year}`;
+      return `${day}-${month}-${year}`;
     } catch (err) {
       return "—";
     }
@@ -326,6 +433,42 @@ export default function PaymentRecords() {
     const [year, month, day] = dateValue.split("-");
     if (!year || !month || !day) return dateValue;
     return `${day}-${month}-${year}`;
+  };
+
+  const formatDateForInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const day = `${date.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getMonthYearLabelForDateRange = (start?: string, end?: string) => {
+    if (!start || !end) return null;
+
+    const [startYear, startMonth, startDay] = start.split("-").map(Number);
+    const [endYear, endMonth, endDay] = end.split("-").map(Number);
+    if (
+      !startYear ||
+      !startMonth ||
+      !startDay ||
+      !endYear ||
+      !endMonth ||
+      !endDay
+    ) {
+      return null;
+    }
+
+    const isSameMonth = startYear === endYear && startMonth === endMonth;
+    const isFirstDay = startDay === 1;
+    const lastDayOfMonth = new Date(startYear, startMonth, 0).getDate();
+    const isLastDay = endDay === lastDayOfMonth;
+
+    if (!isSameMonth || !isFirstDay || !isLastDay) return null;
+
+    const monthName = new Date(startYear, startMonth - 1, 1).toLocaleString("en-US", {
+      month: "long",
+    });
+    return `${monthName}_${startYear}`;
   };
 
   const isDateWithinRange = (
@@ -420,7 +563,7 @@ export default function PaymentRecords() {
         (r.location || "") !== filters.location
       )
         return false;
-      if (filters.bills !== "All Bills") {
+      if (filters.bills !== "All Receipt/Voucher") {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
@@ -451,10 +594,44 @@ export default function PaymentRecords() {
       )
         return false;
       const amt = Number(r.approved_amount) || 0;
-      if (filters.minAmount !== null && amt < Number(filters.minAmount))
+      if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
-      if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
+      if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
         return false;
+      const actualAmount = getActualAmount(r);
+      if (
+        filters.minActualAmount !== "" &&
+        (actualAmount === null || actualAmount < Number(filters.minActualAmount))
+      ) {
+        return false;
+      }
+      if (
+        filters.maxActualAmount !== "" &&
+        (actualAmount === null || actualAmount > Number(filters.maxActualAmount))
+      ) {
+        return false;
+      }
+      if (
+        filters.tdsDeduction !== "All TDS Deductions" &&
+        !(
+          (filters.tdsDeduction === "N/A" && !hasTdsDeduction(r)) ||
+          (filters.tdsDeduction !== "N/A" &&
+            filters.tdsDeduction === getTdsDeductionOptionValue(r))
+        )
+      ) {
+        return false;
+      }
+      const securityDepositAmount = getSecurityDepositAmount(r);
+      if (
+        filters.securityDeposit !== "All Security Deposits" &&
+        !(
+          (filters.securityDeposit === "N/A" && !hasSecurityDeposit(r)) ||
+          (filters.securityDeposit !== "N/A" &&
+            securityDepositAmount === Number(filters.securityDeposit))
+        )
+      ) {
+        return false;
+      }
 
       return true;
     });
@@ -471,6 +648,7 @@ export default function PaymentRecords() {
       "Location",
       "Amount",
       "TDS Deduction",
+      "Security Deposit",
       "Actual Amount",
       "Bills",
       "Date of expense",
@@ -489,6 +667,11 @@ export default function PaymentRecords() {
         ? `${tdsPercent}% (${tdsAmount !== null ? formatCurrency(tdsAmount) : "—"})`
         : tdsAmount !== null
           ? formatCurrency(tdsAmount)
+          : "N/A";
+      const securityDepositAmount = getSecurityDepositAmount(record);
+      const securityDepositDisplay =
+        securityDepositAmount !== null
+          ? formatCurrency(securityDepositAmount)
           : "N/A";
 
       const actualAmount = getActualAmount(record);
@@ -515,6 +698,7 @@ export default function PaymentRecords() {
         record.location || "N/A",
         `₹${record.approved_amount ?? 0}`,
         tdsDisplay,
+        securityDepositDisplay,
         actualAmount !== null ? formatCurrency(actualAmount) : "—",
         billsDisplay,
         record.date ? new Date(record.date).toLocaleDateString("en-IN") : "—",
@@ -522,10 +706,10 @@ export default function PaymentRecords() {
         record.utr || "—",
         record.paid_approval_time
           ? new Date(record.paid_approval_time).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
           : "—",
         record.payment_status || "",
         record.paid_by_bank || "N/A",
@@ -540,12 +724,12 @@ export default function PaymentRecords() {
     const baseRecords = exportBankType === "ALL_RECORDS"
       ? getAllTabFilteredRecords()
       : exportBankType
-      ? filteredRecords.filter((r) =>
+        ? filteredRecords.filter((r) =>
           exportBankType === "NO_BANK"
             ? !(r.paid_by_bank || "").trim()
             : (r.paid_by_bank || "") === exportBankType
         )
-      : filteredRecords;
+        : filteredRecords;
 
     return baseRecords.filter((record) => {
       const matchesExpenseDate = isDateWithinRange(
@@ -572,12 +756,12 @@ export default function PaymentRecords() {
     const baseRecords = exportBankType === "ALL_RECORDS"
       ? getAllTabFilteredRecords()
       : exportBankType
-      ? filteredRecords.filter((record) =>
+        ? filteredRecords.filter((record) =>
           exportBankType === "NO_BANK"
             ? !(record.paid_by_bank || "").trim()
             : (record.paid_by_bank || "") === exportBankType
         )
-      : filteredRecords;
+        : filteredRecords;
     const uniqueDates = new Set<string>();
     baseRecords.forEach((record) => {
       const dateOnly = toDateOnly(record.date);
@@ -694,12 +878,12 @@ export default function PaymentRecords() {
     const baseRecords = exportBankType === "ALL_RECORDS"
       ? getAllTabFilteredRecords()
       : exportBankType
-      ? filteredRecords.filter((record) =>
+        ? filteredRecords.filter((record) =>
           exportBankType === "NO_BANK"
             ? !(record.paid_by_bank || "").trim()
             : (record.paid_by_bank || "") === exportBankType
         )
-      : filteredRecords;
+        : filteredRecords;
     const uniqueDates = new Set<string>();
     baseRecords.forEach((record) => {
       const dateOnly = toDateOnly(record.paid_approval_time);
@@ -833,19 +1017,45 @@ export default function PaymentRecords() {
             .select("*");
           if (bankError) throw bankError;
 
+          const bankDetailsByUniqueId = new Map<string, any>();
+          const bankDetailsByEmail = new Map<string, any>();
+
+          bankData?.forEach((bankDetail: any) => {
+            const uniqueId = String(bankDetail.unique_id || "").trim();
+            const advanceUniqueId = String(bankDetail.advance_unique_id || "").trim();
+            const directPaymentUniqueId = String(bankDetail.direct_payment_unique_id || "").trim();
+            // const email = String(bankDetail.email || "").trim().toLowerCase();
+
+            if (uniqueId) {
+              bankDetailsByUniqueId.set(uniqueId, bankDetail);
+            }
+            if (advanceUniqueId) {
+              bankDetailsByUniqueId.set(advanceUniqueId, bankDetail);
+            }
+            if (directPaymentUniqueId) {
+              bankDetailsByUniqueId.set(directPaymentUniqueId, bankDetail);
+            }
+
+            // if (email) {
+            //   bankDetailsByEmail.set(email, bankDetail);
+            // }
+          });
+
           const enriched = withTitles.map((r: any) => {
-            const matched = bankData?.find(
-              (b: any) => b.email === r.creator_email
-            );
+            const uniqueId = String(r.unique_id || "").trim();
+            // const email = String(r.creator_email || "").trim().toLowerCase();
+            // Match bank details strictly by unique_id only (preferred by user)
+            const matched = bankDetailsByUniqueId.get(uniqueId) || null;
+
+            const matchedAccountHolder = matched?.account_holder || null;
             return {
               ...r,
               unique_id: r.unique_id || matched?.unique_id || "N/A",
+              account_holder:
+                matchedAccountHolder ||
+                null,
               beneficiary_name:
-                r.beneficiary_name ||
-                matched?.account_holder ||
-                r.creator_name ||
-                r.creator?.full_name ||
-                r.creator_email ||
+                matchedAccountHolder ||
                 "N/A",
             };
           });
@@ -864,19 +1074,10 @@ export default function PaymentRecords() {
             };
           });
 
-          // compute amount bounds
-          const amounts = enriched.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
-          const min = amounts.length ? Math.min(...amounts) : 0;
-          const max = amounts.length ? Math.max(...amounts) : 0;
-
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
-          setAmountBounds({ min, max });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
           const fallback = sortByPaidApprovalTime(
@@ -897,18 +1098,10 @@ export default function PaymentRecords() {
                 : index + 1,
             };
           });
-          const amounts = fallback.map(
-            (r: any) => Number(r.approved_amount) || 0
-          );
-          const min = amounts.length ? Math.min(...amounts) : 0;
-          const max = amounts.length ? Math.max(...amounts) : 0;
-
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
-          setAmountBounds({ min, max });
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
-          setFilters((prev) => ({ ...prev, minAmount: min, maxAmount: max }));
         }
       } catch (err: any) {
         toast.error("Failed to load records", { description: err.message });
@@ -936,30 +1129,65 @@ export default function PaymentRecords() {
   const uniqueIds = Array.from(
     new Set(records.map((r: any) => r.unique_id).filter(Boolean))
   );
+  const activeTabRecords = useMemo(() => {
+    return records.filter((r: any) => {
+      if (activeTab === "all") return true;
+      const expected = BANK_STRING_MAP[activeTab];
+      return (r.paid_by_bank || "") === expected;
+    });
+  }, [records, activeTab]);
   const dateOfExpenseOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
-    records.forEach((r: any) => {
-      if (activeTab !== "all") {
-        const expected = BANK_STRING_MAP[activeTab];
-        if ((r.paid_by_bank || "") !== expected) return;
-      }
+    activeTabRecords.forEach((r: any) => {
       const dateOnly = toDateOnly(r.date);
       if (dateOnly) uniqueDates.add(dateOnly);
     });
     return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
-  }, [records, activeTab]);
+  }, [activeTabRecords]);
   const paidDateFilterOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
-    records.forEach((r: any) => {
-      if (activeTab !== "all") {
-        const expected = BANK_STRING_MAP[activeTab];
-        if ((r.paid_by_bank || "") !== expected) return;
-      }
+    activeTabRecords.forEach((r: any) => {
       const dateOnly = toDateOnly(r.paid_approval_time);
       if (dateOnly) uniqueDates.add(dateOnly);
     });
     return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
-  }, [records, activeTab]);
+  }, [activeTabRecords]);
+  const tdsDeductionOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          activeTabRecords.map((record: any) =>
+            getTdsDeductionOptionValue(record)
+          )
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        const [aPercentage, aAmount] = a.split("|");
+        const [bPercentage, bAmount] = b.split("|");
+        const percentageDiff = Number(aPercentage) - Number(bPercentage);
+        if (percentageDiff !== 0) return percentageDiff;
+        return Number(aAmount) - Number(bAmount);
+      }),
+    [activeTabRecords]
+  );
+  const securityDepositOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          activeTabRecords.map((record: any) =>
+            hasSecurityDeposit(record)
+              ? String(getSecurityDepositAmount(record))
+              : "N/A"
+          )
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        return Number(a) - Number(b);
+      }),
+    [activeTabRecords]
+  );
   const paidByBankOptions = Array.from(
     new Set(records.map((r: any) => r.paid_by_bank).filter(Boolean))
   );
@@ -1012,11 +1240,14 @@ export default function PaymentRecords() {
         if (filters.bills === "Receipt" && !r.receipt) return false;
         if (filters.bills === "Voucher" && !r.hasVoucher) return false;
       }
-      if (
-        filters.paidByBank !== "All Banks" &&
-        (r.paid_by_bank || "") !== filters.paidByBank
-      )
-        return false;
+      if (filters.paidByBank !== "All Banks") {
+        const paidByBank = (r.paid_by_bank || "").trim();
+        if (filters.paidByBank === "No Bank Records (Not paid by bank)") {
+          if (paidByBank) return false;
+        } else if (paidByBank !== filters.paidByBank) {
+          return false;
+        }
+      }
       if (filters.utr && filters.utr !== "All UTRs") {
         if (filters.utr === "Has" && !r.utr) return false;
         if (filters.utr === "None" && r.utr) return false;
@@ -1039,10 +1270,44 @@ export default function PaymentRecords() {
       )
         return false;
       const amt = Number(r.approved_amount) || 0;
-      if (filters.minAmount !== null && amt < Number(filters.minAmount))
+      if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
-      if (filters.maxAmount !== null && amt > Number(filters.maxAmount))
+      if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
         return false;
+      const actualAmount = getActualAmount(r);
+      if (
+        filters.minActualAmount !== "" &&
+        (actualAmount === null || actualAmount < Number(filters.minActualAmount))
+      ) {
+        return false;
+      }
+      if (
+        filters.maxActualAmount !== "" &&
+        (actualAmount === null || actualAmount > Number(filters.maxActualAmount))
+      ) {
+        return false;
+      }
+      if (
+        filters.tdsDeduction !== "All TDS Deductions" &&
+        !(
+          (filters.tdsDeduction === "N/A" && !hasTdsDeduction(r)) ||
+          (filters.tdsDeduction !== "N/A" &&
+            filters.tdsDeduction === getTdsDeductionOptionValue(r))
+        )
+      ) {
+        return false;
+      }
+      const securityDepositAmount = getSecurityDepositAmount(r);
+      if (
+        filters.securityDeposit !== "All Security Deposits" &&
+        !(
+          (filters.securityDeposit === "N/A" && !hasSecurityDeposit(r)) ||
+          (filters.securityDeposit !== "N/A" &&
+            securityDepositAmount === Number(filters.securityDeposit))
+        )
+      ) {
+        return false;
+      }
 
       return true;
     });
@@ -1058,7 +1323,9 @@ export default function PaymentRecords() {
 
   // Reset to page 1 when filters change
   useEffect(() => {
-    pagination.resetPage();
+    if (!isRestoringViewedExpenseRef.current) {
+      pagination.resetPage();
+    }
   }, [filteredRecords]);
 
   const clearFilters = () => {
@@ -1070,7 +1337,7 @@ export default function PaymentRecords() {
       email: "All Emails",
       uniqueId: "All Unique IDs",
       location: "All Locations",
-      bills: "All Bills",
+      bills: "All Receipt/Voucher",
       utr: "All UTRs",
       dateMode: "All Dates",
       startDate: "",
@@ -1078,10 +1345,29 @@ export default function PaymentRecords() {
       paidDateMode: "All Dates",
       paidStartDate: "",
       paidEndDate: "",
-      minAmount: amountBounds.min,
-      maxAmount: amountBounds.max,
+      minAmount: "",
+      maxAmount: "",
+      minActualAmount: "",
+      maxActualAmount: "",
+      tdsDeduction: "All TDS Deductions",
+      securityDeposit: "All Security Deposits",
       paidByBank: "All Banks",
     }));
+    setSearchQuery({
+      expenseType: "",
+      eventName: "",
+      createdBy: "",
+      email: "",
+      uniqueId: "",
+      location: "",
+      bills: "",
+      utr: "",
+      startDate: "",
+      paidStartDate: "",
+      tdsDeduction: "",
+      securityDeposit: "",
+      paidByBank: "",
+    });
     setFilteredRecords(records);
   };
 
@@ -1167,9 +1453,9 @@ export default function PaymentRecords() {
       expense_type: record.expense_type || "",
       event_id: record.event_id || "",
       location: record.location || "",
-      approved_amount:
-        record.approved_amount !== undefined
-          ? String(record.approved_amount)
+      amount:
+        record.amount !== undefined
+          ? String(record.amount)
           : record.amount !== undefined
             ? String(record.amount)
             : "",
@@ -1182,9 +1468,9 @@ export default function PaymentRecords() {
   const handleSaveEdit = async () => {
     if (!editModal.record) return;
 
-    const parsedAmount = Number(editForm.approved_amount);
+    const parsedAmount = Number(editForm.amount);
     if (
-      editForm.approved_amount !== "" &&
+      editForm.amount !== "" &&
       !Number.isFinite(parsedAmount)
     ) {
       toast.error("Please enter a valid amount");
@@ -1197,7 +1483,7 @@ export default function PaymentRecords() {
       event_id: editForm.event_id || editModal.record.event_id || null,
       location: editForm.location || editModal.record.location || null,
       approved_amount:
-        editForm.approved_amount === ""
+        editForm.amount === ""
           ? editModal.record.approved_amount ?? null
           : parsedAmount,
       utr: editForm.utr.trim() || null,
@@ -1253,9 +1539,9 @@ export default function PaymentRecords() {
             ? "FC Records"
             : exportBankType === "ALL_RECORDS"
               ? "All Records"
-            : exportBankType === "NO_BANK"
-              ? "No Bank Records"
-              : "KOTAK Records"
+              : exportBankType === "NO_BANK"
+                ? "No Bank Records"
+                : "KOTAK Records"
         : "All Records";
 
       const segments: string[] = [bankLabel];
@@ -1265,17 +1551,29 @@ export default function PaymentRecords() {
       }
 
       if (exportLocationFilter !== "All Locations") {
-        segments.push(`Location_${exportLocationFilter}`);
+        segments.push(`Project_of_expense_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
         const dateLabel = "Date-of-Expense";
+        const monthlyLabel =
+          exportRangeLabel === "Monthly" &&
+            exportDateFilters.expenseDateMode === "Custom Date"
+            ? getMonthYearLabelForDateRange(
+              exportDateFilters.expenseStartDate,
+              exportDateFilters.expenseEndDate
+            )
+            : null;
+        const formattedRange = `${formatExportDateForName(
+          exportDateFilters.expenseStartDate
+        )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
         const dateValue =
-          exportDateFilters.expenseDateMode === "Single Date"
-            ? formatExportDateForName(exportDateFilters.expenseStartDate)
-            : `${formatExportDateForName(
-                exportDateFilters.expenseStartDate
-              )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
+          monthlyLabel
+            ? monthlyLabel
+            :
+            (exportDateFilters.expenseDateMode === "Single Date"
+              ? formatExportDateForName(exportDateFilters.expenseStartDate)
+              : formattedRange);
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1285,8 +1583,8 @@ export default function PaymentRecords() {
           exportDateFilters.paidDateMode === "Single Date"
             ? formatExportDateForName(exportDateFilters.paidStartDate)
             : `${formatExportDateForName(
-                exportDateFilters.paidStartDate
-              )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
+              exportDateFilters.paidStartDate
+            )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1325,30 +1623,36 @@ export default function PaymentRecords() {
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType && exportBankType !== "NO_BANK"
       ? new Map(
-          filteredRecords
-            .filter((record) => (record.paid_by_bank || "") === exportBankType)
-            .map((record, idx) => [record.id, idx + 1])
-        )
+        filteredRecords
+          .filter((record) => (record.paid_by_bank || "") === exportBankType)
+          .map((record, idx) => [record.id, idx + 1])
+      )
       : null;
     const headers = isKotakExport
       ? [
-          "Voucher Date",
-          "Voucher Type Name",
-          "Voucher Number",
-          "Ledger Name",
-          "Ledger Amount",
-          "Ledger Amount Dr/Cr",
-          "Ledger Narration",
-        ]
+        "Voucher Date",
+        "Voucher Type Name",
+        "Voucher Number",
+        "Ledger Name",
+        "Ledger Amount",
+        "Ledger Amount Dr/Cr",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Cost Center",
+        "Cost Allocation for - Amount",
+      ]
       : [
-          "Voucher Date",
-          "Voucher Type Name",
-          "Voucher Number",
-          "Ledger Name",
-          "TDS Amount",
-          "Ledger Amount Dr/Cr",
-          "Ledger Narration",
-        ];
+        "Voucher Date",
+        "Voucher Type Name",
+        "Voucher Number",
+        "Ledger Name",
+        "Ledger Amount",
+        "Ledger Amount Dr/Cr",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Cost Center",
+        "Cost Allocation for - Amount",
+      ];
 
     const exportRecords = getExportRecords();
 
@@ -1360,6 +1664,7 @@ export default function PaymentRecords() {
     const rows = exportRecords.flatMap((record, index) => {
       const baseAmount = getBaseAmount(record);
       const tdsAmount = getTdsAmount(record);
+      const securityDepositAmount = getSecurityDepositAmount(record);
       const actualAmount = getActualAmount(record);
       const beneficiaryName =
         record.beneficiary_name ||
@@ -1387,12 +1692,15 @@ export default function PaymentRecords() {
         return [
           [
             voucherDate,
-            "Expense",
+            "Expense Kotak",
             "",
             record.expense_type || "—",
             ledgerAmount,
             "Dr",
             narration,
+            "Project",
+            record.location || "N/A",
+            ledgerAmount,
           ],
           [
             "",
@@ -1402,12 +1710,15 @@ export default function PaymentRecords() {
             ledgerAmount,
             "Cr",
             "",
+            "",
+            "",
+            "",
           ],
         ];
       }
 
       const voucherDate = record.paid_approval_time
-        ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
+        ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
       const serialNumber = record.serialNumber ?? index + 1;
       const refNo =
@@ -1416,15 +1727,24 @@ export default function PaymentRecords() {
           : bankRefNoMap?.get(record.id) ?? serialNumber;
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
+      const voucherTypeName = exportBankType === "NGIDFC Current"
+        ? "Expense IDFC"
+        : exportBankType === "FCIDFC Current"
+          ? "Expense SBI FC"
+          : "Expense";
+
       const rowsForRecord: any[] = [
         [
           voucherDate,
-          "Expense",
+          voucherTypeName,
           "",
           record.expense_type || "—",
           formatAmountValue(baseAmount),
           "Dr",
           narration,
+          "Project",
+          record.location || "N/A",
+          formatAmountValue(baseAmount),
         ],
         [
           "",
@@ -1433,6 +1753,9 @@ export default function PaymentRecords() {
           beneficiaryName,
           formatAmountValue(actualAmount ?? baseAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ],
       ];
@@ -1445,6 +1768,24 @@ export default function PaymentRecords() {
           tdsLine,
           formatAmountValue(tdsAmount),
           "Cr",
+          "",
+          "",
+          "",
+          "",
+        ]);
+      }
+
+      if (securityDepositAmount !== null) {
+        rowsForRecord.push([
+          "",
+          "",
+          "",
+          "Security Deposit",
+          formatAmountValue(securityDepositAmount),
+          "Cr",
+          "",
+          "",
+          "",
           "",
         ]);
       }
@@ -1490,9 +1831,9 @@ export default function PaymentRecords() {
             ? "FC Records"
             : exportBankType === "ALL_RECORDS"
               ? "All Records"
-            : exportBankType === "NO_BANK"
-              ? "No Bank Records"
-              : "KOTAK Records"
+              : exportBankType === "NO_BANK"
+                ? "No Bank Records"
+                : "KOTAK Records"
         : "All Records";
 
       const segments: string[] = [bankLabel];
@@ -1502,17 +1843,29 @@ export default function PaymentRecords() {
       }
 
       if (exportLocationFilter !== "All Locations") {
-        segments.push(`Location_${exportLocationFilter}`);
+        segments.push(`Project_of_expense_${exportLocationFilter}`);
       }
 
       if (exportDateFilters.expenseDateMode !== "All Dates") {
         const dateLabel = "Date-of-Expense";
+        const monthlyLabel =
+          exportRangeLabel === "Monthly" &&
+            exportDateFilters.expenseDateMode === "Custom Date"
+            ? getMonthYearLabelForDateRange(
+              exportDateFilters.expenseStartDate,
+              exportDateFilters.expenseEndDate
+            )
+            : null;
+        const formattedRange = `${formatExportDateForName(
+          exportDateFilters.expenseStartDate
+        )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
         const dateValue =
-          exportDateFilters.expenseDateMode === "Single Date"
-            ? formatExportDateForName(exportDateFilters.expenseStartDate)
-            : `${formatExportDateForName(
-                exportDateFilters.expenseStartDate
-              )}_to_${formatExportDateForName(exportDateFilters.expenseEndDate)}`;
+          monthlyLabel
+            ? monthlyLabel
+            :
+            (exportDateFilters.expenseDateMode === "Single Date"
+              ? formatExportDateForName(exportDateFilters.expenseStartDate)
+              : formattedRange);
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1522,8 +1875,8 @@ export default function PaymentRecords() {
           exportDateFilters.paidDateMode === "Single Date"
             ? formatExportDateForName(exportDateFilters.paidStartDate)
             : `${formatExportDateForName(
-                exportDateFilters.paidStartDate
-              )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
+              exportDateFilters.paidStartDate
+            )}_to_${formatExportDateForName(exportDateFilters.paidEndDate)}`;
         segments.push(`${dateLabel}_${dateValue}`);
       }
 
@@ -1571,30 +1924,36 @@ export default function PaymentRecords() {
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType && exportBankType !== "NO_BANK"
       ? new Map(
-          filteredRecords
-            .filter((record) => (record.paid_by_bank || "") === exportBankType)
-            .map((record, idx) => [record.id, idx + 1])
-        )
+        filteredRecords
+          .filter((record) => (record.paid_by_bank || "") === exportBankType)
+          .map((record, idx) => [record.id, idx + 1])
+      )
       : null;
     const headers = isKotakExport
       ? [
-          "Voucher Date",
-          "Voucher Type Name",
-          "Voucher Number",
-          "Ledger Name",
-          "Ledger Amount",
-          "Ledger Amount Dr/Cr",
-          "Ledger Narration",
-        ]
+        "Voucher Date",
+        "Voucher Type Name",
+        "Voucher Number",
+        "Ledger Name",
+        "Ledger Amount",
+        "Ledger Amount Dr/Cr",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Cost Center",
+        "Cost Allocation for - Amount",
+      ]
       : [
-          "Voucher Date",
-          "Voucher Type Name",
-          "Voucher Number",
-          "Ledger Name",
-          "TDS Amount",
-          "Ledger Amount Dr/Cr",
-          "Ledger Narration",
-        ];
+        "Voucher Date",
+        "Voucher Type Name",
+        "Voucher Number",
+        "Ledger Name",
+        "Ledger Amount",
+        "Ledger Amount Dr/Cr",
+        "Voucher Narration",
+        "Category Name",
+        "Cost Allocation for - Cost Center",
+        "Cost Allocation for - Amount",
+      ];
 
     const exportRecords = getExportRecords();
 
@@ -1606,6 +1965,7 @@ export default function PaymentRecords() {
     const rows = exportRecords.flatMap((record, index) => {
       const baseAmount = getBaseAmount(record);
       const tdsAmount = getTdsAmount(record);
+      const securityDepositAmount = getSecurityDepositAmount(record);
       const actualAmount = getActualAmount(record);
       const beneficiaryName =
         record.beneficiary_name ||
@@ -1633,12 +1993,15 @@ export default function PaymentRecords() {
         return [
           [
             voucherDate,
-            "Expense",
+            "Expense Kotak",
             "",
             record.expense_type || "—",
             ledgerAmount,
             "Dr",
             narration,
+            "Project",
+            record.location || "N/A",
+            ledgerAmount,
           ],
           [
             "",
@@ -1648,12 +2011,15 @@ export default function PaymentRecords() {
             ledgerAmount,
             "Cr",
             "",
+            "",
+            "",
+            "",
           ],
         ];
       }
 
       const voucherDate = record.paid_approval_time
-        ? new Date(record.paid_approval_time).toLocaleDateString("en-GB")
+        ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
       const serialNumber = record.serialNumber ?? index + 1;
       const refNo =
@@ -1662,15 +2028,24 @@ export default function PaymentRecords() {
           : bankRefNoMap?.get(record.id) ?? serialNumber;
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
+      const voucherTypeName = exportBankType === "NGIDFC Current"
+        ? "Expense IDFC"
+        : exportBankType === "FCIDFC Current"
+          ? "Expense SBI FC"
+          : "Expense";
+
       const rowsForRecord: any[] = [
         [
           voucherDate,
-          "Expense",
+          voucherTypeName,
           "",
           record.expense_type || "—",
           formatAmountValue(baseAmount),
           "Dr",
           narration,
+          "Project",
+          record.location || "N/A",
+          formatAmountValue(baseAmount),
         ],
         [
           "",
@@ -1679,6 +2054,9 @@ export default function PaymentRecords() {
           beneficiaryName,
           formatAmountValue(actualAmount ?? baseAmount),
           "Cr",
+          "",
+          "",
+          "",
           "",
         ],
       ];
@@ -1691,6 +2069,24 @@ export default function PaymentRecords() {
           tdsLine,
           formatAmountValue(tdsAmount),
           "Cr",
+          "",
+          "",
+          "",
+          "",
+        ]);
+      }
+
+      if (securityDepositAmount !== null) {
+        rowsForRecord.push([
+          "",
+          "",
+          "",
+          "Security Deposit",
+          formatAmountValue(securityDepositAmount),
+          "Cr",
+          "",
+          "",
+          "",
           "",
         ]);
       }
@@ -1761,8 +2157,6 @@ export default function PaymentRecords() {
       endDate = new Date(year, monthIndex + 1, 0);
     }
 
-    const formatForInput = (date: Date) => date.toISOString().slice(0, 10);
-
     // Set export bank type based on the currently active tab
     if (activeTab === "all") {
       setExportBankType("ALL_RECORDS");
@@ -1778,8 +2172,8 @@ export default function PaymentRecords() {
     setExportDateFilters((prev) => ({
       ...prev,
       expenseDateMode: "Custom Date",
-      expenseStartDate: formatForInput(startDate),
-      expenseEndDate: formatForInput(endDate),
+      expenseStartDate: formatDateForInput(startDate),
+      expenseEndDate: formatDateForInput(endDate),
       paidDateMode: "All Dates",
       paidStartDate: "",
       paidEndDate: "",
@@ -1848,159 +2242,242 @@ export default function PaymentRecords() {
       {/* Filter panel */}
       {filterOpen && (
         <div className="p-4 rounded-md border shadow-sm bg-white">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Expense Type</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2 bg-gray-50 dark:bg-gray-800"
-                value={filters.expenseType}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, expenseType: e.target.value }))
+              <Select
+                value={filters.expenseType || "All Expense Type"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, expenseType: v }))
                 }
               >
-                <option>All Expense Type</option>
-                {expenseTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-gray-50 dark:bg-gray-800">
+                  <SelectValue placeholder="All Expense Type" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search expense type..."
+                  searchValue={searchQuery.expenseType}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, expenseType: v }))}
+                >
+                  <SelectItem value="All Expense Type">All Expense Type</SelectItem>
+                  {expenseTypes
+                    .filter((t) => String(t).toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
+                    .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Event</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.eventName}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, eventName: e.target.value }))
+              <Select
+                value={filters.eventName || "All Events"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, eventName: v }))
                 }
               >
-                <option>All Events</option>
-                {eventNames.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Events" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search event..."
+                  searchValue={searchQuery.eventName}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, eventName: v }))}
+                >
+                  <SelectItem value="All Events">All Events</SelectItem>
+                  {eventNames
+                    .filter((t) => String(t).toLowerCase().includes(searchQuery.eventName.toLowerCase()))
+                    .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Email</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.email}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, email: e.target.value }))
+              <Select
+                value={filters.email || "All Emails"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, email: v }))
                 }
               >
-                <option>All Emails</option>
-                {creators.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Emails" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search email..."
+                  searchValue={searchQuery.email}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, email: v }))}
+                >
+                  <SelectItem value="All Emails">All Emails</SelectItem>
+                  {creators
+                    .filter((t) => String(t).toLowerCase().includes(searchQuery.email.toLowerCase()))
+                    .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Unique ID</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.uniqueId}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, uniqueId: e.target.value }))
+              <Select
+                value={filters.uniqueId || "All Unique IDs"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, uniqueId: v }))
                 }
               >
-                <option>All Unique IDs</option>
-                {uniqueIds.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Unique IDs" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search unique ID..."
+                  searchValue={searchQuery.uniqueId}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, uniqueId: v }))}
+                >
+                  <SelectItem value="All Unique IDs">All Unique IDs</SelectItem>
+                  {uniqueIds
+                    .filter((id) => String(id).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
+                    .map((id) => (
+                    <SelectItem key={id} value={id}>
+                      {id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Location</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.location}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, location: e.target.value }))
+              <label className="text-sm font-medium">Project of Expense</label>
+              <Select
+                value={filters.location || "All Locations"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, location: v }))
                 }
               >
-                <option>All Locations</option>
-                {locations.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search project..."
+                  searchValue={searchQuery.location}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, location: v }))}
+                >
+                  <SelectItem value="All Locations">All Projects</SelectItem>
+                  {locations
+                    .filter((t) => String(t).toLowerCase().includes(searchQuery.location.toLowerCase()))
+                    .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Bills</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.bills}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, bills: e.target.value }))
+              <Select
+                value={filters.bills || "All Receipt/Voucher"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, bills: v }))
                 }
               >
-                <option>All Receipt/Voucher</option>
-                <option>Receipt</option>
-                <option>Voucher</option>
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Receipt/Voucher" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search bills..."
+                  searchValue={searchQuery.bills}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, bills: v }))}
+                >
+                  <SelectItem value="All Receipt/Voucher">All Receipt/Voucher</SelectItem>
+                  {["Receipt", "Voucher"]
+                    .filter((b) => b.toLowerCase().includes(searchQuery.bills.toLowerCase()))
+                    .map((b) => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {paidByBankOptions.length > 0 && (
               <div className="col-span-3 sm:col-span-1">
                 <label className="text-sm font-medium">Paid by bank</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2"
-                  value={filters.paidByBank}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, paidByBank: e.target.value }))
+                <Select
+                  value={filters.paidByBank || "All Banks"}
+                  onValueChange={(v) =>
+                    setFilters((f) => ({ ...f, paidByBank: v }))
                   }
                 >
-                  <option>All Banks</option>
-                  {paidByBankOptions.map((bank) => (
-                    <option key={bank} value={bank}>
-                      {bank}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="mt-1 w-full bg-white">
+                    <SelectValue placeholder="All Banks" />
+                  </SelectTrigger>
+                  <SelectContent
+                    searchPlaceholder="Search bank..."
+                    searchValue={searchQuery.paidByBank}
+                    onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, paidByBank: v }))}
+                  >
+                    <SelectItem value="All Banks">All Banks</SelectItem>
+                    <SelectItem value="No Bank Records (Not paid by bank)">
+                      No Bank Records (Not paid by bank)
+                    </SelectItem>
+                    {paidByBankOptions
+                      .filter((bank) => String(bank).toLowerCase().includes(searchQuery.paidByBank.toLowerCase()))
+                      .map((bank) => (
+                      <SelectItem key={bank} value={bank}>
+                        {bank}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
             {utrValues.length > 0 && (
               <div className="col-span-3 sm:col-span-1">
                 <label className="text-sm font-medium">UTR</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2"
-                  value={filters.utr}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, utr: e.target.value }))
+                <Select
+                  value={filters.utr || "All UTRs"}
+                  onValueChange={(v) =>
+                    setFilters((f) => ({ ...f, utr: v }))
                   }
                 >
-                  <option value="All UTRs">All UTRs</option>
-                  {utrValues.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="mt-1 w-full bg-white">
+                    <SelectValue placeholder="All UTRs" />
+                  </SelectTrigger>
+                  <SelectContent
+                    searchPlaceholder="Search UTR..."
+                    searchValue={searchQuery.utr}
+                    onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, utr: v }))}
+                  >
+                    <SelectItem value="All UTRs">All UTRs</SelectItem>
+                    {utrValues
+                      .filter((u) => String(u).toLowerCase().includes(searchQuery.utr.toLowerCase()))
+                      .map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Date of expense</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.dateMode}
-                onChange={(e) => {
-                  const mode = e.target.value;
+              <Select
+                value={filters.dateMode || "All Dates"}
+                onValueChange={(v) => {
+                  const mode = v;
                   setFilters((f) => {
                     if (mode === "All Dates")
                       return {
@@ -2020,34 +2497,49 @@ export default function PaymentRecords() {
                   });
                 }}
               >
-                <option>All Dates</option>
-                <option>Single Date</option>
-                <option>Custom Date</option>
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All Dates">All Dates</SelectItem>
+                  <SelectItem value="Single Date">Single Date</SelectItem>
+                  <SelectItem value="Custom Date">Custom Date</SelectItem>
+                </SelectContent>
+              </Select>
 
               {/* Conditional inputs shown below the Date of expense selector */}
               <div className="mt-2">
                 {filters.dateMode === "Single Date" ? (
                   <>
                     <label className="text-sm font-medium">Select Date of expense</label>
-                    <select
-                      className="mt-1 block w-full border rounded px-3 py-2"
-                      value={filters.startDate}
-                      onChange={(e) =>
+                    <Select
+                      value={filters.startDate || "none"}
+                      onValueChange={(v) =>
                         setFilters((f) => ({
                           ...f,
-                          startDate: e.target.value,
-                          endDate: e.target.value,
+                          startDate: v === "none" ? "" : v,
+                          endDate: v === "none" ? "" : v,
                         }))
                       }
                     >
-                      <option value="">Select Date of expense</option>
-                      {dateOfExpenseOptions.map((date) => (
-                        <option key={date} value={date}>
-                          {formatDateForDisplay(date)}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="mt-1 w-full bg-white">
+                        <SelectValue placeholder="Select Date of expense" />
+                      </SelectTrigger>
+                      <SelectContent
+                        searchPlaceholder="Search date..."
+                        searchValue={searchQuery.startDate}
+                        onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, startDate: v }))}
+                      >
+                        <SelectItem value="none">Select Date of expense</SelectItem>
+                        {dateOfExpenseOptions
+                          .filter((date) => formatDateForDisplay(date).toLowerCase().includes(searchQuery.startDate.toLowerCase()))
+                          .map((date) => (
+                          <SelectItem key={date} value={date}>
+                            {formatDateForDisplay(date)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </>
                 ) : filters.dateMode === "Custom Date" ? (
                   <>
@@ -2078,11 +2570,10 @@ export default function PaymentRecords() {
 
             <div className="col-span-3 sm:col-span-1">
               <label className="text-sm font-medium">Paid date</label>
-              <select
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.paidDateMode}
-                onChange={(e) => {
-                  const mode = e.target.value;
+              <Select
+                value={filters.paidDateMode || "All Dates"}
+                onValueChange={(v) => {
+                  const mode = v;
                   setFilters((f) => {
                     if (mode === "All Dates")
                       return {
@@ -2102,33 +2593,48 @@ export default function PaymentRecords() {
                   });
                 }}
               >
-                <option>All Dates</option>
-                <option>Single Date</option>
-                <option>Custom Date</option>
-              </select>
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All Dates">All Dates</SelectItem>
+                  <SelectItem value="Single Date">Single Date</SelectItem>
+                  <SelectItem value="Custom Date">Custom Date</SelectItem>
+                </SelectContent>
+              </Select>
 
               <div className="mt-2">
                 {filters.paidDateMode === "Single Date" ? (
                   <>
                     <label className="text-sm font-medium">Select Paid date</label>
-                    <select
-                      className="mt-1 block w-full border rounded px-3 py-2"
-                      value={filters.paidStartDate}
-                      onChange={(e) =>
+                    <Select
+                      value={filters.paidStartDate || "none"}
+                      onValueChange={(v) =>
                         setFilters((f) => ({
                           ...f,
-                          paidStartDate: e.target.value,
-                          paidEndDate: e.target.value,
+                          paidStartDate: v === "none" ? "" : v,
+                          paidEndDate: v === "none" ? "" : v,
                         }))
                       }
                     >
-                      <option value="">Select Paid date</option>
-                      {paidDateFilterOptions.map((date) => (
-                        <option key={date} value={date}>
-                          {formatDateForDisplay(date)}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="mt-1 w-full bg-white">
+                        <SelectValue placeholder="Select Paid date" />
+                      </SelectTrigger>
+                      <SelectContent
+                        searchPlaceholder="Search date..."
+                        searchValue={searchQuery.paidStartDate}
+                        onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, paidStartDate: v }))}
+                      >
+                        <SelectItem value="none">Select Paid date</SelectItem>
+                        {paidDateFilterOptions
+                          .filter((date) => formatDateForDisplay(date).toLowerCase().includes(searchQuery.paidStartDate.toLowerCase()))
+                          .map((date) => (
+                          <SelectItem key={date} value={date}>
+                            {formatDateForDisplay(date)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </>
                 ) : filters.paidDateMode === "Custom Date" ? (
                   <>
@@ -2158,33 +2664,123 @@ export default function PaymentRecords() {
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Min</label>
-              <input
-                type="number"
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.minAmount}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    minAmount: Number(e.target.value),
-                  }))
+              <label className="text-sm font-medium">TDS Deduction</label>
+              <Select
+                value={filters.tdsDeduction || "All TDS Deductions"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, tdsDeduction: v }))
                 }
-              />
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All TDS Deductions" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search TDS..."
+                  searchValue={searchQuery.tdsDeduction}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, tdsDeduction: v }))}
+                >
+                  <SelectItem value="All TDS Deductions">All TDS Deductions</SelectItem>
+                  {tdsDeductionOptions
+                    .filter((opt) => formatTdsDeductionOptionLabel(opt).toLowerCase().includes(searchQuery.tdsDeduction.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {formatTdsDeductionOptionLabel(option)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Max</label>
-              <input
-                type="number"
-                className="mt-1 block w-full border rounded px-3 py-2"
-                value={filters.maxAmount}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    maxAmount: Number(e.target.value),
-                  }))
+              <label className="text-sm font-medium">Security Deposit</label>
+              <Select
+                value={filters.securityDeposit || "All Security Deposits"}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, securityDeposit: v }))
                 }
-              />
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Security Deposits" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search security deposit..."
+                  searchValue={searchQuery.securityDeposit}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, securityDeposit: v }))}
+                >
+                  <SelectItem value="All Security Deposits">All Security Deposits</SelectItem>
+                  {securityDepositOptions
+                    .filter((opt) => (opt === "N/A" ? "N/A" : formatCurrency(Number(opt))).toLowerCase().includes(searchQuery.securityDeposit.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.minAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.maxAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="col-span-3 sm:col-span-1">
+              <label className="text-sm font-medium">Actual Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.minActualAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minActualAmount: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2"
+                  value={filters.maxActualAmount}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxActualAmount: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-3">
@@ -2201,7 +2797,7 @@ export default function PaymentRecords() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+      <div className="rounded-md border shadow-sm bg-white max-h-[100vh] overflow-x-auto overflow-y-auto">
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300">
             <TableRow>
@@ -2211,9 +2807,10 @@ export default function PaymentRecords() {
               <TableHead className="text-center py-3">Unique ID</TableHead>
               <TableHead className="text-center py-3">Expense Type</TableHead>
               <TableHead className="text-center py-3">Event Name</TableHead>
-              <TableHead className="text-center py-3">Location</TableHead>
+              <TableHead className="text-center py-3">Project of Expense</TableHead>
               <TableHead className="text-center py-3">Amount</TableHead>
               <TableHead className="text-center py-3">TDS Deduction</TableHead>
+              <TableHead className="text-center py-3">Security Deposit</TableHead>
               <TableHead className="text-center py-3">Actual Amount</TableHead>
               <TableHead className="text-center py-3">Bills</TableHead>
               <TableHead className="text-center py-3">Date of expense</TableHead>
@@ -2268,11 +2865,11 @@ export default function PaymentRecords() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={19} rows={5} />
+              <TableSkeleton colSpan={20} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={19}
+                  colSpan={20}
                   className="text-center py-6 text-gray-500"
                 >
                   No payment records found.
@@ -2310,7 +2907,7 @@ export default function PaymentRecords() {
                     {record.location || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    ₹{record.approved_amount}
+                    ₹{record.amount}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {(() => {
@@ -2339,10 +2936,19 @@ export default function PaymentRecords() {
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {(() => {
+                      const securityDepositAmount =
+                        getSecurityDepositAmount(record);
+                      return securityDepositAmount !== null
+                        ? formatCurrency(securityDepositAmount)
+                        : "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
                       const actualAmount = getActualAmount(record);
                       return actualAmount !== null
                         ? formatCurrency(actualAmount)
-                        : "—";
+                        : "N/A";
                     })()}
                   </TableCell>
                   <TableCell className="text-center py-2">
@@ -2540,11 +3146,10 @@ export default function PaymentRecords() {
                                       setMarkAdvanceModal({ open: true, id: record.id })
                                     }
                                     disabled={isMarkedAsAdvance}
-                                    className={`flex items-center gap-2 ${
-                                      isMarkedAsAdvance
+                                    className={`flex items-center gap-2 ${isMarkedAsAdvance
                                         ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
                                         : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
-                                    }`}
+                                      }`}
                                   >
                                     {isMarkedAsAdvance && <CheckCircle className="w-5 h-5 " />}
                                     {isMarkedAsAdvance ? "Mark as Advance" : "Mark as Advance"}
@@ -2603,6 +3208,7 @@ export default function PaymentRecords() {
                               onClick={() => {
                                 const params = new URLSearchParams();
                                 params.set("activeTab", activeTab);
+                                params.set("page", String(pagination.currentPage));
                                 router.push(
                                   `/org/${slug}/finance/records/${record.id}?${params.toString()}`
                                 );
@@ -2676,7 +3282,7 @@ export default function PaymentRecords() {
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
-          itemsPerPage={100}
+          itemsPerPage={RECORDS_PER_PAGE}
           onPageChange={pagination.setCurrentPage}
           isLoading={loading}
           itemLabel="Records"
@@ -2754,7 +3360,7 @@ export default function PaymentRecords() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Location</label>
+                <label className="text-sm font-medium">Project of Expense</label>
                 <select
                   className="mt-1 block w-full border rounded px-3 py-2 bg-white"
                   value={editForm.location}
@@ -2779,11 +3385,11 @@ export default function PaymentRecords() {
                   type="number"
                   step="0.01"
                   className="mt-1 block w-full border rounded px-3 py-2"
-                  value={editForm.approved_amount}
+                  value={editForm.amount}
                   onChange={(e) =>
                     setEditForm((prev) => ({
                       ...prev,
-                      approved_amount: e.target.value,
+                      amount: e.target.value,
                     }))
                   }
                 />
@@ -3376,13 +3982,13 @@ export default function PaymentRecords() {
               </RadioGroup>
             </div>
             <div>
-              <label className="text-sm font-medium">Location (Date of Expense)</label>
+              <label className="text-sm font-medium">Project of Expense (Date of Expense)</label>
               <select
                 className="mt-1 block w-full border rounded px-3 py-2 bg-white"
                 value={quickExportLocation}
                 onChange={(e) => setQuickExportLocation(e.target.value)}
               >
-                <option value="All Locations">All Locations</option>
+                <option value="All Locations">All Projects</option>
                 {quickExportLocationOptions.map((location) => (
                   <option key={location} value={location}>
                     {location}

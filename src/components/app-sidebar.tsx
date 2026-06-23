@@ -23,6 +23,8 @@ import {
   ChevronsUpDown,
   ChevronsUpDownIcon,
   Wallet,
+  Tags,
+  MapPin,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -170,7 +172,10 @@ export function AppSidebar() {
       href: `/org/${organization?.slug}/expenses`,
       icon: IndianRupee,
     },
-    { title: "Team", href: `/org/${organization?.slug}/team`, icon: Users },
+    { title: "Team", 
+      href: `/org/${organization?.slug}/team`, 
+      icon: Users 
+    },
     {
       title: "Policies",
       href: `/org/${organization?.slug}/policies`,
@@ -181,6 +186,21 @@ export function AppSidebar() {
       href: `/org/${organization?.slug}/expense-events`,
       icon: Calendar,
     },
+    {
+      title: "Abbreviations",
+      href: `/org/${organization?.slug}/abbreviations`,
+      icon: Tags,
+    },
+    // Show CP Pune-SoSC to all roles except 'member'
+    ...(userRole !== "member"
+      ? [
+          {
+            title: "Pune SOSC Dashboard",
+            href: `/org/${organization?.slug}/pune-sosc`,
+            icon: MapPin,
+          },
+        ]
+      : []),
     ...(isAdmin
       ? [
         {

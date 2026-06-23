@@ -54,8 +54,15 @@ function SelectContent({
   className,
   children,
   position = "popper",
+  searchPlaceholder,
+  searchValue,
+  onSearchChange,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  searchPlaceholder?: string;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+}) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -69,6 +76,19 @@ function SelectContent({
         position={position}
         {...props}
       >
+        {onSearchChange && (
+          <div className="p-2 pb-0">
+            <input
+              type="text"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder={searchPlaceholder || "Search..."}
+              value={searchValue}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(

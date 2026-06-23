@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings, expenses } from "@/lib/db";
@@ -34,6 +34,7 @@ import {
   Pencil,
   Copy,
   Trash2,
+  Search,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
@@ -59,7 +60,7 @@ import {
 import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
-import { Pagination, usePagination } from "@/components/pagination";
+import { Pagination, usePagination, PER_PAGE } from "@/components/pagination";
 
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
@@ -105,6 +106,7 @@ export default function ExpensesPage() {
   const [filters, setFilters] = useState({
     expenseType: "",
     eventName: "",
+    projectOfExpense: "",
     amountMin: "",
     amountMax: "",
     dateFrom: "",
@@ -115,6 +117,15 @@ export default function ExpensesPage() {
     status: "",
     uniqueId: "",
   });
+  const [searchQuery, setSearchQuery] = useState({
+    expenseType: "",
+    projectOfExpense: "",
+    status: "",
+    dateFrom: "",
+    createdBy: "",
+    uniqueId: "",
+    approver: "",
+  });
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     expenseId: string | null;
@@ -122,8 +133,24 @@ export default function ExpensesPage() {
     isOpen: false,
     expenseId: null,
   });
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
+  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const OPTION_ALL = "ALL";
+  const OPTION_NO_DATES = "NO_DATES";
+
+  const getExpenseDateKey = (dateValue: any) => {
+    if (!dateValue) return "";
+    const raw = String(dateValue);
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   const allDataCombined = useMemo(() => {
     return [...expensesData, ...pendingApprovals, ...allExpenses];
@@ -150,6 +177,11 @@ export default function ExpensesPage() {
 
   const eventNameOptions = useMemo(
     () => unique(allDataCombined.map((e: any) => e.event_title)),
+    [allDataCombined]
+  );
+
+  const locationOptions = useMemo(
+    () => unique(allDataCombined.map((e: any) => e.location || e.custom_fields?.location)),
     [allDataCombined]
   );
 
@@ -239,6 +271,17 @@ export default function ExpensesPage() {
     }
   }, [searchParams]);
 
+  const handleTabChange = (tabValue: "my" | "pending" | "all") => {
+    setActiveTab(tabValue);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", tabValue);
+    nextParams.delete("expID");
+    nextParams.delete("page");
+
+    router.replace(`/org/${slug}/expenses?${nextParams.toString()}`);
+  };
+
   useEffect(() => {
     async function fetchData() {
       if (!orgId) return;
@@ -256,8 +299,29 @@ export default function ExpensesPage() {
         // ✅ Remove any existing 'description' columns
         expenseColumns = expenseColumns.filter((c) => c.key !== "description");
 
-        // Remove any existing 'Location of Expense' columns
-        expenseColumns = expenseColumns.filter((c) => c.key !== "location");
+        // Move or ensure 'Project of Expense' column exists after 'category'
+        const projectColIdx = expenseColumns.findIndex(
+          (c) =>
+            c.key === "location" ||
+            c.label === "Project of Expense" ||
+            c.key === "Project of Expense"
+        );
+        
+        let projectCol: any = {
+          key: "location",
+          label: "Project of Expense",
+          visible: true,
+          type: "text",
+        };
+
+        if (projectColIdx >= 0) {
+          projectCol = expenseColumns[projectColIdx];
+          expenseColumns.splice(projectColIdx, 1);
+        }
+
+        const catIdx = expenseColumns.findIndex((c) => c.key === "category" || c.key === "expense_type" || c.label === "Expense Type");
+        const insertPos = catIdx >= 0 ? catIdx + 1 : 2;
+        expenseColumns.splice(insertPos, 0, projectCol);
 
         // Remove any existing 'Expense Credit Person' columns (by key or label)
         expenseColumns = expenseColumns.filter(
@@ -277,19 +341,21 @@ export default function ExpensesPage() {
         }
 
         // Ensure event_title column exists
-        if (!expenseColumns.some((c) => c.key === "event_title")) {
-          // Place Event after Category if present, else near the start
-          const categoryIdx = expenseColumns.findIndex(
-            (c) => c.key === "category"
-          );
-          const insertIdx = categoryIdx >= 0 ? categoryIdx + 1 : 1;
-          expenseColumns.splice(insertIdx, 0, {
-            key: "event_title",
-            label: "Event Name",
-            visible: true,
-            type: "text",
-          });
-        }
+        // if (!expenseColumns.some((c) => c.key === "event_title")) {
+        //   // Place Event after Project of Expense if present, else after Category
+        //   const projIdx = expenseColumns.findIndex((c) => c.key === "location" || c.label === "Project of Expense" || c.key === "Project of Expense");
+        //   const categoryIdx = expenseColumns.findIndex((c) => c.key === "category" || c.key === "expense_type" || c.label === "Expense Type");
+        //   let insertIdx = 1;
+        //   if (projIdx >= 0) insertIdx = projIdx + 1;
+        //   else if (categoryIdx >= 0) insertIdx = categoryIdx + 1;
+          
+        //   expenseColumns.splice(insertIdx, 0, {
+        //     key: "event_title",
+        //     label: "Event Name",
+        //     visible: true,
+        //     type: "text",
+        //   });
+        // }
 
         setColumns(expenseColumns);
       }
@@ -501,6 +567,13 @@ export default function ExpensesPage() {
     return allExpenses;
   };
 
+  const singleDateOptions = useMemo(() => {
+    const dates = unique(getCurrent().map((e: any) => getExpenseDateKey(e.date)));
+    return dates.sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
+  }, [expensesData, pendingApprovals, allExpenses, activeTab]);
+
   const toNumber = (val: string) => {
     const n = parseFloat(val);
     return isNaN(n) ? undefined : n;
@@ -541,10 +614,18 @@ export default function ExpensesPage() {
       if (filters.eventName && e.event_title !== filters.eventName)
         return false;
 
+      const location = e.location || e.custom_fields?.location;
+      if (filters.projectOfExpense && location !== filters.projectOfExpense)
+        return false;
+
       if (minAmt !== undefined && Number(e.amount) < minAmt) return false;
       if (maxAmt !== undefined && Number(e.amount) > maxAmt) return false;
 
-      if (fromDate || toDate) {
+      if (filters.dateMode === "SINGLE" && filters.dateFrom) {
+        const expenseDateKey = getExpenseDateKey(e.date);
+        if (!expenseDateKey || expenseDateKey !== filters.dateFrom)
+          return false;
+      } else if (fromDate || toDate) {
         const d = e.date ? new Date(e.date) : undefined;
         if (!d) return false;
         if (fromDate && d < fromDate) return false;
@@ -578,6 +659,81 @@ export default function ExpensesPage() {
 
   // Use pagination hook
   const pagination = usePagination(filteredData);
+
+  const highlightQuery = searchParams.get("expID");
+  const pageQuery = searchParams.get("page");
+
+  useEffect(() => {
+    setHighlightId(highlightQuery);
+    setHasAppliedHighlight(false);
+  }, [highlightQuery]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const timer = window.setTimeout(() => setHighlightId(null), 10000);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
+
+  useEffect(() => {
+    if (!filteredData.length) return;
+
+    if (pageQuery) {
+      const parsed = parseInt(pageQuery, 10);
+      if (!Number.isNaN(parsed)) {
+        const clamped = Math.min(Math.max(parsed, 1), pagination.totalPages);
+        if (clamped !== pagination.currentPage) {
+          pagination.setCurrentPage(clamped);
+        }
+      }
+      return;
+    }
+
+    if (highlightQuery) {
+      const targetIndex = filteredData.findIndex((item) => item.id === highlightQuery);
+      if (targetIndex !== -1) {
+        const targetPage = Math.floor(targetIndex / PER_PAGE) + 1;
+        if (targetPage !== pagination.currentPage) {
+          pagination.setCurrentPage(targetPage);
+        }
+      }
+    }
+  }, [
+    filteredData,
+    highlightQuery,
+    pageQuery,
+    pagination.setCurrentPage,
+    pagination.totalPages,
+  ]);
+
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === pagination.currentPage) return;
+
+    pagination.setCurrentPage(nextPage);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", activeTab);
+    nextParams.set("page", String(nextPage));
+    nextParams.delete("expID");
+
+    router.replace(`/org/${slug}/expenses?${nextParams.toString()}`);
+  };
+
+  useEffect(() => {
+    if (!highlightId || hasAppliedHighlight) return;
+
+    const isVisible = pagination.paginatedData.some((item) => item.id === highlightId);
+    if (!isVisible) return;
+
+    const timer = window.setTimeout(() => {
+      highlightedRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      setHasAppliedHighlight(true);
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightId, hasAppliedHighlight, pagination.paginatedData]);
 
   // Reset to page 1 when filters or tab changes
   useEffect(() => {
@@ -668,7 +824,10 @@ export default function ExpensesPage() {
   return (
     <div className="space-y-6 pt-0">
       <h1 className="page-title">Expenses</h1>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => handleTabChange(v as "my" | "pending" | "all")}
+      >
         <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
           <TabsList className="cursor-pointer">
             {tabs.map((t) => (
@@ -787,11 +946,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Expense Type" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search expense type..."
+                          searchValue={searchQuery.expenseType}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, expenseType: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Expense Types
                           </SelectItem>
-                          {expenseTypeOptions.map((opt: string) => (
+                          {expenseTypeOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -800,6 +965,38 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
+                      <Label>Project of Expense</Label>
+                      <Select
+                        value={filters.projectOfExpense || OPTION_ALL}
+                        onValueChange={(v) =>
+                          setFilters({
+                            ...filters,
+                            projectOfExpense: v === OPTION_ALL ? "" : v,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Project of Expense" />
+                        </SelectTrigger>
+                        <SelectContent
+                          searchPlaceholder="Search projects..."
+                          searchValue={searchQuery.projectOfExpense}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, projectOfExpense: v })}
+                        >
+                          <SelectItem value={OPTION_ALL}>
+                            All Projects
+                          </SelectItem>
+                          {locationOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.projectOfExpense.toLowerCase()))
+                            .map((opt: string) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* <div className="space-y-1">
                       <Label>Event</Label>
                       <Select
                         value={filters.eventName || OPTION_ALL}
@@ -824,7 +1021,7 @@ export default function ExpensesPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
+                    </div> */}
                     <div className="space-y-1">
                       <Label>Status</Label>
                       <Select
@@ -839,11 +1036,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Status" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search status..."
+                          searchValue={searchQuery.status}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, status: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Statuses
                           </SelectItem>
-                          {statusOptions.map((opt: string) => (
+                          {statusOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.status.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -927,19 +1130,54 @@ export default function ExpensesPage() {
                               ? "On Date"
                               : "From Date"}
                           </Label>
-                          <Input
-                            type="date"
-                            placeholder={
-                              filters.dateMode === "SINGLE" ? "Date" : "From"
-                            }
-                            value={filters.dateFrom}
-                            onChange={(e) =>
-                              setFilters({
-                                ...filters,
-                                dateFrom: e.target.value,
-                              })
-                            }
-                          />
+                          {filters.dateMode === "SINGLE" ? (
+                            <Select
+                              value={filters.dateFrom || OPTION_ALL}
+                              onValueChange={(v) => {
+                                if (v === OPTION_NO_DATES) return;
+                                setFilters({
+                                  ...filters,
+                                  dateFrom: v === OPTION_ALL ? "" : v,
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select Date" />
+                              </SelectTrigger>
+                              <SelectContent
+                                searchPlaceholder="Search date..."
+                                searchValue={searchQuery.dateFrom}
+                                onSearchChange={(v) => setSearchQuery({ ...searchQuery, dateFrom: v })}
+                              >
+                                <SelectItem value={OPTION_ALL}>All Dates</SelectItem>
+                                {singleDateOptions.length > 0 ? (
+                                  singleDateOptions
+                                    .filter((dateKey: string) => formatDate(dateKey).toLowerCase().includes(searchQuery.dateFrom.toLowerCase()))
+                                    .map((dateKey: string) => (
+                                    <SelectItem key={dateKey} value={dateKey}>
+                                      {formatDate(dateKey)}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value={OPTION_NO_DATES} disabled>
+                                    No expense dates
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              type="date"
+                              placeholder="From"
+                              value={filters.dateFrom}
+                              onChange={(e) =>
+                                setFilters({
+                                  ...filters,
+                                  dateFrom: e.target.value,
+                                })
+                              }
+                            />
+                          )}
                           {filters.dateMode === "CUSTOM" && (
                             <>
                               <Label>To Date</Label>
@@ -974,11 +1212,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Created By" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search creator..."
+                          searchValue={searchQuery.createdBy}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, createdBy: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Created By
                           </SelectItem>
-                          {creatorOptions.map((opt: string) => (
+                          {creatorOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1000,9 +1244,15 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Unique ID" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search unique ID..."
+                          searchValue={searchQuery.uniqueId}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, uniqueId: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>All Unique IDs</SelectItem>
-                          {uniqueIdOptions.map((opt: string) => (
+                          {uniqueIdOptions
+                            .filter((opt: string) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1024,11 +1274,17 @@ export default function ExpensesPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Approver" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          searchPlaceholder="Search approver..."
+                          searchValue={searchQuery.approver}
+                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, approver: v })}
+                        >
                           <SelectItem value={OPTION_ALL}>
                             All Approvers
                           </SelectItem>
-                          {approverOptions.map((opt: string) => (
+                          {approverOptions
+                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.approver.toLowerCase()))
+                            .map((opt: string) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
@@ -1040,10 +1296,11 @@ export default function ExpensesPage() {
                   <div className="flex justify-end gap-2">
                     <Button
                       variant="outline"
-                      onClick={() =>
+                      onClick={() => {
                         setFilters({
                           expenseType: "",
                           eventName: "",
+                          projectOfExpense: "",
                           amountMin: "",
                           amountMax: "",
                           dateFrom: "",
@@ -1053,8 +1310,17 @@ export default function ExpensesPage() {
                           approver: "",
                           status: "",
                           uniqueId: "",
-                        })
-                      }
+                        });
+                        setSearchQuery({
+                          expenseType: "",
+                          projectOfExpense: "",
+                          status: "",
+                          dateFrom: "",
+                          createdBy: "",
+                          uniqueId: "",
+                          approver: "",
+                        });
+                      }}
                     >
                       Clear
                     </Button>
@@ -1109,8 +1375,15 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      pagination.paginatedData.map((exp, index) => (
-                        <TableRow key={exp.id}>
+                      pagination.paginatedData.map((exp, index) => {
+                        const isHighlighted = highlightId === exp.id;
+                        return (
+                        <TableRow
+                          key={exp.id}
+                          ref={isHighlighted ? highlightedRowRef : null}
+                          data-expense-row={exp.id}
+                          className={isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""}
+                        >
                           <TableCell className="w-12 text-center">
                             {pagination.getItemNumber(index)}
                           </TableCell>
@@ -1204,7 +1477,7 @@ export default function ExpensesPage() {
                                       className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
                                       onClick={() => {
                                         // For pending tab, add nextId to enable sequential approval flow
-                                        const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}`;
+                                        const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}&page=${pagination.currentPage}`;
                                         const globalIndex = pagination.getItemNumber(index) - 1;
                                         if (
                                           activeTab === "pending" &&
@@ -1265,7 +1538,8 @@ export default function ExpensesPage() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -1275,7 +1549,7 @@ export default function ExpensesPage() {
                       currentPage={pagination.currentPage}
                       totalPages={pagination.totalPages}
                       totalItems={pagination.totalItems}
-                      onPageChange={pagination.setCurrentPage}
+                      onPageChange={handlePageChange}
                       isLoading={loading}
                       itemLabel="Expenses"
                     />

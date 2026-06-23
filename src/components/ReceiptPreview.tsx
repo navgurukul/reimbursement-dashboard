@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FileText, Eye, EyeOff } from "lucide-react";
+import { FileText, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { expenses } from "@/lib/db";
 import {
   Tooltip,
@@ -15,13 +15,40 @@ import { Button } from "@/components/ui/button";
 type Props = {
   expense: any;
   defaultOpen?: boolean;
+  compact?: boolean;
 };
 
-export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
+export default function ReceiptPreview({ expense, defaultOpen = true, compact = false }: Props) {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = React.useState<string | null>(null);
   const [isOpen, setIsOpen] = React.useState<boolean>(defaultOpen);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [isPdf, setIsPdf] = React.useState<boolean>(false);
+
+  const handleOpenInNewTab = async () => {
+    if (!expense?.receipt?.path) return;
+
+    try {
+      if (receiptPreviewUrl) {
+        window.open(receiptPreviewUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      setLoading(true);
+      const { url, error } = await expenses.getReceiptUrl(expense.receipt.path);
+      if (error || !url) {
+        console.error("Error opening receipt in new tab:", error);
+        return;
+      }
+
+      setReceiptPreviewUrl(url);
+      setIsPdf(url.toLowerCase().includes(".pdf"));
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Receipt open in new tab error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   React.useEffect(() => {
     let isCancelled = false;
@@ -66,8 +93,10 @@ export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
   }, [expense?.receipt?.path, expense]);
 
   return (
-    <div className="bg-white p-6 rounded shadow border">
-      <div className="border-b pb-4">
+    <div className={`bg-white rounded shadow border ${compact ? "p-4" : "p-6"}`}>
+      <div
+        className={`border-b ${compact ? "-mx-4 px-4 pb-3" : "-mx-6 px-6 pb-4"}`}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
@@ -78,6 +107,24 @@ export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={handleOpenInNewTab}
+                    aria-label="Open receipt in new tab"
+                    disabled={loading}
+                  >
+                    {loading ? <Spinner size="sm" className="h-4 w-4" /> : <ExternalLink className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Open in new tab</p>
+                </TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -100,7 +147,7 @@ export default function ReceiptPreview({ expense, defaultOpen = true }: Props) {
       </div>
 
       {isOpen && (
-        <div className="p-4">
+        <div className={compact ? "pt-3" : "p-4"}>
           {loading ? (
             <div className="flex h-64 items-center justify-center">
               <Spinner size="lg" />

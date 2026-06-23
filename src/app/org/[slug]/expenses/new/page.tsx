@@ -107,6 +107,34 @@ interface BankDetailRecord {
   bankDetails?: { advanceUniqueId?: string | null } | null;
 }
 
+interface DuplicateCheckInput {
+  expenseType: string;
+  location: string;
+  amount: number;
+  receiptFile?: File | null;
+  receiptHash?: string | null;
+  voucherFile?: File | null;
+  voucherHash?: string | null;
+  isVoucher?: boolean;
+  voucherYourName?: string;
+  voucherPurpose?: string;
+  voucherCreditPerson?: string;
+  sourceLabel?: string;
+}
+
+interface DuplicateMatchDetails {
+  matchedExpenseId: string;
+  expenseType: string;
+  location: string;
+  amount: number;
+  date: string;
+  matchedReceiptFile?: string | null;
+  matchedVoucherFile?: string | null;
+  matchedSource?: string;
+  triggeringEntry?: string;
+  matchedBy?: "Receipt" | "Voucher Attachment" | "Voucher Details";
+}
+
 export default function NewExpensePage() {
   const router = useRouter();
   const params = useParams();
@@ -261,6 +289,23 @@ export default function NewExpensePage() {
     null
   );
   const [uniqueIdUnavailable, setUniqueIdUnavailable] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateMatchDetails, setDuplicateMatchDetails] =
+    useState<DuplicateMatchDetails[]>([]);
+  const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
+
+  const handleSearchChange = (key: string, value: string) => {
+    setSearchQueries((prev) => ({ ...prev, [key]: value }));
+  };
+  const uploadFileHashCacheRef = useRef<Map<string, Promise<string | null>>>(
+    new Map()
+  );
+  const storedReceiptHashCacheRef = useRef<Map<string, Promise<string | null>>>(
+    new Map()
+  );
+  const storedVoucherHashCacheRef = useRef<Map<string, Promise<string | null>>>(
+    new Map()
+  );
 
   const getDefaultValueByType = (type: string) => {
     switch (type) {
@@ -846,10 +891,10 @@ export default function NewExpensePage() {
       if (next) {
         const expenseAmount = expenseItemsData[index]?.amount;
         const expenseDate = expenseItemsData[index]?.date;
-        
+
         // Sanitize amount to ensure it's never NaN
         const sanitizedAmount = !isNaN(Number(expenseAmount)) ? expenseAmount : 0;
-        
+
         setVoucherDataMap((prevData) => ({
           ...prevData,
           [index]: {
@@ -1354,6 +1399,639 @@ export default function NewExpensePage() {
     }
   };
 
+  const normalizeFileName = (filename?: string | null) =>
+    String(filename || "")
+      .trim()
+      .toLowerCase();
+
+  const normalizeHash = (value?: string | null) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  const getFileHashCacheKey = (file: File) =>
+    [file.name, file.size, file.lastModified, file.type].join("|");
+
+  const bytesToHex = (bytes: Uint8Array) =>
+    Array.from(bytes)
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+
+  const hashArrayBuffer = async (
+    buffer: ArrayBuffer
+  ): Promise<string | null> => {
+    try {
+      const subtle = globalThis.crypto?.subtle;
+      if (!subtle) return null;
+      const digest = await subtle.digest("SHA-256", buffer);
+      return bytesToHex(new Uint8Array(digest));
+    } catch (error) {
+      console.error("Failed to hash file content:", error);
+      return null;
+    }
+  };
+
+  const getFileContentHash = async (file?: File | null) => {
+    if (!file) return null;
+
+    const cacheKey = getFileHashCacheKey(file);
+    const existingHashPromise = uploadFileHashCacheRef.current.get(cacheKey);
+    if (existingHashPromise) {
+      return existingHashPromise;
+    }
+
+    const hashPromise = (async () => {
+      const fileBuffer = await file.arrayBuffer();
+      return hashArrayBuffer(fileBuffer);
+    })();
+
+    uploadFileHashCacheRef.current.set(cacheKey, hashPromise);
+    return hashPromise;
+  };
+
+  const getStoredReceiptContentHash = async (path?: string | null) => {
+    if (!path) return null;
+
+    const existingHashPromise = storedReceiptHashCacheRef.current.get(path);
+    if (existingHashPromise) {
+      return existingHashPromise;
+    }
+
+    const hashPromise = (async () => {
+      const { url, error } = await expenses.getReceiptUrl(path);
+      if (error || !url) {
+        return null;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+
+      const buffer = await response.arrayBuffer();
+      return hashArrayBuffer(buffer);
+    })();
+
+    storedReceiptHashCacheRef.current.set(path, hashPromise);
+    return hashPromise;
+  };
+
+  const parseVoucherAttachmentPath = (attachment?: string | null) => {
+    if (!attachment) return "";
+    const [, path] = attachment.split(",");
+    return path || "";
+  };
+
+  const getStoredVoucherContentHash = async (path?: string | null) => {
+    if (!path) return null;
+
+    const existingHashPromise = storedVoucherHashCacheRef.current.get(path);
+    if (existingHashPromise) {
+      return existingHashPromise;
+    }
+
+    const hashPromise = (async () => {
+      const { url, error } = await voucherAttachments.getUrl(path);
+      if (error || !url) {
+        return null;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+
+      const buffer = await response.arrayBuffer();
+      return hashArrayBuffer(buffer);
+    })();
+
+    storedVoucherHashCacheRef.current.set(path, hashPromise);
+    return hashPromise;
+  };
+
+  const normalizeVoucherText = (value?: string | null) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  /**
+   * Block duplicates only when the existing expense is in an approved state.
+   * Allow creation when previous matching expense is rejected by manager/finance.
+   */
+  const duplicateBlockingStatusSet = new Set([
+    "submitted",
+    "approved",
+    "approved_as_per_policy",
+    "finance_approved",
+  ]);
+  const duplicateNonBlockingStatusSet = new Set([
+    "rejected",
+    "finance_rejected",
+    "finance_rejeced",
+  ]);
+
+  const isDuplicateBlockingStatus = (status?: string | null) => {
+    const normalizedStatus = String(status || "")
+      .trim()
+      .toLowerCase();
+
+    if (duplicateNonBlockingStatusSet.has(normalizedStatus)) {
+      return false;
+    }
+
+    return duplicateBlockingStatusSet.has(normalizedStatus);
+  };
+
+  const parseVoucherAttachmentFilename = (attachment?: string | null) => {
+    if (!attachment) return "";
+    const [name] = attachment.split(",");
+    return name || "";
+  };
+
+  const formatDuplicateDate = (date?: string | null) => {
+    if (!date) return "-";
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return date;
+    return parsed.toLocaleDateString("en-GB");
+  };
+
+  const getDuplicateMatchType = (
+    candidate: DuplicateCheckInput
+  ): DuplicateMatchDetails["matchedBy"] | undefined => {
+    if (candidate.receiptFile) return "Receipt";
+    if (candidate.voucherFile) return "Voucher Attachment";
+    if (candidate.isVoucher) return "Voucher Details";
+    return undefined;
+  };
+
+  const getDraftCandidateKey = (candidate: DuplicateCheckInput) => {
+    const normalizedExpenseType = String(candidate.expenseType || "")
+      .trim()
+      .toLowerCase();
+    const normalizedLocation = String(candidate.location || "")
+      .trim()
+      .toLowerCase();
+    const normalizedAmount = Number(Number(candidate.amount || 0).toFixed(2));
+
+    if (
+      !normalizedExpenseType ||
+      !normalizedLocation ||
+      Number.isNaN(normalizedAmount)
+    ) {
+      return null;
+    }
+
+    const receiptSignature = candidate.receiptFile
+      ? `receipt:${normalizeHash(candidate.receiptHash) ||
+      `${normalizeFileName(candidate.receiptFile.name)}:${candidate.receiptFile.size}`
+      }`
+      : "";
+    const voucherFileSignature = candidate.voucherFile
+      ? `voucher:${normalizeHash(candidate.voucherHash) ||
+      `${normalizeFileName(candidate.voucherFile.name)}:${candidate.voucherFile.size}`
+      }`
+      : "";
+
+    const voucherDetailsSignature = candidate.isVoucher
+      ? `voucher-details:${normalizeVoucherText(candidate.voucherYourName)}:${normalizeVoucherText(candidate.voucherPurpose)}:${normalizeVoucherText(candidate.voucherCreditPerson)}`
+      : "";
+
+    const voucherSignature = voucherFileSignature || voucherDetailsSignature;
+
+    const fileSignature = receiptSignature || voucherSignature;
+    if (!fileSignature) return null;
+
+    return `${normalizedExpenseType}|${normalizedLocation}|${normalizedAmount}|${fileSignature}`;
+  };
+
+  const dedupeDuplicateMatches = (matches: DuplicateMatchDetails[]) => {
+    const seen = new Set<string>();
+    return matches.filter((match) => {
+      const key = [
+        match.matchedSource || "",
+        match.triggeringEntry || "",
+        match.matchedBy || "",
+        match.matchedExpenseId || "",
+        match.expenseType || "",
+        match.location || "",
+        String(Number(Number(match.amount || 0).toFixed(2))),
+        match.matchedReceiptFile || "",
+        match.matchedVoucherFile || "",
+      ].join("|");
+
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const findDuplicatesInCurrentDraft = (
+    candidates: DuplicateCheckInput[]
+  ): DuplicateMatchDetails[] => {
+    const seen = new Map<string, DuplicateCheckInput>();
+    const matches: DuplicateMatchDetails[] = [];
+
+    for (const candidate of candidates) {
+      const key = getDraftCandidateKey(candidate);
+      if (!key) continue;
+
+      const firstMatch = seen.get(key);
+      if (!firstMatch) {
+        seen.set(key, candidate);
+        continue;
+      }
+
+      const candidateMatchType = getDuplicateMatchType(candidate);
+      const firstMatchType = getDuplicateMatchType(firstMatch);
+      const resolvedMatchType = candidateMatchType || firstMatchType;
+
+      matches.push({
+        matchedExpenseId: `${firstMatch.sourceLabel || "Entry"} / ${candidate.sourceLabel || "Entry"}`,
+        expenseType: candidate.expenseType,
+        location: candidate.location,
+        amount: Number(Number(candidate.amount || 0).toFixed(2)),
+        date: "",
+        matchedReceiptFile:
+          candidate.receiptFile?.name || firstMatch.receiptFile?.name || null,
+        matchedVoucherFile:
+          candidate.voucherFile?.name ||
+          firstMatch.voucherFile?.name ||
+          (resolvedMatchType === "Voucher Details"
+            ? "Voucher details matched"
+            : null),
+        matchedSource: "Current form entries",
+        triggeringEntry: `${firstMatch.sourceLabel || "Entry"} & ${candidate.sourceLabel || "Entry"}`,
+        matchedBy: resolvedMatchType,
+      });
+    }
+
+    return dedupeDuplicateMatches(matches);
+  };
+
+  const getPotentialDuplicatesForUser = async ({
+    expenseType,
+    location,
+    amount,
+    receiptFile,
+    receiptHash,
+    voucherFile,
+    voucherHash,
+    isVoucher,
+    voucherYourName,
+    voucherPurpose,
+    voucherCreditPerson,
+    sourceLabel,
+  }: DuplicateCheckInput): Promise<DuplicateMatchDetails[]> => {
+    if (!user?.id || !organization?.id) return [];
+    if (!receiptFile && !voucherFile && !isVoucher) return [];
+
+    const normalizedExpenseType = String(expenseType || "").trim();
+    const normalizedLocation = String(location || "").trim();
+    const normalizedAmount = Number(Number(amount || 0).toFixed(2));
+
+    if (
+      !normalizedExpenseType ||
+      !normalizedLocation ||
+      Number.isNaN(normalizedAmount)
+    ) {
+      return [];
+    }
+
+    let expenseQuery = supabase
+      .from("expense_new")
+      .select("id, expense_type, amount, location, date, receipt, status")
+      .eq("org_id", organization.id)
+      .eq("user_id", user.id)
+      .eq("expense_type", normalizedExpenseType)
+      .eq("amount", normalizedAmount);
+
+    expenseQuery = normalizedLocation
+      ? expenseQuery.eq("location", normalizedLocation)
+      : expenseQuery.is("location", null);
+
+    const { data: potentialMatches, error: potentialMatchesError } =
+      await expenseQuery.limit(50);
+
+    if (potentialMatchesError) {
+      console.error(
+        "Duplicate check failed during expense lookup:",
+        potentialMatchesError
+      );
+      return [];
+    }
+
+    const eligiblePotentialMatches = (potentialMatches || []).filter(
+      (entry: any) => isDuplicateBlockingStatus(entry?.status)
+    );
+
+    if (eligiblePotentialMatches.length === 0) {
+      return [];
+    }
+
+    if (receiptFile) {
+      const normalizedReceiptHash = normalizeHash(receiptHash);
+      const receiptName = normalizeFileName(receiptFile.name);
+
+      const matchResults = await Promise.all(
+        eligiblePotentialMatches.map(async (entry: any) => {
+          const existingReceipt = entry?.receipt as ReceiptInfo | null;
+          if (!existingReceipt) return false;
+
+          if (normalizedReceiptHash) {
+            const existingStoredHash = normalizeHash(existingReceipt.content_hash);
+            if (existingStoredHash) {
+              return existingStoredHash === normalizedReceiptHash;
+            }
+
+            const existingFileHash = normalizeHash(
+              await getStoredReceiptContentHash(existingReceipt.path)
+            );
+            if (existingFileHash) {
+              return existingFileHash === normalizedReceiptHash;
+            }
+          }
+
+          return (
+            normalizeFileName(existingReceipt.filename) === receiptName &&
+            Number(existingReceipt.size) === Number(receiptFile.size)
+          );
+        })
+      );
+
+      const matchedExpenses = eligiblePotentialMatches.filter(
+        (_entry: any, index: number) => matchResults[index]
+      );
+
+      if (!matchedExpenses.length) return [];
+
+      return dedupeDuplicateMatches(
+        matchedExpenses.map((matchedExpense: any) => ({
+          matchedExpenseId: matchedExpense.id,
+          expenseType: matchedExpense.expense_type || normalizedExpenseType,
+          location: matchedExpense.location || normalizedLocation,
+          amount: Number(matchedExpense.amount ?? normalizedAmount),
+          date: matchedExpense.date || "",
+          matchedReceiptFile: (matchedExpense.receipt as ReceiptInfo | null)
+            ?.filename,
+          matchedVoucherFile: null,
+          matchedSource: "Submitted expenses",
+          triggeringEntry: sourceLabel || "Main Expense",
+          matchedBy: "Receipt",
+        }))
+      );
+    }
+
+    if (voucherFile || isVoucher) {
+      const expenseIds = eligiblePotentialMatches
+        .map((entry: any) => entry?.id)
+        .filter(Boolean);
+
+      if (expenseIds.length === 0) return [];
+
+      const { data: voucherRows, error: voucherLookupError } = await supabase
+        .from("vouchers")
+        .select("expense_id, attachment, your_name, purpose, credit_person")
+        .in("expense_id", expenseIds);
+
+      if (voucherLookupError) {
+        console.error(
+          "Duplicate check failed during voucher lookup:",
+          voucherLookupError
+        );
+        return [];
+      }
+
+      const normalizedVoucherHash = normalizeHash(voucherHash);
+      const normalizedVoucherName = normalizeFileName(voucherFile?.name);
+      const normalizedYourName = normalizeVoucherText(voucherYourName);
+      const normalizedPurpose = normalizeVoucherText(voucherPurpose);
+      const normalizedCreditPerson = normalizeVoucherText(voucherCreditPerson);
+
+      const matchedVoucherCandidates = await Promise.all(
+        (voucherRows || []).map(async (voucher: any) => {
+          const existingVoucherAttachmentPath = parseVoucherAttachmentPath(
+            voucher?.attachment
+          );
+          const existingVoucherFileName = normalizeFileName(
+            parseVoucherAttachmentFilename(voucher?.attachment)
+          );
+
+          const hasIncomingAttachment = normalizedVoucherName.length > 0;
+          const hasExistingAttachment = existingVoucherFileName.length > 0;
+
+          let isAttachmentMatch =
+            hasIncomingAttachment === hasExistingAttachment &&
+            (!hasIncomingAttachment ||
+              existingVoucherFileName === normalizedVoucherName);
+
+          if (
+            hasIncomingAttachment &&
+            hasExistingAttachment &&
+            normalizedVoucherHash
+          ) {
+            const existingVoucherHash = normalizeHash(
+              await getStoredVoucherContentHash(existingVoucherAttachmentPath)
+            );
+            if (existingVoucherHash) {
+              isAttachmentMatch = existingVoucherHash === normalizedVoucherHash;
+            } else {
+              // Fallback for historical records where hash cannot be resolved.
+              isAttachmentMatch = existingVoucherFileName === normalizedVoucherName;
+            }
+          }
+
+          const isVoucherDetailsMatch =
+            normalizedYourName.length > 0 &&
+            normalizedPurpose.length > 0 &&
+            normalizedCreditPerson.length > 0 &&
+            normalizeVoucherText(voucher?.your_name) === normalizedYourName &&
+            normalizeVoucherText(voucher?.purpose) === normalizedPurpose &&
+            normalizeVoucherText(voucher?.credit_person) ===
+            normalizedCreditPerson;
+
+          const isFullVoucherMatch = isAttachmentMatch && isVoucherDetailsMatch;
+
+          if (!isFullVoucherMatch) {
+            return null;
+          }
+
+          return {
+            voucher,
+            matchedBy: hasIncomingAttachment
+              ? "Voucher Attachment"
+              : "Voucher Details",
+          } as {
+            voucher: any;
+            matchedBy: NonNullable<DuplicateMatchDetails["matchedBy"]>;
+          };
+        })
+      );
+      const matchedVouchers = matchedVoucherCandidates.filter(Boolean) as Array<{
+        voucher: any;
+        matchedBy: NonNullable<DuplicateMatchDetails["matchedBy"]>;
+      }>;
+
+      if (!matchedVouchers.length) return [];
+
+      const mappedMatches = matchedVouchers.map(({ voucher, matchedBy }) => {
+        const matchedExpense = eligiblePotentialMatches.find(
+          (entry: any) => entry?.id === voucher.expense_id
+        );
+
+        const matchedVoucherFile = parseVoucherAttachmentFilename(
+          voucher.attachment
+        );
+
+        return {
+          matchedExpenseId: matchedExpense?.id || voucher.expense_id,
+          expenseType: matchedExpense?.expense_type || normalizedExpenseType,
+          location: matchedExpense?.location || normalizedLocation,
+          amount: Number(matchedExpense?.amount ?? normalizedAmount),
+          date: matchedExpense?.date || "",
+          matchedReceiptFile: null,
+          matchedVoucherFile:
+            matchedVoucherFile || "Voucher details matched",
+          matchedSource: "Submitted expenses",
+          triggeringEntry: sourceLabel || "Main Expense",
+          matchedBy,
+        };
+      });
+
+      return dedupeDuplicateMatches(mappedMatches);
+    }
+
+    return [];
+  };
+
+  const buildDuplicateCandidates = (): DuplicateCheckInput[] => {
+    const duplicateCandidates: DuplicateCheckInput[] = [
+      {
+        expenseType: String(formData.expense_type || ""),
+        location: String(formData.location || ""),
+        amount: parseFloat(formData.amount || "0"),
+        receiptFile: voucherModalOpen ? null : receiptFile,
+        voucherFile: voucherModalOpen
+          ? ((formData.attachment as File | null) ?? null)
+          : null,
+        isVoucher: voucherModalOpen,
+        voucherYourName: voucherModalOpen ? String(formData.yourName || "") : "",
+        voucherPurpose: voucherModalOpen ? String(formData.purpose || "") : "",
+        voucherCreditPerson: voucherModalOpen
+          ? String(formData.voucherCreditPerson || "")
+          : "",
+        sourceLabel: "Main Expense",
+      },
+    ];
+
+    for (let index = 0; index < expenseItems.length; index++) {
+      const itemId = expenseItems[index];
+      const item = expenseItemsData[itemId];
+      if (!item) continue;
+
+      const itemIsVoucher = voucherModalOpenMap[itemId] || voucherModalOpen;
+      const itemVoucherAttachment =
+        (voucherDataMap[itemId]?.attachment as File | null | undefined) ||
+        null;
+      const itemVoucherData = voucherDataMap[itemId] || {};
+
+      duplicateCandidates.push({
+        expenseType: String(item.expense_type || ""),
+        location: String(item.location || formData.location || ""),
+        amount: Number(item.amount || 0),
+        receiptFile: itemIsVoucher ? null : receiptFiles[itemId] || null,
+        voucherFile: itemIsVoucher ? itemVoucherAttachment : null,
+        isVoucher: itemIsVoucher,
+        voucherYourName: itemIsVoucher
+          ? String(itemVoucherData.yourName || formData.yourName || "")
+          : "",
+        voucherPurpose: itemIsVoucher
+          ? String(itemVoucherData.purpose || formData.purpose || "")
+          : "",
+        voucherCreditPerson: itemIsVoucher
+          ? String(
+            itemVoucherData.voucherCreditPerson ||
+            formData.voucherCreditPerson ||
+            ""
+          )
+          : "",
+        sourceLabel: `Expense Item ${index + 1}`,
+      });
+    }
+
+    return duplicateCandidates;
+  };
+
+  const runDuplicateCheck = async (
+    duplicateCandidates: DuplicateCheckInput[]
+  ): Promise<DuplicateMatchDetails[]> => {
+    const duplicateCandidatesWithHashes = await Promise.all(
+      duplicateCandidates.map(async (candidate) => ({
+        ...candidate,
+        receiptHash: candidate.receiptFile
+          ? await getFileContentHash(candidate.receiptFile)
+          : null,
+        voucherHash: candidate.voucherFile
+          ? await getFileContentHash(candidate.voucherFile)
+          : null,
+      }))
+    );
+
+    const allDuplicateMatches: DuplicateMatchDetails[] = [];
+
+    const draftDuplicates = findDuplicatesInCurrentDraft(
+      duplicateCandidatesWithHashes
+    );
+    if (draftDuplicates.length > 0) {
+      allDuplicateMatches.push(...draftDuplicates);
+    }
+
+    for (const candidate of duplicateCandidatesWithHashes) {
+      const duplicateMatchesForCandidate =
+        await getPotentialDuplicatesForUser(candidate);
+
+      if (duplicateMatchesForCandidate.length > 0) {
+        allDuplicateMatches.push(...duplicateMatchesForCandidate);
+      }
+    }
+
+    const uniqueDuplicateMatches = dedupeDuplicateMatches(allDuplicateMatches);
+
+    if (uniqueDuplicateMatches.length > 0) {
+      setDuplicateMatchDetails(uniqueDuplicateMatches);
+      setDuplicateDialogOpen(true);
+      toast.error("Duplicate Expense Entry Detected", {
+        description: `${uniqueDuplicateMatches.length} matching duplicate expense(s) found.`,
+        duration: 10000,
+      });
+    }
+
+    return uniqueDuplicateMatches;
+  };
+
+  const handleAddItem = async () => {
+    try {
+      const duplicateCandidates = buildDuplicateCandidates();
+      const hasDuplicateCheckableEntry = duplicateCandidates.some(
+        (candidate) =>
+          Boolean(candidate.receiptFile) ||
+          Boolean(candidate.voucherFile) ||
+          Boolean(candidate.isVoucher)
+      );
+
+      if (hasDuplicateCheckableEntry) {
+        const duplicateMatches = await runDuplicateCheck(duplicateCandidates);
+        if (duplicateMatches.length > 0) {
+          return;
+        }
+      }
+
+      addItem();
+    } catch (error) {
+      console.error("Duplicate check failed before adding expense item:", error);
+      toast.error("Unable to validate duplicate expense right now.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -1381,24 +2059,24 @@ export default function NewExpensePage() {
       formData.unique_id || ""
     );
 
-    if (isDirectPaymentSelected) {
-      // Resolve the actual top-level "Expense Credit Person" value, even if
-      // the settings use a different column key for this label.
-      let topLevelExpenseCreditPerson = formData.expense_credit_person;
+    // Resolve the actual top-level "Expense Credit Person" value, even if
+    // the settings use a different column key for this label.
+    let topLevelExpenseCreditPerson = formData.expense_credit_person;
 
-      if (!topLevelExpenseCreditPerson) {
-        const expenseCreditCol = columns.find(
-          (col) =>
-            col.visible &&
-            (col.key === "expense_credit_person" ||
-              col.label?.trim().toLowerCase() === "expense credit person")
-        );
+    if (!topLevelExpenseCreditPerson) {
+      const expenseCreditCol = columns.find(
+        (col) =>
+          col.visible &&
+          (col.key === "expense_credit_person" ||
+            col.label?.trim().toLowerCase() === "expense credit person")
+      );
 
-        if (expenseCreditCol) {
-          topLevelExpenseCreditPerson = formData[expenseCreditCol.key];
-        }
+      if (expenseCreditCol) {
+        topLevelExpenseCreditPerson = formData[expenseCreditCol.key] as string;
       }
+    }
 
+    if (isDirectPaymentSelected) {
       if (!String(topLevelExpenseCreditPerson || "").trim()) {
         newErrors["expense_credit_person"] =
           "Expense Credit Person is required";
@@ -1489,7 +2167,7 @@ export default function NewExpensePage() {
 
     // ✅ Validate single Location
     if (!formData.location) {
-      newErrors["location"] = "Location is required";
+      newErrors["location"] = "Project of expense is required";
     }
 
     // Receipt required for main expense if not in voucher mode
@@ -1527,6 +2205,14 @@ export default function NewExpensePage() {
       // Validate that user is not approving their own expense (if approver ID is set)
       if (formData.approver && formData.approver === user.id) {
         toast.error("You cannot approve your own expenses");
+        setSaving(false);
+        return;
+      }
+
+      const duplicateCandidates = buildDuplicateCandidates();
+      const uniqueDuplicateMatches = await runDuplicateCheck(duplicateCandidates);
+
+      if (uniqueDuplicateMatches.length > 0) {
         setSaving(false);
         return;
       }
@@ -1712,7 +2398,7 @@ export default function NewExpensePage() {
         expense_credit_person: isDirectPaymentValue(
           formData.unique_id || ""
         )
-          ? formData.expense_credit_person || null
+          ? topLevelExpenseCreditPerson || null
           : null,
         signature_url: signature_url_to_use ?? undefined,
         receipt: null,
@@ -1884,6 +2570,19 @@ export default function NewExpensePage() {
             }
           });
 
+          let itemExpenseCreditPerson = item.expense_credit_person;
+          if (!itemExpenseCreditPerson) {
+            const expenseCreditCol = columns.find(
+              (col) =>
+                col.visible &&
+                (col.key === "expense_credit_person" ||
+                  col.label?.trim().toLowerCase() === "expense credit person")
+            );
+            if (expenseCreditCol) {
+              itemExpenseCreditPerson = item[expenseCreditCol.key] as string;
+            }
+          }
+
           const individualExpenseData = {
             org_id: organization.id,
             user_id: user.id,
@@ -1896,7 +2595,7 @@ export default function NewExpensePage() {
             // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
             unique_id: item.unique_id || formData.unique_id || undefined,
             expense_credit_person: itemIsDirectPayment
-              ? item.expense_credit_person || null
+              ? itemExpenseCreditPerson || null
               : null,
             signature_url: isVoucher
               ? signature_url_to_use ?? undefined
@@ -1992,7 +2691,7 @@ export default function NewExpensePage() {
               );
             }
           }
-          
+
           // Log history entry
           void (async () => {
             try {
@@ -2178,11 +2877,10 @@ export default function NewExpensePage() {
                       ? "Unique ID not available"
                       : "Enter payment unique ID"
                   }
-                  className={`w-full border ${
-                    errors["unique_id"]
+                  className={`w-full border ${errors["unique_id"]
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                       : "border-gray-300"
-                  } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
+                    } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
                   disabled={
                     !!prefilledUniqueId ||
                     (uniqueIdUnavailable && !formData.unique_id)
@@ -2219,7 +2917,7 @@ export default function NewExpensePage() {
               )}
 
               {(selectedUniqueIdUser || prefilledUniqueId) && (
-                <div className="bg-gray-50 px-2 py-0 text-sm text-gray-800">
+                <div className="bg-white px-2 py-0 text-sm text-gray-800">
                   <p className="mt-1 text-xs text-gray-600">
                     Pre-filled Payment Unique ID; allows searching and replacing
                     with another user’s Unique ID.
@@ -2327,7 +3025,7 @@ export default function NewExpensePage() {
                                       Direct Payment
                                     </p>
                                     <p className="mt-2 inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 font-mono text-sm font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-100">
-                                      {row.direct_payment|| "Direct payment not available"}
+                                      {row.direct_payment || "Direct payment not available"}
                                     </p>
                                   </button>
                                 )}
@@ -2371,6 +3069,96 @@ export default function NewExpensePage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Matching expense details Popup */}
+            <Dialog
+              open={duplicateDialogOpen}
+              onOpenChange={(open) => {
+                setDuplicateDialogOpen(open);
+                if (!open) setDuplicateMatchDetails([]);
+              }}
+            >
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle>Duplicate Expense Entry Detected</DialogTitle>
+                  <DialogDescription>
+                    All matching receipt or voucher entries found for your account.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {duplicateMatchDetails.length > 0 && (
+                  <div className="max-h-[50vh] overflow-y-auto overscroll-contain space-y-3 pr-1">
+                    {duplicateMatchDetails.map((match, index) => (
+                      <div
+                        key={`${match.matchedSource || "source"}-${match.matchedExpenseId}-${index}`}
+                        className="rounded-md border bg-gray-50 p-4 space-y-3"
+                      >
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Matched By</span>
+                          <span className="font-medium text-gray-900">
+                            {match.matchedBy || "Voucher Details"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Expense Type</span>
+                          <span className="font-medium text-gray-900">
+                            {match.expenseType}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Project of Expense</span>
+                          <span className="font-medium text-gray-900">
+                            {match.location}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Amount</span>
+                          <span className="font-medium text-gray-900">
+                            ₹{match.amount}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-gray-600">Date</span>
+                          <span className="font-medium text-gray-900">
+                            {formatDuplicateDate(match.date)}
+                          </span>
+                        </div>
+                        {match.matchedReceiptFile && (
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="text-gray-600">Matched Receipt</span>
+                            <span className="font-medium text-gray-900 text-right break-all">
+                              {match.matchedReceiptFile}
+                            </span>
+                          </div>
+                        )}
+                        {match.matchedVoucherFile && (
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="text-gray-600">Matched Voucher</span>
+                            <span className="font-medium text-gray-900 text-right break-all">
+                              {match.matchedVoucherFile}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setDuplicateDialogOpen(false);
+                      setDuplicateMatchDetails([]);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
               <div className="flex items-center space-x-3 mb-2">
@@ -2391,9 +3179,15 @@ export default function NewExpensePage() {
                 <SelectTrigger id="event_id" className="w-full">
                   <SelectValue placeholder="Select expense type (optional)" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent
+                  searchPlaceholder="Search event..."
+                  searchValue={searchQueries["event_id"] || ""}
+                  onSearchChange={(v) => handleSearchChange("event_id", v)}
+                >
                   <SelectItem value="none">No event</SelectItem>
-                  {events.map((event) => (
+                  {events
+                    .filter((event) => event.title.toLowerCase().includes((searchQueries["event_id"] || "").toLowerCase()))
+                    .map((event) => (
                     <SelectItem key={event.id} value={event.id}>
                       {event.title} (
                       {new Date(event.start_date).toLocaleDateString()} -{" "}
@@ -2536,11 +3330,10 @@ export default function NewExpensePage() {
                             onChange={(e) =>
                               handleInputChange(col.key, e.target.value)
                             }
-                            className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
-                              errors[col.key]
+                            className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
-                            }`}
+                              }`}
                             min={dateBounds.min}
                             max={dateBounds.max}
                           />
@@ -2636,16 +3429,24 @@ export default function NewExpensePage() {
                           >
                             <SelectTrigger
                               id={col.key}
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                             >
                               <SelectValue placeholder="Please Select" />
                             </SelectTrigger>
-                            <SelectContent>
-                              {col.options.map((option: any) => {
+                            <SelectContent
+                              searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                              searchValue={searchQueries[col.key] || ""}
+                              onSearchChange={(v) => handleSearchChange(col.key, v)}
+                            >
+                              {col.options
+                                .filter((option: any) => {
+                                  const label = typeof option === "string" ? option : option.label;
+                                  return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                                })
+                                .map((option: any) => {
                                 const value =
                                   typeof option === "string"
                                     ? option
@@ -2671,6 +3472,13 @@ export default function NewExpensePage() {
                               {errors[col.key]}
                             </p>
                           )}
+                          {(col.key === "expense_type" ||
+                            col.label?.trim().toLowerCase() ===
+                            "expense type") && (
+                              <p className="text-xs text-gray-600">
+                                Unsure about any expense type or abbreviation? Check the Abbreviations tab for details.
+                              </p>
+                            )}
                         </>
                       )}
 
@@ -2685,16 +3493,24 @@ export default function NewExpensePage() {
                           >
                             <SelectTrigger
                               id={col.key}
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                             >
                               <SelectValue placeholder="Select expense type" />
                             </SelectTrigger>
-                            <SelectContent>
-                              {col.options.map((option: any) => {
+                            <SelectContent
+                              searchPlaceholder={`Search ${col.label?.toLowerCase() || "expense type"}...`}
+                              searchValue={searchQueries[col.key] || ""}
+                              onSearchChange={(v) => handleSearchChange(col.key, v)}
+                            >
+                              {col.options
+                                .filter((option: any) => {
+                                  const label = typeof option === "string" ? option : option.label;
+                                  return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                                })
+                                .map((option: any) => {
                                 const value =
                                   typeof option === "string"
                                     ? option
@@ -2737,11 +3553,10 @@ export default function NewExpensePage() {
                                 parseFloat(e.target.value)
                               )
                             }
-                            className={`w-full ${
-                              errors[col.key]
+                            className={`w-full ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
-                            }`}
+                              }`}
                             placeholder="Enter amount"
                           />
                           {errors[col.key] && (
@@ -2782,11 +3597,10 @@ export default function NewExpensePage() {
                       onChange={(e) =>
                         handleInputChange(col.key, e.target.value)
                       }
-                      className={`w-full min-h-[75px] ${
-                        errors[col.key]
+                      className={`w-full min-h-[75px] ${errors[col.key]
                           ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                           : ""
-                      }`}
+                        }`}
                       placeholder="Brief description of this expense report..."
                     />
                     {errors[col.key] && (
@@ -2827,6 +3641,10 @@ export default function NewExpensePage() {
                   col.key === "expense_credit_person" ||
                   col.label?.trim().toLowerCase() === "expense credit person";
 
+                const isProjectOfExpenseField =
+                  col.key === "location" ||
+                  col.label?.trim().toLowerCase() === "project of expense";
+
                 if (
                   isExpenseCreditPersonField &&
                   !isDirectPaymentValue(formData.unique_id || "")
@@ -2854,11 +3672,10 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`w-full ${
-                          errors[col.key]
+                        className={`w-full ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         placeholder={`Enter ${col.label}`}
                       />
                     )}
@@ -2876,11 +3693,10 @@ export default function NewExpensePage() {
                               : e.target.value
                           )
                         }
-                        className={`w-full ${
-                          errors[col.key]
+                        className={`w-full ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         placeholder={`Enter ${col.label}`}
                       />
                     )}
@@ -2893,11 +3709,10 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
-                          errors[col.key]
+                        className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         min={dateBounds.min}
                         max={dateBounds.max}
                       />
@@ -2910,11 +3725,10 @@ export default function NewExpensePage() {
                         onChange={(e) =>
                           handleInputChange(col.key, e.target.value)
                         }
-                        className={`w-full min-h-[75px] ${
-                          errors[col.key]
+                        className={`w-full min-h-[75px] ${errors[col.key]
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : ""
-                        }`}
+                          }`}
                         placeholder="Brief description of this expense report..."
                       />
                     )}
@@ -2943,11 +3757,10 @@ export default function NewExpensePage() {
                         >
                           <SelectTrigger
                             id={col.key}
-                            className={`w-full ${
-                              errors[col.key]
+                            className={`w-full ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
-                            }`}
+                              }`}
                           >
                             <SelectValue
                               placeholder={
@@ -2957,8 +3770,17 @@ export default function NewExpensePage() {
                               }
                             />
                           </SelectTrigger>
-                          <SelectContent>
-                            {optionsToRender.map((option: any) => {
+                          <SelectContent
+                            searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                            searchValue={searchQueries[col.key] || ""}
+                            onSearchChange={(v) => handleSearchChange(col.key, v)}
+                          >
+                            {col.options
+                              .filter((option: any) => {
+                                const label = typeof option === "string" ? option : option.label;
+                                return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                              })
+                              .map((option: any) => {
                               const value =
                                 typeof option === "string"
                                   ? option
@@ -3070,11 +3892,16 @@ export default function NewExpensePage() {
                         {errors[col.key]}
                       </p>
                     )}
+                    {isProjectOfExpenseField && (
+                      <p className="text-xs text-gray-600">
+                        Unsure about any project of expense? Check the Abbreviations tab for details.
+                      </p>
+                    )}
                   </div>
                 );
                 return null;
               })}
-            </div>            
+            </div>
 
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
@@ -3178,9 +4005,9 @@ export default function NewExpensePage() {
                   selectedEvent={
                     selectedEvent
                       ? {
-                          start_date: selectedEvent.start_date,
-                          end_date: selectedEvent.end_date,
-                        }
+                        start_date: selectedEvent.start_date,
+                        end_date: selectedEvent.end_date,
+                      }
                       : undefined
                   }
                   errors={errors}
@@ -3325,7 +4152,12 @@ export default function NewExpensePage() {
                           return aOrder - bOrder;
                         })
                         .map((col) => (
-                          <div key={col.key} className="space-y-2">
+                          <div
+                            key={col.key}
+                            className={`space-y-2 ${
+                              col.key === "date" ? "md:col-span-2" : ""
+                            }`}
+                          >
                             <Label
                               htmlFor={col.key}
                               className="text-sm font-medium text-gray-700"
@@ -3431,38 +4263,46 @@ export default function NewExpensePage() {
                               <>
                                 <Select
                                   value={
-                                    getExpenseItemValue(id, "expense_type") !==
+                                    getExpenseItemValue(id, col.key as keyof ExpenseItemData) !==
                                       undefined &&
-                                    getExpenseItemValue(id, "expense_type") !==
+                                      getExpenseItemValue(id, col.key as keyof ExpenseItemData) !==
                                       null
                                       ? String(
-                                          getExpenseItemValue(
-                                            id,
-                                            "expense_type"
-                                          )
+                                        getExpenseItemValue(
+                                          id,
+                                          col.key as keyof ExpenseItemData
                                         )
+                                      )
                                       : undefined
                                   }
                                   onValueChange={(value) =>
                                     handleExpenseItemChange(
                                       id,
-                                      "expense_type",
+                                      col.key as keyof ExpenseItemData,
                                       value
                                     )
                                   }
                                 >
                                   <SelectTrigger
                                     id={col.key}
-                                    className={`w-full ${
-                                      errors[col.key]
+                                    className={`w-full ${errors[col.key]
                                         ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                         : ""
-                                    }`}
+                                      }`}
                                   >
-                                    <SelectValue placeholder="Select expense type" />
+                                    <SelectValue placeholder={`Select ${col.label?.toLowerCase() || "option"}`} />
                                   </SelectTrigger>
-                                  <SelectContent>
-                                    {col.options.map((option: any) => {
+                                  <SelectContent
+                                    searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                    searchValue={searchQueries[`${id}-${col.key}`] || ""}
+                                    onSearchChange={(v) => handleSearchChange(`${id}-${col.key}`, v)}
+                                  >
+                                    {col.options
+                                      .filter((option: any) => {
+                                        const label = typeof option === "string" ? option : option.label;
+                                        return String(label).toLowerCase().includes((searchQueries[`${id}-${col.key}`] || "").toLowerCase());
+                                      })
+                                      .map((option: any) => {
                                       const value =
                                         typeof option === "string"
                                           ? option
@@ -3484,6 +4324,13 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
+                                {(col.key === "expense_type" ||
+                                  col.label?.trim().toLowerCase() ===
+                                  "expense type") && (
+                                    <p className="text-xs text-gray-600">
+                                      Unsure about any expense type or abbreviation? Check the Abbreviations tab for details.
+                                    </p>
+                                  )}
                               </>
                             )}
 
@@ -3502,11 +4349,10 @@ export default function NewExpensePage() {
                                       e.target.value
                                     )
                                   }
-                                  className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
-                                    errors[col.key]
+                                  className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
-                                  }`}
+                                    }`}
                                   min={dateBounds.min}
                                   max={dateBounds.max}
                                 />
@@ -3537,11 +4383,10 @@ export default function NewExpensePage() {
                                       parseFloat(e.target.value)
                                     )
                                   }
-                                  className={`w-full ${
-                                    errors[col.key]
+                                  className={`w-full ${errors[col.key]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
-                                  }`}
+                                    }`}
                                 />
                                 {errors[col.key] && (
                                   <p className="text-red-500 text-sm">
@@ -3588,11 +4433,11 @@ export default function NewExpensePage() {
                                 e.target.value
                               )
                             }
-                            className={`w-full min-h-[70px] ${
+                            className={`w-full min-h-[50px] ${
                               errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
-                            }`}
+                              }`}
                             placeholder="Brief description of this expense report..."
                           />
                           <p className="text-xs text-gray-600">
@@ -3627,11 +4472,14 @@ export default function NewExpensePage() {
                       const isExpenseCreditPersonField =
                         col.key === "expense_credit_person" ||
                         col.label?.trim().toLowerCase() ===
-                          "expense credit person";
+                        "expense credit person";
+                      const isProjectOfExpenseField =
+                        col.key === "location" ||
+                        col.label?.trim().toLowerCase() === "project of expense";
                       const itemIsDirectPayment = isDirectPaymentValue(
                         expenseItemsData[id]?.unique_id ||
-                          formData.unique_id ||
-                          ""
+                        formData.unique_id ||
+                        ""
                       );
 
                       if (isExpenseCreditPersonField && !itemIsDirectPayment) {
@@ -3669,11 +4517,10 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                               placeholder={`Enter ${col.label}`}
                             />
                           )}
@@ -3697,11 +4544,10 @@ export default function NewExpensePage() {
                                     : e.target.value
                                 )
                               }
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                               placeholder={`Enter ${col.label}`}
                             />
                           )}
@@ -3723,11 +4569,10 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full ${
-                                errors[col.key]
+                              className={`w-full ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                             />
                           )}
                           {col.type === "textarea" && (
@@ -3747,11 +4592,10 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full min-h-[75px] ${
-                                errors[col.key]
+                              className={`w-full min-h-[75px] ${errors[col.key]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
-                              }`}
+                                }`}
                               placeholder="Brief description of this expense report..."
                             />
                           )}
@@ -3805,11 +4649,10 @@ export default function NewExpensePage() {
                               >
                                 <SelectTrigger
                                   id={col.key}
-                                  className={`w-full ${
-                                    errors[col.key]
+                                  className={`w-full ${errors[col.key]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
-                                  }`}
+                                    }`}
                                 >
                                   <SelectValue
                                     placeholder={
@@ -3820,7 +4663,7 @@ export default function NewExpensePage() {
                                   />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {optionsToRender.map((option: any) => {
+                                  {col.options.map((option: any) => {
                                     const value =
                                       typeof option === "string"
                                         ? option
@@ -3859,7 +4702,7 @@ export default function NewExpensePage() {
                                 );
                                 const selectedRadioValue =
                                   typeof currentValue === "string" ||
-                                  typeof currentValue === "number"
+                                    typeof currentValue === "number"
                                     ? String(currentValue)
                                     : "";
                                 return (
@@ -3971,6 +4814,11 @@ export default function NewExpensePage() {
                               id={`${col.key}-error`}
                             >
                               {errors[col.key]}
+                            </p>
+                          )}
+                          {isProjectOfExpenseField && (
+                            <p className="text-xs text-gray-600">
+                              Unsure about any project of expense? Check the Abbreviations tab for details.
                             </p>
                           )}
                         </div>
@@ -4112,9 +4960,9 @@ export default function NewExpensePage() {
                           selectedEvent={
                             selectedEvent
                               ? {
-                                  start_date: selectedEvent.start_date,
-                                  end_date: selectedEvent.end_date,
-                                }
+                                start_date: selectedEvent.start_date,
+                                end_date: selectedEvent.end_date,
+                              }
                               : undefined
                           }
                           errors={errors}
@@ -4129,7 +4977,7 @@ export default function NewExpensePage() {
 
             <Button
               type="button"
-              onClick={addItem}
+              onClick={handleAddItem}
               variant="neutral"
               className="cursor-pointer"
             >
@@ -4195,7 +5043,7 @@ export default function NewExpensePage() {
 
                     {savedUserSignature &&
                       formData.expense_signature_preview !==
-                        savedUserSignature && (
+                      savedUserSignature && (
                         <p className="text-xs text-blue-600">
                           * You're using a new signature. This will replace your
                           saved signature when you submit.

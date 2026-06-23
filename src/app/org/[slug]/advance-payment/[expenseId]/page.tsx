@@ -179,7 +179,7 @@ export default function RecordsDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Location of Expense</TableHead>
+                    <TableHead>Project of Expense</TableHead>
                     <TableCell>{expense.location || "N/A"}</TableCell>
                   </TableRow>
                   <TableRow>

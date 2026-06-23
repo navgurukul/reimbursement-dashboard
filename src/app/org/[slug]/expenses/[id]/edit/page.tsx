@@ -46,7 +46,8 @@ export default function EditExpensePage() {
   const getDisplayFieldLabel = (key: string) => {
     const labelMap: Record<string, string> = {
       description: "Description",
-      location_of_expense: "Location of Expense",
+      approver_name: "Approver Name",
+      location_of_expense: "Project of Expense",
       expense_credit_person: "Expense Credit Person",
     };
 

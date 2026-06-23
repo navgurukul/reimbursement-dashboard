@@ -90,7 +90,7 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
   }, [expenseId, expense?.id]);
 
   return (
-    <div className="bg-white p-6 rounded shadow border">
+    <div className="bg-white p-6 rounded-lg shadow border">
       <div className="border-b pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">

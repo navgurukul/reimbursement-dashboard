@@ -28,6 +28,7 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  ExternalLink,
   Download,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -149,7 +150,19 @@ export default function ViewExpensePage() {
   const searchParams = useSearchParams();
   const eventIdFromQuery = searchParams.get("eventId");
   const fromTab = searchParams.get("fromTab");
+  const fromPage = searchParams.get("page");
   const nextId = searchParams.get("nextId"); // Next pending expense ID for sequential approval
+
+  const backToExpensesUrl = (() => {
+    const query = new URLSearchParams();
+    const tab = fromTab || "my";
+    query.set("tab", tab);
+    query.set("expID", expenseId);
+    if (fromPage) {
+      query.set("page", fromPage);
+    }
+    return `/org/${slug}/expenses?${query.toString()}`;
+  })();
 
   const [loading, setLoading] = useState(true);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -1217,7 +1230,7 @@ export default function ViewExpensePage() {
     if (expense.receipt?.path) {
       try {
         if (receiptPreviewUrl) {
-          window.open(receiptPreviewUrl, "_blank");
+          window.open(receiptPreviewUrl, "_blank", "noopener,noreferrer");
           return;
         }
 
@@ -1232,7 +1245,7 @@ export default function ViewExpensePage() {
         }
         if (url) {
           setReceiptPreviewUrl(url);
-          window.open(url, "_blank");
+          window.open(url, "_blank", "noopener,noreferrer");
         }
       } catch (err) {
         console.error("Error opening receipt:", err);
@@ -1367,7 +1380,7 @@ export default function ViewExpensePage() {
     getCustomFieldValue([
       "location_of_expense",
       "location of expense",
-      "Location of Expense",
+      "Project of Expense",
     ]) || expense.location;
 
   // Helper function to format field names
@@ -1726,13 +1739,18 @@ export default function ViewExpensePage() {
     ? expense.tds_deduction_amount ??
       Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
     : null;
+  const securityDepositAmount =
+    expense.security_deposit_amount !== null &&
+    expense.security_deposit_amount !== undefined
+      ? Number(expense.security_deposit_amount)
+      : null;
 
   return (
     <div className="container mx-auto py-6">
       <div className="mb-4">
         <Button
           variant="link"
-          onClick={() => router.push(`/org/${slug}/expenses`)}
+          onClick={() => router.push(backToExpensesUrl)}
         >
           <ArrowLeft />
           Back to Expenses
@@ -1758,9 +1776,9 @@ export default function ViewExpensePage() {
       )}
 
       {userRole !== "member" && expense.status === "submitted" && (
-        <div className="flex items-center space-x-2 mb-6 px-1">
+        <div className="mb-6 px-1 space-y-3">
           {!isAssignedApprover && (
-            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
+            <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-md">
               <p className="text-sm text-amber-800">
                 ⚠️ You are not the assigned approver for this expense. Only the
                 assigned approver can approve or reject this request.
@@ -1768,7 +1786,7 @@ export default function ViewExpensePage() {
             </div>
           )}
           {showCustomAmountInput ? (
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2">
                   ₹
@@ -1802,7 +1820,7 @@ export default function ViewExpensePage() {
               </Button>
             </div>
           ) : (
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="destructive"
                 onClick={handleReject}
@@ -1883,7 +1901,7 @@ export default function ViewExpensePage() {
                   </Button>
                 </>
               )}
-            </>
+            </div>
           )}
         </div>
       )}
@@ -1913,7 +1931,7 @@ export default function ViewExpensePage() {
                 {/* ✅ Add this block to show Location */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
-                    Location
+                    Project of Expense
                   </p>
                   <p>{expenseLocationValue || "N/A"}</p>
                 </div>
@@ -1979,6 +1997,20 @@ export default function ViewExpensePage() {
                         currency: "INR",
                       }).format(tdsAmount ?? 0)}
                       )
+                    </p>
+                  </div>
+                ) : null}
+
+                {securityDepositAmount !== null ? (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Security Deposit Deduction
+                    </p>
+                    <p className="text-amber-600 font-medium">
+                      {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR",
+                      }).format(securityDepositAmount)}
                     </p>
                   </div>
                 ) : null}
@@ -2066,6 +2098,28 @@ export default function ViewExpensePage() {
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="cursor-pointer"
+                                  onClick={handleViewReceipt}
+                                  aria-label="Open receipt in new tab"
+                                  disabled={receiptLoading}
+                                >
+                                  {receiptLoading ? (
+                                    <Spinner size="sm" className="h-4 w-4" />
+                                  ) : (
+                                    <ExternalLink className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Open in new tab</p>
+                              </TooltipContent>
+                            </Tooltip>
+
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -2633,13 +2687,14 @@ export default function ViewExpensePage() {
 
                         return (
                           normalizedKey !== "location of expense" &&
+                          normalizedKey !== "project of expense" &&
                           normalizedKey !== "approver name" &&
                           normalizedKey !== "second approver name" &&
                           normalizedKey !== "second approver id" &&
                           normalizedKey !== "expense credit person" &&
                           normalizedKey !== "description"
                         );
-                      }) // Exclude Location Of Expense and description
+                      }) // Exclude Project Of Expense and description
                       .map(([key, value]) => {
                         const matchedField = customFields.find(
                           (field) => field.key === key

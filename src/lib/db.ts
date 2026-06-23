@@ -152,6 +152,22 @@ export interface OrganizationSettings {
   updated_at: string;
 }
 
+export interface ExpenseTypeDetail {
+  id: string;
+  group: string;
+  sub_group: string;
+  expense_ledger: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface ProjectOfExpenseDetail {
+  id: string;
+  project_of_expense: string;
+  project_description: string | null;
+  created_at: string;
+}
+
 export type ExpenseStatus =
   | "submitted"
   | "approved"
@@ -168,7 +184,27 @@ export interface ReceiptInfo {
   path: string;
   size: number;
   mime_type: string;
+  content_hash?: string | null;
 }
+
+const bytesToHex = (bytes: Uint8Array) =>
+  Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+const computeFileContentHash = async (file: File): Promise<string | null> => {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await subtle.digest("SHA-256", buffer);
+    return bytesToHex(new Uint8Array(hashBuffer));
+  } catch (error) {
+    console.error("Failed to compute file hash:", error);
+    return null;
+  }
+};
 
 export interface PolicyValidation {
   policy_type: string;
@@ -220,6 +256,8 @@ export interface Expense {
   approved_amount?: number | null;
   tds_deduction_percentage?: number | null;
   tds_deduction_amount?: number | null;
+  security_deposit_amount?: number | null;
+  actual_amount?: number | null;
   approver_signature_url?: string | null; // Added approver signature URL
 }
 
@@ -1149,6 +1187,182 @@ export const orgSettings = {
   },
 };
 
+export const expenseTypeDetails = {
+  getAll: async () => {
+    const { data, error } = await supabase
+      .from("expense_type_details")
+      .select("*")
+      .order("group", { ascending: true })
+      .order("sub_group", { ascending: true })
+      .order("expense_ledger", { ascending: true });
+
+    if (error) {
+      return { data: [], error: error as DatabaseError };
+    }
+
+    return {
+      data: (data || []) as ExpenseTypeDetail[],
+      error: null,
+    };
+  },
+
+  create: async (payload: {
+    group: string;
+    sub_group: string;
+    expense_ledger: string;
+    description?: string | null;
+  }) => {
+    const { data, error } = await supabase
+      .from("expense_type_details")
+      .insert([
+        {
+          group: payload.group.trim(),
+          sub_group: payload.sub_group.trim(),
+          expense_ledger: payload.expense_ledger.trim(),
+          description: payload.description?.trim() || null,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as ExpenseTypeDetail,
+      error: null,
+    };
+  },
+
+  update: async (
+    id: string,
+    payload: {
+      group: string;
+      sub_group: string;
+      expense_ledger: string;
+      description?: string | null;
+    }
+  ) => {
+    const { data, error } = await supabase
+      .from("expense_type_details")
+      .update({
+        group: payload.group.trim(),
+        sub_group: payload.sub_group.trim(),
+        expense_ledger: payload.expense_ledger.trim(),
+        description: payload.description?.trim() || null,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as ExpenseTypeDetail,
+      error: null,
+    };
+  },
+
+  delete: async (id: string) => {
+    const { error } = await supabase
+      .from("expense_type_details")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      return { error: error as DatabaseError };
+    }
+
+    return { error: null };
+  },
+};
+
+export const projectOfExpenseDetails = {
+  getAll: async () => {
+    const { data, error } = await supabase
+      .from("project_of_expense_details")
+      .select("*")
+      .order("project_of_expense", { ascending: true });
+
+    if (error) {
+      return { data: [], error: error as DatabaseError };
+    }
+
+    return {
+      data: (data || []) as ProjectOfExpenseDetail[],
+      error: null,
+    };
+  },
+
+  create: async (payload: {
+    project_of_expense: string;
+    project_description?: string | null;
+  }) => {
+    const { data, error } = await supabase
+      .from("project_of_expense_details")
+      .insert([
+        {
+          project_of_expense: payload.project_of_expense.trim(),
+          project_description: payload.project_description?.trim() || null,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as ProjectOfExpenseDetail,
+      error: null,
+    };
+  },
+
+  update: async (
+    id: string,
+    payload: {
+      project_of_expense: string;
+      project_description?: string | null;
+    }
+  ) => {
+    const { data, error } = await supabase
+      .from("project_of_expense_details")
+      .update({
+        project_of_expense: payload.project_of_expense.trim(),
+        project_description: payload.project_description?.trim() || null,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as ProjectOfExpenseDetail,
+      error: null,
+    };
+  },
+
+  delete: async (id: string) => {
+    const { error } = await supabase
+      .from("project_of_expense_details")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      return { error: error as DatabaseError };
+    }
+
+    return { error: null };
+  },
+};
+
 
 
 // Expenses functions
@@ -1639,11 +1853,14 @@ export const expenses = {
           };
         }
 
+        const contentHash = await computeFileContentHash(receiptFile);
+
         receipt = {
           filename: receiptFile.name,
           path,
           size: receiptFile.size,
           mime_type: receiptFile.type,
+          content_hash: contentHash,
         };
       }
 
@@ -1858,11 +2075,14 @@ export const expenses = {
           };
         }
 
+        const contentHash = await computeFileContentHash(receiptFile);
+
         receipt = {
           filename: receiptFile.name,
           path,
           size: receiptFile.size,
           mime_type: receiptFile.type,
+          content_hash: contentHash,
         };
       }
 

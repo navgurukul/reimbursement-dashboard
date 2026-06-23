@@ -1,13 +1,19 @@
 // src/app/org/[slug]/settings/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { notFound, useRouter } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings } from "@/lib/db";
+import {
+  expenseTypeDetails,
+  orgSettings,
+  projectOfExpenseDetails,
+} from "@/lib/db";
 import type {
   ColumnConfig as DbColumnConfig,
-  ExpenseTypeApproverMappingEntry,
+  ExpenseTypeDetail,
+  ProjectOfExpenseDetail,
+    ExpenseTypeApproverMappingEntry,
   LocationApproverMappingEntry,
 } from "@/lib/db";
 import supabase from "@/lib/supabase";
@@ -26,11 +32,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -46,8 +61,18 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { PlusCircle, Settings2, Trash2, Plus, X } from "lucide-react";
+import { PlusCircle, Settings2, Trash2, Plus, X, Edit } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { Pagination, usePagination } from "@/components/pagination";
 import { organizations } from "@/lib/db";
 import { profiles } from "@/lib/db";
 
@@ -164,6 +189,18 @@ function MultiSelect({
   );
 }
 
+interface ExpenseTypeDetailsForm {
+  group: string;
+  sub_group: string;
+  expense_ledger: string;
+  description: string;
+}
+
+interface ProjectOfExpenseDetailsForm {
+  project_of_expense: string;
+  project_description: string;
+}
+
 export default function SettingsPage() {
   const { userRole } = useOrgStore();
   if (userRole !== "owner" && userRole !== "admin") {
@@ -227,6 +264,125 @@ export default function SettingsPage() {
   );
   const [showColumnDialog, setShowColumnDialog] = useState(false);
   const [newOptions, setNewOptions] = useState<string>("");
+  const [isAddingExpenseType, setIsAddingExpenseType] = useState(false);
+  const [isExpenseTypeDialogOpen, setIsExpenseTypeDialogOpen] = useState(false);
+  const [isEditingExpenseType, setIsEditingExpenseType] = useState(false);
+  const [editingExpenseTypeId, setEditingExpenseTypeId] = useState<string | null>(
+    null
+  );
+  const [expenseTypeRows, setExpenseTypeRows] = useState<ExpenseTypeDetail[]>([]);
+  const [isLoadingExpenseTypeRows, setIsLoadingExpenseTypeRows] = useState(false);
+  const [expenseTypeSearchQuery, setExpenseTypeSearchQuery] = useState("");
+  const [expenseTypeDeleteTarget, setExpenseTypeDeleteTarget] =
+    useState<ExpenseTypeDetail | null>(null);
+  const [isDeletingExpenseType, setIsDeletingExpenseType] = useState(false);
+  const [expenseTypeForm, setExpenseTypeForm] =
+    useState<ExpenseTypeDetailsForm>({
+      group: "",
+      sub_group: "",
+      expense_ledger: "",
+      description: "",
+    });
+  const [projectOfExpenseRows, setProjectOfExpenseRows] = useState<
+    ProjectOfExpenseDetail[]
+  >([]);
+  const [isLoadingProjectOfExpenseRows, setIsLoadingProjectOfExpenseRows] =
+    useState(false);
+  const [projectOfExpenseSearchQuery, setProjectOfExpenseSearchQuery] =
+    useState("");
+  const [projectOfExpenseDeleteTarget, setProjectOfExpenseDeleteTarget] =
+    useState<ProjectOfExpenseDetail | null>(null);
+  const [isDeletingProjectOfExpense, setIsDeletingProjectOfExpense] =
+    useState(false);
+  const [isProjectOfExpenseDialogOpen, setIsProjectOfExpenseDialogOpen] =
+    useState(false);
+  const [isEditingProjectOfExpense, setIsEditingProjectOfExpense] =
+    useState(false);
+  const [editingProjectOfExpenseId, setEditingProjectOfExpenseId] =
+    useState<string | null>(null);
+  const [isAddingProjectOfExpense, setIsAddingProjectOfExpense] =
+    useState(false);
+  const [projectOfExpenseForm, setProjectOfExpenseForm] =
+    useState<ProjectOfExpenseDetailsForm>({
+      project_of_expense: "",
+      project_description: "",
+    });
+
+  const filteredExpenseTypeRows = useMemo(() => {
+    const normalizedQuery = expenseTypeSearchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) return expenseTypeRows;
+
+    return expenseTypeRows.filter((row) => {
+      const groupValue = row.group?.toLowerCase() || "";
+      const subGroupValue = row.sub_group?.toLowerCase() || "";
+      const expenseLedgerValue = row.expense_ledger?.toLowerCase() || "";
+      const descriptionValue = row.description?.toLowerCase() || "";
+
+      return (
+        groupValue.includes(normalizedQuery) ||
+        subGroupValue.includes(normalizedQuery) ||
+        expenseLedgerValue.includes(normalizedQuery) ||
+        descriptionValue.includes(normalizedQuery)
+      );
+    });
+  }, [expenseTypeRows, expenseTypeSearchQuery]);
+
+  const filteredProjectOfExpenseRows = useMemo(() => {
+    const normalizedQuery = projectOfExpenseSearchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) return projectOfExpenseRows;
+
+    return projectOfExpenseRows.filter((row) => {
+      const projectValue = row.project_of_expense?.toLowerCase() || "";
+      const descriptionValue = row.project_description?.toLowerCase() || "";
+
+      return (
+        projectValue.includes(normalizedQuery) ||
+        descriptionValue.includes(normalizedQuery)
+      );
+    });
+  }, [projectOfExpenseRows, projectOfExpenseSearchQuery]);
+
+  const {
+    currentPage: expenseTypeCurrentPage,
+    setCurrentPage: setExpenseTypeCurrentPage,
+    totalPages: expenseTypeTotalPages,
+    paginatedData: paginatedExpenseTypeRows,
+    totalItems: totalExpenseTypeItems,
+  } = usePagination(filteredExpenseTypeRows);
+
+  const {
+    currentPage: projectOfExpenseCurrentPage,
+    setCurrentPage: setProjectOfExpenseCurrentPage,
+    totalPages: projectOfExpenseTotalPages,
+    paginatedData: paginatedProjectOfExpenseRows,
+    totalItems: totalProjectOfExpenseItems,
+  } = usePagination(filteredProjectOfExpenseRows);
+
+  useEffect(() => {
+    setExpenseTypeCurrentPage(1);
+  }, [expenseTypeSearchQuery, setExpenseTypeCurrentPage]);
+
+  useEffect(() => {
+    setProjectOfExpenseCurrentPage(1);
+  }, [projectOfExpenseSearchQuery, setProjectOfExpenseCurrentPage]);
+
+  useEffect(() => {
+    if (expenseTypeCurrentPage > expenseTypeTotalPages) {
+      setExpenseTypeCurrentPage(expenseTypeTotalPages);
+    }
+  }, [expenseTypeCurrentPage, expenseTypeTotalPages, setExpenseTypeCurrentPage]);
+
+  useEffect(() => {
+    if (projectOfExpenseCurrentPage > projectOfExpenseTotalPages) {
+      setProjectOfExpenseCurrentPage(projectOfExpenseTotalPages);
+    }
+  }, [
+    projectOfExpenseCurrentPage,
+    projectOfExpenseTotalPages,
+    setProjectOfExpenseCurrentPage,
+  ]);
   const [approverOptions, setApproverOptions] = useState<ApproverOption[]>([]);
 
   // Expense type → approver mapping (approver + second approver per expense type)
@@ -314,14 +470,30 @@ export default function SettingsPage() {
               return col;
             });
 
-            // Ensure location column exists if not present
+            // Ensure location column exists if not present and remove duplicates
             const hasLocationColumn = processedColumns.some(
               (col) => col.key === "location"
             );
-            if (!hasLocationColumn) {
+            
+            // Remove duplicate "Project of Expense" entries (keep only the one with key "location")
+            const locationColumnIndex = processedColumns.findIndex(
+              (col) => col.key === "location"
+            );
+            const projectExpenseIndex = processedColumns.findIndex(
+              (col) => col.label === "Project of Expense" && col.key !== "location"
+            );
+            
+            if (projectExpenseIndex !== -1 && locationColumnIndex !== -1) {
+              // Remove the duplicate if both exist
+              processedColumns.splice(projectExpenseIndex, 1);
+            } else if (projectExpenseIndex !== -1 && locationColumnIndex === -1) {
+              // If only the duplicate exists, rename it to location
+              processedColumns[projectExpenseIndex].key = "location";
+            } else if (!hasLocationColumn) {
+              // If no location column exists, add it
               processedColumns.push({
                 key: "location",
-                label: "Location of Expense",
+                label: "Project of Expense",
                 type: "dropdown",
                 visible: true,
                 required: true,
@@ -333,14 +505,17 @@ export default function SettingsPage() {
           } else {
             // If no columns exist, initialize with default columns plus location
             const initialColumns = [...defaultColumns];
-            initialColumns.push({
-              key: "location",
-              label: "Location of Expense",
-              type: "dropdown",
-              visible: true,
-              required: true,
-              options: [],
-            });
+            // Only add location if not already present
+            if (!initialColumns.some((col) => col.key === "location" || col.label === "Project of Expense")) {
+              initialColumns.push({
+                key: "location",
+                label: "Project of Expense",
+                type: "dropdown",
+                visible: true,
+                required: true,
+                options: [],
+              });
+            }
             setColumns(initialColumns);
           }
         }
@@ -412,6 +587,50 @@ export default function SettingsPage() {
     fetchSettings();
   }, [orgId]);
 
+  useEffect(() => {
+    const fetchExpenseTypeRows = async () => {
+      if (!orgId) return;
+
+      setIsLoadingExpenseTypeRows(true);
+      const { data, error } = await expenseTypeDetails.getAll();
+
+      if (error) {
+        toast.error("Failed to load expense type details", {
+          description: error.message,
+        });
+        setExpenseTypeRows([]);
+      } else {
+        setExpenseTypeRows(data);
+      }
+
+      setIsLoadingExpenseTypeRows(false);
+    };
+
+    fetchExpenseTypeRows();
+  }, [orgId]);
+
+  useEffect(() => {
+    const fetchProjectOfExpenseRows = async () => {
+      if (!orgId) return;
+
+      setIsLoadingProjectOfExpenseRows(true);
+      const { data, error } = await projectOfExpenseDetails.getAll();
+
+      if (error) {
+        toast.error("Failed to load project of expense details", {
+          description: error.message,
+        });
+        setProjectOfExpenseRows([]);
+      } else {
+        setProjectOfExpenseRows(data);
+      }
+
+      setIsLoadingProjectOfExpenseRows(false);
+    };
+
+    fetchProjectOfExpenseRows();
+  }, [orgId]);
+
   const handleSaveBranding = async () => {
     const toastId = toast.loading("Saving branding…");
     try {
@@ -452,7 +671,22 @@ export default function SettingsPage() {
     const toastId = toast.loading("Saving columns…");
     try {
       // Make a deep copy of columns to avoid reference issues
-      const columnsToSave = JSON.parse(JSON.stringify(columns));
+      let columnsToSave = JSON.parse(JSON.stringify(columns));
+
+      // Remove duplicate "Project of Expense" entries
+      const locationColumnIndex = columnsToSave.findIndex(
+        (col: DbColumnConfig) => col.key === "location"
+      );
+      const duplicateProjectExpenseIndices = columnsToSave
+        .map((col: DbColumnConfig, idx: number) => 
+          col.label === "Project of Expense" && col.key !== "location" ? idx : -1
+        )
+        .filter((idx: number) => idx !== -1);
+      
+      // Remove duplicates in reverse order to avoid index shifting
+      for (let i = duplicateProjectExpenseIndices.length - 1; i >= 0; i--) {
+        columnsToSave.splice(duplicateProjectExpenseIndices[i], 1);
+      }
 
       // Process columns before saving
       const processedColumns = await Promise.all(
@@ -735,6 +969,266 @@ export default function SettingsPage() {
     } catch (error) {
       console.error("Error saving column:", error);
       toast.error("An unexpected error occurred");
+    }
+  };
+
+  const handleExpenseTypeFormChange = (
+    key: keyof ExpenseTypeDetailsForm,
+    value: string
+  ) => {
+    setExpenseTypeForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAddExpenseTypeDetails = async () => {
+    if (!orgId) return;
+
+    if (!expenseTypeForm.group.trim()) {
+      toast.error("Group is required");
+      return;
+    }
+
+    if (!expenseTypeForm.sub_group.trim()) {
+      toast.error("Sub-Group is required");
+      return;
+    }
+
+    if (!expenseTypeForm.expense_ledger.trim()) {
+      toast.error("Expense Ledger is required");
+      return;
+    }
+
+    setIsAddingExpenseType(true);
+
+    try {
+      const { data, error } = isEditingExpenseType
+        ? await expenseTypeDetails.update(editingExpenseTypeId!, {
+            group: expenseTypeForm.group,
+            sub_group: expenseTypeForm.sub_group,
+            expense_ledger: expenseTypeForm.expense_ledger,
+            description: expenseTypeForm.description,
+          })
+        : await expenseTypeDetails.create({
+            group: expenseTypeForm.group,
+            sub_group: expenseTypeForm.sub_group,
+            expense_ledger: expenseTypeForm.expense_ledger,
+            description: expenseTypeForm.description,
+          });
+
+      if (error) throw error;
+
+      toast.success(
+        isEditingExpenseType
+          ? "Expense type details updated"
+          : "Expense type details added"
+      );
+
+      if (data) {
+        if (isEditingExpenseType) {
+          setExpenseTypeRows((prev) =>
+            prev.map((row) => (row.id === data.id ? data : row))
+          );
+        } else {
+          setExpenseTypeRows((prev) =>
+            [...prev, data].sort((first, second) => {
+              if (first.group !== second.group) {
+                return first.group.localeCompare(second.group);
+              }
+
+              if (first.sub_group !== second.sub_group) {
+                return first.sub_group.localeCompare(second.sub_group);
+              }
+
+              return first.expense_ledger.localeCompare(second.expense_ledger);
+            })
+          );
+        }
+      }
+
+      setExpenseTypeForm({
+        group: "",
+        sub_group: "",
+        expense_ledger: "",
+        description: "",
+      });
+      setIsEditingExpenseType(false);
+      setEditingExpenseTypeId(null);
+      setIsExpenseTypeDialogOpen(false);
+    } catch (error: any) {
+      toast.error(
+        isEditingExpenseType
+          ? "Failed to update expense type details"
+          : "Failed to add expense type details",
+        {
+          description: error.message,
+        }
+      );
+    } finally {
+      setIsAddingExpenseType(false);
+    }
+  };
+
+  const openAddExpenseTypeDialog = () => {
+    setIsEditingExpenseType(false);
+    setEditingExpenseTypeId(null);
+    setExpenseTypeForm({
+      group: "",
+      sub_group: "",
+      expense_ledger: "",
+      description: "",
+    });
+    setIsExpenseTypeDialogOpen(true);
+  };
+
+  const openEditExpenseTypeDialog = (row: ExpenseTypeDetail) => {
+    setIsEditingExpenseType(true);
+    setEditingExpenseTypeId(row.id);
+    setExpenseTypeForm({
+      group: row.group,
+      sub_group: row.sub_group,
+      expense_ledger: row.expense_ledger,
+      description: row.description || "",
+    });
+    setIsExpenseTypeDialogOpen(true);
+  };
+
+  const handleDeleteExpenseTypeDetail = async () => {
+    if (!expenseTypeDeleteTarget) return;
+
+    setIsDeletingExpenseType(true);
+    try {
+      const { error } = await expenseTypeDetails.delete(expenseTypeDeleteTarget.id);
+
+      if (error) {
+        toast.error("Failed to delete expense type details", {
+          description: error.message,
+        });
+        return;
+      }
+
+      setExpenseTypeRows((prev) =>
+        prev.filter((item) => item.id !== expenseTypeDeleteTarget.id)
+      );
+      setExpenseTypeDeleteTarget(null);
+      toast.success("Expense type details deleted");
+    } finally {
+      setIsDeletingExpenseType(false);
+    }
+  };
+
+  const handleProjectOfExpenseFormChange = (
+    key: keyof ProjectOfExpenseDetailsForm,
+    value: string
+  ) => {
+    setProjectOfExpenseForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAddProjectOfExpenseDetails = async () => {
+    if (!orgId) return;
+
+    if (!projectOfExpenseForm.project_of_expense.trim()) {
+      toast.error("Project of Expense is required");
+      return;
+    }
+
+    setIsAddingProjectOfExpense(true);
+
+    try {
+      const { data, error } = isEditingProjectOfExpense
+        ? await projectOfExpenseDetails.update(editingProjectOfExpenseId!, {
+            project_of_expense: projectOfExpenseForm.project_of_expense,
+            project_description: projectOfExpenseForm.project_description,
+          })
+        : await projectOfExpenseDetails.create({
+            project_of_expense: projectOfExpenseForm.project_of_expense,
+            project_description: projectOfExpenseForm.project_description,
+          });
+
+      if (error) throw error;
+
+      toast.success(
+        isEditingProjectOfExpense
+          ? "Project of expense details updated"
+          : "Project of expense details added"
+      );
+
+      if (data) {
+        if (isEditingProjectOfExpense) {
+          setProjectOfExpenseRows((prev) =>
+            prev.map((row) => (row.id === data.id ? data : row))
+          );
+        } else {
+          setProjectOfExpenseRows((prev) =>
+            [...prev, data].sort((first, second) =>
+              first.project_of_expense.localeCompare(second.project_of_expense)
+            )
+          );
+        }
+      }
+
+      setProjectOfExpenseForm({
+        project_of_expense: "",
+        project_description: "",
+      });
+      setIsEditingProjectOfExpense(false);
+      setEditingProjectOfExpenseId(null);
+      setIsProjectOfExpenseDialogOpen(false);
+    } catch (error: any) {
+      toast.error(
+        isEditingProjectOfExpense
+          ? "Failed to update project of expense details"
+          : "Failed to add project of expense details",
+        {
+          description: error.message,
+        }
+      );
+    } finally {
+      setIsAddingProjectOfExpense(false);
+    }
+  };
+
+  const openAddProjectOfExpenseDialog = () => {
+    setIsEditingProjectOfExpense(false);
+    setEditingProjectOfExpenseId(null);
+    setProjectOfExpenseForm({
+      project_of_expense: "",
+      project_description: "",
+    });
+    setIsProjectOfExpenseDialogOpen(true);
+  };
+
+  const openEditProjectOfExpenseDialog = (row: ProjectOfExpenseDetail) => {
+    setIsEditingProjectOfExpense(true);
+    setEditingProjectOfExpenseId(row.id);
+    setProjectOfExpenseForm({
+      project_of_expense: row.project_of_expense,
+      project_description: row.project_description || "",
+    });
+    setIsProjectOfExpenseDialogOpen(true);
+  };
+
+  const handleDeleteProjectOfExpenseDetail = async () => {
+    if (!projectOfExpenseDeleteTarget) return;
+
+    setIsDeletingProjectOfExpense(true);
+    try {
+      const { error } = await projectOfExpenseDetails.delete(
+        projectOfExpenseDeleteTarget.id
+      );
+
+      if (error) {
+        toast.error("Failed to delete project of expense details", {
+          description: error.message,
+        });
+        return;
+      }
+
+      setProjectOfExpenseRows((prev) =>
+        prev.filter((item) => item.id !== projectOfExpenseDeleteTarget.id)
+      );
+      setProjectOfExpenseDeleteTarget(null);
+      toast.success("Project of expense details deleted");
+    } finally {
+      setIsDeletingProjectOfExpense(false);
     }
   };
 
@@ -1370,7 +1864,7 @@ export default function SettingsPage() {
                     : "Edit Column"}
                 </DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
                 <div className="space-y-2">
                   <Label>Column Label</Label>
                   <Input
@@ -1437,6 +1931,7 @@ export default function SettingsPage() {
                         onChange={(e) => setNewOptions(e.target.value)}
                         placeholder="Enter options..."
                         rows={5}
+                        className="max-h-48 overflow-y-auto"
                       />
                     </div>
                   )}
@@ -1467,6 +1962,431 @@ export default function SettingsPage() {
               </div>
             </DialogContent>
           </Dialog>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="mb-2">Expense Type Details</CardTitle>
+              <CardDescription>
+                Add and edit Group, Sub-Group, Expense Ledger, and Description
+                entries.
+              </CardDescription>
+            </div>
+            <Button onClick={openAddExpenseTypeDialog} variant="outline">
+              <PlusCircle className="w-4 h-4 mr-2" />
+              Add
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Input
+              value={expenseTypeSearchQuery}
+              onChange={(e) => setExpenseTypeSearchQuery(e.target.value)}
+              placeholder="Search by Group, Sub-Group, Expense Ledger / Expense Type, Description"
+            />
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table className="min-w-[980px] table-fixed">
+              <TableHeader className="bg-gray-300">
+                <TableRow>
+                  <TableHead className="w-[18%] whitespace-normal break-words">
+                    Group
+                  </TableHead>
+                  <TableHead className="w-[18%] whitespace-normal break-words">
+                    Sub-Group
+                  </TableHead>
+                  <TableHead className="w-[24%] whitespace-normal break-words">
+                    Expense Ledger / Expense Type
+                  </TableHead>
+                  <TableHead className="w-[30%] whitespace-normal break-words">
+                    Expense Type Description
+                  </TableHead>
+                  <TableHead className="w-[10%] text-right whitespace-normal break-words">
+                    Action
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoadingExpenseTypeRows ? (
+                  <TableSkeleton colSpan={5} rows={5} />
+                ) : filteredExpenseTypeRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      {expenseTypeRows.length === 0
+                        ? "No expense type details found."
+                        : "No matching expense type details found."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedExpenseTypeRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.group}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.sub_group}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.expense_ledger}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.description || "-"}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditExpenseTypeDialog(row)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setExpenseTypeDeleteTarget(row)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {!isLoadingExpenseTypeRows && filteredExpenseTypeRows.length > 0 && (
+            <Pagination
+              currentPage={expenseTypeCurrentPage}
+              totalPages={expenseTypeTotalPages}
+              totalItems={totalExpenseTypeItems}
+              onPageChange={setExpenseTypeCurrentPage}
+              itemLabel="Expense Type Details"
+            />
+          )}
+
+          <Dialog
+            open={isExpenseTypeDialogOpen}
+            onOpenChange={setIsExpenseTypeDialogOpen}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {isEditingExpenseType
+                    ? "Edit Expense Type Details"
+                    : "Add Expense Type Details"}
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="grid gap-4 md:grid-cols-2 max-h-[70vh] overflow-y-auto pr-2">
+                <div className="space-y-2">
+                  <Label htmlFor="expense-type-group">Group</Label>
+                  <Input
+                    id="expense-type-group"
+                    value={expenseTypeForm.group}
+                    onChange={(e) =>
+                      handleExpenseTypeFormChange("group", e.target.value)
+                    }
+                    placeholder="e.g. Operational Expenses"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="expense-type-sub-group">Sub-Group</Label>
+                  <Input
+                    id="expense-type-sub-group"
+                    value={expenseTypeForm.sub_group}
+                    onChange={(e) =>
+                      handleExpenseTypeFormChange("sub_group", e.target.value)
+                    }
+                    placeholder="e.g. OE Utilities"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="expense-type-ledger">Expense Ledger / Expense Type</Label>
+                  <Input
+                    id="expense-type-ledger"
+                    value={expenseTypeForm.expense_ledger}
+                    onChange={(e) =>
+                      handleExpenseTypeFormChange(
+                        "expense_ledger",
+                        e.target.value
+                      )
+                    }
+                    placeholder="e.g. OU Electricity Charges"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="expense-type-description">Description</Label>
+                  <Textarea
+                    id="expense-type-description"
+                    value={expenseTypeForm.description}
+                    onChange={(e) =>
+                      handleExpenseTypeFormChange("description", e.target.value)
+                    }
+                    placeholder="Optional description"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleAddExpenseTypeDetails}
+                  disabled={isAddingExpenseType}
+                >
+                  {isAddingExpenseType
+                    ? isEditingExpenseType
+                      ? "Updating..."
+                      : "Adding..."
+                    : isEditingExpenseType
+                    ? "Update Expense Type Details"
+                    : "Add Expense Type Details"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <AlertDialog
+            open={Boolean(expenseTypeDeleteTarget)}
+            onOpenChange={(open) => {
+              if (!open && !isDeletingExpenseType) {
+                setExpenseTypeDeleteTarget(null);
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete expense type details?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete
+                  {expenseTypeDeleteTarget?.expense_ledger
+                    ? ` \"${expenseTypeDeleteTarget.expense_ledger}\"`
+                    : " this record"}
+                  ?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeletingExpenseType} className="cursor-pointer">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteExpenseTypeDetail}
+                  disabled={isDeletingExpenseType}
+                  className="cursor-pointer"
+                >
+                  {isDeletingExpenseType ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="mb-1">Project of Expense Details</CardTitle>
+              <CardDescription>
+                Add and edit Project of Expense and Description entries.
+              </CardDescription>
+            </div>
+            <Button onClick={openAddProjectOfExpenseDialog} variant="outline">
+              <PlusCircle className="w-4 h-4 mr-2" />
+              Add
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Input
+              value={projectOfExpenseSearchQuery}
+              onChange={(e) => setProjectOfExpenseSearchQuery(e.target.value)}
+              placeholder="Search by Project of Expense or Description"
+            />
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px] table-fixed">
+              <TableHeader className="bg-gray-300">
+                <TableRow>
+                  <TableHead className="w-[35%] whitespace-normal break-words">
+                    Project of Expense
+                  </TableHead>
+                  <TableHead className="w-[55%] whitespace-normal break-words">
+                    Project of Expense Description
+                  </TableHead>
+                  <TableHead className="w-[10%] text-right whitespace-normal break-words">
+                    Action
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoadingProjectOfExpenseRows ? (
+                  <TableSkeleton colSpan={3} rows={5} />
+                ) : filteredProjectOfExpenseRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3}>
+                      {projectOfExpenseRows.length === 0
+                        ? "No project of expense details found."
+                        : "No matching project of expense details found."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedProjectOfExpenseRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.project_of_expense}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words align-top">
+                        {row.project_description || "-"}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditProjectOfExpenseDialog(row)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setProjectOfExpenseDeleteTarget(row)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {!isLoadingProjectOfExpenseRows &&
+            filteredProjectOfExpenseRows.length > 0 && (
+              <Pagination
+                currentPage={projectOfExpenseCurrentPage}
+                totalPages={projectOfExpenseTotalPages}
+                totalItems={totalProjectOfExpenseItems}
+                onPageChange={setProjectOfExpenseCurrentPage}
+                itemLabel="Project of Expense Details"
+              />
+            )}
+
+          <Dialog
+            open={isProjectOfExpenseDialogOpen}
+            onOpenChange={setIsProjectOfExpenseDialogOpen}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {isEditingProjectOfExpense
+                    ? "Edit Project of Expense Details"
+                    : "Add Project of Expense Details"}
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="grid gap-4 max-h-[70vh] overflow-y-auto pr-2">
+                <div className="space-y-2">
+                  <Label htmlFor="project-of-expense-name">Project of Expense</Label>
+                  <Input
+                    id="project-of-expense-name"
+                    value={projectOfExpenseForm.project_of_expense}
+                    onChange={(e) =>
+                      handleProjectOfExpenseFormChange(
+                        "project_of_expense",
+                        e.target.value
+                      )
+                    }
+                    placeholder="e.g. Corporate Office"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="project-of-expense-description">
+                    Project of Expense Description
+                  </Label>
+                  <Textarea
+                    id="project-of-expense-description"
+                    value={projectOfExpenseForm.project_description}
+                    onChange={(e) =>
+                      handleProjectOfExpenseFormChange("project_description", e.target.value)
+                    }
+                    placeholder="Optional description"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleAddProjectOfExpenseDetails}
+                  disabled={isAddingProjectOfExpense}
+                >
+                  {isAddingProjectOfExpense
+                    ? isEditingProjectOfExpense
+                      ? "Updating..."
+                      : "Adding..."
+                    : isEditingProjectOfExpense
+                    ? "Update Project of Expense Details"
+                    : "Add Project of Expense Details"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <AlertDialog
+            open={Boolean(projectOfExpenseDeleteTarget)}
+            onOpenChange={(open) => {
+              if (!open && !isDeletingProjectOfExpense) {
+                setProjectOfExpenseDeleteTarget(null);
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete project of expense details?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete
+                  {projectOfExpenseDeleteTarget?.project_of_expense
+                    ? ` "${projectOfExpenseDeleteTarget.project_of_expense}"`
+                    : " this record"}
+                  ?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={isDeletingProjectOfExpense}
+                  className="cursor-pointer"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteProjectOfExpenseDetail}
+                  disabled={isDeletingProjectOfExpense}
+                  className="cursor-pointer"
+                >
+                  {isDeletingProjectOfExpense ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
       {/* </TabsContent> */}

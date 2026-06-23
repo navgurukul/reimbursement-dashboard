@@ -5,10 +5,10 @@ import { expenses } from "@/lib/db";
 import { formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { Eye, Download, Pencil, Save } from "lucide-react";
+import { Eye, Download, Pencil, Save, Filter } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { auth, profiles } from "@/lib/db";
 
@@ -40,6 +40,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Pagination, usePagination } from "@/components/pagination";
@@ -61,8 +68,22 @@ const calculateTdsAmount = (
   return Number(amount.toFixed(2));
 };
 
+const calculateActualAmount = (
+  baseAmount: number | null | undefined,
+  tdsAmount: number | null | undefined,
+  securityDepositAmount: number | null | undefined
+) => {
+  if (baseAmount === null || baseAmount === undefined) return null;
+  const amount =
+    Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
+  return Number(amount.toFixed(2));
+};
+
 const isDirectPaymentUniqueId = (value: unknown) =>
   String(value || "").trim().toLowerCase().includes("direct payment");
+
+const hasValue = (value: unknown) =>
+  value !== null && value !== undefined && value !== "";
 
 export default function PaymentProcessingOnly() {
   const { organization } = useOrgStore();
@@ -78,6 +99,33 @@ export default function PaymentProcessingOnly() {
   const [paidByBank, setPaidByBank] = useState<Record<string, string>>({});
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState({
+    expenseType: "",
+    createdBy: "",
+    email: "",
+    eventName: "",
+    location: "",
+    approvedBy: "",
+    uniqueId: "",
+    tdsDeduction: "",
+    securityDeposit: "",
+  });
+  const [filters, setFilters] = useState({
+    expenseType: "All Expense Type",
+    createdBy: "All Creators",
+    email: "All Emails",
+    eventName: "All Events",
+    location: "All Locations",
+    approvedBy: "All Approvers",
+    uniqueId: "All Unique IDs",
+    minAmount: "",
+    maxAmount: "",
+    tdsDeduction: "All TDS Deductions",
+    securityDeposit: "All Security Deposits",
+    minActualAmount: "",
+    maxActualAmount: "",
+  });
 
   const router = useRouter();
 
@@ -115,8 +163,354 @@ export default function PaymentProcessingOnly() {
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
+  const getBaseAmount = (expense: any) =>
+    Number(expense.approved_amount ?? expense.amount ?? 0);
+
+  const getTdsDeductionAmount = (expense: any) => {
+    const storedAmount = expense.tds_deduction_amount;
+    if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
+      return Number(storedAmount);
+    }
+
+    const percentage = Number(expense.tds_deduction_percentage ?? 0);
+    if (!percentage) return 0;
+
+    return calculateTdsAmount(getBaseAmount(expense), percentage) ?? 0;
+  };
+
+  const getSecurityDepositAmount = (expense: any) => {
+    if (
+      expense.security_deposit_amount === null ||
+      expense.security_deposit_amount === undefined ||
+      expense.security_deposit_amount === ""
+    ) {
+      return 0;
+    }
+
+    return Number(expense.security_deposit_amount);
+  };
+
+  const getStoredActualAmount = (expense: any) => {
+    if (
+      expense.actual_amount === null ||
+      expense.actual_amount === undefined ||
+      expense.actual_amount === ""
+    ) {
+      return null;
+    }
+
+    return Number(expense.actual_amount);
+  };
+
+  const hasTdsDeduction = (expense: any) => {
+    const storedAmount = expense.tds_deduction_amount;
+    if (storedAmount !== null && storedAmount !== undefined && storedAmount !== "") {
+      return true;
+    }
+    return Number(expense.tds_deduction_percentage ?? 0) > 0;
+  };
+
+  const getTdsDeductionPercentage = (expense: any) =>
+    Number(expense.tds_deduction_percentage ?? 0);
+
+  const getTdsDeductionOptionValue = (expense: any) => {
+    if (!hasTdsDeduction(expense)) return "N/A";
+
+    const percentage = getTdsDeductionPercentage(expense);
+    const amount = getTdsDeductionAmount(expense);
+    return `${percentage}|${amount.toFixed(2)}`;
+  };
+
+  const formatTdsDeductionOptionLabel = (optionValue: string) => {
+    if (optionValue === "N/A") return "N/A";
+
+    const [percentageText, amountText] = optionValue.split("|");
+    const percentage = Number(percentageText);
+    const amount = Number(amountText);
+    const percentageLabel =
+      Number.isFinite(percentage) && percentage > 0 ? `${percentage}%` : "—";
+
+    return `${percentageLabel} (${formatCurrency(amount)})`;
+  };
+
+  const hasSecurityDeposit = (expense: any) =>
+    !(
+      expense.security_deposit_amount === null ||
+      expense.security_deposit_amount === undefined ||
+      expense.security_deposit_amount === ""
+    );
+
+  const getActualAmountValue = (expense: any) => {
+    const storedActualAmount = getStoredActualAmount(expense);
+    if (storedActualAmount !== null) {
+      return storedActualAmount;
+    }
+
+    const actualAmount = calculateActualAmount(
+      getBaseAmount(expense),
+      getTdsDeductionAmount(expense),
+      getSecurityDepositAmount(expense)
+    );
+
+    return actualAmount ?? 0;
+  };
+
+  const getExportAmountValue = (expense: any, fallback: string) => {
+    const hasApprovedAmount = hasValue(expense.approved_amount);
+    const hasRequestedAmount = hasValue(expense.amount);
+
+    if (!hasApprovedAmount && !hasRequestedAmount) {
+      return fallback;
+    }
+
+    if (hasTdsDeduction(expense) || hasSecurityDeposit(expense)) {
+      return getActualAmountValue(expense);
+    }
+
+    return Number(hasApprovedAmount ? expense.approved_amount : expense.amount);
+  };
+
+  const expenseTypeOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.expense_type).filter(Boolean))),
+    [processingExpenses]
+  );
+  const createdByOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.creator_name).filter(Boolean))),
+    [processingExpenses]
+  );
+  const emailOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          processingExpenses
+            .map((e) => e.bank_email || e.email)
+            .filter(Boolean)
+        )
+      ),
+    [processingExpenses]
+  );
+  const eventNameOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.event_title).filter(Boolean))),
+    [processingExpenses]
+  );
+  const locationOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.location).filter(Boolean))),
+    [processingExpenses]
+  );
+  const approvedByOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.approver_name).filter(Boolean))),
+    [processingExpenses]
+  );
+  const uniqueIdOptions = useMemo(
+    () => Array.from(new Set(processingExpenses.map((e) => e.unique_id).filter(Boolean))),
+    [processingExpenses]
+  );
+  const tdsDeductionOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          processingExpenses.map((expense) => getTdsDeductionOptionValue(expense))
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        const [aPercentage, aAmount] = a.split("|");
+        const [bPercentage, bAmount] = b.split("|");
+        const percentageDiff = Number(aPercentage) - Number(bPercentage);
+        if (percentageDiff !== 0) return percentageDiff;
+        return Number(aAmount) - Number(bAmount);
+      }),
+    [processingExpenses]
+  );
+  const securityDepositOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          processingExpenses.map((expense) =>
+            hasSecurityDeposit(expense)
+              ? String(getSecurityDepositAmount(expense))
+              : "N/A"
+          )
+        )
+      ).sort((a, b) => {
+        if (a === "N/A") return 1;
+        if (b === "N/A") return -1;
+        return Number(a) - Number(b);
+      }),
+    [processingExpenses]
+  );
+
+  const filteredProcessingExpenses = useMemo(() => {
+    return processingExpenses.filter((expense) => {
+      if (
+        filters.expenseType !== "All Expense Type" &&
+        (expense.expense_type || "") !== filters.expenseType
+      ) {
+        return false;
+      }
+
+      if (
+        filters.createdBy !== "All Creators" &&
+        (expense.creator_name || "") !== filters.createdBy
+      ) {
+        return false;
+      }
+
+      if (
+        filters.email !== "All Emails" &&
+        (expense.bank_email || expense.email || "") !== filters.email
+      ) {
+        return false;
+      }
+
+      if (
+        filters.eventName !== "All Events" &&
+        (expense.event_title || "N/A") !== filters.eventName
+      ) {
+        return false;
+      }
+
+      if (
+        filters.location !== "All Locations" &&
+        (expense.location || "") !== filters.location
+      ) {
+        return false;
+      }
+
+      if (
+        filters.approvedBy !== "All Approvers" &&
+        (expense.approver_name || "") !== filters.approvedBy
+      ) {
+        return false;
+      }
+
+      if (
+        filters.uniqueId !== "All Unique IDs" &&
+        (expense.unique_id || "") !== filters.uniqueId
+      ) {
+        return false;
+      }
+
+      const amount = getBaseAmount(expense);
+      if (filters.minAmount !== "" && amount < Number(filters.minAmount)) return false;
+      if (filters.maxAmount !== "" && amount > Number(filters.maxAmount)) return false;
+
+      const tdsDeduction = getTdsDeductionAmount(expense);
+      if (
+        filters.tdsDeduction !== "All TDS Deductions" &&
+        !(
+          (filters.tdsDeduction === "N/A" && !hasTdsDeduction(expense)) ||
+          (filters.tdsDeduction !== "N/A" &&
+            filters.tdsDeduction === getTdsDeductionOptionValue(expense))
+        )
+      ) {
+        return false;
+      }
+
+      const securityDeposit = getSecurityDepositAmount(expense);
+      if (
+        filters.securityDeposit !== "All Security Deposits" &&
+        !(
+          (filters.securityDeposit === "N/A" && !hasSecurityDeposit(expense)) ||
+          (filters.securityDeposit !== "N/A" &&
+            securityDeposit === Number(filters.securityDeposit))
+        )
+      ) {
+        return false;
+      }
+
+      const actualAmount = getActualAmountValue(expense);
+      if (
+        filters.minActualAmount !== "" &&
+        actualAmount < Number(filters.minActualAmount)
+      ) {
+        return false;
+      }
+      if (
+        filters.maxActualAmount !== "" &&
+        actualAmount > Number(filters.maxActualAmount)
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [processingExpenses, filters]);
+
+  const clearFilters = () => {
+    setFilters({
+      expenseType: "All Expense Type",
+      createdBy: "All Creators",
+      email: "All Emails",
+      eventName: "All Events",
+      location: "All Locations",
+      approvedBy: "All Approvers",
+      uniqueId: "All Unique IDs",
+      minAmount: "",
+      maxAmount: "",
+      tdsDeduction: "All TDS Deductions",
+      securityDeposit: "All Security Deposits",
+      minActualAmount: "",
+      maxActualAmount: "",
+    });
+    setSearchQuery({
+      expenseType: "",
+      createdBy: "",
+      email: "",
+      eventName: "",
+      location: "",
+      approvedBy: "",
+      uniqueId: "",
+      tdsDeduction: "",
+      securityDeposit: "",
+    });
+  };
+
+  const getPaidByBankLabelForAccountType = (
+    accountType: "NGIDFC" | "FCIDCF" | "KOTAK" | ""
+  ) => {
+    if (accountType === "NGIDFC") return "NGIDFC Current";
+    if (accountType === "FCIDCF") return "FCIDFC Current";
+    if (accountType === "KOTAK") return "KOTAK";
+    return "";
+  };
+
+  const getExportFileName = (extension: "csv" | "xlsx") => {
+    const accountTypeSuffix = selectedBankType
+      ? selectedBankType.toLowerCase()
+      : "all";
+    return `payment_processing_${accountTypeSuffix}.${extension}`;
+  };
+
+  const getExpensesForSelectedAccountType = () => {
+    const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
+    if (!bankLabel) return [];
+
+    return processingExpenses.filter(
+      (expense) => (paidByBank[expense.id] || "") === bankLabel
+    );
+  };
+
+  const validateSelectedAccountTypeForExport = () => {
+    const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
+    if (!bankLabel) {
+      toast.error("Please select an account type before exporting.");
+      return false;
+    }
+
+    const expensesForSelectedType = getExpensesForSelectedAccountType();
+    if (expensesForSelectedType.length === 0) {
+      toast.error(
+        `No expenses found with “${bankLabel}” selected in the “Paid By Bank” column.`
+      );
+      return false;
+    }
+
+    return true;
+  };
+
   // Use pagination hook
-  const pagination = usePagination(processingExpenses);
+  const pagination = usePagination(filteredProcessingExpenses);
 
   useEffect(() => {
     async function fetchExpensesAndBankDetails() {
@@ -267,9 +661,9 @@ export default function PaymentProcessingOnly() {
 
   // Scroll to highlighted row when it's set
   useEffect(() => {
-    if (highlightedExpenseId && processingExpenses.length > 0) {
+    if (highlightedExpenseId && filteredProcessingExpenses.length > 0) {
       // Find which page the highlighted expense is on
-      const recordIndex = processingExpenses.findIndex(r => r.id === highlightedExpenseId);
+      const recordIndex = filteredProcessingExpenses.findIndex(r => r.id === highlightedExpenseId);
       if (recordIndex !== -1) {
         const itemsPerPage = 10;
         const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
@@ -284,9 +678,22 @@ export default function PaymentProcessingOnly() {
         }, 200);
       }
     }
-  }, [highlightedExpenseId, processingExpenses]);
+  }, [highlightedExpenseId, filteredProcessingExpenses, pagination.setCurrentPage]);
 
-  const exportToCSV = () => {
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === pagination.currentPage) return;
+
+    pagination.setCurrentPage(nextPage);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", "payments");
+    nextParams.set("page", String(nextPage));
+    nextParams.delete("expID");
+
+    router.replace(`?${nextParams.toString()}`, { scroll: false });
+  };
+
+  const exportToCSV = (expensesToExport: any[]) => {
     const headers = selectedColumns;
 
     // Descriptions for each column to match the provided Excel template
@@ -307,7 +714,7 @@ export default function PaymentProcessingOnly() {
       Remark: "Enter Remarks OPTIONAL",
     };
 
-    const rows = processingExpenses.map((exp) => {
+    const rows = expensesToExport.map((exp) => {
       const row: any[] = [];
 
       for (const col of headers) {
@@ -335,7 +742,7 @@ export default function PaymentProcessingOnly() {
             );
             break;
           case "Amount":
-            row.push(exp.approved_amount ?? exp.amount ?? "—");
+            row.push(getExportAmountValue(exp, "N/A"));
             break;
           case "Currency":
             row.push(exp.currency || "INR");
@@ -381,12 +788,12 @@ export default function PaymentProcessingOnly() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "payment_processing.csv");
+    link.setAttribute("download", getExportFileName("csv"));
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const exportToXLSX = () => {
+  const exportToXLSX = (expensesToExport: any[]) => {
     const headers = selectedColumns;
 
     const descriptionsMap: Record<string, string> = {
@@ -406,7 +813,7 @@ export default function PaymentProcessingOnly() {
       Remark: "Enter Remarks OPTIONAL",
     };
 
-    const rows = processingExpenses.map((exp) => {
+    const rows = expensesToExport.map((exp) => {
       const row: any[] = [];
 
       for (const col of headers) {
@@ -434,7 +841,7 @@ export default function PaymentProcessingOnly() {
             );
             break;
           case "Amount":
-            row.push(exp.approved_amount ?? exp.amount ?? "N/A");
+            row.push(getExportAmountValue(exp, "N/A"));
             break;
           case "Currency":
             row.push(exp.currency || "INR");
@@ -478,15 +885,15 @@ export default function PaymentProcessingOnly() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "payment_processing.xlsx";
+    link.download = getExportFileName("xlsx");
     link.click();
     URL.revokeObjectURL(url);
   };
 
   // Validate that if Transaction Date column is selected, all rows have a value_date
-  const validateTransactionDatesForExport = () => {
+  const validateTransactionDatesForExport = (expensesToExport: any[]) => {
     if (selectedColumns.includes("Transaction Date")) {
-      const missing = processingExpenses.filter((exp) => {
+      const missing = expensesToExport.filter((exp) => {
         return !exp.value_date || exp.value_date.trim() === "";
       });
       if (missing.length > 0) {
@@ -508,7 +915,16 @@ export default function PaymentProcessingOnly() {
       if (exp.id !== expenseId) return exp;
       const baseAmount = exp.approved_amount ?? exp.amount ?? 0;
       const tdsAmount = calculateTdsAmount(baseAmount, percentage);
-      const actualAmount = baseAmount - (tdsAmount ?? 0);
+      const securityDepositAmount =
+        exp.security_deposit_amount !== null &&
+        exp.security_deposit_amount !== undefined
+          ? Number(exp.security_deposit_amount)
+          : null;
+      const actualAmount = calculateActualAmount(
+        baseAmount,
+        tdsAmount,
+        securityDepositAmount
+      );
       return {
         ...exp,
         tds_deduction_percentage: percentage,
@@ -538,15 +954,19 @@ export default function PaymentProcessingOnly() {
   };
 
   const handleExportXLSX = () => {
-    if (!validateTransactionDatesForExport()) return;
-    exportToXLSX();
+    if (!validateSelectedAccountTypeForExport()) return;
+    const expensesToExport = getExpensesForSelectedAccountType();
+    if (!validateTransactionDatesForExport(expensesToExport)) return;
+    exportToXLSX(expensesToExport);
     setShowFormatModal(false);
     // setSelectedBankType("");
   };
 
   const handleExportCSV = () => {
-    if (!validateTransactionDatesForExport()) return;
-    exportToCSV();
+    if (!validateSelectedAccountTypeForExport()) return;
+    const expensesToExport = getExpensesForSelectedAccountType();
+    if (!validateTransactionDatesForExport(expensesToExport)) return;
+    exportToCSV(expensesToExport);
     setShowFormatModal(false);
     // setSelectedBankType("");
   };
@@ -730,6 +1150,10 @@ export default function PaymentProcessingOnly() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
         <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
+            <Filter className="mr-2 h-4 w-4" />
+            Filters
+          </Button>
           <Button onClick={() => setShowConfirmAllPaid(true)}>
             Mark all as Paid
           </Button>
@@ -743,6 +1167,325 @@ export default function PaymentProcessingOnly() {
           </Button>
         </div>
       </div>
+
+      {filterOpen && (
+        <div className="p-4 rounded-md border shadow-sm bg-white">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="text-sm font-medium">Expense Type</label>
+              <Select
+                value={filters.expenseType || "All Expense Type"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, expenseType: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Expense Type" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search expense type..."
+                  searchValue={searchQuery.expenseType}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, expenseType: v }))}
+                >
+                  <SelectItem value="All Expense Type">All Expense Type</SelectItem>
+                  {expenseTypeOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Created By</label>
+              <Select
+                value={filters.createdBy || "All Creators"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, createdBy: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Creators" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search creator..."
+                  searchValue={searchQuery.createdBy}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, createdBy: v }))}
+                >
+                  <SelectItem value="All Creators">All Creators</SelectItem>
+                  {createdByOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Email</label>
+              <Select
+                value={filters.email || "All Emails"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, email: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Emails" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search email..."
+                  searchValue={searchQuery.email}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, email: v }))}
+                >
+                  <SelectItem value="All Emails">All Emails</SelectItem>
+                  {emailOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.email.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Event Name</label>
+              <Select
+                value={filters.eventName || "All Events"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, eventName: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Events" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search event..."
+                  searchValue={searchQuery.eventName}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, eventName: v }))}
+                >
+                  <SelectItem value="All Events">All Events</SelectItem>
+                  {eventNameOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.eventName.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Project of Expense</label>
+              <Select
+                value={filters.location || "All Locations"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, location: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search project..."
+                  searchValue={searchQuery.location}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, location: v }))}
+                >
+                  <SelectItem value="All Locations">All Projects</SelectItem>
+                  {locationOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.location.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Approved By</label>
+              <Select
+                value={filters.approvedBy || "All Approvers"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, approvedBy: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Approvers" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search approver..."
+                  searchValue={searchQuery.approvedBy}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, approvedBy: v }))}
+                >
+                  <SelectItem value="All Approvers">All Approvers</SelectItem>
+                  {approvedByOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.approvedBy.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Unique ID</label>
+              <Select
+                value={filters.uniqueId || "All Unique IDs"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, uniqueId: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Unique IDs" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search unique ID..."
+                  searchValue={searchQuery.uniqueId}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, uniqueId: v }))}
+                >
+                  <SelectItem value="All Unique IDs">All Unique IDs</SelectItem>
+                  {uniqueIdOptions
+                    .filter((opt) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">TDS Deduction</label>
+              <Select
+                value={filters.tdsDeduction || "All TDS Deductions"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, tdsDeduction: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All TDS Deductions" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search TDS..."
+                  searchValue={searchQuery.tdsDeduction}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, tdsDeduction: v }))}
+                >
+                  <SelectItem value="All TDS Deductions">All TDS Deductions</SelectItem>
+                  {tdsDeductionOptions
+                    .filter((opt) => formatTdsDeductionOptionLabel(opt).toLowerCase().includes(searchQuery.tdsDeduction.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {formatTdsDeductionOptionLabel(option)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Security Deposit</label>
+              <Select
+                value={filters.securityDeposit || "All Security Deposits"}
+                onValueChange={(v) =>
+                  setFilters((prev) => ({ ...prev, securityDeposit: v }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectValue placeholder="All Security Deposits" />
+                </SelectTrigger>
+                <SelectContent
+                  searchPlaceholder="Search security deposit..."
+                  searchValue={searchQuery.securityDeposit}
+                  onSearchChange={(v) => setSearchQuery((prev) => ({ ...prev, securityDeposit: v }))}
+                >
+                  <SelectItem value="All Security Deposits">All Security Deposits</SelectItem>
+                  {securityDepositOptions
+                    .filter((opt) => (opt === "N/A" ? "N/A" : formatCurrency(Number(opt))).toLowerCase().includes(searchQuery.securityDeposit.toLowerCase()))
+                    .map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2 bg-white"
+                  value={filters.minAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, minAmount: e.target.value }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2 bg-white"
+                  value={filters.maxAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Actual Amount Range</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  className="w-full border rounded px-3 py-2 bg-white"
+                  value={filters.minActualAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, minActualAmount: e.target.value }))
+                  }
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  className="w-full border rounded px-3 py-2 bg-white"
+                  value={filters.maxActualAmount}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, maxActualAmount: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setFilterOpen(false)}>
+              Close
+            </Button>
+            <Button variant="outline" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
         <Table className="w-full text-sm">
@@ -760,7 +1503,7 @@ export default function PaymentProcessingOnly() {
               <TableHead className="px-4 py-3 text-center">
                 Event Name
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Location</TableHead>
+              <TableHead className="px-4 py-3 text-center">Project of Expense</TableHead>
               <TableHead className="px-4 py-3 text-center">
                 Approved By
               </TableHead>
@@ -783,6 +1526,9 @@ export default function PaymentProcessingOnly() {
               <TableHead className="px-4 py-3 text-center">Amount</TableHead>
               <TableHead className="px-4 py-3 text-center">
                 TDS Deduction
+              </TableHead>
+              <TableHead className="px-4 py-3 text-center">
+                Security Deposit 
               </TableHead>
               <TableHead className="px-4 py-3 text-center">
                 Actual Amount
@@ -837,14 +1583,16 @@ export default function PaymentProcessingOnly() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={20} rows={5} />
-            ) : processingExpenses.length === 0 ? (
+              <TableSkeleton colSpan={24} rows={5} />
+            ) : filteredProcessingExpenses.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={20}
+                  colSpan={24}
                   className="text-center py-6 text-muted-foreground"
                 >
-                  No expenses in payment processing.
+                  {processingExpenses.length === 0
+                    ? "No expenses in payment processing."
+                    : "No expenses match selected filters."}
                 </TableCell>
               </TableRow>
             ) : (
@@ -998,7 +1746,7 @@ export default function PaymentProcessingOnly() {
                     />
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    {formatCurrency(expense.approved_amount)}
+                    {formatCurrency(expense.amount)}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <div className="flex flex-col items-center gap-1">
@@ -1036,16 +1784,19 @@ export default function PaymentProcessingOnly() {
                     </div>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    {formatCurrency(
-                      (expense.approved_amount ?? 0) -
-                        (expense.tds_deduction_amount ??
-                          (expense.tds_deduction_percentage
-                            ? calculateTdsAmount(
-                                expense.approved_amount ?? expense.amount ?? 0,
-                                expense.tds_deduction_percentage
-                              ) ?? 0
-                            : 0))
-                    )}
+                    {expense.security_deposit_amount !== null &&
+                    expense.security_deposit_amount !== undefined
+                      ? formatCurrency(Number(expense.security_deposit_amount))
+                      : "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {(() => {
+                      const actualAmount = getActualAmountValue(expense);
+
+                      return actualAmount !== null
+                        ? formatCurrency(actualAmount)
+                        : "N/A";
+                    })()}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {expense.currency || "INR"}
@@ -1224,12 +1975,12 @@ export default function PaymentProcessingOnly() {
           </TableBody>
         </Table>
       </div>
-      {processingExpenses.length > 0 && (
+      {filteredProcessingExpenses.length > 0 && (
         <Pagination
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
           totalItems={pagination.totalItems}
-          onPageChange={pagination.setCurrentPage}
+          onPageChange={handlePageChange}
           isLoading={loading}
           itemLabel="Expenses"
         />
@@ -1240,6 +1991,7 @@ export default function PaymentProcessingOnly() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Select Account Type</DialogTitle>
+              Only expenses with a selected bank in 'Paid by Bank' will be exported.
           </DialogHeader>
 
           <div className="space-y-6">
@@ -1272,6 +2024,7 @@ export default function PaymentProcessingOnly() {
             </Button>
             <Button
               onClick={() => {
+                if (!validateSelectedAccountTypeForExport()) return;
                 setShowExportModal(false);
                 setShowColumnsModal(true);
               }}

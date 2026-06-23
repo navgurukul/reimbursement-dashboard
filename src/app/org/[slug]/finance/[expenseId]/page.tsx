@@ -67,6 +67,17 @@ const calculateTdsAmount = (
   return Number(amount.toFixed(2));
 };
 
+const calculateActualAmount = (
+  baseAmount: number | null | undefined,
+  tdsAmount: number | null | undefined,
+  securityDepositAmount: number | null | undefined
+) => {
+  if (baseAmount === null || baseAmount === undefined) return null;
+  const amount =
+    Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
+  return Number(amount.toFixed(2));
+};
+
 const normalizeCustomFieldKey = (key: string) =>
   key.toLowerCase().replace(/[\s_-]+/g, "");
 
@@ -158,6 +169,8 @@ export default function FinanceExpenseDetails() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [tdsUpdating, setTdsUpdating] = useState(false);
+  const [securityDepositUpdating, setSecurityDepositUpdating] = useState(false);
+  const [securityDepositInput, setSecurityDepositInput] = useState("");
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
@@ -300,6 +313,16 @@ export default function FinanceExpenseDetails() {
     fetchExpense();
   }, [expenseId, slug]);
 
+  useEffect(() => {
+    const amount = expense?.security_deposit_amount;
+    if (amount === null || amount === undefined) {
+      setSecurityDepositInput("");
+      return;
+    }
+
+    setSecurityDepositInput(String(amount));
+  }, [expense?.id, expense?.security_deposit_amount]);
+
   const handleStartEdit = () => {
     if (!expense) return;
 
@@ -358,8 +381,16 @@ export default function FinanceExpenseDetails() {
     const recalculatedTdsAmount = tdsPercentageValue
       ? calculateTdsAmount(baseAmountForCalculations, tdsPercentageValue)
       : existingTdsAmount;
-    const recalculatedActualAmount = Number(
-      (baseAmountForCalculations - (recalculatedTdsAmount ?? 0)).toFixed(2)
+    const securityDepositAmount =
+      expense.security_deposit_amount !== null &&
+      expense.security_deposit_amount !== undefined
+        ? Number(expense.security_deposit_amount)
+        : null;
+    // Calculate TDS on approved amount (if available) but deduct it from the original expense amount.
+    const recalculatedActualAmount = calculateActualAmount(
+      amountValue,
+      recalculatedTdsAmount,
+      securityDepositAmount
     );
     const locationValue = editForm.location.trim() || null;
     const updatedCustomFields = updateLocationCustomFields(
@@ -558,7 +589,17 @@ export default function FinanceExpenseDetails() {
     const percentage = value ? Number.parseInt(value, 10) : null;
     const baseAmount = expense.approved_amount ?? expense.amount ?? 0;
     const tdsAmount = calculateTdsAmount(baseAmount, percentage);
-    const actualAmount = baseAmount - (tdsAmount ?? 0);
+    const securityDepositAmount =
+      expense.security_deposit_amount !== null &&
+      expense.security_deposit_amount !== undefined
+        ? Number(expense.security_deposit_amount)
+        : null;
+    // Use original expense amount as the base for actual amount deduction
+    const actualAmount = calculateActualAmount(
+      expense.amount ?? 0,
+      tdsAmount,
+      securityDepositAmount
+    );
 
     const prevExpense = expense;
     const updatedExpense = {
@@ -588,6 +629,58 @@ export default function FinanceExpenseDetails() {
     setTdsUpdating(false);
   };
 
+  const handleSecurityDepositSave = async () => {
+    if (!expense || typeof expenseId !== "string") return;
+
+    const trimmedValue = securityDepositInput.trim();
+    let securityDepositAmount: number | null = null;
+
+    if (trimmedValue !== "") {
+      const parsedAmount = Number(trimmedValue);
+      if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+        toast.error("Please enter a valid non-negative Security Deposit amount");
+        return;
+      }
+      securityDepositAmount = Number(parsedAmount.toFixed(2));
+    }
+
+    const baseAmount = expense.approved_amount ?? expense.amount ?? 0;
+    const derivedTdsAmount =
+      expense.tds_deduction_amount ??
+      calculateTdsAmount(baseAmount, expense.tds_deduction_percentage);
+    // Actual amount deduction must use the original expense amount
+    const recalculatedActualAmount = calculateActualAmount(
+      expense.amount ?? baseAmount,
+      derivedTdsAmount,
+      securityDepositAmount
+    );
+
+    const prevExpense = expense;
+    const updatedExpense = {
+      ...expense,
+      security_deposit_amount: securityDepositAmount,
+      actual_amount: recalculatedActualAmount,
+    };
+
+    setExpense(updatedExpense);
+    setSecurityDepositUpdating(true);
+
+    const { error } = await supabase
+      .from("expense_new")
+      .update({
+        security_deposit_amount: securityDepositAmount,
+        actual_amount: recalculatedActualAmount,
+      })
+      .eq("id", expenseId);
+
+    if (error) {
+      setExpense(prevExpense);
+      toast.error("Failed to update Security Deposit");
+    }
+
+    setSecurityDepositUpdating(false);
+  };
+
   if (!loading && !expense) {
     return <div className="p-6 text-red-600">Expense not found</div>;
   }
@@ -603,11 +696,14 @@ export default function FinanceExpenseDetails() {
     ? expense?.tds_deduction_amount ??
       calculateTdsAmount(tdsBaseAmount, tdsPercentage)
     : expense?.tds_deduction_amount ?? null;
+  const securityDepositAmount =
+    expense?.security_deposit_amount !== null &&
+    expense?.security_deposit_amount !== undefined
+      ? Number(expense.security_deposit_amount)
+      : null;
   const actualAmount =
     expense?.actual_amount ??
-    (tdsBaseAmount !== null && tdsBaseAmount !== undefined
-      ? Number(tdsBaseAmount) - (tdsAmount ?? 0)
-      : null);
+    calculateActualAmount(expense?.amount ?? tdsBaseAmount, tdsAmount, securityDepositAmount);
   const expenseCreditPerson =
     expense?.expense_credit_person ||
     getCustomFieldValue(expense?.custom_fields, "expense_credit_person") ||
@@ -704,6 +800,7 @@ export default function FinanceExpenseDetails() {
                           loading ||
                           processing ||
                           tdsUpdating ||
+                          securityDepositUpdating ||
                           savingDetails ||
                           isEditingDetails
                         }
@@ -725,6 +822,7 @@ export default function FinanceExpenseDetails() {
                           loading ||
                           processing ||
                           tdsUpdating ||
+                          securityDepositUpdating ||
                           savingDetails ||
                           !isEditingDetails
                         }
@@ -781,7 +879,7 @@ export default function FinanceExpenseDetails() {
                     </TableRow>
                   )}
                   <TableRow>
-                    <TableHead>Location of Expense</TableHead>
+                    <TableHead>Project of Expense</TableHead>
                     <TableCell>
                       {isEditingDetails ? (
                         <select
@@ -900,7 +998,7 @@ export default function FinanceExpenseDetails() {
                           className="border px-2 py-1 rounded bg-white text-sm"
                           value={tdsPercentage ? String(tdsPercentage) : ""}
                           onChange={(e) => handleTdsChange(e.target.value)}
-                          disabled={tdsUpdating || processing}
+                          disabled={tdsUpdating || securityDepositUpdating || processing}
                         >
                           <option value="">Select %</option>
                           {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
@@ -917,6 +1015,47 @@ export default function FinanceExpenseDetails() {
                             : tdsAmount
                               ? formatCurrency(tdsAmount)
                               : "N/A"}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Security Deposit Deduction</TableHead>
+                    <TableCell>
+                      <div className="flex flex-col items-start gap-2">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="max-w-[140px]"
+                            value={securityDepositInput}
+                            onChange={(e) => setSecurityDepositInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleSecurityDepositSave();
+                              }
+                            }}
+                            disabled={processing || tdsUpdating || securityDepositUpdating}
+                            placeholder="Enter amount"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleSecurityDepositSave}
+                            disabled={processing || tdsUpdating || securityDepositUpdating}
+                          >
+                            {securityDepositUpdating ? (
+                              <Spinner size="sm" className="mr-2" />
+                            ) : null}
+                            Save
+                          </Button>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {securityDepositAmount !== null
+                            ? formatCurrency(securityDepositAmount)
+                            : "N/A"}
                         </span>
                       </div>
                     </TableCell>

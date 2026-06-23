@@ -86,7 +86,11 @@ export default function RecordsDetails() {
 
   const bankTabParam = searchParams.get("activeTab");
   const activeTab =
-    bankTabParam === "ngidfc" || bankTabParam === "fcidfc" ? bankTabParam : "all";
+    bankTabParam === "ngidfc" ||
+    bankTabParam === "fcidfc" ||
+    bankTabParam === "kotak"
+      ? bankTabParam
+      : "all";
 
   const [expense, setExpense] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -178,10 +182,19 @@ export default function RecordsDetails() {
     ? expense?.tds_deduction_amount ??
       Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
     : expense?.tds_deduction_amount ?? null;
+  const securityDepositAmount =
+    expense?.security_deposit_amount !== null &&
+    expense?.security_deposit_amount !== undefined
+      ? Number(expense.security_deposit_amount)
+      : null;
   const actualAmount =
     expense?.actual_amount ??
     (tdsBaseAmount !== null && tdsBaseAmount !== undefined
-      ? Number(tdsBaseAmount) - (tdsAmount ?? 0)
+      ? Number(
+          (Number(tdsBaseAmount) -
+            (tdsAmount ?? 0) -
+            (securityDepositAmount ?? 0)).toFixed(2)
+        )
       : null);
 
   return (
@@ -194,6 +207,8 @@ export default function RecordsDetails() {
             const query = new URLSearchParams();
             query.set("tab", "records");
             query.set("activeTab", activeTab);
+            const page = searchParams.get("page");
+            if (page) query.set("page", page);
             if (expenseId) query.set("expID", expenseId as string);
             router.push(`/org/${slug}/finance?${query.toString()}`);
           }}
@@ -249,7 +264,7 @@ export default function RecordsDetails() {
                     </TableRow>
                   )}
                   <TableRow>
-                    <TableHead>Location of Expense</TableHead>
+                    <TableHead>Project of Expense</TableHead>
                     <TableCell>{expense.location || "N/A"}</TableCell>
                   </TableRow>
                   <TableRow>
@@ -284,6 +299,14 @@ export default function RecordsDetails() {
                       ) : (
                         "N/A"
                       )}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Security Deposit Deduction</TableHead>
+                    <TableCell>
+                      {securityDepositAmount !== null
+                        ? formatCurrency(securityDepositAmount)
+                        : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
