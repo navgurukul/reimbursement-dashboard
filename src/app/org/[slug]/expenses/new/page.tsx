@@ -3241,8 +3241,17 @@ export default function NewExpensePage() {
                         >
                           <SelectValue placeholder="Please Select" />
                         </SelectTrigger>
-                        <SelectContent>
-                          {col.options.map((option: any) => {
+                        <SelectContent
+                          searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                          searchValue={searchQueries[col.key] || ""}
+                          onSearchChange={(v) => handleSearchChange(col.key, v)}
+                        >
+                          {col.options
+                            .filter((option: any) => {
+                              const label = typeof option === "string" ? option : option.label;
+                              return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                            })
+                            .map((option: any) => {
                             const value =
                               typeof option === "string"
                                 ? option
@@ -4076,8 +4085,17 @@ export default function NewExpensePage() {
                               >
                                 <SelectValue placeholder="Please Select" />
                               </SelectTrigger>
-                              <SelectContent>
-                                {col.options.map((option: any) => {
+                              <SelectContent
+                                searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                searchValue={searchQueries[`${col.key}-${id}`] || ""}
+                                onSearchChange={(v) => handleSearchChange(`${col.key}-${id}`, v)}
+                              >
+                                {col.options
+                                  .filter((option: any) => {
+                                    const label = typeof option === "string" ? option : option.label;
+                                    return String(label).toLowerCase().includes((searchQueries[`${col.key}-${id}`] || "").toLowerCase());
+                                  })
+                                  .map((option: any) => {
                                   const value =
                                     typeof option === "string"
                                       ? option
