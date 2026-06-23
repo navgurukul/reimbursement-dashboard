@@ -95,6 +95,73 @@ interface ColumnConfig {
 
 type ApproverOption = { value: string; label: string };
 
+function SearchableDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchPlaceholder,
+}: {
+  options: string[];
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const filtered = options.filter((opt) =>
+    opt.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  return (
+    <div className="space-y-2">
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-9 w-full justify-between font-normal text-left">
+            <span className="truncate">
+              {value || placeholder}
+            </span>
+            <span className="text-muted-foreground">▾</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-[280px] p-2" align="start">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder={searchPlaceholder}
+            className="h-9"
+          />
+          <DropdownMenuSeparator className="my-2" />
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                No options found
+              </p>
+            ) : (
+              filtered.map((opt) => (
+                <DropdownMenuItem
+                  key={opt}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onChange(opt);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <span>{opt}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 function MultiSelect({
   options,
   value,
@@ -141,6 +208,7 @@ function MultiSelect({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
             placeholder={searchPlaceholder}
             className="h-9"
           />
@@ -1480,17 +1548,17 @@ export default function SettingsPage() {
                 >
                   <div className="space-y-1 min-w-[180px] max-w-[220px]">
                     <Label className="text-xs">Expense Type</Label>
-                    <Input
+                    <SearchableDropdown
+                      options={expenseTypeOptions}
                       value={displayLabel}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         handleUpdateExpenseTypeApproverMappingExpenseType(
                           expenseType,
-                          e.target.value
+                          val
                         )
                       }
-                      placeholder="Type expense type"
-                      className="font-medium"
-                      list="expense-type-options"
+                      placeholder="Select expense type"
+                      searchPlaceholder="Search expense type..."
                     />
                   </div>
                   <div className="flex-1 flex flex-wrap gap-4">
@@ -1582,13 +1650,6 @@ export default function SettingsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {expenseTypeOptions.length > 0 && (
-                    <datalist id="expense-type-options">
-                      {expenseTypeOptions.map((opt) => (
-                        <option key={opt} value={opt} />
-                      ))}
-                    </datalist>
-                  )}
                   <div className="space-y-3">
                     {displayRows.length === 0 ? (
                       <p className="text-sm text-muted-foreground py-4 text-center">
@@ -1702,33 +1763,33 @@ export default function SettingsPage() {
                   <div className="space-y-3 min-w-[200px] max-w-[260px]">
                     <div className="space-y-1">
                       <Label className="text-xs">Location</Label>
-                      <Input
+                      <SearchableDropdown
+                        options={locationOptions}
                         value={displayLabel}
-                        onChange={(e) =>
+                        onChange={(val) =>
                           handleUpdateLocationApproverMappingLocation(
                             location,
-                            e.target.value
+                            val
                           )
                         }
-                        placeholder="Type location name"
-                        className="font-medium"
-                        list="location-options"
+                        placeholder="Select location"
+                        searchPlaceholder="Search location..."
                       />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">
                         Expense Type (optional)
                       </Label>
-                      <Input
+                      <SearchableDropdown
+                        options={expenseTypeOptions}
                         value={expenseTypeValue}
-                        onChange={(e) =>
+                        onChange={(val) =>
                           updateMappingEntry(location, {
-                            expense_type: e.target.value.trim() || undefined,
+                            expense_type: val.trim() || undefined,
                           })
                         }
-                        placeholder="Type expense type"
-                        className="font-medium"
-                        list="location-expense-type-options"
+                        placeholder="Select expense type"
+                        searchPlaceholder="Search expense type..."
                       />
                     </div>
                   </div>
@@ -1819,20 +1880,6 @@ export default function SettingsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {locationOptions.length > 0 && (
-                    <datalist id="location-options">
-                      {locationOptions.map((opt) => (
-                        <option key={opt} value={opt} />
-                      ))}
-                    </datalist>
-                  )}
-                  {expenseTypeOptions.length > 0 && (
-                    <datalist id="location-expense-type-options">
-                      {expenseTypeOptions.map((opt) => (
-                        <option key={opt} value={opt} />
-                      ))}
-                    </datalist>
-                  )}
                   <div className="space-y-3">
                     {displayRows.length === 0 ? (
                       <p className="text-sm text-muted-foreground py-4 text-center">
