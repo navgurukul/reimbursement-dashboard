@@ -4443,7 +4443,7 @@ export default function NewExpensePage() {
                                 e.target.value
                               )
                             }
-                            className={`w-full min-h-[50px] ${errors[col.key]
+                            className={`w-full min-h-[75px] ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                               }`}
