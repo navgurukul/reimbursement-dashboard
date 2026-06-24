@@ -104,7 +104,11 @@ export default function EditExpensePage() {
 
           // Extract location options
           const locationCol = settings.expense_columns.find(
-            (col: any) => col.key === "location" || col.key === "location_of_expense"
+            (col: any) =>
+              col.key === "location" ||
+              col.key === "location_of_expense" ||
+              col.key === "project_of_expense" ||
+              col.label?.trim().toLowerCase() === "project of expense"
           );
           if (locationCol && locationCol.options) {
             const options = locationCol.options;
@@ -306,7 +310,9 @@ export default function EditExpensePage() {
     return (
       normalizedKey === "location" ||
       normalizedKey === "location of expense" ||
-      normalizedKey === "location_of_expense"
+      normalizedKey === "location_of_expense" ||
+      normalizedKey === "project of expense" ||
+      normalizedKey === "project_of_expense"
     );
   });
 
@@ -410,7 +416,7 @@ export default function EditExpensePage() {
 
               {locationFieldKey && (
                 <div className="space-y-2">
-                  <Label htmlFor={locationFieldKey}>Location of Expense</Label>
+                  <Label htmlFor={locationFieldKey}>Project of Expense</Label>
                   {locationOptions.length > 0 ? (
                     <Select
                       value={formData[locationFieldKey] || ""}
@@ -460,7 +466,9 @@ export default function EditExpensePage() {
               const isLocationField =
                 normalizedKey === "location" ||
                 normalizedKey === "location of expense" ||
-                normalizedKey === "location_of_expense";
+                normalizedKey === "location_of_expense" ||
+                normalizedKey === "project of expense" ||
+                normalizedKey === "project_of_expense";
               const isExpenseCreditPersonField =
                 normalizedKey === "expense credit person" ||
                 key.toLowerCase() === "expense_credit_person";
