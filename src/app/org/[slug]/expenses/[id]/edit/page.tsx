@@ -446,6 +446,30 @@ export default function EditExpensePage() {
                   )}
                 </div>
               )}
+              {/* Expense Approver Name */}
+              {formData.approver_name && (
+                <div className="space-y-2">
+                  <Label htmlFor="approver_name">Approver</Label>
+                  <Input
+                    id="approver_name"
+                    value={formData.approver_name}
+                    disabled
+                    className="bg-muted disabled:opacity-100 disabled:text-foreground disabled:cursor-not-allowed"
+                  />
+                </div>
+              )}
+
+              {formData.second_approver_name && (
+                <div className="space-y-2">
+                  <Label htmlFor="second_approver_name">Second Approver</Label>
+                  <Input
+                    id="second_approver_name"
+                    value={formData.second_approver_name}
+                    disabled
+                    className="bg-muted disabled:opacity-100 disabled:text-foreground disabled:cursor-not-allowed"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Custom fields */}
