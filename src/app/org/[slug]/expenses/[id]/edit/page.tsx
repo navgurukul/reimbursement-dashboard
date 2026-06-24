@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings, expenses, expenseHistory, vouchers, organizations, profiles } from "@/lib/db";
@@ -152,6 +152,11 @@ export default function EditExpensePage() {
           amount: data.amount,
           date: new Date(data.date).toISOString().split("T")[0],
           ...data.custom_fields,
+          approver: data.approver_id || data.custom_fields?.approver || "",
+          approver_name:
+            data.custom_fields?.approver_name ||
+            data.approver?.full_name ||
+            "",
         });
 
         // Check if expense has voucher
@@ -280,6 +285,193 @@ export default function EditExpensePage() {
     reader.readAsDataURL(file);
   };
 
+  const getApproverOptionLabel = useCallback(
+    (value?: string) => {
+      if (!value) return "";
+      const option = approverOptions.find((opt) => opt.value === value);
+      if (option) return option.label;
+      const approverCol = columns.find((c) => c.key === "approver");
+      const opts = (approverCol?.options || []) as Array<
+        string | { value: string; label: string }
+      >;
+      const opt = opts.find((o) =>
+        (typeof o === "string" ? o : o.value) === value
+      );
+      if (!opt) return "";
+      return typeof opt === "string" ? opt : opt.label || opt.value;
+    },
+    [approverOptions, columns]
+  );
+
+  const getApproverDropdownOptions = useCallback(() => {
+    const locationFieldKeyMatch = Object.keys(expense?.custom_fields || {}).find((key) => {
+      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+      return (
+        normalizedKey === "location" ||
+        normalizedKey === "location of expense" ||
+        normalizedKey === "location_of_expense" ||
+        normalizedKey === "project of expense" ||
+        normalizedKey === "project_of_expense"
+      );
+    });
+
+    const selectedLocation = locationFieldKeyMatch
+      ? typeof formData[locationFieldKeyMatch] === "string"
+        ? formData[locationFieldKeyMatch]
+        : ""
+      : "";
+    const selectedExpenseType =
+      typeof formData.expense_type === "string" ? formData.expense_type : "";
+
+    const approverCol = columns.find((c) => c.key === "approver");
+    const allOptions = (approverCol?.options || approverOptions) as Array<
+      string | { value: string; label: string }
+    >;
+
+    const normalizeIds = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      return Array.isArray(value)
+        ? value.filter((v) => v && v.trim())
+        : value.trim()
+          ? [value]
+          : [];
+    };
+
+    const normalizeNames = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+      return value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    };
+
+    const resolveIdsFromNames = (value?: string | string[]) => {
+      const names = normalizeNames(value);
+      if (!names.length) return [] as string[];
+
+      const mapByLabel = new Map<string, string>();
+      allOptions.forEach((option) => {
+        const optValue = typeof option === "string" ? option : option.value;
+        const optLabel = typeof option === "string" ? option : option.label;
+        mapByLabel.set(optLabel.toLowerCase(), optValue);
+      });
+      approverOptions.forEach((option) => {
+        mapByLabel.set(option.label.toLowerCase(), option.value);
+      });
+
+      return names
+        .map((name) => mapByLabel.get(name.toLowerCase()))
+        .filter((v): v is string => Boolean(v));
+    };
+
+    const expenseTypeEntry =
+      selectedExpenseType && expenseTypeApproverMapping?.length
+        ? expenseTypeApproverMapping.find(
+          (m) => m.expense_type === selectedExpenseType
+        )
+        : undefined;
+
+    let locationEntry: any = undefined;
+    if (selectedLocation && locationApproverMapping?.length) {
+      const candidates = locationApproverMapping.filter(
+        (m) => m.location === selectedLocation
+      );
+
+      if (candidates.length) {
+        if (selectedExpenseType) {
+          locationEntry =
+            candidates.find(
+              (m) =>
+                typeof m.expense_type === "string" &&
+                m.expense_type === selectedExpenseType
+            ) || locationEntry;
+        }
+
+        if (!locationEntry) {
+          locationEntry =
+            candidates.find(
+              (m) =>
+                m.expense_type === undefined ||
+                (typeof m.expense_type === "string" &&
+                  m.expense_type.trim() === "")
+            ) || candidates[0];
+        }
+      }
+    }
+
+    const effectiveExpenseTypeEntry =
+      expenseTypeEntry && expenseTypeEntry.enabled !== false
+        ? expenseTypeEntry
+        : undefined;
+    const effectiveLocationEntry =
+      locationEntry && locationEntry.enabled !== false
+        ? locationEntry
+        : undefined;
+
+    const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
+
+    const mappedIds = activeEntry
+      ? Array.from(
+        new Set([
+          ...(normalizeIds(activeEntry.approver_id).length
+            ? normalizeIds(activeEntry.approver_id)
+            : resolveIdsFromNames(activeEntry.approver_name)),
+          ...(normalizeIds(activeEntry.second_approver_id).length
+            ? normalizeIds(activeEntry.second_approver_id)
+            : resolveIdsFromNames(activeEntry.second_approver_name)),
+        ])
+      )
+      : [];
+
+    const optionLookup = new Map<string, { value: string; label: string }>();
+    allOptions.forEach((option) => {
+      const value = typeof option === "string" ? option : option.value;
+      const label = typeof option === "string" ? option : option.label;
+      optionLookup.set(value, { value, label });
+    });
+    approverOptions.forEach((option) => {
+      optionLookup.set(option.value, option);
+    });
+
+    const options = mappedIds.map((id) => {
+      const mapped = optionLookup.get(id);
+      if (mapped) return mapped;
+      return { value: id, label: getApproverOptionLabel(id) || id };
+    });
+
+    const addFallbackOption = (id?: string, name?: string) => {
+      if (!id || options.some((opt) => opt.value === id)) return;
+      options.push({
+        value: id,
+        label: name || getApproverOptionLabel(id) || id,
+      });
+    };
+
+    addFallbackOption(
+      typeof formData.approver === "string" ? formData.approver : "",
+      typeof formData.approver_name === "string" ? formData.approver_name : ""
+    );
+    addFallbackOption(
+      typeof formData.second_approver_id === "string"
+        ? formData.second_approver_id
+        : "",
+      typeof formData.second_approver_name === "string"
+        ? formData.second_approver_name
+        : ""
+    );
+
+    return options;
+  }, [
+    expense,
+    formData,
+    columns,
+    approverOptions,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    getApproverOptionLabel,
+  ]);
+
   const handleInputChange = (
     key: string,
     value: string | number | boolean | string[]
@@ -289,6 +481,10 @@ export default function EditExpensePage() {
         ...prev,
         [key]: value,
       };
+
+      if (key === "approver" && typeof value === "string") {
+        next.approver_name = getApproverOptionLabel(value);
+      }
 
       // Clear approvers so the auto-fill effect can take over
       const locationFieldKeyMatch = Object.keys(expense?.custom_fields || {}).find((k) => {
@@ -399,6 +595,20 @@ export default function EditExpensePage() {
     const nextSecondName = getApproverName(nextSecondId);
 
     setFormData((prev) => {
+      if (prev.approver) {
+        if (
+          prev.second_approver_name === nextSecondName &&
+          prev.second_approver_id === nextSecondId
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          second_approver_id: nextSecondId,
+          second_approver_name: nextSecondName,
+        };
+      }
+
       if (
         prev.approver_name === nextApproverName &&
         prev.second_approver_name === nextSecondName &&
@@ -574,6 +784,8 @@ export default function EditExpensePage() {
       .toLowerCase()
       .includes("direct payment");
 
+  const approverDropdownOptions = getApproverDropdownOptions();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -676,28 +888,26 @@ export default function EditExpensePage() {
                 />
               </div>
 
-              {/* Expense Approver Name */}
-              {formData.approver_name && (
+              {approverDropdownOptions.length > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="approver_name">Approver</Label>
-                  <Input
-                    id="approver_name"
-                    value={formData.approver_name}
-                    disabled
-                    className="disabled:opacity-100 disabled:text-foreground disabled:cursor-not-allowed"
-                  />
-                </div>
-              )}
-
-              {formData.second_approver_name && (
-                <div className="space-y-2">
-                  <Label htmlFor="second_approver_name">Second Approver</Label>
-                  <Input
-                    id="second_approver_name"
-                    value={formData.second_approver_name}
-                    disabled
-                    className="disabled:opacity-100 disabled:text-foreground disabled:cursor-not-allowed"
-                  />
+                  <Label htmlFor="approver">Approver</Label>
+                  <Select
+                    value={formData.approver || ""}
+                    onValueChange={(value: string) =>
+                      handleInputChange("approver", value)
+                    }
+                  >
+                    <SelectTrigger id="approver" className="w-full">
+                      <SelectValue placeholder="Select approver" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {approverDropdownOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>
