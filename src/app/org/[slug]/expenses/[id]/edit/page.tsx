@@ -357,6 +357,39 @@ export default function EditExpensePage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
+              {locationFieldKey && (
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor={locationFieldKey}>Project of Expense</Label>
+                  {locationOptions.length > 0 ? (
+                    <Select
+                      value={formData[locationFieldKey] || ""}
+                      onValueChange={(value: string) =>
+                        handleInputChange(locationFieldKey, value)
+                      }
+                    >
+                      <SelectTrigger id={locationFieldKey} className="w-full">
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locationOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id={locationFieldKey}
+                      value={formData[locationFieldKey] || ""}
+                      onChange={(e) =>
+                        handleInputChange(locationFieldKey, e.target.value)
+                      }
+                    />
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="expense_type">Expense Type</Label>
                 {expenseTypeOptions.length > 0 ? (
@@ -414,38 +447,6 @@ export default function EditExpensePage() {
                 />
               </div>
 
-              {locationFieldKey && (
-                <div className="space-y-2">
-                  <Label htmlFor={locationFieldKey}>Project of Expense</Label>
-                  {locationOptions.length > 0 ? (
-                    <Select
-                      value={formData[locationFieldKey] || ""}
-                      onValueChange={(value: string) =>
-                        handleInputChange(locationFieldKey, value)
-                      }
-                    >
-                      <SelectTrigger id={locationFieldKey} className="w-full">
-                        <SelectValue placeholder="Select location" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locationOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id={locationFieldKey}
-                      value={formData[locationFieldKey] || ""}
-                      onChange={(e) =>
-                        handleInputChange(locationFieldKey, e.target.value)
-                      }
-                    />
-                  )}
-                </div>
-              )}
               {/* Expense Approver Name */}
               {formData.approver_name && (
                 <div className="space-y-2">
@@ -454,7 +455,7 @@ export default function EditExpensePage() {
                     id="approver_name"
                     value={formData.approver_name}
                     disabled
-                    className="bg-muted disabled:opacity-100 disabled:text-foreground disabled:cursor-not-allowed"
+                    className="disabled:opacity-100 disabled:text-foreground disabled:cursor-not-allowed"
                   />
                 </div>
               )}
@@ -466,7 +467,7 @@ export default function EditExpensePage() {
                     id="second_approver_name"
                     value={formData.second_approver_name}
                     disabled
-                    className="bg-muted disabled:opacity-100 disabled:text-foreground disabled:cursor-not-allowed"
+                    className="disabled:opacity-100 disabled:text-foreground disabled:cursor-not-allowed"
                   />
                 </div>
               )}
