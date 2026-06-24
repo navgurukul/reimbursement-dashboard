@@ -16,12 +16,89 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Save, Upload, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import supabase from "@/lib/supabase";
 import ReceiptPreview from "@/components/ReceiptPreview";
 import VoucherPreview from "@/components/VoucherPreview";
+
+function SearchableDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchPlaceholder,
+}: {
+  options: string[];
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const filtered = options.filter((opt) =>
+    opt.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  return (
+    <div className="space-y-2">
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-9 w-full justify-between font-normal text-left px-3">
+            <span className="truncate">
+              {value || placeholder}
+            </span>
+            <span className="text-muted-foreground opacity-50">▾</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent 
+          className="p-2" 
+          align="start"
+          style={{ width: "var(--radix-dropdown-menu-trigger-width)" }}
+        >
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder={searchPlaceholder}
+            className="h-9 mb-2"
+          />
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                No options found
+              </p>
+            ) : (
+              filtered.map((opt) => (
+                <DropdownMenuItem
+                  key={opt}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onChange(opt);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <span>{opt}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
 
 export default function EditExpensePage() {
   const router = useRouter();
@@ -361,23 +438,13 @@ export default function EditExpensePage() {
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor={locationFieldKey}>Project of Expense</Label>
                   {locationOptions.length > 0 ? (
-                    <Select
+                    <SearchableDropdown
+                      options={locationOptions}
                       value={formData[locationFieldKey] || ""}
-                      onValueChange={(value: string) =>
-                        handleInputChange(locationFieldKey, value)
-                      }
-                    >
-                      <SelectTrigger id={locationFieldKey} className="w-full">
-                        <SelectValue placeholder="Select location" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locationOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(value) => handleInputChange(locationFieldKey, value)}
+                      placeholder="Select location"
+                      searchPlaceholder="Search project..."
+                    />
                   ) : (
                     <Input
                       id={locationFieldKey}
@@ -393,23 +460,13 @@ export default function EditExpensePage() {
               <div className="space-y-2">
                 <Label htmlFor="expense_type">Expense Type</Label>
                 {expenseTypeOptions.length > 0 ? (
-                  <Select
+                  <SearchableDropdown
+                    options={expenseTypeOptions}
                     value={formData.expense_type || ""}
-                    onValueChange={(value: string) =>
-                      handleInputChange("expense_type", value)
-                    }
-                  >
-                    <SelectTrigger id="expense_type" className="w-full">
-                      <SelectValue placeholder="Select expense type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {expenseTypeOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(value) => handleInputChange("expense_type", value)}
+                    placeholder="Select expense type"
+                    searchPlaceholder="Search expense type..."
+                  />
                 ) : (
                   <Input
                     id="expense_type"
