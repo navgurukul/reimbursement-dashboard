@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses, expenseHistory, vouchers } from "@/lib/db";
+import { orgSettings, expenses, expenseHistory, vouchers, organizations, profiles } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,8 +60,8 @@ function SearchableDropdown({
             <span className="text-muted-foreground opacity-50">▾</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent 
-          className="p-2" 
+        <DropdownMenuContent
+          className="p-2"
           align="start"
           style={{ width: "var(--radix-dropdown-menu-trigger-width)" }}
         >
@@ -119,6 +119,9 @@ export default function EditExpensePage() {
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [expenseCreditPersonOptions, setExpenseCreditPersonOptions] = useState<string[]>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
+  const [locationApproverMapping, setLocationApproverMapping] = useState<any[]>([]);
+  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<any[]>([]);
+  const [approverOptions, setApproverOptions] = useState<Array<{ value: string; label: string }>>([]);
 
   const getDisplayFieldLabel = (key: string) => {
     const labelMap: Record<string, string> = {
@@ -177,6 +180,35 @@ export default function EditExpensePage() {
                 setExpenseTypeOptions(options as string[]);
               }
             }
+          }
+
+          if (settings.expense_type_approver_mapping && Array.isArray(settings.expense_type_approver_mapping)) {
+            setExpenseTypeApproverMapping(settings.expense_type_approver_mapping);
+          }
+          if (settings.location_approver_mapping && Array.isArray(settings.location_approver_mapping)) {
+            setLocationApproverMapping(settings.location_approver_mapping);
+          }
+
+          // Fetch organization members to populate approver names
+          const { data: membersData } = await organizations.getOrganizationMembers(orgId);
+          if (membersData) {
+            const approvers = membersData.filter((member) =>
+              ["owner", "admin", "manager"].includes(member.role)
+            );
+            const { data: profilesData } = await profiles.getByIds(
+              approvers.map((a) => a.user_id)
+            );
+            const approverNamesMap = new Map(
+              profilesData?.map((p) => [
+                p.user_id,
+                p.full_name || p.email,
+              ]) || []
+            );
+            const mappedOptions = approvers.map((a) => ({
+              value: a.user_id,
+              label: approverNamesMap.get(a.user_id) || a.user_id,
+            }));
+            setApproverOptions(mappedOptions);
           }
 
           // Extract location options
@@ -252,31 +284,167 @@ export default function EditExpensePage() {
     key: string,
     value: string | number | boolean | string[]
   ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
+      };
+
+      // Clear approvers so the auto-fill effect can take over
+      const locationFieldKeyMatch = Object.keys(expense?.custom_fields || {}).find((k) => {
+        const normalizedKey = k.replace(/_/g, " ").toLowerCase();
+        return (
+          normalizedKey === "location" ||
+          normalizedKey === "location of expense" ||
+          normalizedKey === "location_of_expense" ||
+          normalizedKey === "project of expense" ||
+          normalizedKey === "project_of_expense"
+        );
+      });
+
+      if (key === "expense_type" || (locationFieldKeyMatch && key === locationFieldKeyMatch)) {
+        next.approver = "";
+        next.approver_name = "";
+        next.second_approver_id = "";
+        next.second_approver_name = "";
+      }
+
+      return next;
+    });
   };
+
+  useEffect(() => {
+    if (!expense) return;
+    const locationFieldKeyMatch = Object.keys(expense.custom_fields || {}).find((key) => {
+      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+      return (
+        normalizedKey === "location" ||
+        normalizedKey === "location of expense" ||
+        normalizedKey === "location_of_expense" ||
+        normalizedKey === "project of expense" ||
+        normalizedKey === "project_of_expense"
+      );
+    });
+
+    const selectedLocation = locationFieldKeyMatch ? (typeof formData[locationFieldKeyMatch] === "string" ? formData[locationFieldKeyMatch] : "") : "";
+    const selectedExpenseType = typeof formData.expense_type === "string" ? formData.expense_type : "";
+
+    if (!selectedLocation && !selectedExpenseType) return;
+
+    // 1) Try expense-type specific mapping first (global, not tied to location)
+    const expenseTypeEntry =
+      selectedExpenseType && expenseTypeApproverMapping?.length
+        ? expenseTypeApproverMapping.find(
+          (m) => m.expense_type === selectedExpenseType
+        )
+        : undefined;
+
+    // 2) Then look for location-based mappings.
+    let locationEntry: any = undefined;
+    if (selectedLocation && locationApproverMapping?.length) {
+      const candidates = locationApproverMapping.filter(
+        (m) => m.location === selectedLocation
+      );
+
+      if (candidates.length) {
+        if (selectedExpenseType) {
+          locationEntry =
+            candidates.find(
+              (m) =>
+                typeof m.expense_type === "string" &&
+                m.expense_type === selectedExpenseType
+            ) || locationEntry;
+        }
+
+        if (!locationEntry) {
+          locationEntry =
+            candidates.find(
+              (m) =>
+                m.expense_type === undefined ||
+                (typeof m.expense_type === "string" &&
+                  m.expense_type.trim() === "")
+            ) || candidates[0];
+        }
+      }
+    }
+
+    const effectiveExpenseTypeEntry =
+      expenseTypeEntry && expenseTypeEntry.enabled !== false
+        ? expenseTypeEntry
+        : undefined;
+    const effectiveLocationEntry =
+      locationEntry && locationEntry.enabled !== false
+        ? locationEntry
+        : undefined;
+
+    // Make Location mapping take precedence over Expense Type mapping
+    const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
+
+    const getFirst = (val: string | string[] | undefined) => {
+      if (!val) return "";
+      if (Array.isArray(val)) return val[0] || "";
+      const parts = val.split(",").map(v => v.trim()).filter(Boolean);
+      return parts[0] || "";
+    };
+
+    const getApproverName = (id: string) => {
+      if (!id) return "";
+      const option = approverOptions.find(opt => opt.value === id);
+      return option ? option.label : id;
+    };
+
+    const nextApproverId = getFirst(activeEntry?.approver_id);
+    const nextSecondId = getFirst(activeEntry?.second_approver_id);
+    const nextApproverName = getApproverName(nextApproverId);
+    const nextSecondName = getApproverName(nextSecondId);
+
+    setFormData((prev) => {
+      if (
+        prev.approver_name === nextApproverName &&
+        prev.second_approver_name === nextSecondName &&
+        prev.approver === nextApproverId &&
+        prev.second_approver_id === nextSecondId
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        approver: nextApproverId,
+        approver_name: nextApproverName,
+        second_approver_id: nextSecondId,
+        second_approver_name: nextSecondName,
+      };
+    });
+
+  }, [
+    formData.expense_type,
+    expense,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    approverOptions,
+    // Using stringified formData custom fields would be safer, but relying on expense_type and location value is enough:
+    Object.keys(expense?.custom_fields || {}).map(k => formData[k]).join('|'),
+  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-  
+
     try {
       // Get current user from Supabase
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
         throw new Error("User not authenticated. Please log in again.");
       }
-  
+
       // Get username for history entries using improved extraction
       try {
         const authRaw = localStorage.getItem('auth-storage');
         const authStorage = JSON.parse(authRaw || '{}');
-        
+
         // Try multiple paths and nested data
         let userName = "Unknown User";
-        
+
         if (authStorage?.state?.user?.profile?.full_name) {
           userName = authStorage.state.user.profile.full_name;
         } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
@@ -286,7 +454,7 @@ export default function EditExpensePage() {
             userName = match[1];
           }
         }
-                
+
         // Check what fields have changed
         if (expense.expense_type !== formData.expense_type) {
           // Log expense type change
@@ -299,7 +467,7 @@ export default function EditExpensePage() {
             formData.expense_type
           );
         }
-  
+
         if (expense.amount !== parseFloat(formData.amount)) {
           // Log amount change
           await expenseHistory.addEntry(
@@ -311,7 +479,7 @@ export default function EditExpensePage() {
             formData.amount.toString()
           );
         }
-  
+
         // Add custom fields
         Object.entries(formData).forEach(([key, value]) => {
           if (key !== "expense_type" && key !== "amount" && key !== "date") {
@@ -332,7 +500,7 @@ export default function EditExpensePage() {
         console.error('Error extracting username from localStorage:', error);
         // If username extraction fails, still update the expense without history entries
       }
-  
+
       // Prepare expense data
       const updates: any = {
         expense_type: formData.expense_type,
@@ -340,25 +508,29 @@ export default function EditExpensePage() {
         date: formData.date,
         custom_fields: {},
       };
-  
+
       // Add custom fields
       Object.entries(formData).forEach(([key, value]) => {
         if (key !== "expense_type" && key !== "amount" && key !== "date") {
-          updates.custom_fields[key] = value;
+          if (key === "approver") {
+            updates.approver_id = value;
+          } else {
+            updates.custom_fields[key] = value;
+          }
         }
       });
-  
+
       // Update expense with receipt if provided
       const { error } = await expenses.update(
         expenseId,
         updates,
         receiptFile || undefined
       );
-  
+
       if (error) {
         throw error;
       }
-  
+
       toast.success("Expense updated successfully");
       router.push(`/org/${slug}/expenses/${expenseId}`);
     } catch (error: any) {
@@ -409,7 +581,7 @@ export default function EditExpensePage() {
           variant="link"
           onClick={() => router.push(`/org/${slug}/expenses/${expenseId}`)}
         >
-          <ArrowLeft/>
+          <ArrowLeft />
           Back to Expense
         </Button>
         <Button onClick={handleSubmit} disabled={saving}>
