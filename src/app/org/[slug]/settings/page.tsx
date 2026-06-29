@@ -1516,7 +1516,7 @@ export default function SettingsPage() {
               return (
                 <div
                   key={index}
-                  className="flex flex-col gap-4 p-3 border rounded-lg"
+                  className="flex flex-col gap-4 p-4 border border-black shadow-sm rounded-lg"
                 >
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="space-y-1 min-w-[200px] flex-1 max-w-[300px]">
@@ -1600,7 +1600,30 @@ export default function SettingsPage() {
                   </div>
 
                   {(selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
-                    <div className="w-full pt-4 border-t border-border/110 flex-col gap-6">
+                    <div className="w-full pt-4 border-t border-border/110 flex flex-col gap-6">
+                      {selectedExpenseTypes.length > 0 && (
+                        <div className="w-full">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Expense Types ({selectedExpenseTypes.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedExpenseTypes.map((type) => (
+                              <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {type}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    updateMappingEntry(index, {
+                                      expense_type: selectedExpenseTypes.filter((t) => t !== type),
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {(selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
                         <div className="flex flex-wrap gap-x-12 gap-y-6">
                           {selectedApproverIds.length > 0 && (
@@ -1654,29 +1677,6 @@ export default function SettingsPage() {
                           )}
                         </div>
                       )}
-
-                      {selectedExpenseTypes.length > 0 && (
-                        <div className="w-full">
-                          <p className="text-sm font-medium mb-2 mt-2 text-foreground/80">
-                            Expense Types ({selectedExpenseTypes.length}) :
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedExpenseTypes.map((type) => (
-                              <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
-                                {type}
-                                <X
-                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
-                                  onClick={() => {
-                                    updateMappingEntry(index, {
-                                      expense_type: selectedExpenseTypes.filter((t) => t !== type),
-                                    });
-                                  }}
-                                />
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1688,7 +1688,7 @@ export default function SettingsPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle>Expense Type → Approver Mapping</CardTitle>
+                      <CardTitle>Expense Type → Approver Mapping ( Without Campus Wise )</CardTitle>
                       <CardDescription>
                         Set approver and second approver for each expense type.
                         These will auto-fill on the new expense form when a user
@@ -1816,7 +1816,7 @@ export default function SettingsPage() {
               return (
                 <div
                   key={index}
-                  className="flex flex-col gap-4 p-3 border rounded-lg"
+                  className="flex flex-col gap-4 p-4 border border-black rounded-lg"
                 >
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="space-y-3 min-w-[200px] flex-1 max-w-[300px]">
@@ -2026,11 +2026,11 @@ export default function SettingsPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle>Location → Approver Mapping</CardTitle>
+                      <CardTitle>Project of Expenses → Approver Mapping (Campus Wise)</CardTitle>
                       <CardDescription>
-                        Set approver and second approver for each location of
+                        Set approver and second approver for each project of
                         expense. These will auto-fill on the new expense form
-                        when a user selects a location.
+                        when a user selects a project.
                       </CardDescription>
                     </div>
                     <Button
