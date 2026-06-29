@@ -253,8 +253,8 @@ export default function NewExpensePage() {
   // Location of expense → approver mapping (from org settings); used to auto-fill approver and second approver
   const [locationApproverMapping, setLocationApproverMapping] = useState<
     {
-      location: string;
-      expense_type?: string;
+      location: string | string[];
+      expense_type?: string | string[];
       approver_name?: string | string[];
       second_approver_name?: string | string[];
       approver_id?: string | string[];
@@ -266,7 +266,7 @@ export default function NewExpensePage() {
   // Expense type → approver mapping (from org settings); used to auto-fill approver and second approver
   const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
     {
-      expense_type: string;
+      expense_type: string | string[];
       approver_name?: string | string[];
       second_approver_name?: string | string[];
       approver_id?: string | string[];
@@ -1108,15 +1108,22 @@ export default function NewExpensePage() {
     const expenseTypeEntry =
       selectedExpenseType && expenseTypeApproverMapping?.length
         ? expenseTypeApproverMapping.find(
-          (m) => m.expense_type === selectedExpenseType
+          (m) => {
+            if (Array.isArray(m.expense_type)) {
+              return m.expense_type.includes(selectedExpenseType);
+            }
+            return m.expense_type === selectedExpenseType;
+          }
         )
         : undefined;
 
     // 2) Then look for location-based mappings.
     let locationEntry: (typeof locationApproverMapping)[number] | undefined;
     if (selectedLocation && locationApproverMapping?.length) {
-      const candidates = locationApproverMapping.filter(
-        (m) => m.location === selectedLocation
+      const candidates = locationApproverMapping.filter((m) =>
+        Array.isArray(m.location)
+          ? m.location.includes(selectedLocation)
+          : m.location === selectedLocation
       );
 
       if (candidates.length) {
@@ -1124,8 +1131,10 @@ export default function NewExpensePage() {
           locationEntry =
             candidates.find(
               (m) =>
-                typeof m.expense_type === "string" &&
-                m.expense_type === selectedExpenseType
+                (typeof m.expense_type === "string" &&
+                m.expense_type === selectedExpenseType) ||
+                (Array.isArray(m.expense_type) &&
+                m.expense_type.includes(selectedExpenseType))
             ) || locationEntry;
         }
 
@@ -1135,7 +1144,9 @@ export default function NewExpensePage() {
               (m) =>
                 m.expense_type === undefined ||
                 (typeof m.expense_type === "string" &&
-                  m.expense_type.trim() === "")
+                  m.expense_type.trim() === "") ||
+                (Array.isArray(m.expense_type) &&
+                  m.expense_type.length === 0)
             ) || candidates[0];
         }
       }

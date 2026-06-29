@@ -368,14 +368,21 @@ export default function EditExpensePage() {
     const expenseTypeEntry =
       selectedExpenseType && expenseTypeApproverMapping?.length
         ? expenseTypeApproverMapping.find(
-          (m) => m.expense_type === selectedExpenseType
+          (m) => {
+            if (Array.isArray(m.expense_type)) {
+              return m.expense_type.includes(selectedExpenseType);
+            }
+            return m.expense_type === selectedExpenseType;
+          }
         )
         : undefined;
 
     let locationEntry: any = undefined;
     if (selectedLocation && locationApproverMapping?.length) {
-      const candidates = locationApproverMapping.filter(
-        (m) => m.location === selectedLocation
+      const candidates = locationApproverMapping.filter((m) =>
+        Array.isArray(m.location)
+          ? m.location.includes(selectedLocation)
+          : m.location === selectedLocation
       );
 
       if (candidates.length) {
@@ -383,8 +390,10 @@ export default function EditExpensePage() {
           locationEntry =
             candidates.find(
               (m) =>
-                typeof m.expense_type === "string" &&
-                m.expense_type === selectedExpenseType
+                (typeof m.expense_type === "string" &&
+                m.expense_type === selectedExpenseType) ||
+                (Array.isArray(m.expense_type) &&
+                m.expense_type.includes(selectedExpenseType))
             ) || locationEntry;
         }
 
@@ -394,7 +403,9 @@ export default function EditExpensePage() {
               (m) =>
                 m.expense_type === undefined ||
                 (typeof m.expense_type === "string" &&
-                  m.expense_type.trim() === "")
+                  m.expense_type.trim() === "") ||
+                (Array.isArray(m.expense_type) &&
+                  m.expense_type.length === 0)
             ) || candidates[0];
         }
       }
@@ -531,7 +542,12 @@ export default function EditExpensePage() {
     const expenseTypeEntry =
       selectedExpenseType && expenseTypeApproverMapping?.length
         ? expenseTypeApproverMapping.find(
-          (m) => m.expense_type === selectedExpenseType
+          (m) => {
+            if (Array.isArray(m.expense_type)) {
+              return m.expense_type.includes(selectedExpenseType);
+            }
+            return m.expense_type === selectedExpenseType;
+          }
         )
         : undefined;
 
@@ -547,8 +563,10 @@ export default function EditExpensePage() {
           locationEntry =
             candidates.find(
               (m) =>
-                typeof m.expense_type === "string" &&
-                m.expense_type === selectedExpenseType
+                (typeof m.expense_type === "string" &&
+                m.expense_type === selectedExpenseType) ||
+                (Array.isArray(m.expense_type) &&
+                m.expense_type.includes(selectedExpenseType))
             ) || locationEntry;
         }
 
@@ -558,7 +576,9 @@ export default function EditExpensePage() {
               (m) =>
                 m.expense_type === undefined ||
                 (typeof m.expense_type === "string" &&
-                  m.expense_type.trim() === "")
+                  m.expense_type.trim() === "") ||
+                (Array.isArray(m.expense_type) &&
+                  m.expense_type.length === 0)
             ) || candidates[0];
         }
       }

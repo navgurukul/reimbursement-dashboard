@@ -119,7 +119,7 @@ export interface DatabaseError {
 
 /** Mapping: expense type → primary approver and optional second approver */
 export interface ExpenseTypeApproverMappingEntry {
-  expense_type: string;
+  expense_type: string | string[];
   approver_id: string | string[];
   approver_name?: string | string[]; // custom name when person is not in org dropdown
   second_approver_id?: string | string[];
@@ -130,8 +130,8 @@ export interface ExpenseTypeApproverMappingEntry {
 
 /** Mapping: location of expense (optionally narrowed by expense type) → primary approver and optional second approver */
 export interface LocationApproverMappingEntry {
-  location: string;
-  expense_type?: string;
+  location: string | string[];
+  expense_type?: string | string[];
   approver_name?: string | string[];
   second_approver_name?: string | string[];
   // Optional IDs for future use (stored as JSON, safe to include)
