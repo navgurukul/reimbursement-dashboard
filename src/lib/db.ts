@@ -815,7 +815,7 @@ export const profiles = {
       // Then get the download URL
       const { data: urlData, error: urlError } = await supabase.storage
         .from("user-signatures")
-        .createSignedUrl(data.signature_url, 3600); // URL valid for 1 hour
+        .createSignedUrl(data.signature_url, 3153600000); // URL valid for 100 years
 
       if (urlError) {
         return { url: null, error: urlError };
@@ -1702,7 +1702,7 @@ export const expenses = {
   ): Promise<{ url: string; error: StorageError | null }> => {
     const { data, error } = await supabase.storage
       .from("expense-receipts")
-      .createSignedUrl(path, 3600); // URL valid for 1 hour
+      .createSignedUrl(path, 3153600000); // URL valid for 100 years
 
     if (error) {
       return { url: "", error: error };
@@ -2279,7 +2279,7 @@ export const vouchers = {
   ): Promise<{ url: string; error: StorageError | null }> => {
     const { data, error } = await supabase.storage
       .from("user-signatures")
-      .createSignedUrl(path, 3600); // URL valid for 1 hour
+      .createSignedUrl(path, 3153600000); // URL valid for 100 years
 
     if (error) {
       return { url: "", error: error };
@@ -2294,7 +2294,7 @@ export const vouchers = {
   getPdfUrl: async (path: string) => {
     const { data, error } = await supabase.storage
       .from("voucher-pdfs")
-      .createSignedUrl(path, 3600);
+      .createSignedUrl(path, 3153600000); // URL valid for 100 years
     if (error) return { url: "", error };
     return { url: data.signedUrl, error: null };
   },
@@ -2335,7 +2335,7 @@ export const voucherAttachments = {
   ): Promise<{ url: string; error: any }> => {
     const { data, error } = await supabase.storage
       .from("voucher-ss-payment")
-      .createSignedUrl(path, 3600); // URL valid for 1 hour
+      .createSignedUrl(path, 3153600000); // URL valid for 100 years
 
     if (error) {
       return { url: "", error: error };
@@ -2350,7 +2350,7 @@ export const voucherAttachments = {
   getPdfUrl: async (path: string) => {
     const { data, error } = await supabase.storage
       .from("voucher-pdfs")
-      .createSignedUrl(path, 3600);
+      .createSignedUrl(path, 3153600000); // URL valid for 100 years
     if (error) return { url: "", error };
     return { url: data.signedUrl, error: null };
   },
