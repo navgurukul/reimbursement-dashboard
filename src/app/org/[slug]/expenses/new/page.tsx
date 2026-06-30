@@ -1128,26 +1128,24 @@ export default function NewExpensePage() {
 
       if (candidates.length) {
         if (selectedExpenseType) {
-          locationEntry =
-            candidates.find(
-              (m) =>
-                (typeof m.expense_type === "string" &&
-                m.expense_type === selectedExpenseType) ||
-                (Array.isArray(m.expense_type) &&
-                m.expense_type.includes(selectedExpenseType))
-            ) || locationEntry;
+          locationEntry = candidates.find(
+            (m) =>
+              (typeof m.expense_type === "string" &&
+              m.expense_type === selectedExpenseType) ||
+              (Array.isArray(m.expense_type) &&
+              m.expense_type.includes(selectedExpenseType))
+          );
         }
 
         if (!locationEntry) {
-          locationEntry =
-            candidates.find(
-              (m) =>
-                m.expense_type === undefined ||
-                (typeof m.expense_type === "string" &&
-                  m.expense_type.trim() === "") ||
-                (Array.isArray(m.expense_type) &&
-                  m.expense_type.length === 0)
-            ) || candidates[0];
+          locationEntry = candidates.find(
+            (m) =>
+              m.expense_type === undefined ||
+              (typeof m.expense_type === "string" &&
+                m.expense_type.trim() === "") ||
+              (Array.isArray(m.expense_type) &&
+                m.expense_type.length === 0)
+          );
         }
       }
     }
@@ -1160,7 +1158,7 @@ export default function NewExpensePage() {
       locationEntry && locationEntry.enabled !== false
         ? locationEntry
         : undefined;
-    const activeEntry = effectiveExpenseTypeEntry || effectiveLocationEntry;
+    const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
 
     const mappedIds =
       fieldKey === "second_approver_id"

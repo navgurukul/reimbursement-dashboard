@@ -387,26 +387,24 @@ export default function EditExpensePage() {
 
       if (candidates.length) {
         if (selectedExpenseType) {
-          locationEntry =
-            candidates.find(
-              (m) =>
-                (typeof m.expense_type === "string" &&
-                m.expense_type === selectedExpenseType) ||
-                (Array.isArray(m.expense_type) &&
-                m.expense_type.includes(selectedExpenseType))
-            ) || locationEntry;
+          locationEntry = candidates.find(
+            (m) =>
+              (typeof m.expense_type === "string" &&
+              m.expense_type === selectedExpenseType) ||
+              (Array.isArray(m.expense_type) &&
+              m.expense_type.includes(selectedExpenseType))
+          );
         }
 
         if (!locationEntry) {
-          locationEntry =
-            candidates.find(
-              (m) =>
-                m.expense_type === undefined ||
-                (typeof m.expense_type === "string" &&
-                  m.expense_type.trim() === "") ||
-                (Array.isArray(m.expense_type) &&
-                  m.expense_type.length === 0)
-            ) || candidates[0];
+          locationEntry = candidates.find(
+            (m) =>
+              m.expense_type === undefined ||
+              (typeof m.expense_type === "string" &&
+                m.expense_type.trim() === "") ||
+              (Array.isArray(m.expense_type) &&
+                m.expense_type.length === 0)
+          );
         }
       }
     }
@@ -560,26 +558,24 @@ export default function EditExpensePage() {
 
       if (candidates.length) {
         if (selectedExpenseType) {
-          locationEntry =
-            candidates.find(
-              (m) =>
-                (typeof m.expense_type === "string" &&
-                m.expense_type === selectedExpenseType) ||
-                (Array.isArray(m.expense_type) &&
-                m.expense_type.includes(selectedExpenseType))
-            ) || locationEntry;
+          locationEntry = candidates.find(
+            (m) =>
+              (typeof m.expense_type === "string" &&
+              m.expense_type === selectedExpenseType) ||
+              (Array.isArray(m.expense_type) &&
+              m.expense_type.includes(selectedExpenseType))
+          );
         }
 
         if (!locationEntry) {
-          locationEntry =
-            candidates.find(
-              (m) =>
-                m.expense_type === undefined ||
-                (typeof m.expense_type === "string" &&
-                  m.expense_type.trim() === "") ||
-                (Array.isArray(m.expense_type) &&
-                  m.expense_type.length === 0)
-            ) || candidates[0];
+          locationEntry = candidates.find(
+            (m) =>
+              m.expense_type === undefined ||
+              (typeof m.expense_type === "string" &&
+                m.expense_type.trim() === "") ||
+              (Array.isArray(m.expense_type) &&
+                m.expense_type.length === 0)
+          );
         }
       }
     }
