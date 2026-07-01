@@ -1687,7 +1687,7 @@ export default function PaymentRecords() {
         const serialNumber = record.serialNumber ?? index + 1;
         const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
         const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
-        const ledgerAmount = formatAmountValue(actualAmount ?? baseAmount);
+        const ledgerAmount = formatAmountValue(record.amount);
 
         return [
           [
@@ -1733,18 +1733,20 @@ export default function PaymentRecords() {
           ? "Expense SBI FC"
           : "Expense";
 
+      const expenseAmount = formatAmountValue(record.amount);
+
       const rowsForRecord: any[] = [
         [
           voucherDate,
           voucherTypeName,
           "",
           record.expense_type || "—",
-          formatAmountValue(baseAmount),
+          expenseAmount,
           "Dr",
           narration,
           "Project",
           record.location || "N/A",
-          formatAmountValue(baseAmount),
+          expenseAmount,
         ],
         [
           "",
@@ -1988,7 +1990,7 @@ export default function PaymentRecords() {
         const serialNumber = record.serialNumber ?? index + 1;
         const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
         const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
-        const ledgerAmount = formatAmountValue(actualAmount ?? baseAmount);
+        const ledgerAmount = formatAmountValue(record.amount);
 
         return [
           [
@@ -2034,18 +2036,21 @@ export default function PaymentRecords() {
           ? "Expense SBI FC"
           : "Expense";
 
+      const expenseAmount = formatAmountValue(record.amount);
       const rowsForRecord: any[] = [
         [
           voucherDate,
           voucherTypeName,
           "",
           record.expense_type || "—",
-          formatAmountValue(baseAmount),
+          // formatAmountValue(baseAmount),
+          expenseAmount,
           "Dr",
           narration,
           "Project",
           record.location || "N/A",
-          formatAmountValue(baseAmount),
+          expenseAmount,
+          // formatAmountValue(baseAmount),
         ],
         [
           "",
