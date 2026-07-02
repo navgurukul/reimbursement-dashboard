@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import supabase from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -382,10 +383,12 @@ export default function PaymentProcessingDetails() {
         {!loading && (
           <div className="flex gap-2 mt-2 md:mt-0">
             <Button
-              onClick={handleFinanceApprove}
-              disabled={processing}
+              // onClick={handleFinanceApprove}
+              // disabled={processing}
+              // className="cursor-pointer"
               variant="success"
-              className="cursor-pointer"
+              onClick={() => toast.warning("You can't approve expenses here. Back to Payment Processing tab and use Mark All as Paid or click the Mark as Paid in the Actions column.", { duration: 10000, style: { background: '#f7ea76ff', color: '#040404ff', border: 'none' } })}
+              className="opacity-50 !cursor-not-allowed"
             >
               Approve
             </Button>
