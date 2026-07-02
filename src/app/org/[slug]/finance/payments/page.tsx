@@ -99,6 +99,7 @@ export default function PaymentProcessingOnly() {
   const [paidByBank, setPaidByBank] = useState<Record<string, string>>({});
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
+  const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState({
     expenseType: "",
@@ -1069,32 +1070,47 @@ export default function PaymentProcessingOnly() {
       return;
     }
 
-    // Check if all expenses have a bank selected
-    const missingBank = processingExpenses.filter((exp) => !paidByBank[exp.id] || paidByBank[exp.id] === "");
+    const expensesToProcess = Array.from(selectedExpenses);
+    if (expensesToProcess.length === 0) {
+      toast.warning("No expense selected. Please select at least one checkbox to mark the expense(s) as paid.");
+      return;
+    }
+
+    // Check if all selected expenses have a bank selected
+    const missingBank = expensesToProcess.filter((id) => !paidByBank[id] || paidByBank[id] === "");
     if (missingBank.length > 0) {
-      toast.error("Please select a bank from the “Paid By Bank” column before marking the expense as paid.");
+      toast.error("Please choose a bank for the selected expenses before marking them as paid.");
       return;
     }
 
     try {
       setLoading(true);
-      const ids = processingExpenses.map((e) => e.id);
 
-      await markExpensesPaidWithTimestamp(ids, paidByBank);
+      await markExpensesPaidWithTimestamp(expensesToProcess, paidByBank);
 
       // Send email notifications to all creators
       try {
         await Promise.allSettled(
-          processingExpenses.map((expense) => sendPaymentProcessedEmail(expense))
+          expensesToProcess.map((id) => {
+            const expense = processingExpenses.find((exp) => exp.id === id);
+            return expense ? sendPaymentProcessedEmail(expense) : Promise.resolve();
+          })
         );
       } catch (notifyErr) {
         console.error("Failed to send payment notifications:", notifyErr);
         // Don't fail the mark as paid operation if email fails
       }
 
-      toast.success("All expenses marked as paid. Email notifications have been sent to the expense creators.");
-      setProcessingExpenses([]); // clear current list (will reload on refresh)
-      setPaidByBank({}); // clear paid by bank data
+      toast.success("Selected expenses marked as paid. Email notifications have been sent to the expense creators.");
+      
+      setProcessingExpenses((prev) => prev.filter((exp) => !selectedExpenses.has(exp.id)));
+      
+      setPaidByBank((prev) => {
+        const next = { ...prev };
+        expensesToProcess.forEach(id => delete next[id]);
+        return next;
+      });
+      setSelectedExpenses(new Set());
     } catch (error: any) {
       toast.error("Failed to mark as paid", { description: error.message });
     } finally {
@@ -1491,6 +1507,26 @@ export default function PaymentProcessingOnly() {
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300">
             <TableRow>
+              <TableHead className="px-4 py-3 text-center">
+                <Checkbox
+                className="border border-black cursor-pointer"
+                  checked={
+                    filteredProcessingExpenses.length > 0 &&
+                    filteredProcessingExpenses.every((exp) => selectedExpenses.has(exp.id))
+                  }
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      const newSelected = new Set(selectedExpenses);
+                      filteredProcessingExpenses.forEach((exp) => newSelected.add(exp.id));
+                      setSelectedExpenses(newSelected);
+                    } else {
+                      const newSelected = new Set(selectedExpenses);
+                      filteredProcessingExpenses.forEach((exp) => newSelected.delete(exp.id));
+                      setSelectedExpenses(newSelected);
+                    }
+                  }}
+                />
+              </TableHead>
               <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
               <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
               <TableHead className="px-4 py-3 text-center">
@@ -1583,11 +1619,11 @@ export default function PaymentProcessingOnly() {
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={24} rows={5} />
+              <TableSkeleton colSpan={25} rows={5} />
             ) : filteredProcessingExpenses.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={24}
+                  colSpan={25}
                   className="text-center py-6 text-muted-foreground"
                 >
                   {processingExpenses.length === 0
@@ -1606,6 +1642,21 @@ export default function PaymentProcessingOnly() {
                       : ""
                   }`}
                 >
+                  <TableCell className="px-4 py-3 text-center">
+                    <Checkbox
+                      className="border border-black cursor-pointer"
+                      checked={selectedExpenses.has(expense.id)}
+                      onCheckedChange={(checked) => {
+                        const newSelected = new Set(selectedExpenses);
+                        if (checked) {
+                          newSelected.add(expense.id);
+                        } else {
+                          newSelected.delete(expense.id);
+                        }
+                        setSelectedExpenses(newSelected);
+                      }}
+                    />
+                  </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {pagination.getItemNumber(index)}
                   </TableCell>
@@ -2124,14 +2175,14 @@ export default function PaymentProcessingOnly() {
           </div>
         </DialogContent>
       </Dialog>
-      {/* Confirm Mark All as Paid */}
+      {/* Confirm Mark as Paid */}
       <Dialog open={showConfirmAllPaid} onOpenChange={setShowConfirmAllPaid}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark all as Paid?</DialogTitle>
+            <DialogTitle>Mark as Paid?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600">
-            This will mark all expenses in the list as paid.
+            This will mark all selected expenses as paid.
           </p>
           <DialogFooter className="mt-4">
             <Button
