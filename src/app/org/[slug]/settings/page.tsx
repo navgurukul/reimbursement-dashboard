@@ -1384,8 +1384,8 @@ export default function SettingsPage() {
                 Configure columns and field types for the expense form
               </CardDescription>
             </div>
-            <Button onClick={handleAddColumn} variant="outline">
-              <PlusCircle className="w-4 h-4 mr-2" />
+            <Button onClick={handleAddColumn}>
+              <PlusCircle className="w-4 h-4" />
               Add Column
             </Button>
           </div>
@@ -1445,750 +1445,762 @@ export default function SettingsPage() {
           <div className="flex justify-end">
             <Button onClick={handleSaveColumns}>Save Columns</Button>
           </div>
-
-          {/* Expense Type → Approver Mapping */}
-          {(() => {
-            const expenseTypeCol = (columns as any[]).find(
-              (c: any) =>
-                c.key === "expense_type" ||
-                String(c.label || "").trim().toLowerCase() === "expense type"
-            );
-            const expenseTypeOptions: string[] = expenseTypeCol?.options
-              ? Array.isArray(expenseTypeCol.options)
-                ? (expenseTypeCol.options as any[]).map((o: any) =>
-                  typeof o === "object" ? o.value ?? o.label : String(o)
-                )
-                : []
-              : [];
-
-            const expenseTypeOptionsForSelect: ApproverOption[] = expenseTypeOptions.map((o) => ({
-              value: o,
-              label: o,
-            }));
-
-            const displayRows = expenseTypeApproverMapping.map((_, index) => index);
-
-            const updateMappingEntry = (
-              index: number,
-              updates: Partial<ExpenseTypeApproverMappingEntry>
-            ) => {
-              setExpenseTypeApproverMapping((prev) => {
-                const next = [...prev];
-                const base = next[index] || {
-                  expense_type: [],
-                  approver_id: [],
-                  second_approver_id: [],
-                  enabled: true,
-                };
-                next[index] = {
-                  ...base,
-                  ...updates,
-                };
-                return next;
-              });
-            };
-
-            const renderRow = (index: number) => {
-              const entry = expenseTypeApproverMapping[index];
-              if (!entry) return null;
-              const resolvedApproverIds = normalizeIds(entry?.approver_id);
-              const resolvedApproverNames = normalizeNames(entry?.approver_name);
-              const selectedApproverIds =
-                resolvedApproverIds.length > 0
-                  ? resolvedApproverIds
-                  : resolveIdsFromNames(resolvedApproverNames);
-
-              const resolvedSecondApproverIds = normalizeIds(
-                entry?.second_approver_id
-              );
-              const resolvedSecondApproverNames = normalizeNames(
-                entry?.second_approver_name
-              );
-              const selectedSecondApproverIds =
-                resolvedSecondApproverIds.length > 0
-                  ? resolvedSecondApproverIds
-                  : resolveIdsFromNames(resolvedSecondApproverNames);
-
-              const selectedExpenseTypes = normalizeIds(entry?.expense_type).filter(
-                (t) => t !== "__new__"
-              );
-
-              return (
-                <div
-                  key={index}
-                  className="flex flex-col gap-4 p-4 border border-black shadow-sm rounded-lg"
-                >
-                  <div className="flex flex-wrap items-start gap-4">
-                    <div className="space-y-1 min-w-[200px] flex-1 max-w-[300px]">
-                      <Label className="text-xs">Expense Type</Label>
-                      <MultiSelect
-                        options={expenseTypeOptionsForSelect}
-                        value={selectedExpenseTypes}
-                        onChange={(nextIds) =>
-                          updateMappingEntry(index, {
-                            expense_type: nextIds,
-                          })
-                        }
-                        placeholder="Select expense types"
-                        searchPlaceholder="Search expense type..."
-                        hideBadges
-                      />
-                    </div>
-                    <div className="flex-1 flex flex-wrap gap-4">
-                      <div className="space-y-1 min-w-[240px]">
-                        <Label className="text-xs">Approver</Label>
-                        <MultiSelect
-                          options={approverOptions}
-                          value={selectedApproverIds}
-                          onChange={(nextIds) =>
-                            updateMappingEntry(index, {
-                              approver_id: nextIds,
-                              approver_name: nextIds.length
-                                ? nextIds.map(getApproverLabel).join(", ")
-                                : undefined,
-                            })
-                          }
-                          placeholder="Select one or more approvers"
-                          searchPlaceholder="Search approver"
-                          hideBadges
-                        />
-                      </div>
-                      <div className="space-y-1 min-w-[240px]">
-                        <Label className="text-xs">Second Approver</Label>
-                        <MultiSelect
-                          options={approverOptions}
-                          value={selectedSecondApproverIds}
-                          onChange={(nextIds) =>
-                            updateMappingEntry(index, {
-                              second_approver_id: nextIds,
-                              second_approver_name: nextIds.length
-                                ? nextIds.map(getApproverLabel).join(", ")
-                                : undefined,
-                            })
-                          }
-                          placeholder="Select one or more approvers"
-                          searchPlaceholder="Search second approver"
-                          hideBadges
-                        />
-                      </div>
-                      <div className="space-y-1 min-w-[140px]">
-                        <Label className="block text-center text-xs">Enable on expense form</Label>
-                        <div className="flex h-9 items-center justify-center">
-                          <Checkbox
-                            checked={entry?.enabled !== false}
-                            onCheckedChange={(checked) =>
-                              updateMappingEntry(index, {
-                                enabled: checked === true,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive mt-6"
-                      onClick={() =>
-                        handleRemoveExpenseTypeApproverMappingRow(index)
-                      }
-                      title="Remove mapping"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  {(selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
-                    <div className="w-full pt-4 border-t border-border/110 flex flex-col gap-6">
-                      {selectedExpenseTypes.length > 0 && (
-                        <div className="w-full">
-                          <p className="text-sm font-medium mb-2 text-foreground/80">
-                            Expense Types ({selectedExpenseTypes.length}) :
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedExpenseTypes.map((type) => (
-                              <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
-                                {type}
-                                <X
-                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
-                                  onClick={() => {
-                                    updateMappingEntry(index, {
-                                      expense_type: selectedExpenseTypes.filter((t) => t !== type),
-                                    });
-                                  }}
-                                />
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {(selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
-                        <div className="flex flex-wrap gap-x-12 gap-y-6">
-                          {selectedApproverIds.length > 0 && (
-                            <div className="flex-1 min-w-[200px]">
-                              <p className="text-sm font-medium mb-2 text-foreground/80">
-                                Approvers ({selectedApproverIds.length}) :
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedApproverIds.map((id) => (
-                                  <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
-                                    {getApproverLabel(id)}
-                                    <X
-                                      className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
-                                      onClick={() => {
-                                        const nextIds = selectedApproverIds.filter((t) => t !== id);
-                                        updateMappingEntry(index, {
-                                          approver_id: nextIds,
-                                          approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
-                                        });
-                                      }}
-                                    />
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {selectedSecondApproverIds.length > 0 && (
-                            <div className="flex-1 min-w-[200px]">
-                              <p className="text-sm font-medium mb-2 text-foreground/80">
-                                Second Approvers ({selectedSecondApproverIds.length}) :
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedSecondApproverIds.map((id) => (
-                                  <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
-                                    {getApproverLabel(id)}
-                                    <X
-                                      className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
-                                      onClick={() => {
-                                        const nextIds = selectedSecondApproverIds.filter((t) => t !== id);
-                                        updateMappingEntry(index, {
-                                          second_approver_id: nextIds,
-                                          second_approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
-                                        });
-                                      }}
-                                    />
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            };
-
-            return (
-              <Card className="mt-6">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>Expense Type → Approver Mapping ( Without Campus Wise )</CardTitle>
-                      <CardDescription>
-                        Set approver and second approver for each expense type.
-                        These will auto-fill on the new expense form when a user
-                        selects an expense type.
-                      </CardDescription>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddExpenseTypeApproverMappingRow}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Mapping
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    {displayRows.length === 0 ? (
-                      <p className="text-sm text-muted-foreground py-4 text-center">
-                        No mappings added yet. Click &quot;Add Mapping&quot; to create a new expense type → approver mapping.
-                      </p>
-                    ) : (
-                      displayRows.map((index) => renderRow(index))
-                    )}
-                  </div>
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleSaveExpenseTypeApproverMapping}
-                      disabled={savingExpenseTypeMapping}
-                    >
-                      {savingExpenseTypeMapping ? "Saving…" : "Save Mapping"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })()}
-
-          {/* Location → Approver Mapping */}
-          {(() => {
-            const locationCol = columns.find((c) => c.key === "location");
-            const locationOptions: string[] = locationCol?.options
-              ? Array.isArray(locationCol.options)
-                ? (locationCol.options as any[]).map((o: any) =>
-                  typeof o === "object" ? o.value ?? o.label : String(o)
-                )
-                : []
-              : [];
-
-            const locationOptionsForSelect: ApproverOption[] = locationOptions.map((o) => ({
-              value: o,
-              label: o,
-            }));
-
-            const expenseTypeCol = (columns as any[]).find(
-              (c: any) =>
-                c.key === "expense_type" ||
-                String(c.label || "")
-                  .trim()
-                  .toLowerCase() === "expense type"
-            );
-            const expenseTypeOptions: string[] = expenseTypeCol?.options
-              ? Array.isArray(expenseTypeCol.options)
-                ? (expenseTypeCol.options as any[]).map((o: any) =>
-                  typeof o === "object" ? o.value ?? o.label : String(o)
-                )
-                : []
-              : [];
-
-            const expenseTypeOptionsForSelect: ApproverOption[] = expenseTypeOptions.map((o) => ({
-              value: o,
-              label: o,
-            }));
-
-            const displayRows = locationApproverMapping.map((_, index) => index);
-
-            const updateMappingEntry = (
-              index: number,
-              updates: Partial<LocationApproverMappingEntry>
-            ) => {
-              setLocationApproverMapping((prev) => {
-                const next = [...prev];
-                const base = next[index] || {
-                  location: "",
-                  expense_type: [],
-                  approver_id: [],
-                  second_approver_id: [],
-                  enabled: true,
-                };
-                next[index] = {
-                  ...base,
-                  ...updates,
-                };
-                return next;
-              });
-            };
-
-            const renderRow = (index: number) => {
-              const entry = locationApproverMapping[index];
-              if (!entry) return null;
-              const location = entry.location;
-              const resolvedApproverIds = normalizeIds(entry?.approver_id);
-              const resolvedApproverNames = normalizeNames(entry?.approver_name);
-              const selectedApproverIds =
-                resolvedApproverIds.length > 0
-                  ? resolvedApproverIds
-                  : resolveIdsFromNames(resolvedApproverNames);
-
-              const resolvedSecondApproverIds = normalizeIds(
-                entry?.second_approver_id
-              );
-              const resolvedSecondApproverNames = normalizeNames(
-                entry?.second_approver_name
-              );
-              const selectedSecondApproverIds =
-                resolvedSecondApproverIds.length > 0
-                  ? resolvedSecondApproverIds
-                  : resolveIdsFromNames(resolvedSecondApproverNames);
-
-              const selectedLocations = normalizeIds(entry?.location).filter((t) => t !== "__new__");
-              const selectedExpenseTypes = normalizeIds(entry?.expense_type);
-
-              return (
-                <div
-                  key={index}
-                  className="flex flex-col gap-4 p-4 border border-black rounded-lg"
-                >
-                  <div className="flex flex-wrap items-start gap-4">
-                    <div className="space-y-3 min-w-[200px] flex-1 max-w-[300px]">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Location</Label>
-                        <MultiSelect
-                          options={locationOptionsForSelect}
-                          value={selectedLocations}
-                          onChange={(nextIds) =>
-                            updateMappingEntry(index, { location: nextIds })
-                          }
-                          placeholder="Select locations"
-                          searchPlaceholder="Search location..."
-                          hideBadges
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">
-                          Expense Type (optional)
-                        </Label>
-                        <MultiSelect
-                          options={expenseTypeOptionsForSelect}
-                          value={selectedExpenseTypes}
-                          onChange={(nextIds) =>
-                            updateMappingEntry(index, {
-                              expense_type: nextIds,
-                            })
-                          }
-                          placeholder="Select expense types"
-                          searchPlaceholder="Search expense type..."
-                          hideBadges
-                        />
-                      </div>
-                    </div>
-                    <div className="flex-1 flex flex-wrap gap-4">
-                      <div className="space-y-1 min-w-[240px]">
-                        <Label className="text-xs">Approver</Label>
-                        <MultiSelect
-                          options={approverOptions}
-                          value={selectedApproverIds}
-                          onChange={(nextIds) =>
-                            updateMappingEntry(index, {
-                              approver_id: nextIds,
-                              approver_name: nextIds.length
-                                ? nextIds.map(getApproverLabel).join(", ")
-                                : undefined,
-                            })
-                          }
-                          placeholder="Select one or more approvers"
-                          searchPlaceholder="Search approver"
-                          hideBadges
-                        />
-                      </div>
-                      <div className="space-y-1 min-w-[240px]">
-                        <Label className="text-xs">Second Approver</Label>
-                        <MultiSelect
-                          options={approverOptions}
-                          value={selectedSecondApproverIds}
-                          onChange={(nextIds) =>
-                            updateMappingEntry(index, {
-                              second_approver_id: nextIds,
-                              second_approver_name: nextIds.length
-                                ? nextIds.map(getApproverLabel).join(", ")
-                                : undefined,
-                            })
-                          }
-                          placeholder="Select one or more approvers"
-                          searchPlaceholder="Search second approver"
-                          hideBadges
-                        />
-                      </div>
-                      <div className="space-y-1 min-w-[140px]">
-                        <Label className="block text-center text-xs">Enable on expense form</Label>
-                        <div className="flex h-9 items-center justify-center">
-                          <Checkbox
-                            checked={entry?.enabled !== false}
-                            onCheckedChange={(checked) =>
-                              updateMappingEntry(index, {
-                                enabled: checked === true,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive mt-6"
-                      onClick={() => handleRemoveLocationApproverMappingRow(index)}
-                      title="Remove mapping"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  {(selectedLocations.length > 0 || selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
-                    <div className="w-full pt-4 border-t border-border/110 flex-col gap-6">
-                      {(selectedLocations.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
-                        <div className="flex flex-wrap gap-x-12 gap-y-6">
-                          {selectedLocations.length > 0 && (
-                            <div className="flex-1 min-w-[200px]">
-                              <p className="text-sm font-medium mb-2 text-foreground/80">
-                                Locations ({selectedLocations.length}) :
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedLocations.map((loc) => (
-                                  <Badge key={loc} variant="secondary" className="gap-1 font-normal bg-background border">
-                                    {locationOptionsForSelect.find((o) => o.value === loc)?.label || loc}
-                                    <X
-                                      className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
-                                      onClick={() => {
-                                        updateMappingEntry(index, {
-                                          location: selectedLocations.filter((t) => t !== loc),
-                                        });
-                                      }}
-                                    />
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {selectedApproverIds.length > 0 && (
-                            <div className="flex-1 min-w-[200px]">
-                              <p className="text-sm font-medium mb-2 text-foreground/80">
-                                Approvers ({selectedApproverIds.length}) :
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedApproverIds.map((id) => (
-                                  <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
-                                    {getApproverLabel(id)}
-                                    <X
-                                      className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
-                                      onClick={() => {
-                                        const nextIds = selectedApproverIds.filter((t) => t !== id);
-                                        updateMappingEntry(index, {
-                                          approver_id: nextIds,
-                                          approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
-                                        });
-                                      }}
-                                    />
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {selectedSecondApproverIds.length > 0 && (
-                            <div className="flex-1 min-w-[200px]">
-                              <p className="text-sm font-medium mb-2 text-foreground/80">
-                                Second Approvers ({selectedSecondApproverIds.length}) :
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedSecondApproverIds.map((id) => (
-                                  <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
-                                    {getApproverLabel(id)}
-                                    <X
-                                      className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
-                                      onClick={() => {
-                                        const nextIds = selectedSecondApproverIds.filter((t) => t !== id);
-                                        updateMappingEntry(index, {
-                                          second_approver_id: nextIds,
-                                          second_approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
-                                        });
-                                      }}
-                                    />
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {selectedExpenseTypes.length > 0 && (
-                        <div className="w-full">
-                          <p className="text-sm font-medium mb-2 mt-2 text-foreground/80">
-                            Expense Types ({selectedExpenseTypes.length}) :
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedExpenseTypes.map((type) => (
-                              <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
-                                {type}
-                                <X
-                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
-                                  onClick={() => {
-                                    updateMappingEntry(index, {
-                                      expense_type: selectedExpenseTypes.filter((t) => t !== type),
-                                    });
-                                  }}
-                                />
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            };
-
-            return (
-              <Card className="mt-6">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>Project of Expenses → Approver Mapping (Campus Wise)</CardTitle>
-                      <CardDescription>
-                        Set approver and second approver for each project of
-                        expense. These will auto-fill on the new expense form
-                        when a user selects a project.
-                      </CardDescription>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddLocationApproverMappingRow}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Mapping
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    {displayRows.length === 0 ? (
-                      <p className="text-sm text-muted-foreground py-4 text-center">
-                        No mappings added yet. Click &quot;Add Mapping&quot; to create a new location → approver mapping.
-                      </p>
-                    ) : (
-                      displayRows.map((index) => renderRow(index))
-                    )}
-                  </div>
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleSaveLocationApproverMapping}
-                      disabled={savingLocationMapping}
-                    >
-                      {savingLocationMapping ? "Saving…" : "Save Mapping"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })()}
-
-          <Dialog open={showColumnDialog} onOpenChange={setShowColumnDialog}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {editingColumn?.key?.startsWith("custom_field_")
-                    ? "Add Column"
-                    : "Edit Column"}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-                <div className="space-y-2">
-                  <Label>Column Label</Label>
-                  <Input
-                    value={editingColumn?.label || ""}
-                    onChange={(e) =>
-                      setEditingColumn((prev) =>
-                        prev
-                          ? {
-                            ...prev,
-                            label: e.target.value,
-                            key: prev.key.startsWith("custom_field_")
-                              ? prev.key
-                              : e.target.value
-                                .toLowerCase()
-                                .replace(/\s+/g, "_"),
-                          }
-                          : null
-                      )
-                    }
-                    disabled={
-                      !editingColumn?.key?.startsWith("custom_field_") &&
-                      defaultColumns.some((c) => c.key === editingColumn?.key)
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Field Type</Label>
-                  <Select
-                    value={editingColumn?.type}
-                    onValueChange={(value: ColumnConfig["type"]) =>
-                      setEditingColumn((prev) =>
-                        prev ? { ...prev, type: value } : null
-                      )
-                    }
-                    disabled={defaultColumns.some(
-                      (c) => c.key === editingColumn?.key
-                    )}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="number">Number</SelectItem>
-                      <SelectItem value="date">Date</SelectItem>
-                      <SelectItem value="textarea">Text Area</SelectItem>
-                      <SelectItem value="dropdown">Dropdown</SelectItem>
-                      <SelectItem value="radio">Radio</SelectItem>
-                      <SelectItem value="checkbox">Checkbox</SelectItem>
-                      {/* <SelectItem value="file">File Upload</SelectItem> */}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {["dropdown", "radio", "checkbox"].includes(
-                  editingColumn?.type || ""
-                ) &&
-                  editingColumn?.key !== "approver" && (
-                    <div className="space-y-2">
-                      <Label>Options (one per line)</Label>
-                      <Textarea
-                        value={newOptions}
-                        onChange={(e) => setNewOptions(e.target.value)}
-                        placeholder="Enter options..."
-                        rows={5}
-                        className="max-h-48 overflow-y-auto"
-                      />
-                    </div>
-                  )}
-
-                {editingColumn?.key === "approver" && (
-                  <div className="text-sm text-muted-foreground p-2 bg-muted rounded-md">
-                    Options for this field are automatically populated with
-                    organization members who can approve expenses (owners,
-                    admins, and managers).
-                  </div>
-                )}
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    checked={editingColumn?.required}
-                    onCheckedChange={(v) =>
-                      setEditingColumn((prev) =>
-                        prev ? { ...prev, required: v as boolean } : null
-                      )
-                    }
-                  />
-                  <Label>Required field</Label>
-                </div>
-
-                <Button onClick={handleSaveColumn} className="w-full">
-                  Save Column
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </CardContent>
       </Card>
+
+      {/* Expense Type → Approver Mapping */}
+      {(() => {
+        const expenseTypeCol = (columns as any[]).find(
+          (c: any) =>
+            c.key === "expense_type" ||
+            String(c.label || "").trim().toLowerCase() === "expense type"
+        );
+        const expenseTypeOptions: string[] = expenseTypeCol?.options
+          ? Array.isArray(expenseTypeCol.options)
+            ? (expenseTypeCol.options as any[]).map((o: any) =>
+              typeof o === "object" ? o.value ?? o.label : String(o)
+            )
+            : []
+          : [];
+
+        const expenseTypeOptionsForSelect: ApproverOption[] = expenseTypeOptions.map((o) => ({
+          value: o,
+          label: o,
+        }));
+
+        const displayRows = expenseTypeApproverMapping.map((_, index) => index);
+
+        const updateMappingEntry = (
+          index: number,
+          updates: Partial<ExpenseTypeApproverMappingEntry>
+        ) => {
+          setExpenseTypeApproverMapping((prev) => {
+            const next = [...prev];
+            const base = next[index] || {
+              expense_type: [],
+              approver_id: [],
+              second_approver_id: [],
+              enabled: true,
+            };
+            next[index] = {
+              ...base,
+              ...updates,
+            };
+            return next;
+          });
+        };
+
+        const renderRow = (index: number) => {
+          const entry = expenseTypeApproverMapping[index];
+          if (!entry) return null;
+          const resolvedApproverIds = normalizeIds(entry?.approver_id);
+          const resolvedApproverNames = normalizeNames(entry?.approver_name);
+          const selectedApproverIds =
+            resolvedApproverIds.length > 0
+              ? resolvedApproverIds
+              : resolveIdsFromNames(resolvedApproverNames);
+
+          const resolvedSecondApproverIds = normalizeIds(
+            entry?.second_approver_id
+          );
+          const resolvedSecondApproverNames = normalizeNames(
+            entry?.second_approver_name
+          );
+          const selectedSecondApproverIds =
+            resolvedSecondApproverIds.length > 0
+              ? resolvedSecondApproverIds
+              : resolveIdsFromNames(resolvedSecondApproverNames);
+
+          const selectedExpenseTypes = normalizeIds(entry?.expense_type).filter(
+            (t) => t !== "__new__"
+          );
+
+          return (
+            <div
+              key={index}
+              className="flex flex-col gap-4 p-4 border border-black shadow-sm rounded-lg"
+            >
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="space-y-1 min-w-[200px] flex-1 max-w-[300px]">
+                  <Label className="text-xs">Expense Type</Label>
+                  <MultiSelect
+                    options={expenseTypeOptionsForSelect}
+                    value={selectedExpenseTypes}
+                    onChange={(nextIds) =>
+                      updateMappingEntry(index, {
+                        expense_type: nextIds,
+                      })
+                    }
+                    placeholder="Select expense types"
+                    searchPlaceholder="Search expense type..."
+                    hideBadges
+                  />
+                </div>
+                <div className="flex-1 flex flex-wrap gap-4">
+                  <div className="space-y-1 min-w-[240px]">
+                    <Label className="text-xs">Approver</Label>
+                    <MultiSelect
+                      options={approverOptions}
+                      value={selectedApproverIds}
+                      onChange={(nextIds) =>
+                        updateMappingEntry(index, {
+                          approver_id: nextIds,
+                          approver_name: nextIds.length
+                            ? nextIds.map(getApproverLabel).join(", ")
+                            : undefined,
+                        })
+                      }
+                      placeholder="Select one or more approvers"
+                      searchPlaceholder="Search approver"
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[240px]">
+                    <Label className="text-xs">Second Approver</Label>
+                    <MultiSelect
+                      options={approverOptions}
+                      value={selectedSecondApproverIds}
+                      onChange={(nextIds) =>
+                        updateMappingEntry(index, {
+                          second_approver_id: nextIds,
+                          second_approver_name: nextIds.length
+                            ? nextIds.map(getApproverLabel).join(", ")
+                            : undefined,
+                        })
+                      }
+                      placeholder="Select one or more approvers"
+                      searchPlaceholder="Search second approver"
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[140px]">
+                    <Label className="block text-center text-xs">Enable on expense form</Label>
+                    <div className="flex h-9 items-center justify-center">
+                      <Checkbox
+                        checked={entry?.enabled !== false}
+                        onCheckedChange={(checked) =>
+                          updateMappingEntry(index, {
+                            enabled: checked === true,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive mt-6"
+                  onClick={() =>
+                    handleRemoveExpenseTypeApproverMappingRow(index)
+                  }
+                  title="Remove mapping"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {(selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
+                <div className="w-full pt-4 border-t border-border/110 flex flex-col gap-6">
+                  {selectedExpenseTypes.length > 0 && (
+                    <div className="w-full">
+                      <p className="text-sm font-medium mb-2 text-foreground/80">
+                        Expense Types ({selectedExpenseTypes.length}) :
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedExpenseTypes.map((type) => (
+                          <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
+                            {type}
+                            <X
+                              className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                updateMappingEntry(index, {
+                                  expense_type: selectedExpenseTypes.filter((t) => t !== type),
+                                });
+                              }}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
+                    <div className="flex flex-wrap gap-x-12 gap-y-6">
+                      {selectedApproverIds.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Approvers ({selectedApproverIds.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedApproverIds.map((id) => (
+                              <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {getApproverLabel(id)}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const nextIds = selectedApproverIds.filter((t) => t !== id);
+                                    updateMappingEntry(index, {
+                                      approver_id: nextIds,
+                                      approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedSecondApproverIds.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Second Approvers ({selectedSecondApproverIds.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSecondApproverIds.map((id) => (
+                              <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {getApproverLabel(id)}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const nextIds = selectedSecondApproverIds.filter((t) => t !== id);
+                                    updateMappingEntry(index, {
+                                      second_approver_id: nextIds,
+                                      second_approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Expense Type → Approver Mapping ( Without Campus Wise )</CardTitle>
+                  <CardDescription>
+                    Set approver and second approver for each expense type.
+                    These will auto-fill on the new expense form when a user
+                    selects an expense type.
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleAddExpenseTypeApproverMappingRow}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Mapping
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {displayRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No mappings added yet. Click &quot;Add Mapping&quot; to create a new expense type → approver mapping.
+                  </p>
+                ) : (
+                  displayRows.map((index) => renderRow(index))
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  // type="button"
+                  // variant="outline"
+                  // size="sm"
+                  onClick={handleAddExpenseTypeApproverMappingRow}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Mapping
+                </Button>
+                <Button
+                  onClick={handleSaveExpenseTypeApproverMapping}
+                  disabled={savingExpenseTypeMapping}
+                >
+                  {savingExpenseTypeMapping ? "Saving…" : "Save Mapping"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Location → Approver Mapping */}
+      {(() => {
+        const locationCol = columns.find((c) => c.key === "location");
+        const locationOptions: string[] = locationCol?.options
+          ? Array.isArray(locationCol.options)
+            ? (locationCol.options as any[]).map((o: any) =>
+              typeof o === "object" ? o.value ?? o.label : String(o)
+            )
+            : []
+          : [];
+
+        const locationOptionsForSelect: ApproverOption[] = locationOptions.map((o) => ({
+          value: o,
+          label: o,
+        }));
+
+        const expenseTypeCol = (columns as any[]).find(
+          (c: any) =>
+            c.key === "expense_type" ||
+            String(c.label || "")
+              .trim()
+              .toLowerCase() === "expense type"
+        );
+        const expenseTypeOptions: string[] = expenseTypeCol?.options
+          ? Array.isArray(expenseTypeCol.options)
+            ? (expenseTypeCol.options as any[]).map((o: any) =>
+              typeof o === "object" ? o.value ?? o.label : String(o)
+            )
+            : []
+          : [];
+
+        const expenseTypeOptionsForSelect: ApproverOption[] = expenseTypeOptions.map((o) => ({
+          value: o,
+          label: o,
+        }));
+
+        const displayRows = locationApproverMapping.map((_, index) => index);
+
+        const updateMappingEntry = (
+          index: number,
+          updates: Partial<LocationApproverMappingEntry>
+        ) => {
+          setLocationApproverMapping((prev) => {
+            const next = [...prev];
+            const base = next[index] || {
+              location: "",
+              expense_type: [],
+              approver_id: [],
+              second_approver_id: [],
+              enabled: true,
+            };
+            next[index] = {
+              ...base,
+              ...updates,
+            };
+            return next;
+          });
+        };
+
+        const renderRow = (index: number) => {
+          const entry = locationApproverMapping[index];
+          if (!entry) return null;
+          const location = entry.location;
+          const resolvedApproverIds = normalizeIds(entry?.approver_id);
+          const resolvedApproverNames = normalizeNames(entry?.approver_name);
+          const selectedApproverIds =
+            resolvedApproverIds.length > 0
+              ? resolvedApproverIds
+              : resolveIdsFromNames(resolvedApproverNames);
+
+          const resolvedSecondApproverIds = normalizeIds(
+            entry?.second_approver_id
+          );
+          const resolvedSecondApproverNames = normalizeNames(
+            entry?.second_approver_name
+          );
+          const selectedSecondApproverIds =
+            resolvedSecondApproverIds.length > 0
+              ? resolvedSecondApproverIds
+              : resolveIdsFromNames(resolvedSecondApproverNames);
+
+          const selectedLocations = normalizeIds(entry?.location).filter((t) => t !== "__new__");
+          const selectedExpenseTypes = normalizeIds(entry?.expense_type);
+
+          return (
+            <div
+              key={index}
+              className="flex flex-col gap-4 p-4 border border-black rounded-lg"
+            >
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="space-y-3 min-w-[200px] flex-1 max-w-[300px]">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Location</Label>
+                    <MultiSelect
+                      options={locationOptionsForSelect}
+                      value={selectedLocations}
+                      onChange={(nextIds) =>
+                        updateMappingEntry(index, { location: nextIds })
+                      }
+                      placeholder="Select locations"
+                      searchPlaceholder="Search location..."
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      Expense Type (optional)
+                    </Label>
+                    <MultiSelect
+                      options={expenseTypeOptionsForSelect}
+                      value={selectedExpenseTypes}
+                      onChange={(nextIds) =>
+                        updateMappingEntry(index, {
+                          expense_type: nextIds,
+                        })
+                      }
+                      placeholder="Select expense types"
+                      searchPlaceholder="Search expense type..."
+                      hideBadges
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-wrap gap-4">
+                  <div className="space-y-1 min-w-[240px]">
+                    <Label className="text-xs">Approver</Label>
+                    <MultiSelect
+                      options={approverOptions}
+                      value={selectedApproverIds}
+                      onChange={(nextIds) =>
+                        updateMappingEntry(index, {
+                          approver_id: nextIds,
+                          approver_name: nextIds.length
+                            ? nextIds.map(getApproverLabel).join(", ")
+                            : undefined,
+                        })
+                      }
+                      placeholder="Select one or more approvers"
+                      searchPlaceholder="Search approver"
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[240px]">
+                    <Label className="text-xs">Second Approver</Label>
+                    <MultiSelect
+                      options={approverOptions}
+                      value={selectedSecondApproverIds}
+                      onChange={(nextIds) =>
+                        updateMappingEntry(index, {
+                          second_approver_id: nextIds,
+                          second_approver_name: nextIds.length
+                            ? nextIds.map(getApproverLabel).join(", ")
+                            : undefined,
+                        })
+                      }
+                      placeholder="Select one or more approvers"
+                      searchPlaceholder="Search second approver"
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[140px]">
+                    <Label className="block text-center text-xs">Enable on expense form</Label>
+                    <div className="flex h-9 items-center justify-center">
+                      <Checkbox
+                        checked={entry?.enabled !== false}
+                        onCheckedChange={(checked) =>
+                          updateMappingEntry(index, {
+                            enabled: checked === true,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive mt-6"
+                  onClick={() => handleRemoveLocationApproverMappingRow(index)}
+                  title="Remove mapping"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {(selectedLocations.length > 0 || selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
+                <div className="w-full pt-4 border-t border-border/110 flex-col gap-6">
+                  {(selectedLocations.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
+                    <div className="flex flex-wrap gap-x-12 gap-y-6">
+                      {selectedLocations.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Locations ({selectedLocations.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedLocations.map((loc) => (
+                              <Badge key={loc} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {locationOptionsForSelect.find((o) => o.value === loc)?.label || loc}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    updateMappingEntry(index, {
+                                      location: selectedLocations.filter((t) => t !== loc),
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedApproverIds.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Approvers ({selectedApproverIds.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedApproverIds.map((id) => (
+                              <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {getApproverLabel(id)}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const nextIds = selectedApproverIds.filter((t) => t !== id);
+                                    updateMappingEntry(index, {
+                                      approver_id: nextIds,
+                                      approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedSecondApproverIds.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Second Approvers ({selectedSecondApproverIds.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSecondApproverIds.map((id) => (
+                              <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {getApproverLabel(id)}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const nextIds = selectedSecondApproverIds.filter((t) => t !== id);
+                                    updateMappingEntry(index, {
+                                      second_approver_id: nextIds,
+                                      second_approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedExpenseTypes.length > 0 && (
+                    <div className="w-full">
+                      <p className="text-sm font-medium mb-2 mt-2 text-foreground/80">
+                        Expense Types ({selectedExpenseTypes.length}) :
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedExpenseTypes.map((type) => (
+                          <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
+                            {type}
+                            <X
+                              className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                updateMappingEntry(index, {
+                                  expense_type: selectedExpenseTypes.filter((t) => t !== type),
+                                });
+                              }}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Project of Expenses → Approver Mapping (Campus Wise)</CardTitle>
+                  <CardDescription>
+                    Set approver and second approver for each project of
+                    expense. These will auto-fill on the new expense form
+                    when a user selects a project.
+                  </CardDescription>
+                </div>
+                <Button
+                  // type="button"
+                  // variant="outline"
+                  // size="sm"
+                  onClick={handleAddLocationApproverMappingRow}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Mapping
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {displayRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No mappings added yet. Click &quot;Add Mapping&quot; to create a new location → approver mapping.
+                  </p>
+                ) : (
+                  displayRows.map((index) => renderRow(index))
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={handleAddLocationApproverMappingRow}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Mapping
+                </Button>
+                <Button
+                  onClick={handleSaveLocationApproverMapping}
+                  disabled={savingLocationMapping}
+                >
+                  {savingLocationMapping ? "Saving…" : "Save Mapping"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      <Dialog open={showColumnDialog} onOpenChange={setShowColumnDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingColumn?.key?.startsWith("custom_field_")
+                ? "Add Column"
+                : "Edit Column"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="space-y-2">
+              <Label>Column Label</Label>
+              <Input
+                value={editingColumn?.label || ""}
+                onChange={(e) =>
+                  setEditingColumn((prev) =>
+                    prev
+                      ? {
+                        ...prev,
+                        label: e.target.value,
+                        key: prev.key.startsWith("custom_field_")
+                          ? prev.key
+                          : e.target.value
+                            .toLowerCase()
+                            .replace(/\s+/g, "_"),
+                      }
+                      : null
+                  )
+                }
+                disabled={
+                  !editingColumn?.key?.startsWith("custom_field_") &&
+                  defaultColumns.some((c) => c.key === editingColumn?.key)
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Field Type</Label>
+              <Select
+                value={editingColumn?.type}
+                onValueChange={(value: ColumnConfig["type"]) =>
+                  setEditingColumn((prev) =>
+                    prev ? { ...prev, type: value } : null
+                  )
+                }
+                disabled={defaultColumns.some(
+                  (c) => c.key === editingColumn?.key
+                )}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Text</SelectItem>
+                  <SelectItem value="number">Number</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="textarea">Text Area</SelectItem>
+                  <SelectItem value="dropdown">Dropdown</SelectItem>
+                  <SelectItem value="radio">Radio</SelectItem>
+                  <SelectItem value="checkbox">Checkbox</SelectItem>
+                  {/* <SelectItem value="file">File Upload</SelectItem> */}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {["dropdown", "radio", "checkbox"].includes(
+              editingColumn?.type || ""
+            ) &&
+              editingColumn?.key !== "approver" && (
+                <div className="space-y-2">
+                  <Label>Options (one per line)</Label>
+                  <Textarea
+                    value={newOptions}
+                    onChange={(e) => setNewOptions(e.target.value)}
+                    placeholder="Enter options..."
+                    rows={5}
+                    className="max-h-48 overflow-y-auto"
+                  />
+                </div>
+              )}
+
+            {editingColumn?.key === "approver" && (
+              <div className="text-sm text-muted-foreground p-2 bg-muted rounded-md">
+                Options for this field are automatically populated with
+                organization members who can approve expenses (owners,
+                admins, and managers).
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                checked={editingColumn?.required}
+                onCheckedChange={(v) =>
+                  setEditingColumn((prev) =>
+                    prev ? { ...prev, required: v as boolean } : null
+                  )
+                }
+              />
+              <Label>Required field</Label>
+            </div>
+
+            <Button onClick={handleSaveColumn} className="w-full">
+              Save Column
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle className="mb-2">Expense Type Details</CardTitle>
+              <CardTitle className="mb-2">Expense Type Abbreviations Details</CardTitle>
               <CardDescription>
                 Add and edit Group, Sub-Group, Expense Ledger, and Description
                 entries.
               </CardDescription>
             </div>
-            <Button onClick={openAddExpenseTypeDialog} variant="outline">
-              <PlusCircle className="w-4 h-4 mr-2" />
+            <Button onClick={openAddExpenseTypeDialog}>
+              <PlusCircle className="w-4 h-4" />
               Add
             </Button>
           </div>
@@ -2408,13 +2420,13 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle className="mb-1">Project of Expense Details</CardTitle>
+              <CardTitle className="mb-1">Project of Expense Abbreviations Details</CardTitle>
               <CardDescription>
                 Add and edit Project of Expense and Description entries.
               </CardDescription>
             </div>
-            <Button onClick={openAddProjectOfExpenseDialog} variant="outline">
-              <PlusCircle className="w-4 h-4 mr-2" />
+            <Button onClick={openAddProjectOfExpenseDialog}>
+              <PlusCircle className="w-4 h-4" />
               Add
             </Button>
           </div>
