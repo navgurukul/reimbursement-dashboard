@@ -703,7 +703,7 @@ export default function FinanceExpenseDetails() {
       : null;
   const actualAmount =
     expense?.actual_amount ??
-    calculateActualAmount(expense?.amount ?? tdsBaseAmount, tdsAmount, securityDepositAmount);
+    calculateActualAmount(expense?.approved_amount ?? tdsBaseAmount, tdsAmount, securityDepositAmount);
   const expenseCreditPerson =
     expense?.expense_credit_person ||
     getCustomFieldValue(expense?.custom_fields, "expense_credit_person") ||
@@ -951,7 +951,7 @@ export default function FinanceExpenseDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Invoice Amount</TableHead>
                     <TableCell>
                       {isEditingDetails ? (
                         <Input
@@ -990,6 +990,15 @@ export default function FinanceExpenseDetails() {
                       )}
                     </TableCell>
                   </TableRow>
+                  <TableRow>
+                    <TableHead>TDS Applicable Amount</TableHead>
+                    <TableCell>
+                      {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
+                        ? formatCurrency(tdsBaseAmount)
+                        : "N/A"}
+                    </TableCell>
+                  </TableRow>
+
                   <TableRow>
                     <TableHead>TDS Deduction</TableHead>
                     <TableCell>
@@ -1061,7 +1070,7 @@ export default function FinanceExpenseDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Actual Amount</TableHead>
+                    <TableHead>Net Payable Amount</TableHead>
                     <TableCell>{formatCurrency(actualAmount)}</TableCell>
                   </TableRow>
                   <TableRow>
