@@ -3430,6 +3430,9 @@ export default function NewExpensePage() {
                               {errors[col.key]}
                             </p>
                           )}
+                          <p className="text-xs text-gray-600">
+                            Approver is auto-filled based on the selected Project of Expense and Expense Type
+                          </p>
                         </>
                       )}
 
@@ -3568,6 +3571,14 @@ export default function NewExpensePage() {
                                 parseFloat(e.target.value)
                               )
                             }
+                            onBlur={(e) => {
+                              if (col.key === "amount" && e.target.value) {
+                                const parsed = parseFloat(e.target.value);
+                                if (!isNaN(parsed)) {
+                                  handleInputChange(col.key, Math.round(parsed));
+                                }
+                              }
+                            }}
                             className={`w-full ${errors[col.key]
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : ""
@@ -3581,6 +3592,11 @@ export default function NewExpensePage() {
                               id={`${col.key}-error`}
                             >
                               {errors[col.key]}
+                            </p>
+                          )}
+                          {col.key === "amount" && (
+                            <p className="text-xs text-gray-600">
+                              Decimal values are automatically rounded off.
                             </p>
                           )}
                         </>
@@ -4275,6 +4291,9 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
+                                <p className="text-xs text-gray-600">
+                                  Approver is auto-filled based on the selected Project of Expense and Expense Type
+                                </p>
                               </>
                             )}
 
@@ -4380,7 +4399,7 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
-                                <p className="text-xs text-gray-600 mb-5">
+                                <p className="text-xs text-gray-600">
                                   Reimbursement bill uploading date / vendor invoice date
                                 </p>
                               </>
@@ -4402,6 +4421,14 @@ export default function NewExpensePage() {
                                       parseFloat(e.target.value)
                                     )
                                   }
+                                  onBlur={(e) => {
+                                    if (e.target.value) {
+                                      const parsed = parseFloat(e.target.value);
+                                      if (!isNaN(parsed)) {
+                                        handleExpenseItemChange(id, "amount", Math.round(parsed));
+                                      }
+                                    }
+                                  }}
                                   className={`w-full ${errors[col.key]
                                     ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                     : ""
@@ -4410,6 +4437,11 @@ export default function NewExpensePage() {
                                 {errors[col.key] && (
                                   <p className="text-red-500 text-sm">
                                     {errors[col.key]}
+                                  </p>
+                                )}
+                                {col.key === "amount" && (
+                                  <p className="text-xs text-gray-600">
+                                    Decimal values are automatically rounded off.
                                   </p>
                                 )}
                               </>
