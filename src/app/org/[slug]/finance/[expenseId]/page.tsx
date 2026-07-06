@@ -24,6 +24,13 @@ import {
   TableHead,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tooltip,
@@ -1003,21 +1010,27 @@ export default function FinanceExpenseDetails() {
                     <TableHead>TDS Deduction</TableHead>
                     <TableCell>
                       <div className="flex flex-col items-start gap-2">
-                        <select
-                          className="border px-2 py-1 rounded bg-white text-sm"
-                          value={tdsPercentage ? String(tdsPercentage) : ""}
-                          onChange={(e) => handleTdsChange(e.target.value)}
+                        <Select
+                          value={tdsPercentage ? String(tdsPercentage) : "none"}
+                          onValueChange={(value) =>
+                            handleTdsChange(value === "none" ? "" : value)
+                          }
                           disabled={tdsUpdating || securityDepositUpdating || processing}
                         >
-                          <option value="">Select %</option>
-                          {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
-                            (percent) => (
-                              <option key={percent} value={percent}>
-                                {percent}%
-                              </option>
-                            )
-                          )}
-                        </select>
+                          <SelectTrigger className="w-[110px] h-8 text-sm bg-white">
+                            <SelectValue placeholder="Select %" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Select %</SelectItem>
+                            {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                              (percent) => (
+                                <SelectItem key={percent} value={String(percent)}>
+                                  {percent}%
+                                </SelectItem>
+                              )
+                            )}
+                          </SelectContent>
+                        </Select>
                         <span className="text-xs text-muted-foreground">
                           {tdsPercentage
                             ? `${tdsPercentage}% (${formatCurrency(tdsAmount)})`
