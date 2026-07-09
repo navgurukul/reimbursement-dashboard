@@ -1290,7 +1290,7 @@ export default function PaymentRecords() {
         )
       )
         return false;
-      const amt = Number(r.approved_amount) || 0;
+      const amt = getBaseAmount(r);
       if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
       if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
@@ -2933,7 +2933,7 @@ export default function PaymentRecords() {
                     {record.location || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    ₹{record.amount}
+                    ₹{getBaseAmount(record)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {(() => {
