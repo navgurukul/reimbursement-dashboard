@@ -90,6 +90,35 @@ async function fetchImageAsDataUrl(url: string): Promise<{
     });
 }
 
+// Utility: fetch PDF and convert its pages to images
+async function fetchPdfAsImages(url: string): Promise<string[]> {
+    const pdfjsLib = await import("pdfjs-dist");
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    }
+
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const images: string[] = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (context) {
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: context, canvas: canvas, viewport: viewport }).promise;
+            images.push(canvas.toDataURL("image/jpeg", 0.8));
+        }
+    }
+    return images;
+}
+
+
 export default function DownloadAllExpensesAsPdf({
     expensesList,
     organization,
@@ -418,7 +447,7 @@ export default function DownloadAllExpensesAsPdf({
                     [
                         "Receipt/Voucher",
                         receiptUrl
-                            ? "Receipt attached below"
+                            ? (receiptIsPdf ? "Receipt Preview (PDF) show below" : "Receipt attached below")
                             : voucherDetails
                                 ? "Voucher details below"
                                 : "N/A",
@@ -480,50 +509,6 @@ export default function DownloadAllExpensesAsPdf({
                     columnStyles: {
                         0: { cellWidth: 60, fontStyle: "bold" },
                         1: { cellWidth: pageWidth - (margin + padding) * 2 - 60 },
-                    },
-                    // Make the Receipt/Voucher row clickable when receipt is a PDF
-                    didParseCell: (d: any) => {
-                        if (
-                            d.section === "body" &&
-                            d.column.index === 1 &&
-                            Array.isArray(d.row.raw) &&
-                            String((d.row.raw as any[])[0]).toLowerCase() === "receipt/voucher" &&
-                            receiptIsPdf &&
-                            receiptUrl
-                        ) {
-                            // clear default text so we can draw centered link in didDrawCell
-                            d.cell.text = [""];
-                        }
-                    },
-                    didDrawCell: (d: any) => {
-                        try {
-                            if (
-                                d.section === "body" &&
-                                d.column.index === 1 &&
-                                Array.isArray(d.row.raw) &&
-                                String((d.row.raw as any[])[0]).toLowerCase() === "receipt/voucher" &&
-                                receiptIsPdf &&
-                                receiptUrl
-                            ) {
-                                const cellX = d.cell.x;
-                                const cellY = d.cell.y;
-                                const cellW = d.cell.width;
-                                const cellH = d.cell.height;
-                                const linkText = "View Receipt";
-                                doc.setFont("helvetica", "normal");
-                                const linkFontSize = 11;
-                                doc.setFontSize(linkFontSize);
-                                doc.setTextColor(0, 102, 204);
-                                const textY = cellY + cellH / 2 + linkFontSize * 0.35;
-                                // left-align the link text within the cell (small left padding)
-                                doc.text(linkText, cellX + 4, textY);
-                                doc.link(cellX, cellY, cellW, cellH, {
-                                    url: receiptUrl,
-                                });
-                            }
-                        } catch {
-                            // ignore link drawing errors
-                        }
                     },
                 });
 
@@ -663,7 +648,7 @@ export default function DownloadAllExpensesAsPdf({
                 // ===== Voucher Details Table (separate table) =====
                 if (voucherDetails) {
                     // Check if we need a new page
-                    if (y + 80 > pageHeight - margin - 20) {
+                    if (y + 80 > pageHeight - margin) {
                         doc.addPage();
                         addPageBorder();
                         y = margin + padding;
@@ -696,7 +681,7 @@ export default function DownloadAllExpensesAsPdf({
                             "Attachment",
                             voucherAttachmentUrl
                                 ? voucherAttachmentIsPdf
-                                    ? "View Attachment"
+                                    ? "ATTACHMENT PREVIEW (PDF) show below"
                                     : "Attachment preview below"
                                 : "Not Available",
                         ],
@@ -725,49 +710,6 @@ export default function DownloadAllExpensesAsPdf({
                             0: { cellWidth: 60, fontStyle: "bold" },
                             1: { cellWidth: pageWidth - (margin + padding) * 2 - 60 },
                         },
-                        // Make the Attachment row clickable when it's a PDF
-                        didParseCell: (d: any) => {
-                            if (
-                                d.section === "body" &&
-                                d.column.index === 1 &&
-                                Array.isArray(d.row.raw) &&
-                                String((d.row.raw as any[])[0]).toLowerCase() === "attachment" &&
-                                voucherAttachmentIsPdf &&
-                                voucherAttachmentUrl
-                            ) {
-                                // we'll draw custom text in didDrawCell
-                                d.cell.text = [""];
-                            }
-                        },
-                        didDrawCell: (d: any) => {
-                            try {
-                                        if (
-                                            d.section === "body" &&
-                                            d.column.index === 1 &&
-                                            Array.isArray(d.row.raw) &&
-                                            String((d.row.raw as any[])[0]).toLowerCase() === "attachment" &&
-                                            voucherAttachmentIsPdf &&
-                                            voucherAttachmentUrl
-                                        ) {
-                                            const cellX = d.cell.x;
-                                            const cellY = d.cell.y;
-                                            const cellW = d.cell.width;
-                                            const cellH = d.cell.height;
-                                            const linkText = "View Attachment";
-                                            doc.setFont("helvetica", "normal");
-                                            const linkFontSize = 11;
-                                            doc.setFontSize(linkFontSize);
-                                            doc.setTextColor(0, 102, 204);
-                                            const textY = cellY + cellH / 2 + linkFontSize * 0.35;
-                                            doc.text(linkText, cellX + cellW / 2, textY);
-                                            doc.link(cellX, cellY, cellW, cellH, {
-                                                url: voucherAttachmentUrl,
-                                            });
-                                        }
-                            } catch {
-                                // ignore link drawing errors
-                            }
-                        },
                     });
 
                     y = (doc as any).lastAutoTable.finalY + 15;
@@ -775,7 +717,7 @@ export default function DownloadAllExpensesAsPdf({
                     // ===== Voucher Signature (below voucher details) =====
                     if (voucherSignatureUrl) {
                         // Move to next page if needed
-                        if (y + 50 > pageHeight - margin - 20) {
+                        if (y + 50 > pageHeight - margin) {
                             doc.addPage();
                             addPageBorder();
                             y = margin + padding;
@@ -862,6 +804,7 @@ export default function DownloadAllExpensesAsPdf({
                         const extLooksLikeImage =
                             receiptExt &&
                             ["png", "jpg", "jpeg", "webp"].includes(receiptExt);
+                        const isPdfFile = mimeType === "application/pdf" || receiptExt === "pdf";
 
                         if (mimeLooksLikeImage || extLooksLikeImage) {
                             // Divider (dotted)
@@ -902,11 +845,11 @@ export default function DownloadAllExpensesAsPdf({
                                 renderWidth = renderWidth * scale;
                             }
 
-                        if (y + renderHeight + 24 > pageHeight - margin) {
-                            doc.addPage();
-                            addPageBorder();
-                            y = margin + padding;
-                        }
+                            if (y + renderHeight + 24 > pageHeight - margin) {
+                                doc.addPage();
+                                addPageBorder();
+                                y = margin + padding;
+                            }
 
                             doc.addImage(
                                 base64Receipt,
@@ -918,6 +861,89 @@ export default function DownloadAllExpensesAsPdf({
                             );
 
                             y += renderHeight + 12;
+                        } else if (isPdfFile) {
+                            if (y + 150 > pageHeight - margin) {
+                                doc.addPage();
+                                addPageBorder();
+                                y = margin + padding;
+                            }
+
+                            doc.setFont("helvetica", "bold");
+                            doc.setFontSize(11);
+                            doc.setTextColor(0, 0, 0);
+                            doc.text("RECEIPT PREVIEW (PDF):", margin + padding, y);
+
+                            y += 4;
+
+                            // Divider (dotted)
+                            doc.setDrawColor(0);
+                            doc.setLineWidth(0.2);
+                            (doc as any).setLineDash?.([2, 2], 0);
+                            doc.line(margin + padding, y, pageWidth - margin - padding, y);
+                            (doc as any).setLineDash?.([]);
+
+                            y += 4;
+
+                            try {
+                                const pdfImages = await fetchPdfAsImages(receiptUrl);
+                                for (let pIdx = 0; pIdx < pdfImages.length; pIdx++) {
+                                    const pageImage = pdfImages[pIdx];
+                                    const imgProps = doc.getImageProperties(pageImage) as any;
+                                    const maxPreviewWidth = pageWidth - (margin + padding) * 2;
+                                    
+                                    let maxPreviewHeight = pageHeight - margin * 2 - 20;
+                                    if (pIdx === 0) {
+                                        // Fit first page tightly in the remaining space on current page
+                                        maxPreviewHeight = Math.max(100, pageHeight - y - margin - 15);
+                                    }
+
+                                    let renderWidth = imgProps.width;
+                                    let renderHeight = imgProps.height;
+                                    if (renderWidth > maxPreviewWidth) {
+                                        const scale = maxPreviewWidth / renderWidth;
+                                        renderWidth = maxPreviewWidth;
+                                        renderHeight = renderHeight * scale;
+                                    }
+                                    if (renderHeight > maxPreviewHeight) {
+                                        const scale = maxPreviewHeight / renderHeight;
+                                        renderHeight = maxPreviewHeight;
+                                        renderWidth = renderWidth * scale;
+                                    }
+
+                                    if (y + renderHeight + 12 > pageHeight - margin) {
+                                        doc.addPage();
+                                        addPageBorder();
+                                        y = margin + padding;
+                                    }
+
+                                    doc.addImage(
+                                        pageImage,
+                                        "JPEG",
+                                        margin + padding,
+                                        y,
+                                        renderWidth,
+                                        renderHeight
+                                    );
+
+                                    y += renderHeight + 12;
+                                }
+                            } catch (pdfErr) {
+                                console.error("Error rendering PDF receipt:", pdfErr);
+                                if (y + 30 > pageHeight - margin - 20) {
+                                    doc.addPage();
+                                    addPageBorder();
+                                    y = margin + padding;
+                                }
+                                doc.setFont("helvetica", "bolditalic");
+                                doc.setFontSize(10);
+                                doc.setTextColor(120, 120, 120);
+                                doc.text(
+                                    "Note: Failed to render PDF preview. Click 'View Receipt' to open it.",
+                                    margin + padding,
+                                    y
+                                );
+                                y += 15;
+                            }
                         } else {
                             // Not an image (PDF or other format)
                             if (y + 30 > pageHeight - margin - 20) {
@@ -929,19 +955,19 @@ export default function DownloadAllExpensesAsPdf({
                             doc.setFontSize(10);
                             doc.setTextColor(120, 120, 120);
                             doc.text(
-                                "Note: Receipt preview is unavailable for PDF files. Click 'View Receipt' to open it.",
+                                "Note: Receipt preview is unavailable for this format. Click 'View Receipt' to open it.",
                                 margin + padding,
                                 y
                             );
                             y += 15;
                         }
                     } catch (err) {
-                        // Receipt is PDF or failed to load
+                        // Failed to load
                         doc.setFont("helvetica", "bold");
                         doc.setFontSize(10);
                         doc.setTextColor(120, 120, 120);
                         doc.text(
-                            "Note: Receipt preview is unavailable because the receipt is in PDF format.\nPlease click View Receipt to open it.",
+                            "Note: Receipt preview is unavailable. Please click View Receipt to open it.",
                             margin + padding,
                             y
                         );
@@ -972,6 +998,7 @@ export default function DownloadAllExpensesAsPdf({
                         const extLooksLikeImage =
                             attachmentExt &&
                             ["png", "jpg", "jpeg", "webp"].includes(attachmentExt);
+                        const isPdfFile = mimeType === "application/pdf" || attachmentExt === "pdf";
 
                         if (mimeLooksLikeImage || extLooksLikeImage) {
                                 // Divider (dotted)
@@ -1028,6 +1055,89 @@ export default function DownloadAllExpensesAsPdf({
                             );
 
                             y += renderHeight + 12;
+                        } else if (isPdfFile) {
+                            if (y + 150 > pageHeight - margin) {
+                                doc.addPage();
+                                addPageBorder();
+                                y = margin + padding;
+                            }
+
+                            doc.setFont("helvetica", "bold");
+                            doc.setFontSize(11);
+                            doc.setTextColor(0, 0, 0);
+                            doc.text("VOUCHER ATTACHMENT PREVIEW (PDF):", margin + padding, y);
+
+                            y += 4;
+
+                            // Divider (dotted)
+                            doc.setDrawColor(0);
+                            doc.setLineWidth(0.2);
+                            (doc as any).setLineDash?.([2, 2], 0);
+                            doc.line(margin + padding, y, pageWidth - margin - padding, y);
+                            (doc as any).setLineDash?.([]);
+
+                            y += 4;
+
+                            try {
+                                const pdfImages = await fetchPdfAsImages(voucherAttachmentUrl);
+                                for (let pIdx = 0; pIdx < pdfImages.length; pIdx++) {
+                                    const pageImage = pdfImages[pIdx];
+                                    const imgProps = doc.getImageProperties(pageImage) as any;
+                                    const maxPreviewWidth = pageWidth - (margin + padding) * 2;
+                                    
+                                    let maxPreviewHeight = pageHeight - margin * 2 - 20;
+                                    if (pIdx === 0) {
+                                        // Fit first page tightly in the remaining space on current page
+                                        maxPreviewHeight = Math.max(100, pageHeight - y - margin - 15);
+                                    }
+
+                                    let renderWidth = imgProps.width;
+                                    let renderHeight = imgProps.height;
+                                    if (renderWidth > maxPreviewWidth) {
+                                        const scale = maxPreviewWidth / renderWidth;
+                                        renderWidth = maxPreviewWidth;
+                                        renderHeight = renderHeight * scale;
+                                    }
+                                    if (renderHeight > maxPreviewHeight) {
+                                        const scale = maxPreviewHeight / renderHeight;
+                                        renderHeight = maxPreviewHeight;
+                                        renderWidth = renderWidth * scale;
+                                    }
+
+                                    if (y + renderHeight + 12 > pageHeight - margin) {
+                                        doc.addPage();
+                                        addPageBorder();
+                                        y = margin + padding;
+                                    }
+
+                                    doc.addImage(
+                                        pageImage,
+                                        "JPEG",
+                                        margin + padding,
+                                        y,
+                                        renderWidth,
+                                        renderHeight
+                                    );
+
+                                    y += renderHeight + 12;
+                                }
+                            } catch (pdfErr) {
+                                console.error("Error rendering PDF attachment:", pdfErr);
+                                if (y + 30 > pageHeight - margin - 20) {
+                                    doc.addPage();
+                                    addPageBorder();
+                                    y = margin + padding;
+                                }
+                                doc.setFont("helvetica", "bolditalic");
+                                doc.setFontSize(10);
+                                doc.setTextColor(120, 120, 120);
+                                doc.text(
+                                    "Note: Failed to render PDF preview. Click 'View Attachment' to open it.",
+                                    margin + padding,
+                                    y
+                                );
+                                y += 15;
+                            }
                         } else {
                             // Not an image (PDF or other format)
                             if (y + 30 > pageHeight - margin - 20) {
@@ -1039,7 +1149,7 @@ export default function DownloadAllExpensesAsPdf({
                             doc.setFontSize(10);
                             doc.setTextColor(120, 120, 120);
                             doc.text(
-                                "Note: Voucher attachment preview is unavailable because the attachment is in PDF format.\nPlease click View Attachment to open it.",
+                                "Note: Voucher attachment preview is unavailable for this format.\nPlease click View Attachment to open it.",
                                 margin + padding,
                                 y
                             );
@@ -1049,13 +1159,14 @@ export default function DownloadAllExpensesAsPdf({
                         // Attachment failed to load
                         if (y + 30 > pageHeight - margin - 20) {
                             doc.addPage();
+                            addPageBorder(); // Also adding border to be safe
                             y = margin + padding;
                         }
                         doc.setFont("helvetica", "bolditalic");
                         doc.setFontSize(10);
                         doc.setTextColor(120, 120, 120);
                         doc.text(
-                            "Note: Voucher attachment preview is unavailable because the attachment is in PDF format.\nPlease click View Attachment to open it.",
+                            "Note: Voucher attachment preview is unavailable.\nPlease click View Attachment to open it.",
                             margin + padding,
                             y
                         );
