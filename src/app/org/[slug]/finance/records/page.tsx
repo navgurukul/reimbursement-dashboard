@@ -145,7 +145,37 @@ export default function PaymentRecords() {
     securityDeposit: "All Security Deposits",
     paidByBank: "All Banks",
   });
+
+  const isMounted = useRef(false);
+
   const [filterOpen, setFilterOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("finance-records-filters");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setFilters(parsed.filters || parsed);
+          if (parsed.filterOpen !== undefined) {
+            setFilterOpen(parsed.filterOpen);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved filters", e);
+        }
+      }
+    }
+    // Set mounted to true after reading so the second effect can start saving
+    setTimeout(() => {
+      isMounted.current = true;
+    }, 0);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted.current && typeof window !== "undefined") {
+      sessionStorage.setItem("finance-records-filters", JSON.stringify({ filters, filterOpen }));
+    }
+  }, [filters, filterOpen]);
   const [eventTitleLookup, setEventTitleLookup] = useState<
     Record<string, string>
   >({});
