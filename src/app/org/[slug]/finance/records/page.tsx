@@ -660,6 +660,15 @@ export default function PaymentRecords() {
       "Advance Payment",
     ];
 
+    let exportIndicesMap: Map<string, number> | null = null;
+    if (exportBankType && exportBankType !== "ALL_RECORDS" && exportBankType !== "NO_BANK") {
+      exportIndicesMap = new Map();
+      const unfilteredBankRecords = records.filter((r: any) => (r.paid_by_bank || "") === exportBankType);
+      unfilteredBankRecords.forEach((r: any, idx: number) => {
+        exportIndicesMap!.set(r.id, idx + 1);
+      });
+    }
+
     const rows = getExportRecords().map((record: any, index: number) => {
       const tdsPercent = record.tds_deduction_percentage;
       const tdsAmount = getTdsAmount(record);
@@ -688,8 +697,12 @@ export default function PaymentRecords() {
       const isAdvance = isMarkedAsAdvance || hasAdvancePrefix;
       const advanceDisplay = isAdvance ? "Mark as Advance" : "Regular Payment";
 
+      const sNo = exportBankType === "ALL_RECORDS"
+        ? (record.serialNumber ?? index + 1)
+        : (exportIndicesMap ? (exportIndicesMap.get(record.id) ?? index + 1) : index + 1);
+
       return [
-        record.serialNumber ?? index + 1,
+        sNo,
         formatDateTime(record.updated_at || record.created_at),
         record.creator_email || "",
         record.unique_id || "N/A",
@@ -1132,10 +1145,18 @@ export default function PaymentRecords() {
   const activeTabRecords = useMemo(() => {
     return records.filter((r: any) => {
       if (activeTab === "all") return true;
-      const expected = BANK_STRING_MAP[activeTab];
+      const expected = BANK_STRING_MAP[activeTab as "ngidfc" | "fcidfc" | "kotak"];
       return (r.paid_by_bank || "") === expected;
     });
   }, [records, activeTab]);
+
+  const activeTabRecordIndices = useMemo(() => {
+    const indices = new Map<string, number>();
+    activeTabRecords.forEach((r: any, idx: number) => {
+      indices.set(r.id, idx + 1);
+    });
+    return indices;
+  }, [activeTabRecords]);
   const dateOfExpenseOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
     activeTabRecords.forEach((r: any) => {
@@ -2891,7 +2912,7 @@ export default function PaymentRecords() {
                     }`}
                 >
                   <TableCell className="text-center py-2">
-                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : pagination.getItemNumber(index)}
+                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index))}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
