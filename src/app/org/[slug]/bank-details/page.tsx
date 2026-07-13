@@ -467,65 +467,67 @@ export default function BankDetailsPage() {
 
       {/* Add / Edit Form Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-white shadow-lg max-w-md w-full">
+        <DialogContent className="bg-white shadow-lg w-[95vw] sm:max-w-lg md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleSubmit} className="space-y-4">
             <DialogTitle className="subsection-heading">
               {editing ? "Edit Bank Detail" : "Add New Bank Detail"}
             </DialogTitle>
-            {[
-              { name: "account_holder", label: "Account Holder" },
-              { name: "account_number", label: "Account Number" },
-              { name: "ifsc_code", label: "IFSC Code" },
-              { name: "bank_name", label: "Bank Name" },
-              { name: "email", label: "Email" },
-              { name: "unique_id", label: "Unique ID" },
-              { name: "advance_unique_id", label: "Advance Unique ID" },
-            ].map(({ name, label }) => (
-              <div key={name}>
-                <label className="block text-sm font-medium mb-1">
-                  {label}
-                </label>
-                <Input
-                  name={name}
-                  value={(form as any)[name]}
-                  onChange={handleInputChange}
-                />
-                {errors[name] && (
-                  <p className="text-red-500 text-xs mt-1">{errors[name]}</p>
-                )}
-              </div>
-            ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { name: "account_holder", label: "Account Holder" },
+                { name: "account_number", label: "Account Number" },
+                { name: "ifsc_code", label: "IFSC Code" },
+                { name: "bank_name", label: "Bank Name" },
+                { name: "email", label: "Email" },
+                { name: "unique_id", label: "Unique ID" },
+                { name: "advance_unique_id", label: "Advance Unique ID" },
+              ].map(({ name, label }) => (
+                <div key={name}>
+                  <label className="block text-sm font-medium mb-1">
+                    {label}
+                  </label>
+                  <Input
+                    name={name}
+                    value={(form as any)[name]}
+                    onChange={handleInputChange}
+                  />
+                  {errors[name] && (
+                    <p className="text-red-500 text-xs mt-1">{errors[name]}</p>
+                  )}
+                </div>
+              ))}
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Bank Document</label>
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="fileUpload"
-                  className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
-                >
-                  <Upload className="w-4 h-4" />
-                  {documentFileName ? "Change Document" : "Upload Document"}
-                </label>
-                <input
-                  type="file"
-                  id="fileUpload"
-                  accept="application/pdf,image/jpeg,image/png,image/jpg"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                />
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Bank Document</label>
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="fileUpload"
+                    className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {documentFileName ? "Change Document" : "Upload Document"}
+                  </label>
+                  <input
+                    type="file"
+                    id="fileUpload"
+                    accept="application/pdf,image/jpeg,image/png,image/jpg"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+                {documentFileName ? (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Selected: {documentFileName}
+                  </p>
+                ) : form.document_url ? (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Upload a new one to replace it.
+                  </p>
+                ) : null}
               </div>
-              {documentFileName ? (
-                <p className="text-sm text-gray-600 mt-1">
-                  Selected: {documentFileName}
-                </p>
-              ) : form.document_url ? (
-                <p className="text-sm text-gray-600 mt-1">
-                  Existing document available. Upload a new one to replace it.
-                </p>
-              ) : null}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
