@@ -3265,6 +3265,8 @@ export default function PaymentRecords() {
                                 const params = new URLSearchParams();
                                 params.set("activeTab", activeTab);
                                 params.set("page", String(pagination.currentPage));
+                                const sNo = activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index));
+                                params.set("sNo", String(sNo));
                                 router.push(
                                   `/org/${slug}/finance/records/${record.id}?${params.toString()}`
                                 );

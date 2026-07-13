@@ -1214,7 +1214,9 @@ export default function DownloadAllExpensesAsPdf({
                           return `${dd}-${mm}-${yyyy}`;
                       })()
                     : timestamp;
-                doc.save(`${single.expense_type}_${safeCreator}_${expenseDate}.pdf`);
+                const amountStr = Number(single.approved_amount || single.amount || 0).toFixed(2);
+                const sNoVal = single.s_no || "S.No";
+                doc.save(`Ex${sNoVal}_${amountStr}_${single.expense_type}_${safeCreator}_${expenseDate}.pdf`);
             } else {
                 doc.save(`all_expenses_${timestamp}.pdf`);
             }
