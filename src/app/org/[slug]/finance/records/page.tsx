@@ -145,7 +145,37 @@ export default function PaymentRecords() {
     securityDeposit: "All Security Deposits",
     paidByBank: "All Banks",
   });
+
+  const isMounted = useRef(false);
+
   const [filterOpen, setFilterOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("finance-records-filters");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setFilters(parsed.filters || parsed);
+          if (parsed.filterOpen !== undefined) {
+            setFilterOpen(parsed.filterOpen);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved filters", e);
+        }
+      }
+    }
+    // Set mounted to true after reading so the second effect can start saving
+    setTimeout(() => {
+      isMounted.current = true;
+    }, 0);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted.current && typeof window !== "undefined") {
+      sessionStorage.setItem("finance-records-filters", JSON.stringify({ filters, filterOpen }));
+    }
+  }, [filters, filterOpen]);
   const [eventTitleLookup, setEventTitleLookup] = useState<
     Record<string, string>
   >({});
@@ -380,7 +410,7 @@ export default function PaymentRecords() {
     if (stored !== null && stored !== undefined && stored !== "") {
       return Number(stored);
     }
-    const base = getBaseAmount(record);
+    const base = Number(record.amount ?? 0);
     const tdsAmount = getTdsAmount(record);
     const securityDepositAmount = getSecurityDepositAmount(record);
     if (
@@ -660,6 +690,15 @@ export default function PaymentRecords() {
       "Advance Payment",
     ];
 
+    let exportIndicesMap: Map<string, number> | null = null;
+    if (exportBankType && exportBankType !== "ALL_RECORDS" && exportBankType !== "NO_BANK") {
+      exportIndicesMap = new Map();
+      const unfilteredBankRecords = records.filter((r: any) => (r.paid_by_bank || "") === exportBankType);
+      unfilteredBankRecords.forEach((r: any, idx: number) => {
+        exportIndicesMap!.set(r.id, idx + 1);
+      });
+    }
+
     const rows = getExportRecords().map((record: any, index: number) => {
       const tdsPercent = record.tds_deduction_percentage;
       const tdsAmount = getTdsAmount(record);
@@ -688,8 +727,12 @@ export default function PaymentRecords() {
       const isAdvance = isMarkedAsAdvance || hasAdvancePrefix;
       const advanceDisplay = isAdvance ? "Mark as Advance" : "Regular Payment";
 
+      const sNo = exportBankType === "ALL_RECORDS"
+        ? (record.serialNumber ?? index + 1)
+        : (exportIndicesMap ? (exportIndicesMap.get(record.id) ?? index + 1) : index + 1);
+
       return [
-        record.serialNumber ?? index + 1,
+        sNo,
         formatDateTime(record.updated_at || record.created_at),
         record.creator_email || "",
         record.unique_id || "N/A",
@@ -1132,10 +1175,18 @@ export default function PaymentRecords() {
   const activeTabRecords = useMemo(() => {
     return records.filter((r: any) => {
       if (activeTab === "all") return true;
-      const expected = BANK_STRING_MAP[activeTab];
+      const expected = BANK_STRING_MAP[activeTab as "ngidfc" | "fcidfc" | "kotak"];
       return (r.paid_by_bank || "") === expected;
     });
   }, [records, activeTab]);
+
+  const activeTabRecordIndices = useMemo(() => {
+    const indices = new Map<string, number>();
+    activeTabRecords.forEach((r: any, idx: number) => {
+      indices.set(r.id, idx + 1);
+    });
+    return indices;
+  }, [activeTabRecords]);
   const dateOfExpenseOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
     activeTabRecords.forEach((r: any) => {
@@ -1269,7 +1320,7 @@ export default function PaymentRecords() {
         )
       )
         return false;
-      const amt = Number(r.approved_amount) || 0;
+      const amt = getBaseAmount(r);
       if (filters.minAmount !== "" && amt < Number(filters.minAmount))
         return false;
       if (filters.maxAmount !== "" && amt > Number(filters.maxAmount))
@@ -2891,7 +2942,7 @@ export default function PaymentRecords() {
                     }`}
                 >
                   <TableCell className="text-center py-2">
-                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : pagination.getItemNumber(index)}
+                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index))}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
@@ -2912,7 +2963,7 @@ export default function PaymentRecords() {
                     {record.location || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    ₹{record.amount}
+                    ₹{getBaseAmount(record)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {(() => {
@@ -3214,6 +3265,8 @@ export default function PaymentRecords() {
                                 const params = new URLSearchParams();
                                 params.set("activeTab", activeTab);
                                 params.set("page", String(pagination.currentPage));
+                                const sNo = activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index));
+                                params.set("sNo", String(sNo));
                                 router.push(
                                   `/org/${slug}/finance/records/${record.id}?${params.toString()}`
                                 );

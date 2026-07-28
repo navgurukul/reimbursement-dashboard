@@ -58,6 +58,35 @@ async function fetchImageAsDataUrl(url: string): Promise<{
   });
 }
 
+// Utility: fetch PDF and convert its pages to images
+async function fetchPdfAsImages(url: string): Promise<string[]> {
+  const pdfjsLib = await import("pdfjs-dist");
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  }
+
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const images: string[] = [];
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (context) {
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: context, canvas: canvas, viewport: viewport }).promise;
+      images.push(canvas.toDataURL("image/jpeg", 0.8));
+    }
+  }
+  return images;
+}
+
+
 export default function VoucherDownloadAsPdf({
   expense,
   expenseId,
@@ -92,20 +121,48 @@ export default function VoucherDownloadAsPdf({
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
-      const margin = 20; // outer margin
+      const margin = 10; // outer margin
       const padding = 10; // inner padding inside border
 
-      // ===== Outer rounded border (card) =====
-      doc.setDrawColor(0);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(
-        margin,
-        margin,
-        pageWidth - margin * 2,
-        pageHeight - margin * 2,
-        0,
-        0
-      );
+      const addPageBorder = () => {
+        // ===== Outer rounded border (card) =====
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(
+          margin,
+          margin,
+          pageWidth - margin * 2,
+          pageHeight - margin * 2,
+          0,
+          0
+        );
+
+        // ===== Footer Note (always at bottom inside border) =====
+        const bottomFooterY = pageHeight - margin - 14;
+        // Divider line
+        doc.setDrawColor(120);
+        doc.setLineWidth(0.2);
+        doc.line(
+          margin + padding,
+          bottomFooterY,
+          pageWidth - margin - padding,
+          bottomFooterY
+        );
+
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(12);
+        doc.setTextColor(100, 100, 100);
+
+        doc.text(
+          "This is a computer-generated voucher and is valid without physical signature.",
+          pageWidth / 2,
+          pageHeight - margin - 6, // always just above bottom border
+          { align: "center" }
+        );
+      };
+
+      // Add border and footer to the first page
+      addPageBorder();
 
       // ===== Header =====
       let y = margin + padding;
@@ -196,7 +253,7 @@ export default function VoucherDownloadAsPdf({
         ["Credit Person", voucher.credit_person || "N/A"],
         ["Approver", expense?.approver?.full_name || "N/A"],
         ["Purpose", voucher.purpose || "N/A"],
-        ["Attachment", voucherAttachmentFilename || "Not available"],
+        ["Attachment", voucherAttachmentFilename ? (voucherAttachmentUrl && voucherAttachmentFilename.toLowerCase().endsWith(".pdf") ? "ATTACHMENT PREVIEW (PDF) show below" : "Attachment preview below") : "Not available"],
         [
           "Signature",
           signatureUrl
@@ -236,46 +293,6 @@ export default function VoucherDownloadAsPdf({
           ) {
             d.cell.styles.textColor = [0, 0, 0];
             d.cell.styles.fontStyle = "bold";
-          }
-
-          if (
-            d.section === "body" &&
-            d.column.index === 1 &&
-            Array.isArray(d.row.raw) &&
-            String((d.row.raw as any[])[0]).toLowerCase() === "attachment"
-          ) {
-            // so that when no attachment exists the cell still shows "Not available".
-            if (voucherAttachmentUrl) {
-              d.cell.text = [""];
-            }
-          }
-        },
-        didDrawCell: (d) => {
-          try {
-            // clickable 'View Attachment' link when available
-              if (
-              d.section === "body" &&
-              d.column.index === 1 &&
-              Array.isArray(d.row.raw) &&
-              String((d.row.raw as any[])[0]).toLowerCase() === "attachment" &&
-              voucherAttachmentUrl
-            ) {
-              const cellX = d.cell.x;
-              const cellY = d.cell.y;
-              const cellW = d.cell.width;
-              const cellH = d.cell.height;
-              const linkText = "View Attachment";
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(11);
-              doc.setTextColor(0, 102, 204);
-              // vertically center the text roughly
-              const textY = cellY + cellH / 2 + 3;
-              doc.text(linkText, cellX + 4, textY);
-              // add clickable link area over the cell
-              doc.link(cellX, cellY, cellW, cellH, { url: voucherAttachmentUrl });
-            }
-          } catch (err) {
-            // ignore drawing/link errors
           }
         },
       });
@@ -379,61 +396,146 @@ export default function VoucherDownloadAsPdf({
           const extLooksLikeImage =
             attachmentExt &&
             ["png", "jpg", "jpeg", "webp"].includes(attachmentExt);
+          const isPdfFile = mimeType === "application/pdf" || attachmentExt === "pdf";
 
-          if (!mimeLooksLikeImage && !extLooksLikeImage) {
-            throw new Error("not-image");
+          if (mimeLooksLikeImage || extLooksLikeImage) {
+            const imgProps = doc.getImageProperties(base64Attachment) as any;
+            const imageFormat =
+              imgProps?.fileType ||
+              imgProps?.format ||
+              mimeType?.replace("image/", "").toUpperCase() ||
+              "PNG";
+            const maxPreviewWidth = pageWidth - (margin + padding) * 2;
+            const maxPreviewHeight = 180;
+
+            let renderWidth = imgProps.width;
+            let renderHeight = imgProps.height;
+            if (renderWidth > maxPreviewWidth) {
+              const scale = maxPreviewWidth / renderWidth;
+              renderWidth = maxPreviewWidth;
+              renderHeight = renderHeight * scale;
+            }
+            if (renderHeight > maxPreviewHeight) {
+              const scale = maxPreviewHeight / renderHeight;
+              renderHeight = maxPreviewHeight;
+              renderWidth = renderWidth * scale;
+            }
+
+            if (y + renderHeight + 24 > pageHeight - margin) {
+              doc.addPage();
+              addPageBorder();
+              y = margin + padding;
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+            doc.text("ATTACHMENT PREVIEW:", margin + padding, y);
+
+            y += 8;
+
+            doc.addImage(
+              base64Attachment,
+              imageFormat,
+              margin + padding,
+              y,
+              renderWidth,
+              renderHeight
+            );
+
+            y += renderHeight + 12;
+          } else if (isPdfFile) {
+            if (y + 150 > pageHeight - margin) {
+              doc.addPage();
+              addPageBorder();
+              y = margin + padding;
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+            doc.text("ATTACHMENT PREVIEW (PDF):", margin + padding, y);
+
+            y += 4;
+
+            // Divider (dotted)
+            doc.setDrawColor(0);
+            doc.setLineWidth(0.2);
+            (doc as any).setLineDash?.([2, 2], 0);
+            doc.line(margin + padding, y, pageWidth - margin - padding, y);
+            (doc as any).setLineDash?.([]);
+
+            y += 4;
+
+            try {
+              const pdfImages = await fetchPdfAsImages(voucherAttachmentUrl);
+              for (let pIdx = 0; pIdx < pdfImages.length; pIdx++) {
+                const pageImage = pdfImages[pIdx];
+                const imgProps = doc.getImageProperties(pageImage) as any;
+                const maxPreviewWidth = pageWidth - (margin + padding) * 2;
+
+                let maxPreviewHeight = pageHeight - margin * 2 - 20;
+                if (pIdx === 0) {
+                  // Fit first page tightly in the remaining space on current page
+                  maxPreviewHeight = Math.max(100, pageHeight - y - margin - 10);
+                }
+
+                let renderWidth = imgProps.width;
+                let renderHeight = imgProps.height;
+                if (renderWidth > maxPreviewWidth) {
+                  const scale = maxPreviewWidth / renderWidth;
+                  renderWidth = maxPreviewWidth;
+                  renderHeight = renderHeight * scale;
+                }
+                if (renderHeight > maxPreviewHeight) {
+                  const scale = maxPreviewHeight / renderHeight;
+                  renderHeight = maxPreviewHeight;
+                  renderWidth = renderWidth * scale;
+                }
+
+                if (y + renderHeight + 12 > pageHeight - margin) {
+                  doc.addPage();
+                  addPageBorder();
+                  y = margin + padding;
+                }
+
+                doc.addImage(
+                  pageImage,
+                  "JPEG",
+                  margin + padding,
+                  y,
+                  renderWidth,
+                  renderHeight
+                );
+
+                y += renderHeight + 12;
+              }
+            } catch (pdfErr) {
+              console.error("Error rendering PDF attachment:", pdfErr);
+              if (y + 30 > pageHeight - margin) {
+                doc.addPage();
+                addPageBorder();
+                y = margin + padding;
+              }
+              doc.setFont("helvetica", "bolditalic");
+              doc.setFontSize(10);
+              doc.setTextColor(120, 120, 120);
+              doc.text(
+                "Note: Failed to render PDF preview. Click 'View Attachment' to open it.",
+                margin + padding,
+                y
+              );
+              y += 15;
+            }
+          } else {
+            throw new Error("not-image-or-pdf");
           }
-
-          const imgProps = doc.getImageProperties(base64Attachment) as any;
-          const imageFormat =
-            imgProps?.fileType ||
-            imgProps?.format ||
-            mimeType?.replace("image/", "").toUpperCase() ||
-            "PNG";
-          const maxPreviewWidth = pageWidth - (margin + padding) * 2;
-          const maxPreviewHeight = 180;
-
-          let renderWidth = imgProps.width;
-          let renderHeight = imgProps.height;
-          if (renderWidth > maxPreviewWidth) {
-            const scale = maxPreviewWidth / renderWidth;
-            renderWidth = maxPreviewWidth;
-            renderHeight = renderHeight * scale;
-          }
-          if (renderHeight > maxPreviewHeight) {
-            const scale = maxPreviewHeight / renderHeight;
-            renderHeight = maxPreviewHeight;
-            renderWidth = renderWidth * scale;
-          }
-
-          if (y + renderHeight + 24 > pageHeight - margin) {
-            doc.addPage();
-            y = margin + padding;
-          }
-
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(11);
-          doc.setTextColor(0, 0, 0);
-          doc.text("ATTACHMENT PREVIEW:", margin + padding, y);
-
-          y += 8;
-
-          doc.addImage(
-            base64Attachment,
-            imageFormat,
-            margin + padding,
-            y,
-            renderWidth,
-            renderHeight
-          );
-
-          y += renderHeight + 12;
         } catch {
           doc.setFont("helvetica", "bolditalic");
           doc.setFontSize(10);
           doc.setTextColor(120, 120, 120);
           doc.text(
-            "Note: Attachment preview is unavailable because the attachment is in PDF format.\nPlease click View Attachment to open and view it.",
+            "Note: Attachment preview is unavailable.\nPlease click View Attachment to open and view it.",
             margin + padding,
             y
           );
@@ -441,28 +543,7 @@ export default function VoucherDownloadAsPdf({
         }
       }
 
-      // ===== Footer Note (always at bottom inside border) =====
-      const bottomFooterY = pageHeight - margin - 14;
-      // Divider line
-      doc.setDrawColor(120);
-      doc.setLineWidth(0.2);
-      doc.line(
-        margin + padding,
-        bottomFooterY,
-        pageWidth - margin - padding,
-        bottomFooterY
-      );
-
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(12);
-      doc.setTextColor(100, 100, 100);
-
-      doc.text(
-        "This is a computer-generated voucher and is valid without physical signature.",
-        pageWidth / 2,
-        pageHeight - margin - 6, // always just above bottom border
-        { align: "center" }
-      );
+      // Footer is already rendered on every page by addPageBorder
 
       // Save file with expense-type_amount_date
       const rawType =
