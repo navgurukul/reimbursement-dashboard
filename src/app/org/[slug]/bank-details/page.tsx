@@ -332,9 +332,9 @@ export default function BankDetailsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    const allowedTypes = ['application/pdf'];
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Only PDF, JPG, JPEG, and PNG files are allowed");
+      toast.error("Only PDF files are allowed");
       return;
     }
 
@@ -498,7 +498,7 @@ export default function BankDetailsPage() {
               ))}
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Bank Document</label>
+                <label className="block text-sm font-medium mb-1">Bank Document <span className="text-xs text-gray-500 font-normal">(PDF only)</span></label>
                 <div className="flex items-center gap-2">
                   <label
                     htmlFor="fileUpload"
@@ -510,7 +510,7 @@ export default function BankDetailsPage() {
                   <input
                     type="file"
                     id="fileUpload"
-                    accept="application/pdf,image/jpeg,image/png,image/jpg"
+                    accept="application/pdf"
                     className="hidden"
                     onChange={handleFileUpload}
                   />
@@ -521,9 +521,13 @@ export default function BankDetailsPage() {
                   </p>
                 ) : form.document_url ? (
                   <p className="text-sm text-gray-600 mt-1">
-                    Upload a new one to replace it.
+                    Upload a new PDF to replace the existing document.
                   </p>
-                ) : null}
+                ) : (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Please upload a valid PDF document.
+                  </p>
+                )}
               </div>
             </div>
 
