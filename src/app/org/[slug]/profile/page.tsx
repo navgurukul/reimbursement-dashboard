@@ -13,7 +13,18 @@ import {
   CreditCard,
   LockKeyhole,
   ArrowLeft,
+  FileText,
+  Eye,
+  EyeOff,
+  ExternalLink,
 } from "lucide-react";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 
@@ -47,6 +58,7 @@ export default function ProfilePage() {
   });
   const [expenseSignature, setExpenseSignature] = useState("");
   const [savedUserSignature, setSavedUserSignature] = useState("");
+  const [isDocumentPaneOpen, setIsDocumentPaneOpen] = useState(true);
   const [bankDetails, setBankDetails] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<{
     full_name: string;
@@ -495,6 +507,103 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Bank Document Preview */}
+      {bankDetails?.document_url && (
+        <div className="border-[#e5e7eb]">
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white">
+            <div className="border-b px-4 py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-base font-semibold">
+                      Bank Document
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Opens by default for quick review
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => window.open(bankDetails.document_url, "_blank")}
+                          aria-label="Open document in new tab"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>Open in new tab</p>
+                      </TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => setIsDocumentPaneOpen((prev) => !prev)}
+                          aria-label={
+                            isDocumentPaneOpen
+                              ? "Hide document preview"
+                              : "Show document preview"
+                          }
+                        >
+                          {isDocumentPaneOpen ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>
+                          {isDocumentPaneOpen
+                            ? "Hide document preview"
+                            : "Show document preview"}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+            </div>
+
+            {isDocumentPaneOpen && (
+              <div className="p-4">
+                {bankDetails.document_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
+                  <div
+                    className="overflow-y-auto rounded-md border bg-muted"
+                    style={{ height: "auto" }}
+                  >
+                    <img
+                      src={bankDetails.document_url}
+                      alt="Bank Document"
+                      className="w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-[68vh] min-h-[360px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
+                    <iframe
+                      src={`${bankDetails.document_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
+                      className="h-full w-full border-none"
+                      title="Bank Document"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Signature */}
       <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
