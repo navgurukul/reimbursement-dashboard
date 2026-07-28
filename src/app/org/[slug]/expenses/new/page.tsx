@@ -3571,14 +3571,7 @@ export default function NewExpensePage() {
                                 parseFloat(e.target.value)
                               )
                             }
-                            onBlur={(e) => {
-                              if (col.key === "amount" && e.target.value) {
-                                const parsed = parseFloat(e.target.value);
-                                if (!isNaN(parsed)) {
-                                  handleInputChange(col.key, Math.round(parsed));
-                                }
-                              }
-                            }}
+
                             className={`w-full ${errors[col.key]
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : ""
@@ -3594,11 +3587,7 @@ export default function NewExpensePage() {
                               {errors[col.key]}
                             </p>
                           )}
-                          {col.key === "amount" && (
-                            <p className="text-xs text-gray-600">
-                              Decimal values are automatically rounded off.
-                            </p>
-                          )}
+
                         </>
                       )}
                     </div>
@@ -4421,14 +4410,7 @@ export default function NewExpensePage() {
                                       parseFloat(e.target.value)
                                     )
                                   }
-                                  onBlur={(e) => {
-                                    if (e.target.value) {
-                                      const parsed = parseFloat(e.target.value);
-                                      if (!isNaN(parsed)) {
-                                        handleExpenseItemChange(id, "amount", Math.round(parsed));
-                                      }
-                                    }
-                                  }}
+
                                   className={`w-full ${errors[col.key]
                                     ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                     : ""
@@ -4439,11 +4421,7 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
-                                {col.key === "amount" && (
-                                  <p className="text-xs text-gray-600">
-                                    Decimal values are automatically rounded off.
-                                  </p>
-                                )}
+
                               </>
                             )}
                           </div>
