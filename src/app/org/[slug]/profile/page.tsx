@@ -60,6 +60,7 @@ export default function ProfilePage() {
   const [savedUserSignature, setSavedUserSignature] = useState("");
   const [isDocumentPaneOpen, setIsDocumentPaneOpen] = useState(true);
   const [bankDetails, setBankDetails] = useState<any>(null);
+  const [isDocumentValid, setIsDocumentValid] = useState<boolean | null>(null);
   const [userProfile, setUserProfile] = useState<{
     full_name: string;
     email: string;
@@ -116,6 +117,23 @@ export default function ProfilePage() {
     }
     fetchBankDetails();
   }, [user?.email]);
+
+  // Check if bank document is valid
+  useEffect(() => {
+    if (!bankDetails?.document_url) {
+      setIsDocumentValid(false);
+      return;
+    }
+
+    setIsDocumentValid(null);
+    fetch(bankDetails.document_url, { method: "HEAD" })
+      .then((res) => {
+        setIsDocumentValid(res.ok);
+      })
+      .catch(() => {
+        setIsDocumentValid(false);
+      });
+  }, [bankDetails?.document_url]);
 
   // Load the user's saved signature if it exists
   useEffect(() => {
@@ -248,9 +266,9 @@ export default function ProfilePage() {
       setUserProfile((prev) =>
         prev
           ? {
-              ...prev,
-              avatar_url: cacheBustedUrl,
-            }
+            ...prev,
+            avatar_url: cacheBustedUrl,
+          }
           : null
       );
 
@@ -312,9 +330,8 @@ export default function ProfilePage() {
               disabled={uploadingPhoto}
             />
             <div
-              className={`w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer ${
-                uploadingPhoto ? "opacity-50 cursor-not-allowed" : ""
-              }`}
+              className={`w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer ${uploadingPhoto ? "opacity-50 cursor-not-allowed" : ""
+                }`}
             >
               {uploadingPhoto ? (
                 <>
@@ -350,11 +367,10 @@ export default function ProfilePage() {
                 </span>
                 <input
                   className={`w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white placeholder-[#94a3b8]
-                                        ${
-                                          bankDetails?.full_name
-                                            ? "text-[#111827]"
-                                            : "text-slate-600"
-                                        }`}
+                                        ${bankDetails?.full_name
+                      ? "text-[#111827]"
+                      : "text-slate-600"
+                    }`}
                   placeholder="Enter your full name"
                   value={userProfile?.full_name || "Full name not available"}
                   readOnly
@@ -371,11 +387,10 @@ export default function ProfilePage() {
                 </span>
                 <input
                   className={`w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white placeholder-[#94a3b8]
-                                        ${
-                                          bankDetails?.email
-                                            ? "text-[#111827]"
-                                            : "text-slate-600"
-                                        }`}
+                                        ${bankDetails?.email
+                      ? "text-[#111827]"
+                      : "text-slate-600"
+                    }`}
                   placeholder="Enter your email"
                   value={userProfile?.email || "Email not available"}
                   readOnly
@@ -392,11 +407,10 @@ export default function ProfilePage() {
                 </span>
                 <input
                   className={`w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white placeholder-[#94a3b8]
-                                        ${
-                                          bankDetails?.unique_id
-                                            ? "text-[#111827]"
-                                            : "text-slate-600"
-                                        }`}
+                                        ${bankDetails?.unique_id
+                      ? "text-[#111827]"
+                      : "text-slate-600"
+                    }`}
                   placeholder="Enter your unique ID"
                   value={bankDetails?.unique_id || "Unique ID not available"}
                   readOnly
@@ -426,11 +440,10 @@ export default function ProfilePage() {
               </span>
               <input
                 className={`w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white placeholder-[#94a3b8]
-                                    ${
-                                      bankDetails?.account_holder
-                                        ? "text-[#111827]"
-                                        : "text-slate-600"
-                                    }`}
+                                    ${bankDetails?.account_holder
+                    ? "text-[#111827]"
+                    : "text-slate-600"
+                  }`}
                 placeholder="Enter account holder name"
                 value={
                   bankDetails?.account_holder ||
@@ -450,11 +463,10 @@ export default function ProfilePage() {
               </span>
               <input
                 className={`w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white placeholder-[#94a3b8]
-                                    ${
-                                      bankDetails?.bank_name
-                                        ? "text-[#111827]"
-                                        : "text-slate-600"
-                                    }`}
+                                    ${bankDetails?.bank_name
+                    ? "text-[#111827]"
+                    : "text-slate-600"
+                  }`}
                 placeholder="Enter bank name"
                 value={bankDetails?.bank_name || "Bank name not available"}
                 readOnly
@@ -471,11 +483,10 @@ export default function ProfilePage() {
               </span>
               <input
                 className={`w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white placeholder-[#94a3b8]
-                                    ${
-                                      bankDetails?.account_number
-                                        ? "text-[#111827]"
-                                        : "text-slate-600"
-                                    }`}
+                                    ${bankDetails?.account_number
+                    ? "text-[#111827]"
+                    : "text-slate-600"
+                  }`}
                 placeholder="Enter account number"
                 value={
                   bankDetails?.account_number || "Account number not available"
@@ -494,11 +505,10 @@ export default function ProfilePage() {
               </span>
               <input
                 className={`w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base bg-white placeholder-[#94a3b8] 
-                                    ${
-                                      bankDetails?.ifsc_code
-                                        ? "text-[#111827]"
-                                        : "text-slate-600"
-                                    }`}
+                                    ${bankDetails?.ifsc_code
+                    ? "text-[#111827]"
+                    : "text-slate-600"
+                  }`}
                 placeholder="Enter IFSC code"
                 value={bankDetails?.ifsc_code || "IFSC code not available"}
                 readOnly
@@ -535,6 +545,7 @@ export default function ProfilePage() {
                           className="cursor-pointer"
                           onClick={() => window.open(bankDetails.document_url, "_blank")}
                           aria-label="Open document in new tab"
+                          disabled={!isDocumentValid}
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
@@ -579,24 +590,36 @@ export default function ProfilePage() {
 
             {isDocumentPaneOpen && (
               <div className="p-4">
-                {bankDetails.document_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
-                  <div
-                    className="overflow-y-auto rounded-md border bg-muted"
-                    style={{ height: "auto" }}
-                  >
-                    <img
-                      src={bankDetails.document_url}
-                      alt="Bank Document"
-                      className="w-full object-contain"
-                    />
+                {isDocumentValid === null ? (
+                  <div className="flex flex-col items-center justify-center h-[200px] text-gray-500">
+                    <Spinner size="md" className="mb-2" />
+                    <p className="mt-2 text-sm">Checking document...</p>
                   </div>
+                ) : isDocumentValid ? (
+                  bankDetails.document_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
+                    <div
+                      className="overflow-y-auto rounded-md border bg-muted"
+                      style={{ height: "auto" }}
+                    >
+                      <img
+                        src={bankDetails.document_url}
+                        alt="Bank Document"
+                        className="w-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-[68vh] min-h-[360px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
+                      <iframe
+                        src={`${bankDetails.document_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
+                        className="h-full w-full border-none"
+                        title="Bank Document"
+                      />
+                    </div>
+                  )
                 ) : (
-                  <div className="h-[68vh] min-h-[360px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
-                    <iframe
-                      src={`${bankDetails.document_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
-                      className="h-full w-full border-none"
-                      title="Bank Document"
-                    />
+                  <div className="flex flex-col items-center justify-center h-[200px] text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <FileText className="w-10 h-10 mb-2 text-gray-400" />
+                    <p className="font-medium text-gray-600">Bank Document not available</p>
                   </div>
                 )}
               </div>
