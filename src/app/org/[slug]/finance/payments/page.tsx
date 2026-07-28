@@ -248,7 +248,7 @@ export default function PaymentProcessingOnly() {
     }
 
     const actualAmount = calculateActualAmount(
-      getBaseAmount(expense),
+      expense.amount ?? 0,
       getTdsDeductionAmount(expense),
       getSecurityDepositAmount(expense)
     );
@@ -264,11 +264,7 @@ export default function PaymentProcessingOnly() {
       return fallback;
     }
 
-    if (hasTdsDeduction(expense) || hasSecurityDeposit(expense)) {
-      return getActualAmountValue(expense);
-    }
-
-    return Number(hasApprovedAmount ? expense.approved_amount : expense.amount);
+    return getActualAmountValue(expense);
   };
 
   const expenseTypeOptions = useMemo(

@@ -410,7 +410,7 @@ export default function PaymentRecords() {
     if (stored !== null && stored !== undefined && stored !== "") {
       return Number(stored);
     }
-    const base = getBaseAmount(record);
+    const base = Number(record.amount ?? 0);
     const tdsAmount = getTdsAmount(record);
     const securityDepositAmount = getSecurityDepositAmount(record);
     if (
