@@ -131,11 +131,13 @@ export default function RecordsDetails() {
         setHasVoucher(true);
       }
 
-      const expenseData = {
-        ...data,
+      const sNoParam = searchParams.get("sNo");
+      const expenseData = { 
+        ...data, 
         event_title: eventTitleValue,
         hasVoucher: !voucherError && !!voucherData,
-        voucherId: voucherData?.id || null
+        voucherId: voucherData?.id || null,
+        s_no: sNoParam || "S.No"
       } as any;
       const signaturePath = expenseData.signature_url;
       if (signaturePath && !signaturePath.startsWith("http")) {

@@ -175,13 +175,15 @@ export default function FinanceReview() {
 
   const filteredExpenseList = useMemo(() => {
     const getActualAmount = (expense: any) => {
-      const baseAmount = expense.approved_amount ?? expense.amount ?? 0;
+      const tdsBaseAmount = expense.approved_amount ?? expense.amount ?? 0;
       const tdsAmount =
         expense.tds_deduction_amount ??
         (expense.tds_deduction_percentage
-          ? calculateTdsAmount(baseAmount, expense.tds_deduction_percentage) ?? 0
+          ? calculateTdsAmount(tdsBaseAmount, expense.tds_deduction_percentage) ?? 0
           : 0);
-      return Number(baseAmount - tdsAmount);
+      const securityDepositAmount = expense.security_deposit_amount ?? 0;
+      const actualAmountBase = expense.amount ?? 0;
+      return Number(actualAmountBase - tdsAmount - securityDepositAmount);
     };
 
     return expenseList.filter((expense) => {
@@ -524,9 +526,11 @@ export default function FinanceReview() {
     const percentage = value ? Number.parseInt(value, 10) : null;
     const updatedExpenses = expenseList.map((exp) => {
       if (exp.id !== expenseId) return exp;
-      const baseAmount = exp.approved_amount ?? exp.amount ?? 0;
-      const tdsAmount = calculateTdsAmount(baseAmount, percentage);
-      const actualAmount = baseAmount - (tdsAmount ?? 0);
+      const tdsBaseAmount = exp.approved_amount ?? exp.amount ?? 0;
+      const tdsAmount = calculateTdsAmount(tdsBaseAmount, percentage);
+      const securityDepositAmount = exp.security_deposit_amount ?? 0;
+      const actualAmountBase = exp.amount ?? 0;
+      const actualAmount = actualAmountBase - (tdsAmount ?? 0) - securityDepositAmount;
       return {
         ...exp,
         tds_deduction_percentage: percentage,
@@ -1008,16 +1012,17 @@ export default function FinanceReview() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="px-4 py-3 text-center text-sm">
                     {formatCurrency(
-                      (expense.approved_amount ?? expense.amount ?? 0) -
+                      (expense.amount ?? 0) -
                         (expense.tds_deduction_amount ??
                           (expense.tds_deduction_percentage
                             ? calculateTdsAmount(
                                 expense.approved_amount ?? expense.amount ?? 0,
                                 expense.tds_deduction_percentage
                               ) ?? 0
-                            : 0))
+                            : 0)) -
+                        (expense.security_deposit_amount ?? 0)
                     )}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center whitespace-nowrap">

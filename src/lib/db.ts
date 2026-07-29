@@ -1036,6 +1036,44 @@ export const policyFiles = {
   },
 };
 
+export const bankDocumentFiles = {
+  upload: async (file: File, userId?: string | null) => {
+    try {
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error("Only PDF, JPG, JPEG, and PNG files are allowed");
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("File size must be under 5MB");
+      }
+
+      const userFolder = userId ? `${userId}/` : "";
+      const fileName = `${userFolder}${Date.now()}-${file.name}`;
+
+      // Upload to Supabase Storage
+      const { error } = await supabase.storage
+        .from("bank-document")
+        .upload(fileName, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data } = supabase.storage
+        .from("bank-document")
+        .getPublicUrl(fileName);
+
+      return { success: true, url: data.publicUrl };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Upload failed" };
+    }
+  },
+};
+
 // Organization Settings functions
 export const orgSettings = {
   getByOrgId: async (orgId: string) => {

@@ -248,7 +248,7 @@ export default function PaymentProcessingOnly() {
     }
 
     const actualAmount = calculateActualAmount(
-      getBaseAmount(expense),
+      expense.amount ?? 0,
       getTdsDeductionAmount(expense),
       getSecurityDepositAmount(expense)
     );
@@ -264,11 +264,7 @@ export default function PaymentProcessingOnly() {
       return fallback;
     }
 
-    if (hasTdsDeduction(expense) || hasSecurityDeposit(expense)) {
-      return getActualAmountValue(expense);
-    }
-
-    return Number(hasApprovedAmount ? expense.approved_amount : expense.amount);
+    return getActualAmountValue(expense);
   };
 
   const expenseTypeOptions = useMemo(
@@ -1968,10 +1964,28 @@ export default function PaymentProcessingOnly() {
                       className="border px-2 py-1 rounded bg-white text-sm"
                       value={paidByBank[expense.id] || ""}
                       onChange={(e) => {
+                        const selectedBank = e.target.value;
                         setPaidByBank((prev) => ({
                           ...prev,
-                          [expense.id]: e.target.value,
+                          [expense.id]: selectedBank,
                         }));
+
+                        let newDebitAccount = expense.debit_account;
+                        if (selectedBank === "NGIDFC Current") {
+                          newDebitAccount = "10064244213";
+                        } else if (selectedBank === "FCIDFC Current") {
+                          newDebitAccount = "10268100007";
+                        }
+
+                        if (newDebitAccount !== expense.debit_account) {
+                          setProcessingExpenses((prev) =>
+                            prev.map((exp) =>
+                              exp.id === expense.id
+                                ? { ...exp, debit_account: newDebitAccount }
+                                : exp
+                            )
+                          );
+                        }
                       }}
                     >
                       <option value="">Select Bank</option>

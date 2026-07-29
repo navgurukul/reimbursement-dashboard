@@ -31,7 +31,44 @@ import { Pagination, usePagination } from "@/components/pagination";
 import { toast } from "sonner";
 import { useOrgStore } from "@/store/useOrgStore";
 import { notFound, useRouter } from "next/navigation";
-import { Download, Pencil, Plus } from "lucide-react";
+import { Download, Pencil, Plus, Upload } from "lucide-react";
+import { bankDocumentFiles } from "@/lib/db";
+import { Spinner } from "@/components/ui/spinner";
+
+function DocumentLink({ url }: { url: string }) {
+  const [isValid, setIsValid] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!url) {
+      setIsValid(false);
+      return;
+    }
+    fetch(url, { method: "HEAD" })
+      .then((res) => {
+        setIsValid(res.ok);
+      })
+      .catch(() => {
+        setIsValid(false);
+      });
+  }, [url]);
+
+  if (isValid === null) {
+    return <span className="text-gray-400 text-xs">Checking...</span>;
+  }
+
+  return isValid ? (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-800 border border-blue-800 rounded px-2 py-1 hover:underline hover:border-transparent transition-colors"
+    >
+      View
+    </a>
+  ) : (
+    <span className="text-gray-500">N/A</span>
+  );
+}
 
 type BankDetail = {
   id: number;
@@ -43,6 +80,8 @@ type BankDetail = {
   unique_id: string;
   advance_unique_id: string;
   direct_payment?: boolean | null;
+  document_url?: string | null;
+  user_id?: string | null;
 };
 
 export default function BankDetailsPage() {
@@ -60,6 +99,9 @@ export default function BankDetailsPage() {
   const [showFormatModal, setShowFormatModal] = useState(false);
   // const [password, setPassword] = useState("");
   const [secret, setSecret] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentFileName, setDocumentFileName] = useState<string>("");
 
   // Use pagination hook
   const pagination = usePagination(data);
@@ -88,6 +130,8 @@ export default function BankDetailsPage() {
     email: "",
     unique_id: "",
     advance_unique_id: "",
+    document_url: "",
+    user_id: "",
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -209,18 +253,57 @@ export default function BankDetailsPage() {
   };
 
   const saveForm = async () => {
+    setIsSubmitting(true);
+    let finalDocumentUrl = form.document_url;
+
+    let user_id = form.user_id || null;
+    if (!user_id && form.email) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("email", form.email.trim())
+        .maybeSingle();
+      if (profile?.user_id) {
+        user_id = profile.user_id;
+      }
+    }
+
+    if (documentFile) {
+      const toastId = toast.loading("Uploading document...");
+      const uploadResult = await bankDocumentFiles.upload(documentFile, user_id);
+      toast.dismiss(toastId);
+      if (!uploadResult.success) {
+        toast.error(uploadResult.error || "Failed to upload document");
+        setIsSubmitting(false);
+        return;
+      }
+      finalDocumentUrl = uploadResult.url;
+    }
+
+    const payload = {
+      ...form,
+      document_url: finalDocumentUrl
+    };
+    
+    // Remove user_id from payload if it exists in form to avoid schema error
+    if ('user_id' in payload) {
+      delete (payload as any).user_id;
+    }
+
     let res;
     if (editing) {
       res = await supabase
         .from("bank_details")
-        .update(form)
+        .update(payload)
         .eq("id", editing.id);
     } else {
-      res = await supabase.from("bank_details").insert(form);
+      res = await supabase.from("bank_details").insert(payload);
     }
 
     if (res.error) {
-      toast.error("Failed to save data");
+      console.error("Database Error:", res.error);
+      toast.error(res.error.message || "Failed to save data");
+      setIsSubmitting(false);
       return;
     }
 
@@ -234,10 +317,35 @@ export default function BankDetailsPage() {
       email: "",
       unique_id: "",
       advance_unique_id: "",
+      document_url: "",
+      user_id: "",
     });
+    setDocumentFile(null);
+    setDocumentFileName("");
     setErrors({});
     fetchBankDetails();
     setDialogOpen(false);
+    setIsSubmitting(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Only PDF files are allowed");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be under 5MB");
+      return;
+    }
+
+    setDocumentFile(file);
+    setDocumentFileName(file.name);
+    toast.success("Document selected successfully");
   };
 
   const getColumnValue = (row: BankDetail, label: string) => {
@@ -343,7 +451,11 @@ export default function BankDetailsPage() {
               email: "",
               unique_id: "",
               advance_unique_id: "",
+              document_url: "",
+              user_id: "",
             });
+            setDocumentFile(null);
+            setDocumentFileName("");
             setErrors({});
             setDialogOpen(true);
           }}
@@ -355,35 +467,71 @@ export default function BankDetailsPage() {
 
       {/* Add / Edit Form Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-white shadow-lg max-w-md w-full">
+        <DialogContent className="bg-white shadow-lg w-[95vw] sm:max-w-lg md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleSubmit} className="space-y-4">
             <DialogTitle className="subsection-heading">
               {editing ? "Edit Bank Detail" : "Add New Bank Detail"}
             </DialogTitle>
-            {[
-              { name: "account_holder", label: "Account Holder" },
-              { name: "account_number", label: "Account Number" },
-              { name: "ifsc_code", label: "IFSC Code" },
-              { name: "bank_name", label: "Bank Name" },
-              { name: "email", label: "Email" },
-              { name: "unique_id", label: "Unique ID" },
-              { name: "advance_unique_id", label: "Advance Unique ID" },
-            ].map(({ name, label }) => (
-              <div key={name}>
-                <label className="block text-sm font-medium mb-1">
-                  {label}
-                </label>
-                <Input
-                  name={name}
-                  value={(form as any)[name]}
-                  onChange={handleInputChange}
-                />
-                {errors[name] && (
-                  <p className="text-red-500 text-xs mt-1">{errors[name]}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { name: "account_holder", label: "Account Holder" },
+                { name: "account_number", label: "Account Number" },
+                { name: "ifsc_code", label: "IFSC Code" },
+                { name: "bank_name", label: "Bank Name" },
+                { name: "email", label: "Email" },
+                { name: "unique_id", label: "Unique ID" },
+                { name: "advance_unique_id", label: "Advance Unique ID" },
+              ].map(({ name, label }) => (
+                <div key={name}>
+                  <label className="block text-sm font-medium mb-1">
+                    {label}
+                  </label>
+                  <Input
+                    name={name}
+                    value={(form as any)[name]}
+                    onChange={handleInputChange}
+                  />
+                  {errors[name] && (
+                    <p className="text-red-500 text-xs mt-1">{errors[name]}</p>
+                  )}
+                </div>
+              ))}
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Bank Document <span className="text-xs text-gray-500 font-normal">(PDF only)</span></label>
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="fileUpload"
+                    className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {documentFileName ? "Change Document" : "Upload Document"}
+                  </label>
+                  <input
+                    type="file"
+                    id="fileUpload"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+                {documentFileName ? (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Selected: {documentFileName}
+                  </p>
+                ) : form.document_url ? (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Upload a new PDF to replace the existing document.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Please upload a valid PDF document.
+                  </p>
                 )}
               </div>
-            ))}
-            <div className="flex justify-end gap-2 pt-2">
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -391,7 +539,17 @@ export default function BankDetailsPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit">{editing ? "Update" : "Save"}</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" /> Saving...
+                  </>
+                ) : editing ? (
+                  "Update"
+                ) : (
+                  "Save"
+                )}
+              </Button>
             </div>
           </form>
         </DialogContent>
@@ -564,16 +722,17 @@ export default function BankDetailsPage() {
               <TableHead className="px-4 py-3">Unique ID</TableHead>
               <TableHead className="px-4 py-3">Advance Unique ID</TableHead>
               <TableHead className="px-4 py-3">Direct Payment</TableHead>
+              <TableHead className="px-4 py-3 text-center">Bank Document</TableHead>
               <TableHead className="px-4 py-3 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={9} rows={5} />
+              <TableSkeleton colSpan={10} rows={5} />
             ) : data.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="text-center py-6 text-muted-foreground"
                 >
                   No results found
@@ -601,7 +760,14 @@ export default function BankDetailsPage() {
                     {row.advance_unique_id || "Not Available"}
                   </TableCell>
                   <TableCell className="px-4 py-3">
-                    {row.direct_payment || "Not Available"} 
+                    {row.direct_payment || "Not Available"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {row.document_url ? (
+                      <DocumentLink url={row.document_url} />
+                    ) : (
+                      <span className="text-gray-500">N/A</span>
+                    )}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <Button
@@ -617,7 +783,11 @@ export default function BankDetailsPage() {
                           email: row.email || "",
                           unique_id: row.unique_id || "",
                           advance_unique_id: row.advance_unique_id || "",
+                          document_url: row.document_url || "",
+                          user_id: row.user_id || "",
                         });
+                        setDocumentFile(null);
+                        setDocumentFileName("");
                         setErrors({});
                         setDialogOpen(true);
                       }}

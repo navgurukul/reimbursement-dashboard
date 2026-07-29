@@ -3568,7 +3568,7 @@ export default function NewExpensePage() {
                             onChange={(e) =>
                               handleInputChange(
                                 col.key,
-                                parseFloat(e.target.value)
+                                e.target.value === "" ? "" : Math.round(parseFloat(e.target.value))
                               )
                             }
 
@@ -3578,6 +3578,11 @@ export default function NewExpensePage() {
                               }`}
                             placeholder="Enter amount"
                           />
+                          {col.key === "amount" && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Decimal values are automatically rounded off.
+                            </p>
+                          )}
                           {errors[col.key] && (
                             <p
                               className="text-red-500 text-sm mt-1"
@@ -4407,7 +4412,7 @@ export default function NewExpensePage() {
                                     handleExpenseItemChange(
                                       id,
                                       "amount",
-                                      parseFloat(e.target.value)
+                                      e.target.value === "" ? "" : Math.round(parseFloat(e.target.value))
                                     )
                                   }
 
@@ -4416,6 +4421,11 @@ export default function NewExpensePage() {
                                     : ""
                                     }`}
                                 />
+                                {col.key === "amount" && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Decimal values are automatically rounded off.
+                                  </p>
+                                )}
                                 {errors[col.key] && (
                                   <p className="text-red-500 text-sm">
                                     {errors[col.key]}
