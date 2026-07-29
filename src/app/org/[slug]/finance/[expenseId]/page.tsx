@@ -24,6 +24,13 @@ import {
   TableHead,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tooltip,
@@ -703,7 +710,7 @@ export default function FinanceExpenseDetails() {
       : null;
   const actualAmount =
     expense?.actual_amount ??
-    calculateActualAmount(expense?.amount ?? tdsBaseAmount, tdsAmount, securityDepositAmount);
+    calculateActualAmount(expense?.approved_amount ?? tdsBaseAmount, tdsAmount, securityDepositAmount);
   const expenseCreditPerson =
     expense?.expense_credit_person ||
     getCustomFieldValue(expense?.custom_fields, "expense_credit_person") ||
@@ -951,7 +958,7 @@ export default function FinanceExpenseDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Invoice Amount</TableHead>
                     <TableCell>
                       {isEditingDetails ? (
                         <Input
@@ -991,24 +998,39 @@ export default function FinanceExpenseDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
+                    <TableHead>TDS Applicable Amount</TableHead>
+                    <TableCell>
+                      {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
+                        ? formatCurrency(tdsBaseAmount)
+                        : "N/A"}
+                    </TableCell>
+                  </TableRow>
+
+                  <TableRow>
                     <TableHead>TDS Deduction</TableHead>
                     <TableCell>
                       <div className="flex flex-col items-start gap-2">
-                        <select
-                          className="border px-2 py-1 rounded bg-white text-sm"
-                          value={tdsPercentage ? String(tdsPercentage) : ""}
-                          onChange={(e) => handleTdsChange(e.target.value)}
+                        <Select
+                          value={tdsPercentage ? String(tdsPercentage) : "none"}
+                          onValueChange={(value) =>
+                            handleTdsChange(value === "none" ? "" : value)
+                          }
                           disabled={tdsUpdating || securityDepositUpdating || processing}
                         >
-                          <option value="">Select %</option>
-                          {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
-                            (percent) => (
-                              <option key={percent} value={percent}>
-                                {percent}%
-                              </option>
-                            )
-                          )}
-                        </select>
+                          <SelectTrigger className="w-[110px] h-8 text-sm bg-white">
+                            <SelectValue placeholder="Select %" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Select %</SelectItem>
+                            {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                              (percent) => (
+                                <SelectItem key={percent} value={String(percent)}>
+                                  {percent}%
+                                </SelectItem>
+                              )
+                            )}
+                          </SelectContent>
+                        </Select>
                         <span className="text-xs text-muted-foreground">
                           {tdsPercentage
                             ? `${tdsPercentage}% (${formatCurrency(tdsAmount)})`
@@ -1061,7 +1083,7 @@ export default function FinanceExpenseDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Actual Amount</TableHead>
+                    <TableHead>Net Payable Amount</TableHead>
                     <TableCell>{formatCurrency(actualAmount)}</TableCell>
                   </TableRow>
                   <TableRow>

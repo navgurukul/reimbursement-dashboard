@@ -250,6 +250,31 @@ export default function NewExpensePage() {
   // Location options from settings
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
 
+  // Location of expense → approver mapping (from org settings); used to auto-fill approver and second approver
+  const [locationApproverMapping, setLocationApproverMapping] = useState<
+    {
+      location: string | string[];
+      expense_type?: string | string[];
+      approver_name?: string | string[];
+      second_approver_name?: string | string[];
+      approver_id?: string | string[];
+      second_approver_id?: string | string[];
+      enabled?: boolean;
+    }[]
+  >([]);
+
+  // Expense type → approver mapping (from org settings); used to auto-fill approver and second approver
+  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
+    {
+      expense_type: string | string[];
+      approver_name?: string | string[];
+      second_approver_name?: string | string[];
+      approver_id?: string | string[];
+      second_approver_id?: string | string[];
+      enabled?: boolean;
+    }[]
+  >([]);
+
   // Payment Unique ID helpers
   const [uniqueIdModalOpen, setUniqueIdModalOpen] = useState(false);
   const [bankSearchQuery, setBankSearchQuery] = useState("");
@@ -356,6 +381,8 @@ export default function NewExpensePage() {
     key: keyof ExpenseItemData,
     value: string | number | string[]
   ) => {
+    const shouldResetApprovers = key === "location" || key === "expense_type";
+
     // Clear item-level "required" error when user fills the field
     if (key === "expense_credit_person") {
       const stringValue = String(value ?? "").trim();
@@ -376,6 +403,9 @@ export default function NewExpensePage() {
       [itemId]: {
         ...prev[itemId],
         [key]: value,
+        ...(shouldResetApprovers
+          ? { approver: "", second_approver_id: "" }
+          : {}),
       },
     }));
 
@@ -593,6 +623,20 @@ export default function NewExpensePage() {
         }
 
         if (settings) {
+          if (
+            settings.expense_type_approver_mapping &&
+            Array.isArray(settings.expense_type_approver_mapping)
+          ) {
+            setExpenseTypeApproverMapping(settings.expense_type_approver_mapping);
+          }
+          if (
+            settings.location_approver_mapping &&
+            Array.isArray(settings.location_approver_mapping)
+          ) {
+            setLocationApproverMapping(
+              settings.location_approver_mapping
+            );
+          }
           const columnsToUse =
             settings.expense_columns && settings.expense_columns.length > 0
               ? settings.expense_columns
@@ -644,6 +688,9 @@ export default function NewExpensePage() {
           initialData.date = new Date().toISOString().split("T")[0];
           initialData.event_id = eventIdFromQuery || "";
           initialData.unique_id = "";
+          initialData.approver_name = "";
+          initialData.second_approver_id = "";
+          initialData.second_approver_name = "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         } else {
           // Process default columns with approver options
@@ -670,6 +717,9 @@ export default function NewExpensePage() {
           initialData.date = new Date().toISOString().split("T")[0];
           initialData.event_id = eventIdFromQuery || "";
           initialData.unique_id = "";
+          initialData.approver_name = "";
+          initialData.second_approver_id = "";
+          initialData.second_approver_name = "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         }
       } catch (error) {
@@ -682,6 +732,111 @@ export default function NewExpensePage() {
 
     fetchData();
   }, [orgId, eventIdFromQuery, user]);
+
+  // Auto-fill approver fields when expense type/location mapping changes
+  useEffect(() => {
+    const selectedLocation =
+      typeof formData.location === "string" ? formData.location : "";
+    const selectedExpenseType =
+      typeof formData.expense_type === "string" ? formData.expense_type : "";
+
+    if (!selectedLocation && !selectedExpenseType) return;
+
+    const mappedApprovers = getLocationSpecificApproverOptions(
+      "approver",
+      selectedLocation,
+      selectedExpenseType
+    );
+    const mappedSecondApprovers = getLocationSpecificApproverOptions(
+      "second_approver_id",
+      selectedLocation,
+      selectedExpenseType
+    );
+
+    const nextApprover = mappedApprovers[0]?.value || "";
+    const nextApproverName = mappedApprovers[0]?.label || "";
+    const nextSecondId = mappedSecondApprovers[0]?.value || "";
+    const nextSecondName = mappedSecondApprovers[0]?.label || "";
+
+    setFormData((prev) => {
+      if (
+        prev.approver === nextApprover &&
+        prev.approver_name === nextApproverName &&
+        prev.second_approver_id === nextSecondId &&
+        prev.second_approver_name === nextSecondName
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        approver: nextApprover,
+        approver_name: nextApproverName,
+        second_approver_id: nextSecondId,
+        second_approver_name: nextSecondName,
+      };
+    });
+  }, [
+    formData.location,
+    formData.expense_type,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    columns,
+  ]);
+
+  useEffect(() => {
+    if (!expenseItems.length) return;
+
+    setExpenseItemsData((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      expenseItems.forEach((itemId) => {
+        const item = prev[itemId];
+        if (!item) return;
+
+        const itemLocation =
+          typeof item.location === "string" ? item.location : "";
+        const itemExpenseType =
+          typeof item.expense_type === "string" ? item.expense_type : "";
+
+        if (!itemLocation && !itemExpenseType) return;
+
+        const mappedApprovers = getLocationSpecificApproverOptions(
+          "approver",
+          itemLocation,
+          itemExpenseType
+        );
+        const mappedSecondApprovers = getLocationSpecificApproverOptions(
+          "second_approver_id",
+          itemLocation,
+          itemExpenseType
+        );
+
+        const nextApprover = mappedApprovers[0]?.value || "";
+        const nextSecond = mappedSecondApprovers[0]?.value || "";
+
+        if (
+          item.approver !== nextApprover ||
+          item.second_approver_id !== nextSecond
+        ) {
+          changed = true;
+          next[itemId] = {
+            ...item,
+            approver: nextApprover,
+            second_approver_id: nextSecond,
+          };
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [
+    expenseItems,
+    expenseItemsData,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    columns,
+  ]);
 
   // Handle single receipt files
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -792,10 +947,26 @@ export default function NewExpensePage() {
         return updatedErrors;
       });
     }
-    setFormData((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setFormData((prev) => {
+      const next = { ...prev, [key]: value };
+
+      if (key === "approver" && typeof value === "string") {
+        next.approver_name = getApproverOptionLabel(value);
+      }
+
+      if (key === "second_approver_id" && typeof value === "string") {
+        next.second_approver_name = getApproverOptionLabel(value);
+      }
+
+      // Clear approver fields on location/expense type change so mapping can repopulate
+      if (key === "location" || key === "expense_type") {
+        next.approver = "";
+        next.approver_name = "";
+        next.second_approver_id = "";
+        next.second_approver_name = "";
+      }
+      return next;
+    });
 
     // If top-level amount is changed and top-level voucher mode is enabled, sync to voucherAmount
     if (key === "amount") {
@@ -852,6 +1023,205 @@ export default function NewExpensePage() {
       const event = events.find((e) => e.id === value);
       setSelectedEvent(event || null);
     }
+  };
+
+  function getApproverOptionLabel(value?: string) {
+    if (!value) return "";
+    const approverCol = columns.find((c) => c.key === "approver");
+    const opts = (approverCol?.options || []) as Array<
+      string | { value: string; label: string }
+    >;
+    const opt = opts.find((o) =>
+      (typeof o === "string" ? o : o.value) === value
+    );
+    if (!opt) return "";
+    return typeof opt === "string" ? opt : opt.label || opt.value;
+  }
+
+  function getApproverDisplayName(
+    approverId?: string,
+    approverName?: string
+  ) {
+    const name = (approverName || "").trim();
+    if (name) return name;
+    const label = getApproverOptionLabel(approverId);
+    return label || approverId || "";
+  }
+
+  const getLocationSpecificApproverOptions = (
+    fieldKey: "approver" | "second_approver_id" = "approver",
+    locationValue?: string,
+    expenseTypeValue?: string
+  ) => {
+    const approverCol = columns.find((c) => c.key === "approver");
+    const allOptions = (approverCol?.options || []) as Array<
+      string | { value: string; label: string }
+    >;
+
+    const normalizeIds = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      return Array.isArray(value)
+        ? value.filter((v) => v && v.trim())
+        : value.trim()
+          ? [value]
+          : [];
+    };
+
+    const normalizeNames = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+      return value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    };
+
+    const resolveIdsFromNames = (value?: string | string[]) => {
+      const names = normalizeNames(value);
+      if (!names.length) return [] as string[];
+      const mapByLabel = new Map(
+        allOptions.map((option) => {
+          const optValue = typeof option === "string" ? option : option.value;
+          const optLabel = typeof option === "string" ? option : option.label;
+          return [optLabel.toLowerCase(), optValue];
+        })
+      );
+      return names
+        .map((name) => mapByLabel.get(name.toLowerCase()))
+        .filter((v): v is string => Boolean(v));
+    };
+
+    const selectedLocation =
+      typeof locationValue === "string"
+        ? locationValue
+        : typeof formData.location === "string"
+          ? formData.location
+          : "";
+    const selectedExpenseType =
+      typeof expenseTypeValue === "string"
+        ? expenseTypeValue
+        : typeof formData.expense_type === "string"
+          ? formData.expense_type
+          : "";
+
+    // 1) Try expense-type specific mapping first (global, not tied to location)
+    const expenseTypeEntry =
+      selectedExpenseType && expenseTypeApproverMapping?.length
+        ? expenseTypeApproverMapping.find(
+          (m) => {
+            if (Array.isArray(m.expense_type)) {
+              return m.expense_type.includes(selectedExpenseType);
+            }
+            return m.expense_type === selectedExpenseType;
+          }
+        )
+        : undefined;
+
+    // 2) Then look for location-based mappings.
+    let locationEntry: (typeof locationApproverMapping)[number] | undefined;
+    if (selectedLocation && locationApproverMapping?.length) {
+      const candidates = locationApproverMapping.filter((m) =>
+        Array.isArray(m.location)
+          ? m.location.includes(selectedLocation)
+          : m.location === selectedLocation
+      );
+
+      if (candidates.length) {
+        if (selectedExpenseType) {
+          locationEntry = candidates.find(
+            (m) =>
+              (typeof m.expense_type === "string" &&
+              m.expense_type === selectedExpenseType) ||
+              (Array.isArray(m.expense_type) &&
+              m.expense_type.includes(selectedExpenseType))
+          );
+        }
+
+        if (!locationEntry) {
+          locationEntry = candidates.find(
+            (m) =>
+              m.expense_type === undefined ||
+              (typeof m.expense_type === "string" &&
+                m.expense_type.trim() === "") ||
+              (Array.isArray(m.expense_type) &&
+                m.expense_type.length === 0)
+          );
+        }
+      }
+    }
+    // Only use mappings that are enabled (true); ignore when enabled === false
+    const effectiveExpenseTypeEntry =
+      expenseTypeEntry && expenseTypeEntry.enabled !== false
+        ? expenseTypeEntry
+        : undefined;
+    const effectiveLocationEntry =
+      locationEntry && locationEntry.enabled !== false
+        ? locationEntry
+        : undefined;
+    const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
+
+    const mappedIds =
+      fieldKey === "second_approver_id"
+        ? normalizeIds(activeEntry?.second_approver_id).length
+          ? normalizeIds(activeEntry?.second_approver_id)
+          : resolveIdsFromNames(activeEntry?.second_approver_name)
+        : Array.from(
+          new Set([
+            ...(normalizeIds(activeEntry?.approver_id).length
+              ? normalizeIds(activeEntry?.approver_id)
+              : resolveIdsFromNames(activeEntry?.approver_name)),
+            ...(normalizeIds(activeEntry?.second_approver_id).length
+              ? normalizeIds(activeEntry?.second_approver_id)
+              : resolveIdsFromNames(activeEntry?.second_approver_name)),
+          ])
+        );
+
+    if (!mappedIds.length) {
+      return [];
+    }
+
+    const optionLookup = new Map(
+      allOptions.map((option) => {
+        const value = typeof option === "string" ? option : option.value;
+        const label = typeof option === "string" ? option : option.label;
+        return [value, { value, label }];
+      })
+    );
+
+    return mappedIds.map((id) => {
+      const mapped = optionLookup.get(id);
+      if (mapped) return mapped;
+      return { value: id, label: getApproverOptionLabel(id) || id };
+    });
+  };
+
+  const isLocationApproverUnavailable = (
+    fieldKey: "approver" | "second_approver_id" = "approver",
+    locationValue?: string,
+    expenseTypeValue?: string
+  ) => {
+    const selectedLocation =
+      typeof locationValue === "string"
+        ? locationValue
+        : typeof formData.location === "string"
+          ? formData.location
+          : "";
+    const selectedExpenseType =
+      typeof expenseTypeValue === "string"
+        ? expenseTypeValue
+        : typeof formData.expense_type === "string"
+          ? formData.expense_type
+          : "";
+
+    if (!selectedLocation && !selectedExpenseType) return false;
+
+    const mappedIds = getLocationSpecificApproverOptions(
+      fieldKey,
+      selectedLocation,
+      selectedExpenseType
+    ).map((opt) => opt.value);
+
+    return mappedIds.length === 0;
   };
 
   // Prefill Payment Unique ID using the logged-in user's bank details
@@ -1718,7 +2088,7 @@ export default function NewExpensePage() {
     if (isDirectPaymentSelected) {
       if (!String(topLevelExpenseCreditPerson || "").trim()) {
         newErrors["expense_credit_person"] =
-          "Expense credit person is required";
+          "Expense Credit Person is required";
       }
     }
 
@@ -1841,8 +2211,8 @@ export default function NewExpensePage() {
         throw new Error("Missing required data");
       }
 
-      // Validate that user is not approving their own expense
-      if (formData.approver === user.id) {
+      // Validate that user is not approving their own expense (if approver ID is set)
+      if (formData.approver && formData.approver === user.id) {
         toast.error("You cannot approve your own expenses");
         setSaving(false);
         return;
@@ -1996,14 +2366,29 @@ export default function NewExpensePage() {
           }
         }
       });
+      // Always save approver_name and second_approver_name
+      if (formData.approver_name) {
+        custom_fields["approver_name"] = formData.approver_name;
+      }
+      if (formData.second_approver_id) {
+        custom_fields["second_approver_id"] = formData.second_approver_id;
+      }
+      if (formData.second_approver_name) {
+        custom_fields["second_approver_name"] = formData.second_approver_name;
+      }
 
       if (voucherModalOpen) {
         custom_fields["description"] = formData.description || "Cash Voucher";
       }
 
-      const approverProfile = await profiles.getById(formData.approver);
+      const approverProfile = formData.approver
+        ? await profiles.getById(formData.approver)
+        : null;
       const approverEmail = approverProfile?.data?.email || "";
-      const approverName = approverProfile?.data?.full_name || "";
+      const approverName =
+        approverProfile?.data?.full_name ||
+        formData.approver_name ||
+        "";
 
       // Create the base expense
       const baseExpenseData = {
@@ -2152,11 +2537,39 @@ export default function NewExpensePage() {
           const itemIsDirectPayment = isDirectPaymentValue(
             item?.unique_id || formData.unique_id || ""
           );
+          const itemApproverId =
+            typeof item?.approver === "string" && item.approver.trim()
+              ? item.approver
+              : formData.approver || null;
+
+          const itemApproverProfile = itemApproverId
+            ? await profiles.getById(itemApproverId)
+            : null;
+          const itemApproverEmail = itemApproverProfile?.data?.email || "";
+          const itemApproverName =
+            itemApproverProfile?.data?.full_name ||
+            getApproverDisplayName(itemApproverId || undefined);
 
           // Prepare custom fields for the item
           const itemCustomFields: Record<string, any> = {
             description: item.description || "",
           };
+
+          if (itemApproverName) {
+            itemCustomFields["approver_name"] = itemApproverName;
+          }
+
+          const itemSecondApproverId = Array.isArray(item.second_approver_id)
+            ? item.second_approver_id[0]
+            : typeof item.second_approver_id === "string"
+              ? item.second_approver_id
+              : "";
+          if (itemSecondApproverId) {
+            itemCustomFields["second_approver_id"] = itemSecondApproverId;
+            itemCustomFields["second_approver_name"] = getApproverDisplayName(
+              itemSecondApproverId
+            );
+          }
 
           // Add custom fields from expenseItemsData
           customFields.forEach((col) => {
@@ -2187,7 +2600,7 @@ export default function NewExpensePage() {
             date: new Date(item.date).toISOString(),
             custom_fields: itemCustomFields,
             event_id: formData.event_id || null,
-            approver_id: formData.approver || null,
+            approver_id: itemApproverId,
             // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
             unique_id: item.unique_id || formData.unique_id || undefined,
             expense_credit_person: itemIsDirectPayment
@@ -2198,7 +2611,7 @@ export default function NewExpensePage() {
               : expense_signature_url ?? undefined,
             receipt: null,
             creator_email: user.email,
-            approver_email: approverEmail,
+            approver_email: itemApproverEmail,
             location: item.location || null,
           };
 
@@ -2216,8 +2629,8 @@ export default function NewExpensePage() {
             expenseId: itemData.id,
             amount: individualExpenseData.amount,
             expenseType: individualExpenseData.expense_type,
-            approverEmail,
-            approverName,
+            approverEmail: itemApproverEmail,
+            approverName: itemApproverName,
           });
 
           let attachmentData = null;
@@ -2264,7 +2677,7 @@ export default function NewExpensePage() {
                 null,
               created_by: user.id,
               org_id: organization.id,
-              approver_id: formData.approver || null,
+              approver_id: itemApproverId,
               attachment: attachmentData,
             };
 
@@ -2474,8 +2887,8 @@ export default function NewExpensePage() {
                       : "Enter payment unique ID"
                   }
                   className={`w-full border ${errors["unique_id"]
-                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                      : "border-gray-300"
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                    : "border-gray-300"
                     } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
                   disabled={
                     !!prefilledUniqueId ||
@@ -2784,15 +3197,15 @@ export default function NewExpensePage() {
                   {events
                     .filter((event) => event.title.toLowerCase().includes((searchQueries["event_id"] || "").toLowerCase()))
                     .map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.title} (
-                      {new Date(event.start_date).toLocaleDateString()} -{" "}
-                      {new Date(event.end_date).toLocaleDateString()})
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.title} (
+                        {new Date(event.start_date).toLocaleDateString()} -{" "}
+                        {new Date(event.end_date).toLocaleDateString()})
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-600 mt-2">
                 {selectedEvent ? (
                   <span>
                     This expense will be added to the event:{" "}
@@ -2803,6 +3216,96 @@ export default function NewExpensePage() {
                 )}
               </p>
             </div>
+
+            {/* Location of Expense */}
+            {columns.map((col) => {
+              if (!col.visible || col.key !== "location") return null;
+
+              return (
+                <div key={col.key} className="mb-6">
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor={col.key}
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      {col.label}
+                      {col.required && (
+                        <span className="text-red-500 ml-1 text-sm">*</span>
+                      )}
+                    </Label>
+                    {col.type === "dropdown" && col.options && (
+                      <Select
+                        value={formData[col.key] || ""}
+                        onValueChange={(value: string) =>
+                          handleInputChange(col.key, value)
+                        }
+                      >
+                        <SelectTrigger
+                          id={col.key}
+                          className={`w-full ${errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                            }`}
+                        >
+                          <SelectValue placeholder="Please Select" />
+                        </SelectTrigger>
+                        <SelectContent
+                          searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                          searchValue={searchQueries[col.key] || ""}
+                          onSearchChange={(v) => handleSearchChange(col.key, v)}
+                        >
+                          {col.options
+                            .filter((option: any) => {
+                              const label = typeof option === "string" ? option : option.label;
+                              return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                            })
+                            .map((option: any) => {
+                              const value =
+                                typeof option === "string"
+                                  ? option
+                                  : option.value;
+                              const label =
+                                typeof option === "string"
+                                  ? option
+                                  : option.label;
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              );
+                            })}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {col.type === "text" && (
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        type="text"
+                        value={formData[col.key] || ""}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        className={`w-full ${errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                          }`}
+                        placeholder={`Enter ${col.label}`}
+                      />
+                    )}
+                    {errors[col.key] && (
+                      <p
+                        className="text-red-500 text-sm mt-1"
+                        role="alert"
+                        id={`${col.key}-error`}
+                      >
+                        {errors[col.key]}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
             {/* Expense Type, Amount, Date, Approver, Description */}
             <div className="space-y-6">
@@ -2844,8 +3347,8 @@ export default function NewExpensePage() {
                               handleInputChange(col.key, e.target.value)
                             }
                             className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
                               }`}
                             min={dateBounds.min}
                             max={dateBounds.max}
@@ -2865,8 +3368,76 @@ export default function NewExpensePage() {
                         </>
                       )}
 
-                      {/* Dropdown Input (Approver) */}
-                      {col.type === "dropdown" && col.options && (
+                      {/* Approver Input */}
+                      {col.type === "dropdown" && col.key === "approver" && (
+                        <>
+                          {(() => {
+                            const approverOptions =
+                              getLocationSpecificApproverOptions("approver");
+                            const approverUnavailable =
+                              isLocationApproverUnavailable("approver");
+
+                            return (
+                              <Select
+                                value={formData.approver || ""}
+                                onValueChange={(value: string) =>
+                                  handleInputChange(col.key, value)
+                                }
+                              >
+                                <SelectTrigger
+                                  id={col.key}
+                                  className={`w-full ${errors[col.key]
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
+                                    }`}
+                                >
+                                  <SelectValue
+                                    placeholder={
+                                      approverUnavailable
+                                        ? "Not Availble"
+                                        : "Select approver"
+                                    }
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {approverOptions.map(
+                                    (option: any) => {
+                                      const value =
+                                        typeof option === "string"
+                                          ? option
+                                          : option.value;
+                                      const label =
+                                        typeof option === "string"
+                                          ? option
+                                          : option.label;
+                                      return (
+                                        <SelectItem key={value} value={value}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    }
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            );
+                          })()}
+                          {errors[col.key] && (
+                            <p
+                              className="text-red-500 text-sm mt-1"
+                              role="alert"
+                              id={`${col.key}-error`}
+                            >
+                              {errors[col.key]}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-600">
+                            Approver is auto-filled based on the selected Project of Expense and Expense Type
+                          </p>
+                        </>
+                      )}
+
+                      {/* Dropdown Input (non-approver) */}
+                      {col.type === "dropdown" && col.key !== "approver" && col.options && (
                         <>
                           <Select
                             value={formData[col.key] || ""}
@@ -2877,8 +3448,8 @@ export default function NewExpensePage() {
                             <SelectTrigger
                               id={col.key}
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             >
                               <SelectValue placeholder="Please Select" />
@@ -2894,20 +3465,20 @@ export default function NewExpensePage() {
                                   return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
                                 })
                                 .map((option: any) => {
-                                const value =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.value;
-                                const label =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.label;
-                                return (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                );
-                              })}
+                                  const value =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.value;
+                                  const label =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.label;
+                                  return (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                })}
                             </SelectContent>
                           </Select>
                           {errors[col.key] && (
@@ -2941,8 +3512,8 @@ export default function NewExpensePage() {
                             <SelectTrigger
                               id={col.key}
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             >
                               <SelectValue placeholder="Select expense type" />
@@ -2958,20 +3529,20 @@ export default function NewExpensePage() {
                                   return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
                                 })
                                 .map((option: any) => {
-                                const value =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.value;
-                                const label =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.label;
-                                return (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                );
-                              })}
+                                  const value =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.value;
+                                  const label =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.label;
+                                  return (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                })}
                             </SelectContent>
                           </Select>
                           {errors[col.key] && (
@@ -3000,9 +3571,10 @@ export default function NewExpensePage() {
                                 e.target.value === "" ? "" : Math.round(parseFloat(e.target.value))
                               )
                             }
+
                             className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
                               }`}
                             placeholder="Enter amount"
                           />
@@ -3020,6 +3592,7 @@ export default function NewExpensePage() {
                               {errors[col.key]}
                             </p>
                           )}
+
                         </>
                       )}
                     </div>
@@ -3050,8 +3623,8 @@ export default function NewExpensePage() {
                         handleInputChange(col.key, e.target.value)
                       }
                       className={`w-full min-h-[75px] ${errors[col.key]
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                          : ""
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                        : ""
                         }`}
                       placeholder="Brief description of this expense report..."
                     />
@@ -3074,6 +3647,7 @@ export default function NewExpensePage() {
               {customFields.map((col) => {
                 if (
                   !col.visible ||
+                  col.key === "location" ||
                   ![
                     "text",
                     "number",
@@ -3124,8 +3698,8 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`w-full ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder={`Enter ${col.label}`}
                       />
@@ -3145,8 +3719,8 @@ export default function NewExpensePage() {
                           )
                         }
                         className={`w-full ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder={`Enter ${col.label}`}
                       />
@@ -3161,8 +3735,8 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         min={dateBounds.min}
                         max={dateBounds.max}
@@ -3177,56 +3751,79 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`w-full min-h-[75px] ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder="Brief description of this expense report..."
                       />
                     )}
                     {col.type === "dropdown" && col.options && (
                       <>
-                        <Select
-                          value={formData[col.key] || ""}
-                          onValueChange={(value: string) =>
-                            handleInputChange(col.key, value)
-                          }
-                        >
-                          <SelectTrigger
-                            id={col.key}
-                            className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                              }`}
-                          >
-                            <SelectValue placeholder="Please Select" />
-                          </SelectTrigger>
-                          <SelectContent
-                            searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
-                            searchValue={searchQueries[col.key] || ""}
-                            onSearchChange={(v) => handleSearchChange(col.key, v)}
-                          >
-                            {col.options
-                              .filter((option: any) => {
-                                const label = typeof option === "string" ? option : option.label;
-                                return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
-                              })
-                              .map((option: any) => {
-                              const value =
-                                typeof option === "string"
-                                  ? option
-                                  : option.value;
-                              const label =
-                                typeof option === "string"
-                                  ? option
-                                  : option.label;
-                              return (
-                                <SelectItem key={value} value={value}>
-                                  {label}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
+                        {(() => {
+                          const isSecondApproverField =
+                            col.key === "second_approver_id";
+                          const optionsToRender = isSecondApproverField
+                            ? getLocationSpecificApproverOptions(
+                              "second_approver_id"
+                            )
+                            : col.options;
+                          const secondApproverUnavailable =
+                            isSecondApproverField &&
+                            isLocationApproverUnavailable(
+                              "second_approver_id"
+                            );
+
+                          return (
+                            <Select
+                              value={formData[col.key] || ""}
+                              onValueChange={(value: string) =>
+                                handleInputChange(col.key, value)
+                              }
+                            >
+                              <SelectTrigger
+                                id={col.key}
+                                className={`w-full ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                  }`}
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    secondApproverUnavailable
+                                      ? "Not Availble"
+                                      : "Please Select"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent
+                                searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                searchValue={searchQueries[col.key] || ""}
+                                onSearchChange={(v) => handleSearchChange(col.key, v)}
+                              >
+                                {col.options
+                                  .filter((option: any) => {
+                                    const label = typeof option === "string" ? option : option.label;
+                                    return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                                  })
+                                  .map((option: any) => {
+                                    const value =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.value;
+                                    const label =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.label;
+                                    return (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    );
+                                  })}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()}
                       </>
                     )}
                     {col.type === "radio" && col.options && (
@@ -3463,6 +4060,109 @@ export default function NewExpensePage() {
                       </Button>
                     </div>
 
+                    {/* Location of Expense */}
+                    {customFields
+                      .filter((col) => col.visible && col.key === "location")
+                      .map((col) => (
+                        <div key={col.key} className="space-y-2 mb-5">
+                          <Label
+                            htmlFor={`${col.key}-${id}`}
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            {col.label}
+                            {col.required && (
+                              <span className="text-red-500 ml-1 text-sm">*</span>
+                            )}
+                          </Label>
+
+                          {col.type === "dropdown" && col.options && (
+                            <Select
+                              value={String(
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              )}
+                              onValueChange={(value: string) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  value
+                                )
+                              }
+                            >
+                              <SelectTrigger
+                                id={`${col.key}-${id}`}
+                                className={`w-full ${errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                  }`}
+                              >
+                                <SelectValue placeholder="Please Select" />
+                              </SelectTrigger>
+                              <SelectContent
+                                searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                searchValue={searchQueries[`${col.key}-${id}`] || ""}
+                                onSearchChange={(v) => handleSearchChange(`${col.key}-${id}`, v)}
+                              >
+                                {col.options
+                                  .filter((option: any) => {
+                                    const label = typeof option === "string" ? option : option.label;
+                                    return String(label).toLowerCase().includes((searchQueries[`${col.key}-${id}`] || "").toLowerCase());
+                                  })
+                                  .map((option: any) => {
+                                    const value =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.value;
+                                    const label =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.label;
+                                    return (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    );
+                                  })}
+                              </SelectContent>
+                            </Select>
+                          )}
+
+                          {col.type === "text" && (
+                            <Input
+                              id={`${col.key}-${id}`}
+                              name={`${col.key}-${id}`}
+                              type="text"
+                              value={String(
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              )}
+                              onChange={(e) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  e.target.value
+                                )
+                              }
+                              className={`w-full ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                }`}
+                              placeholder={`Enter ${col.label}`}
+                            />
+                          )}
+
+                          {errors[col.key] && (
+                            <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
+                              {errors[col.key]}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+
                     {/* Expense Type, Amount, Date */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {columns
@@ -3470,7 +4170,6 @@ export default function NewExpensePage() {
                           (col) =>
                             col.visible &&
                             ["dropdown", "date", "number"].includes(col.type) &&
-                            col.key !== "approver" &&
                             defaultSystemFields.includes(col.key)
                         )
                         .sort((a, b) => {
@@ -3478,6 +4177,7 @@ export default function NewExpensePage() {
                             expense_type: 0,
                             amount: 1,
                             date: 2,
+                            approver: 3,
                           };
                           const aOrder = order[a.key] ?? 99;
                           const bOrder = order[b.key] ?? 99;
@@ -3486,8 +4186,7 @@ export default function NewExpensePage() {
                         .map((col) => (
                           <div
                             key={col.key}
-                            className={`space-y-2 ${col.key === "date" ? "md:col-span-2" : ""
-                              }`}
+                            className="space-y-2"
                           >
                             <Label
                               htmlFor={col.key}
@@ -3502,7 +4201,97 @@ export default function NewExpensePage() {
                             </Label>
 
                             {/* Dropdown */}
-                            {col.type === "dropdown" && col.options && (
+                            {col.type === "dropdown" && col.key === "approver" && (
+                              <>
+                                {(() => {
+                                  const selectedItemLocation = String(
+                                    getExpenseItemValue(
+                                      id,
+                                      "location" as keyof ExpenseItemData
+                                    ) || ""
+                                  );
+                                  const selectedItemExpenseType = String(
+                                    getExpenseItemValue(
+                                      id,
+                                      "expense_type" as keyof ExpenseItemData
+                                    ) || ""
+                                  );
+                                  const approverOptions =
+                                    getLocationSpecificApproverOptions(
+                                      "approver",
+                                      selectedItemLocation,
+                                      selectedItemExpenseType
+                                    );
+                                  const approverUnavailable =
+                                    isLocationApproverUnavailable(
+                                      "approver",
+                                      selectedItemLocation,
+                                      selectedItemExpenseType
+                                    );
+
+                                  return (
+                                    <Select
+                                      value={String(
+                                        getExpenseItemValue(
+                                          id,
+                                          "approver" as keyof ExpenseItemData
+                                        ) || ""
+                                      )}
+                                      onValueChange={(value: string) =>
+                                        handleExpenseItemChange(
+                                          id,
+                                          "approver" as keyof ExpenseItemData,
+                                          value
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        id={col.key}
+                                        className={`w-full ${errors[col.key]
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                          }`}
+                                      >
+                                        <SelectValue
+                                          placeholder={
+                                            approverUnavailable
+                                              ? "Not Availble"
+                                              : "Select approver"
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {approverOptions.map((option: any) => {
+                                          const value =
+                                            typeof option === "string"
+                                              ? option
+                                              : option.value;
+                                          const label =
+                                            typeof option === "string"
+                                              ? option
+                                              : option.label;
+                                          return (
+                                            <SelectItem key={value} value={value}>
+                                              {label}
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  );
+                                })()}
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">
+                                    {errors[col.key]}
+                                  </p>
+                                )}
+                                <p className="text-xs text-gray-600">
+                                  Approver is auto-filled based on the selected Project of Expense and Expense Type
+                                </p>
+                              </>
+                            )}
+
+                            {col.type === "dropdown" && col.key !== "approver" && col.options && (
                               <>
                                 <Select
                                   value={
@@ -3529,8 +4318,8 @@ export default function NewExpensePage() {
                                   <SelectTrigger
                                     id={col.key}
                                     className={`w-full ${errors[col.key]
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
                                       }`}
                                   >
                                     <SelectValue placeholder={`Select ${col.label?.toLowerCase() || "option"}`} />
@@ -3546,20 +4335,20 @@ export default function NewExpensePage() {
                                         return String(label).toLowerCase().includes((searchQueries[`${id}-${col.key}`] || "").toLowerCase());
                                       })
                                       .map((option: any) => {
-                                      const value =
-                                        typeof option === "string"
-                                          ? option
-                                          : option.value;
-                                      const label =
-                                        typeof option === "string"
-                                          ? option
-                                          : option.label;
-                                      return (
-                                        <SelectItem key={value} value={value}>
-                                          {label}
-                                        </SelectItem>
-                                      );
-                                    })}
+                                        const value =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.value;
+                                        const label =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.label;
+                                        return (
+                                          <SelectItem key={value} value={value}>
+                                            {label}
+                                          </SelectItem>
+                                        );
+                                      })}
                                   </SelectContent>
                                 </Select>
                                 {errors[col.key] && (
@@ -3593,8 +4382,8 @@ export default function NewExpensePage() {
                                     )
                                   }
                                   className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
                                     }`}
                                   min={dateBounds.min}
                                   max={dateBounds.max}
@@ -3604,9 +4393,8 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
-                                <p className="text-xs text-gray-500 mb-5">
-                                  Reimbursement bill uploading date / vendor
-                                  invoice date
+                                <p className="text-xs text-gray-600">
+                                  Reimbursement bill uploading date / vendor invoice date
                                 </p>
                               </>
                             )}
@@ -3627,9 +4415,10 @@ export default function NewExpensePage() {
                                       e.target.value === "" ? "" : Math.round(parseFloat(e.target.value))
                                     )
                                   }
+
                                   className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
                                     }`}
                                 />
                                 {col.key === "amount" && (
@@ -3642,6 +4431,7 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
+
                               </>
                             )}
                           </div>
@@ -3682,15 +4472,14 @@ export default function NewExpensePage() {
                                 e.target.value
                               )
                             }
-                            className={`w-full min-h-[50px] ${errors[col.key]
+                            className={`w-full min-h-[75px] ${errors[col.key]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                               }`}
                             placeholder="Brief description of this expense report..."
                           />
-                          <p className="text-xs text-gray-500">
-                            Purpose of the expense, related activity/program,
-                            amount spent, number of people involved etc...
+                          <p className="text-xs text-gray-600">
+                            Purpose of the expense, related activity/program, amount spent, number of people involved etc...
                           </p>
                           {errors[col.key] && (
                             <p className="text-red-500 text-sm">
@@ -3704,6 +4493,7 @@ export default function NewExpensePage() {
                     {customFields.map((col) => {
                       if (
                         !col.visible ||
+                        col.key === "location" ||
                         ![
                           "text",
                           "number",
@@ -3766,8 +4556,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder={`Enter ${col.label}`}
                             />
@@ -3793,8 +4583,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder={`Enter ${col.label}`}
                             />
@@ -3818,8 +4608,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             />
                           )}
@@ -3841,65 +4631,95 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full min-h-[75px] ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder="Brief description of this expense report..."
                             />
                           )}
                           {col.type === "dropdown" && col.options && (
                             <>
-                              <Select
-                                value={String(
+                              {(() => {
+                                const isSecondApproverField =
+                                  col.key === "second_approver_id";
+                                const selectedItemLocation = String(
                                   getExpenseItemValue(
                                     id,
-                                    col.key as keyof ExpenseItemData
+                                    "location" as keyof ExpenseItemData
                                   ) || ""
-                                )}
-                                onValueChange={(value: string) =>
-                                  handleExpenseItemChange(
+                                );
+                                const selectedItemExpenseType = String(
+                                  getExpenseItemValue(
                                     id,
-                                    col.key as keyof ExpenseItemData,
-                                    value
+                                    "expense_type" as keyof ExpenseItemData
+                                  ) || ""
+                                );
+                                const optionsToRender = isSecondApproverField
+                                  ? getLocationSpecificApproverOptions(
+                                    "second_approver_id",
+                                    selectedItemLocation,
+                                    selectedItemExpenseType
                                   )
-                                }
-                              >
-                                <SelectTrigger
-                                  id={col.key}
-                                  className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                    }`}
-                                >
-                                  <SelectValue placeholder="Please Select" />
-                                </SelectTrigger>
-                                <SelectContent
-                                  searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
-                                  searchValue={searchQueries[`${id}-${col.key}`] || ""}
-                                  onSearchChange={(v) => handleSearchChange(`${id}-${col.key}`, v)}
-                                >
-                                  {col.options
-                                    .filter((option: any) => {
-                                      const label = typeof option === "string" ? option : option.label;
-                                      return String(label).toLowerCase().includes((searchQueries[`${id}-${col.key}`] || "").toLowerCase());
-                                    })
-                                    .map((option: any) => {
-                                    const value =
-                                      typeof option === "string"
-                                        ? option
-                                        : option.value;
-                                    const label =
-                                      typeof option === "string"
-                                        ? option
-                                        : option.label;
-                                    return (
-                                      <SelectItem key={value} value={value}>
-                                        {label}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
+                                  : col.options;
+                                const secondApproverUnavailable =
+                                  isSecondApproverField &&
+                                  isLocationApproverUnavailable(
+                                    "second_approver_id",
+                                    selectedItemLocation,
+                                    selectedItemExpenseType
+                                  );
+
+                                return (
+                                  <Select
+                                    value={String(
+                                      getExpenseItemValue(
+                                        id,
+                                        col.key as keyof ExpenseItemData
+                                      ) || ""
+                                    )}
+                                    onValueChange={(value: string) =>
+                                      handleExpenseItemChange(
+                                        id,
+                                        col.key as keyof ExpenseItemData,
+                                        value
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      id={col.key}
+                                      className={`w-full ${errors[col.key]
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                        }`}
+                                    >
+                                      <SelectValue
+                                        placeholder={
+                                          secondApproverUnavailable
+                                            ? "Not Availble"
+                                            : "Please Select"
+                                        }
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {col.options.map((option: any) => {
+                                        const value =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.value;
+                                        const label =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.label;
+                                        return (
+                                          <SelectItem key={value} value={value}>
+                                            {label}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                );
+                              })()}
                             </>
                           )}
 

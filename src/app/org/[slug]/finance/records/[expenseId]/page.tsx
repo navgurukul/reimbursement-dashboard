@@ -87,8 +87,8 @@ export default function RecordsDetails() {
   const bankTabParam = searchParams.get("activeTab");
   const activeTab =
     bankTabParam === "ngidfc" ||
-    bankTabParam === "fcidfc" ||
-    bankTabParam === "kotak"
+      bankTabParam === "fcidfc" ||
+      bankTabParam === "kotak"
       ? bankTabParam
       : "all";
 
@@ -182,21 +182,21 @@ export default function RecordsDetails() {
   const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? 0;
   const tdsAmount = tdsPercentage
     ? expense?.tds_deduction_amount ??
-      Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
+    Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
     : expense?.tds_deduction_amount ?? null;
   const securityDepositAmount =
     expense?.security_deposit_amount !== null &&
-    expense?.security_deposit_amount !== undefined
+      expense?.security_deposit_amount !== undefined
       ? Number(expense.security_deposit_amount)
       : null;
   const actualAmount =
     expense?.actual_amount ??
     (tdsBaseAmount !== null && tdsBaseAmount !== undefined
       ? Number(
-          (Number(tdsBaseAmount) -
-            (tdsAmount ?? 0) -
-            (securityDepositAmount ?? 0)).toFixed(2)
-        )
+        (Number(tdsBaseAmount) -
+          (tdsAmount ?? 0) -
+          (securityDepositAmount ?? 0)).toFixed(2)
+      )
       : null);
 
   return (
@@ -214,8 +214,8 @@ export default function RecordsDetails() {
             if (expenseId) query.set("expID", expenseId as string);
             router.push(`/org/${slug}/finance?${query.toString()}`);
           }}
-          // className="text-sm cursor-pointer"
-          // disabled={loading}
+        // className="text-sm cursor-pointer"
+        // disabled={loading}
         >
           <ArrowLeft />
           Back to Records
@@ -280,12 +280,20 @@ export default function RecordsDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Invoice Amount</TableHead>
                     <TableCell>₹{expense.amount}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Approved Amount</TableHead>
                     <TableCell>₹{expense.approved_amount}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>TDS Applicable Amount</TableHead>
+                    <TableCell>
+                      {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
+                        ? `₹${expense.approved_amount}`
+                        : "N/A"}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>TDS Deduction</TableHead>
@@ -312,7 +320,7 @@ export default function RecordsDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Actual Amount</TableHead>
+                    <TableHead>Net Payable Amount</TableHead>
                     <TableCell>
                       {actualAmount !== null && actualAmount !== undefined
                         ? formatCurrency(Number(actualAmount))
@@ -341,8 +349,8 @@ export default function RecordsDetails() {
                       {hasVoucher
                         ? "Voucher Preview Below"
                         : expense?.receipt
-                        ? "Receipt Preview Below"
-                        : "N/A"}
+                          ? "Receipt Preview Below"
+                          : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>

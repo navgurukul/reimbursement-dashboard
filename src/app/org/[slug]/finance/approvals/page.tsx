@@ -973,24 +973,30 @@ export default function FinanceReview() {
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <div className="flex flex-col items-center gap-1">
-                      <select
-                        className="border px-2 py-1 rounded bg-white text-sm"
+                      <Select
                         value={
                           expense.tds_deduction_percentage
                             ? String(expense.tds_deduction_percentage)
-                            : ""
+                            : "none"
                         }
-                        onChange={(e) => handleTdsChange(expense.id, e.target.value)}
+                        onValueChange={(value) =>
+                          handleTdsChange(expense.id, value === "none" ? "" : value)
+                        }
                       >
-                        <option value="">Select %</option>
-                        {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
-                          (percent) => (
-                            <option key={percent} value={percent}>
-                              {percent}%
-                            </option>
-                          )
-                        )}
-                      </select>
+                        <SelectTrigger className="w-[110px] h-8 text-sm bg-white">
+                          <SelectValue placeholder="Select %" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Select %</SelectItem>
+                          {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                            (percent) => (
+                              <SelectItem key={percent} value={String(percent)}>
+                                {percent}%
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
                       <span className="text-xs text-muted-foreground">
                         {expense.tds_deduction_percentage
                           ? formatCurrency(

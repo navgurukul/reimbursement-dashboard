@@ -70,7 +70,30 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
     );
   }
 
-  if (history.length === 0) {
+  // Filter out unwanted history items (like empty string updates or raw UUID updates)
+  const filteredHistory = history.filter((item) => {
+    if (item.action_type === "updated") {
+      const msg = getActivityMessage(item);
+      
+      // Hide if the message is exactly "Value updated to """
+      if (msg === 'Value updated to ""') {
+        return false;
+      }
+      
+      // Hide if the message is "Value updated to "null"" or "Value updated to "undefined"" just in case
+      if (msg === 'Value updated to "null"' || msg === 'Value updated to "undefined"') {
+        return false;
+      }
+      
+      // Hide if it's updating to a UUID
+      if (msg.match(/^Value updated to "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"$/i)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (filteredHistory.length === 0) {
     return (
       <div className="text-center py-4 text-gray-500">
         No history available for this expense.
@@ -80,10 +103,10 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
 
   return (
     <div className="space-y-0">
-      {history.map((item, index) => (
+      {filteredHistory.map((item, index) => (
         <div key={item.id} className="relative pb-5">
           {/* Timeline connector */}
-          {index < history.length - 1 && (
+          {index < filteredHistory.length - 1 && (
             <div
               className="absolute left-4 top-10 h-full w-[1px] bg-gray-200"
               aria-hidden="true"

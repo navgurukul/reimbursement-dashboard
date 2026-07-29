@@ -2039,12 +2039,12 @@ export default function ViewExpensePage() {
                   </p>
                 </div>
 
-                {expense.approver && (
+                {(expense.approver || expense.custom_fields?.approver_name) && (
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">
                       Approver
                     </p>
-                    <p>{expense.approver.full_name || "—"}</p>
+                    <p>{expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}</p>
                   </div>
                 )}
 
@@ -2425,7 +2425,7 @@ export default function ViewExpensePage() {
                                   Approver
                                 </p>
                                 <p className="font-medium">
-                                  {expense.approver?.full_name || "—"}
+                                  {expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}
                                 </p>
                               </div>
                               <div className="md:col-span-2">
