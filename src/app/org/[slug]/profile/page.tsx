@@ -293,7 +293,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Personal Information */}
-      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 flex flex-col md:flex-row gap-8 shadow-sm">
+      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 flex flex-col md:flex-row gap-8">
         <div className="flex flex-col items-center w-full md:w-[340px] bg-[#f9fafb] rounded-2xl border border-[#e5e7eb] p-8">
           <div className="w-[180px] h-[180px] rounded bg-white flex items-center justify-center mb-4 border border-[#e5e7eb] overflow-hidden">
             {formData.profile_photo_url ? (
@@ -422,7 +422,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Bank Information */}
-      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 shadow-sm">
+      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8">
         <div className="flex items-center gap-2 mb-6">
           {/* <Landmark className="w-6 h-6 text-[#111827]" /> */}
           <span className="font-bold text-xl text-[#111827]">
