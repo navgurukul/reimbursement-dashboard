@@ -130,6 +130,39 @@ export default function PaymentProcessingOnly() {
     maxActualAmount: "",
   });
 
+  // so they are not lost when navigating back from an expense view
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("finance-payments-filters");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.filters) setFilters(parsed.filters);
+          if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+          if (parsed.filterOpen !== undefined) setFilterOpen(parsed.filterOpen);
+          if (parsed.activeProcessingTab) setActiveProcessingTab(parsed.activeProcessingTab);
+        } catch (e) {
+          console.error("Failed to parse saved filters", e);
+        }
+      }
+    }
+    setTimeout(() => {
+      isMounted.current = true;
+    }, 0);
+  }, []);
+  
+  // so they are not lost when navigating back from an expense view
+  useEffect(() => {
+    if (isMounted.current && typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "finance-payments-filters",
+        JSON.stringify({ filters, searchQuery, filterOpen, activeProcessingTab })
+      );
+    }
+  }, [filters, searchQuery, filterOpen, activeProcessingTab]);
+
   const router = useRouter();
 
   const [showExportModal, setShowExportModal] = useState(false);
