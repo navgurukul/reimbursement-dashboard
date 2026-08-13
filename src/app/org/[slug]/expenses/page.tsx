@@ -61,6 +61,7 @@ import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Pagination, usePagination, PER_PAGE } from "@/components/pagination";
+import * as XLSX from "xlsx-js-style";
 
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
@@ -133,6 +134,7 @@ export default function ExpensesPage() {
     isOpen: false,
     expenseId: null,
   });
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
   const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
@@ -810,6 +812,94 @@ export default function ExpensesPage() {
     setDeleteConfirmation({ isOpen: true, expenseId: id });
   };
 
+  const handleExport = (format: "csv" | "excel") => {
+    const exportData = filteredData.map((exp, index) => {
+      const getVal = (key: string) => {
+        if (exp[key] !== undefined && exp[key] !== null) return exp[key];
+        if (exp.custom_fields && exp.custom_fields[key] !== undefined) return exp.custom_fields[key];
+        return "";
+      };
+
+      const row: Record<string, any> = {
+        "S.No.": index + 1,
+        Timestamp: formatDateTime(exp.created_at),
+        "Unique ID": exp.unique_id || "N/A",
+      };
+
+      columns.filter((c) => c.visible).forEach((c) => {
+        if (c.key === "amount") {
+          row[c.label] = exp[c.key];
+        } else if (c.key === "date") {
+          row[c.label] = formatDate(exp[c.key]);
+        } else if (c.key === "creator_name") {
+          row[c.label] = exp.creator?.full_name || "—";
+        } else if (c.key === "approver") {
+          row[c.label] = exp.approver?.full_name || "—";
+        } else if (c.key === "receipt") {
+          row[c.label] = exp.receipt?.path ? "Yes" : "No";
+        } else if (c.key === "finance_comment") {
+          row[c.label] = exp.finance_comment || "—";
+        } else {
+          row[c.label] = getVal(c.key);
+        }
+      });
+
+      row["Status"] = exp.status;
+
+      return row;
+    });
+
+    if (exportData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    if (format === "csv") {
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const csv = XLSX.utils.sheet_to_csv(worksheet);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `expenses_export_${new Date().getTime()}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Auto-fit columns and style header
+      const colWidths = Object.keys(exportData[0] || {}).map((key, index) => {
+        let maxLen = key.toString().length;
+        exportData.forEach((row) => {
+          const val = row[key] ? row[key].toString() : "";
+          if (val.length > maxLen) {
+            maxLen = val.length;
+          }
+        });
+
+        // Style header cell
+        const colAddress = XLSX.utils.encode_col(index);
+        const cellAddress = colAddress + "1";
+        if (worksheet[cellAddress]) {
+          worksheet[cellAddress].s = {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "D3D3D3" } },
+          };
+        }
+
+        return { wch: Math.min(Math.max(maxLen, 10), 50) + 2 };
+      });
+      worksheet["!cols"] = colWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
+      XLSX.writeFile(workbook, `expenses_export_${new Date().getTime()}.xlsx`);
+    }
+  };
+
+
   // Helper function to get value from custom_fields or directly from expense
   // Define interfaces for expense data
   interface ExpenseField {
@@ -953,10 +1043,14 @@ export default function ExpensesPage() {
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                 </Button>
-                {/* <Button variant="outline" className="cursor-pointer">
+                <Button
+                  variant="outline"
+                  className="cursor-pointer"
+                  onClick={() => setExportModalOpen(true)}
+                >
                   <Download className="mr-2 h-4 w-4" />
                   Export
-                </Button> */}
+                </Button>
               </div>
             </div>
 
@@ -1629,6 +1723,42 @@ export default function ExpensesPage() {
               className="cursor-pointer"
             >
               Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={exportModalOpen}
+        onOpenChange={setExportModalOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Expenses</DialogTitle>
+            <DialogDescription>
+              Choose the format in which you want to export your expenses.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-row justify-center gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                handleExport("excel");
+                setExportModalOpen(false);
+              }}
+              className="cursor-pointer flex-1"
+            >
+              Microsoft Excel (.xlsx)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                handleExport("csv");
+                setExportModalOpen(false);
+              }}
+              className="cursor-pointer flex-1"
+            >
+              CSV (.csv)
             </Button>
           </div>
         </DialogContent>
