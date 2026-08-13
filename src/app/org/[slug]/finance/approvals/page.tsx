@@ -141,6 +141,38 @@ export default function FinanceReview() {
     endDate: "",
   });
 
+  // so they are not lost when navigating back from an expense view
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("finance-approvals-filters");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.filters) setFilters(parsed.filters);
+          if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+          if (parsed.filterOpen !== undefined) setFilterOpen(parsed.filterOpen);
+        } catch (e) {
+          console.error("Failed to parse saved filters", e);
+        }
+      }
+    }
+    setTimeout(() => {
+      isMounted.current = true;
+    }, 0);
+  }, []);
+  
+  // so they are not lost when navigating back from an expense view
+  useEffect(() => {
+    if (isMounted.current && typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "finance-approvals-filters",
+        JSON.stringify({ filters, searchQuery, filterOpen })
+      );
+    }
+  }, [filters, searchQuery, filterOpen]);
+
   const expenseTypeOptions = useMemo(
     () => Array.from(new Set(expenseList.map((e) => e.expense_type).filter(Boolean))),
     [expenseList]
