@@ -2114,9 +2114,9 @@ export default function PaymentProcessingOnly() {
                                 `/org/${slug}/finance/payments/${expense.id}`
                               )
                             }
-                            className="cursor-pointer"
+                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black"
                           >
-                            <Eye className="w-4 h-4 text-gray-700" />
+                            <Eye className="w-4 h-4" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -2129,9 +2129,9 @@ export default function PaymentProcessingOnly() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => setConfirmExpenseId(expense.id)}
-                            className="text-green-600 hover:text-green-800 transition-transform hover:scale-110 cursor-pointer"
+                            className="p-1 rounded-md border border-transparent hover:border-green-300 hover:bg-green-50 transition-all cursor-pointer text-green-600 hover:text-green-800"
                           >
-                            <CheckCircle className="w-5 h-5 " />
+                            <CheckCircle className="w-5 h-5" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>

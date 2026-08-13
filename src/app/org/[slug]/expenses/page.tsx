@@ -137,6 +137,38 @@ export default function ExpensesPage() {
   const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
   const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
+  // so they are not lost when navigating back from an expense view
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("expenses-filters");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.filters) setFilters(parsed.filters);
+          if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+          if (parsed.showFilters !== undefined) setShowFilters(parsed.showFilters);
+        } catch (e) {
+          console.error("Failed to parse saved filters", e);
+        }
+      }
+    }
+    setTimeout(() => {
+      isMounted.current = true;
+    }, 0);
+  }, []);
+  
+  // so they are not lost when navigating back from an expense view
+  useEffect(() => {
+    if (isMounted.current && typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "expenses-filters",
+        JSON.stringify({ filters, searchQuery, showFilters })
+      );
+    }
+  }, [filters, searchQuery, showFilters]);
+
   const OPTION_ALL = "ALL";
   const OPTION_NO_DATES = "NO_DATES";
 
@@ -1469,12 +1501,12 @@ export default function ExpensesPage() {
                             <ExpenseStatusBadge status={exp.status} />
                           </TableCell>
                           <TableCell>
-                            <div className="flex space-x-3 gap-3">
+                            <div className="flex space-x-1 gap-0">
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Eye
-                                      className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
+                                    <div
+                                      className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
                                       onClick={() => {
                                         // For pending tab, add nextId to enable sequential approval flow
                                         const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}&page=${pagination.currentPage}`;
@@ -1492,7 +1524,9 @@ export default function ExpensesPage() {
                                           router.push(baseUrl);
                                         }
                                       }}
-                                    />
+                                    >
+                                      <Eye className="w-4 h-4 text-gray-600 hover:text-black" />
+                                    </div>
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     <p>View Expense</p>
@@ -1504,14 +1538,16 @@ export default function ExpensesPage() {
                                   <TooltipProvider>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <Pencil
-                                          className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
+                                        <div
+                                          className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
                                           onClick={() =>
                                             router.push(
                                               `/org/${slug}/expenses/${exp.id}/edit`
                                             )
                                           }
-                                        />
+                                        >
+                                          <Pencil className="w-4 h-4 text-gray-600 hover:text-black" />
+                                        </div>
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         <p>Edit Expense</p>
@@ -1524,10 +1560,12 @@ export default function ExpensesPage() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Trash2
-                                        className="w-4 h-4 text-red-600 cursor-pointer hover:text-red-800"
+                                      <div
+                                        className="p-1.5 rounded-md border border-transparent hover:border-red-300 hover:bg-red-50 transition-all cursor-pointer flex items-center justify-center"
                                         onClick={() => handleDelete(exp.id)}
-                                      />
+                                      >
+                                        <Trash2 className="w-4 h-4 text-red-600 hover:text-red-700" />
+                                      </div>
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <p>Delete Expense</p>

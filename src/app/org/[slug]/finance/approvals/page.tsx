@@ -1073,7 +1073,7 @@ export default function FinanceReview() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => handleViewClick(expense)}
-                            className="hover:text-black text-gray-700 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
