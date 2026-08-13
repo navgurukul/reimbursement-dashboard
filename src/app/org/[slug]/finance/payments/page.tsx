@@ -50,6 +50,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Pagination, usePagination } from "@/components/pagination";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formatCurrency = (amount: number) => {
   if (isNaN(amount) || amount === null || amount === undefined) return "—";
@@ -97,6 +98,7 @@ export default function PaymentProcessingOnly() {
     Record<string, { utr?: boolean; debit?: boolean }>
   >({});
   const [paidByBank, setPaidByBank] = useState<Record<string, string>>({});
+  const [activeProcessingTab, setActiveProcessingTab] = useState<"All Data" | "NGIDFC Processing" | "FCIDFC Processing">("All Data");
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
@@ -506,8 +508,17 @@ export default function PaymentProcessingOnly() {
     return true;
   };
 
+  const tabFilteredExpenses = useMemo(() => {
+    return filteredProcessingExpenses.filter((expense) => {
+      const bank = paidByBank[expense.id] || "";
+      if (activeProcessingTab === "NGIDFC Processing") return bank === "NGIDFC Current";
+      if (activeProcessingTab === "FCIDFC Processing") return bank === "FCIDFC Current";
+      return bank !== "NGIDFC Current" && bank !== "FCIDFC Current";
+    });
+  }, [filteredProcessingExpenses, paidByBank, activeProcessingTab]);
+
   // Use pagination hook
-  const pagination = usePagination(filteredProcessingExpenses);
+  const pagination = usePagination(tabFilteredExpenses);
 
   useEffect(() => {
     async function fetchExpensesAndBankDetails() {
@@ -602,6 +613,18 @@ export default function PaymentProcessingOnly() {
           // Initialize value_date to today's date if not already set
           const defaultDate = new Date().toISOString().split("T")[0];
 
+          let derivedDebitAccount = exp.debit_account;
+          if (exp.paid_by_bank === "FCIDFC Current") {
+            if (!derivedDebitAccount || derivedDebitAccount === "10064244213") {
+               derivedDebitAccount = "10268100007";
+            }
+          } else if (exp.paid_by_bank === "NGIDFC Current") {
+            if (!derivedDebitAccount || derivedDebitAccount === "10268100007") {
+               derivedDebitAccount = "10064244213";
+            }
+          }
+          if (!derivedDebitAccount) derivedDebitAccount = "10064244213";
+
           return {
             ...exp,
             beneficiary_name:
@@ -609,7 +632,7 @@ export default function PaymentProcessingOnly() {
             account_number:
               exp.account_number || matchedBank?.account_number || "N/A",
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "N/A",
-            debit_account: exp.debit_account || "10064244213",
+            debit_account: derivedDebitAccount,
             utr: exp.utr || "N/A",
             unique_id: displayUniqueId || "N/A",
             value_date: exp.value_date || defaultDate,
@@ -625,7 +648,9 @@ export default function PaymentProcessingOnly() {
         setPaidByBank((prev) => {
           const next = { ...prev };
           enrichedExpenses.forEach((exp) => {
-            if (!next[exp.id] && isDirectPaymentUniqueId(exp.unique_id)) {
+            if (exp.paid_by_bank) {
+              next[exp.id] = exp.paid_by_bank;
+            } else if (!next[exp.id] && isDirectPaymentUniqueId(exp.unique_id)) {
               next[exp.id] = "KOTAK";
             }
           });
@@ -658,9 +683,9 @@ export default function PaymentProcessingOnly() {
 
   // Scroll to highlighted row when it's set
   useEffect(() => {
-    if (highlightedExpenseId && filteredProcessingExpenses.length > 0) {
+    if (highlightedExpenseId && tabFilteredExpenses.length > 0) {
       // Find which page the highlighted expense is on
-      const recordIndex = filteredProcessingExpenses.findIndex(r => r.id === highlightedExpenseId);
+      const recordIndex = tabFilteredExpenses.findIndex(r => r.id === highlightedExpenseId);
       if (recordIndex !== -1) {
         const itemsPerPage = 10;
         const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
@@ -675,7 +700,7 @@ export default function PaymentProcessingOnly() {
         }, 200);
       }
     }
-  }, [highlightedExpenseId, filteredProcessingExpenses, pagination.setCurrentPage]);
+  }, [highlightedExpenseId, tabFilteredExpenses, pagination.setCurrentPage]);
 
   const handlePageChange = (nextPage: number) => {
     if (nextPage === pagination.currentPage) return;
@@ -1160,8 +1185,26 @@ export default function PaymentProcessingOnly() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-1">
+        <Tabs
+          value={activeProcessingTab}
+          onValueChange={(val) => {
+            setActiveProcessingTab(val as any);
+            setSelectedExpenses(new Set()); // clear selection on tab change
+            pagination.setCurrentPage(1); // reset to page 1
+          }}
+          className="w-auto overflow-x-auto"
+        >
+          <TabsList className="w-max min-w-max gap-2">
+            {["All Data", "NGIDFC Processing", "FCIDFC Processing"].map((tab) => (
+              <TabsTrigger key={tab} value={tab} className="cursor-pointer">
+                {tab}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        <div className="flex gap-2 items-center flex-wrap shrink-0">
           <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters
@@ -1170,12 +1213,21 @@ export default function PaymentProcessingOnly() {
             Mark all as Paid
           </Button>
           <Button
-            onClick={() => setShowExportModal(true)}
+            onClick={() => {
+              if (activeProcessingTab === "NGIDFC Processing") {
+                setSelectedBankType("NGIDFC");
+              } else if (activeProcessingTab === "FCIDFC Processing") {
+                setSelectedBankType("FCIDCF");
+              } else {
+                setSelectedBankType("");
+              }
+              setShowExportModal(true);
+            }}
             className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
             variant="outline"
           >
             <Download className="w-4 h-4" />
-            Export csv or .xlsx
+            Export
           </Button>
         </div>
       </div>
@@ -1507,17 +1559,17 @@ export default function PaymentProcessingOnly() {
                 <Checkbox
                 className="border border-black cursor-pointer"
                   checked={
-                    filteredProcessingExpenses.length > 0 &&
-                    filteredProcessingExpenses.every((exp) => selectedExpenses.has(exp.id))
+                    tabFilteredExpenses.length > 0 &&
+                    tabFilteredExpenses.every((exp) => selectedExpenses.has(exp.id))
                   }
                   onCheckedChange={(checked) => {
                     if (checked) {
                       const newSelected = new Set(selectedExpenses);
-                      filteredProcessingExpenses.forEach((exp) => newSelected.add(exp.id));
+                      tabFilteredExpenses.forEach((exp) => newSelected.add(exp.id));
                       setSelectedExpenses(newSelected);
                     } else {
                       const newSelected = new Set(selectedExpenses);
-                      filteredProcessingExpenses.forEach((exp) => newSelected.delete(exp.id));
+                      tabFilteredExpenses.forEach((exp) => newSelected.delete(exp.id));
                       setSelectedExpenses(newSelected);
                     }
                   }}
@@ -1616,7 +1668,7 @@ export default function PaymentProcessingOnly() {
           <TableBody>
             {loading ? (
               <TableSkeleton colSpan={25} rows={5} />
-            ) : filteredProcessingExpenses.length === 0 ? (
+            ) : tabFilteredExpenses.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={25}
@@ -1730,15 +1782,15 @@ export default function PaymentProcessingOnly() {
                             size="icon"
                             variant="outline"
                             className="h-7 w-full px-1 text-sm"
-                            onClick={() =>
+                            onClick={async () => {
                               setEditingFields((prev) => ({
                                 ...prev,
                                 [expense.id]: {
                                   ...prev[expense.id],
                                   debit: false,
                                 },
-                              }))
-                            }
+                              }));
+                            }}
                             title="Save"
                           >
                             <Save className="w-4 h-4" />
@@ -1955,14 +2007,10 @@ export default function PaymentProcessingOnly() {
 
                   <TableCell className="px-4 py-3 text-center">
                     <select
-                      className="border px-2 py-1 rounded bg-white text-sm"
+                      className="border px-2 py-1 rounded bg-white text-sm cursor-pointer"
                       value={paidByBank[expense.id] || ""}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const selectedBank = e.target.value;
-                        setPaidByBank((prev) => ({
-                          ...prev,
-                          [expense.id]: selectedBank,
-                        }));
 
                         let newDebitAccount = expense.debit_account;
                         if (selectedBank === "NGIDFC Current") {
@@ -1970,6 +2018,31 @@ export default function PaymentProcessingOnly() {
                         } else if (selectedBank === "FCIDFC Current") {
                           newDebitAccount = "10268100007";
                         }
+
+                        // Save to DB immediately BEFORE updating local state to prevent unmount cancellation
+                        const { error } = await supabase
+                          .from("expense_new")
+                          .update({ 
+                            paid_by_bank: selectedBank || null
+                          })
+                          .eq("id", expense.id);
+
+                        if (error) {
+                          toast.error(`Failed to save bank selection: ${error.message || "Unknown error"}`);
+                          return; // Halt if DB update fails
+                        } else {
+                          toast.success(
+                            selectedBank
+                              ? `Expense assigned to ${selectedBank}`
+                              : "Bank selection cleared"
+                          );
+                        }
+
+                        // Now update local state
+                        setPaidByBank((prev) => ({
+                          ...prev,
+                          [expense.id]: selectedBank,
+                        }));
 
                         if (newDebitAccount !== expense.debit_account) {
                           setProcessingExpenses((prev) =>
@@ -2040,7 +2113,7 @@ export default function PaymentProcessingOnly() {
           </TableBody>
         </Table>
       </div>
-      {filteredProcessingExpenses.length > 0 && (
+      {tabFilteredExpenses.length > 0 && (
         <Pagination
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
@@ -2093,7 +2166,11 @@ export default function PaymentProcessingOnly() {
                 setShowExportModal(false);
                 setShowColumnsModal(true);
               }}
-              disabled={!selectedBankType}
+              disabled={
+                !selectedBankType ||
+                (activeProcessingTab === "NGIDFC Processing" && selectedBankType !== "NGIDFC") ||
+                (activeProcessingTab === "FCIDFC Processing" && selectedBankType !== "FCIDCF")
+              }
               className="cursor-pointer"
             >
               Next
