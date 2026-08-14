@@ -2250,7 +2250,7 @@ export default function PaymentRecords() {
   return (
     <div className="space-y-4">
 
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-1">
         {/* Bank Tabs */}
         <div className="w-full overflow-x-auto lg:w-auto">
           <Tabs value={activeTab} onValueChange={(v) => handleBankTabChange(v as any)}>

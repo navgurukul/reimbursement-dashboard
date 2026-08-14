@@ -593,7 +593,7 @@ export default function FinanceReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 mb-1">
         {/* <h2 className="subsection-heading">Finance Review</h2> */}
         <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
           <Filter className="mr-2 h-4 w-4" />
