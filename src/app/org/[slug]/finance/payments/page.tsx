@@ -8,7 +8,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useEffect, useMemo, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { Eye, Download, Pencil, Save, Filter } from "lucide-react";
+import { Eye, Download, Pencil, Save, Filter, AlertTriangle } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { auth, profiles } from "@/lib/db";
 
@@ -519,22 +519,36 @@ export default function PaymentProcessingOnly() {
     if (!bankLabel) return [];
 
     return processingExpenses.filter(
-      (expense) => (paidByBank[expense.id] || "") === bankLabel
+      (expense) =>
+        (paidByBank[expense.id] || "") === bankLabel &&
+        selectedExpenses.has(expense.id)
     );
   };
 
   const validateSelectedAccountTypeForExport = () => {
     const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
     if (!bankLabel) {
-      toast.error("Please select an account type before exporting.");
+      toast.warning("Please select an account type before exporting.", {
+        icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+        style: {
+          border: '1px solid #f59e0b',
+          background: '#fffbeb',
+          color: '#92400e',
+        }
+      });
       return false;
     }
 
     const expensesForSelectedType = getExpensesForSelectedAccountType();
     if (expensesForSelectedType.length === 0) {
-      toast.error(
-        `No expenses found with “${bankLabel}” selected in the “Paid By Bank” column.`
-      );
+      toast.warning(
+        `No expenses found with “${bankLabel}” selected in the “Paid By Bank” column.`, {
+        icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+        style: {
+          border: '1px solid #f59e0b',
+          background: '#fffbeb',
+        }
+      });
       return false;
     }
 
@@ -1247,6 +1261,16 @@ export default function PaymentProcessingOnly() {
           </Button>
           <Button
             onClick={() => {
+              if (selectedExpenses.size === 0) {
+                toast.warning("Please select at least one expense to export.", {
+                  icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+                  style: {
+                    border: '1px solid #f59e0b',
+                    background: '#fffbeb',
+                  }
+                });
+                return;
+              }
               if (activeProcessingTab === "NGIDFC Processing") {
                 setSelectedBankType("NGIDFC");
               } else if (activeProcessingTab === "FCIDFC Processing") {
@@ -2090,7 +2114,7 @@ export default function PaymentProcessingOnly() {
                     >
                       <option value="">Select Bank</option>
                       <option value="NGIDFC Current">NGIDFC Current</option>
-                      <option value="FCIDFC Current">FCIDFC Current</option>
+                      <option value="FCIDFC Current">FCIDFC</option>
                       <option value="KOTAK">KOTAK</option>
                     </select>
                   </TableCell>
@@ -2175,7 +2199,7 @@ export default function PaymentProcessingOnly() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="FCIDCF" id="fcidcf" />
-                  <Label htmlFor="fcidcf" className="font-normal cursor-pointer">FCIDCF Current</Label>
+                  <Label htmlFor="fcidcf" className="font-normal cursor-pointer">FCIDCF</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="KOTAK" id="kotak" />
