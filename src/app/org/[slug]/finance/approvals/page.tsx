@@ -921,9 +921,9 @@ export default function FinanceReview() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300">
+          <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>
               <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
               <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>

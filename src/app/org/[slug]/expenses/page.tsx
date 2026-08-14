@@ -1471,9 +1471,9 @@ export default function ExpensesPage() {
 
             {/* table */}
             <Card className="pt-0">
-              <CardContent className="p-0">
+              <CardContent className="p-0 max-h-[75vh] overflow-auto [&>div]:overflow-visible">
                 <Table>
-                  <TableHeader className="bg-gray-300">
+                  <TableHeader className="bg-gray-300 sticky top-0 z-10">
                     <TableRow>
                       <TableHead>S.No.</TableHead>
                       <TableHead>Timestamp</TableHead>
