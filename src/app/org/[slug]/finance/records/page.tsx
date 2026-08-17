@@ -309,6 +309,20 @@ export default function PaymentRecords() {
     id: string | null;
   }>({ open: false, id: null });
   const [markAdvanceLoading, setMarkAdvanceLoading] = useState(false);
+  const [confirmBankModal, setConfirmBankModal] = useState<{
+    open: boolean;
+    recordId: string | null;
+    newVal: string;
+    oldVal: string;
+    sNo: number | string;
+  }>({
+    open: false,
+    recordId: null,
+    newVal: "",
+    oldVal: "",
+    sNo: "",
+  });
+  const [confirmBankLoading, setConfirmBankLoading] = useState(false);
   const [editModal, setEditModal] = useState<{
     open: boolean;
     record: any | null;
@@ -1574,6 +1588,55 @@ export default function PaymentRecords() {
     }
   };
 
+  const confirmBankChange = async () => {
+    const { recordId, newVal, oldVal, sNo } = confirmBankModal;
+    if (!recordId) return;
+
+    setConfirmBankLoading(true);
+    try {
+      // Update locally immediately
+      const updateList = (list: any[]) =>
+        list.map((r: any) =>
+          r.id === recordId ? { ...r, paid_by_bank: newVal } : r
+        );
+      setRecords((prev) => updateList(prev));
+      setFilteredRecords((prev) => updateList(prev));
+
+      // Save to DB
+      const { error } = await supabase
+        .from("expense_new")
+        .update({ paid_by_bank: newVal || null })
+        .eq("id", recordId);
+
+      if (error) {
+        toast.error(`S.No. ${sNo}: Failed to update Paid by bank`);
+        // Revert on error
+        const revertList = (list: any[]) =>
+          list.map((r: any) =>
+            r.id === recordId ? { ...r, paid_by_bank: oldVal } : r
+          );
+        setRecords((prev) => revertList(prev));
+        setFilteredRecords((prev) => revertList(prev));
+      } else {
+        toast.success(
+          `S.No. ${sNo}: Bank updated from ${oldVal || "N/A"} to ${newVal || "N/A"}`,
+          {
+            style: {
+              border: "1px solid #22c55e",
+              background: "#f1fcf4",
+            },
+            icon: <CheckCircle className="w-5 h-5 text-green-500" />,
+          }
+        );
+      }
+    } catch (err: any) {
+      toast.error(`Error updating bank: ${err.message}`);
+    } finally {
+      setConfirmBankLoading(false);
+      setConfirmBankModal({ open: false, recordId: null, newVal: "", oldVal: "", sNo: "" });
+    }
+  };
+
   const exportToCSV = () => {
     const formatExportDateForName = (dateValue?: string) => {
       if (!dateValue) return "";
@@ -2250,7 +2313,7 @@ export default function PaymentRecords() {
   return (
     <div className="space-y-4">
 
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-1">
         {/* Bank Tabs */}
         <div className="w-full overflow-x-auto lg:w-auto">
           <Tabs value={activeTab} onValueChange={(v) => handleBankTabChange(v as any)}>
@@ -2853,9 +2916,9 @@ export default function PaymentRecords() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[100vh] overflow-x-auto overflow-y-auto">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300">
+          <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>
               <TableHead className="text-center py-3">S.No.</TableHead>
               <TableHead className="text-center py-3">Timestamp</TableHead>
@@ -3178,7 +3241,31 @@ export default function PaymentRecords() {
                     />
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    {record.paid_by_bank || "N/A"}
+                    <Select
+                      value={record.paid_by_bank || "none"}
+                      onValueChange={(val) => {
+                        const newVal = val === "none" ? "" : val;
+                        const oldVal = record.paid_by_bank;
+                        const sNo = activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index));
+                        setConfirmBankModal({
+                          open: true,
+                          recordId: record.id,
+                          newVal,
+                          oldVal,
+                          sNo,
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm w-40 mx-auto bg-transparent cursor-pointer">
+                        <SelectValue placeholder="N/A" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">N/A</SelectItem>
+                        {Array.from(new Set(["NGIDFC Current", "FCIDFC Current", "KOTAK", "SBI", ...paidByBankOptions])).map((bank) => (
+                          <SelectItem key={bank} value={bank}>{bank}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {(() => {
@@ -3588,6 +3675,41 @@ export default function PaymentRecords() {
               disabled={sendBackLoading}
             >
               {sendBackLoading ? "Sending..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Bank Change modal */}
+      <Dialog
+        open={confirmBankModal.open}
+        onOpenChange={() => setConfirmBankModal({ open: false, recordId: null, newVal: "", oldVal: "", sNo: "" })}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Bank Update</DialogTitle>
+          </DialogHeader>
+          <div>
+            <p>
+              Are you sure you want to update the bank for <b>S.No. {confirmBankModal.sNo}</b> from{" "}
+              <b>{confirmBankModal.oldVal || "N/A"}</b> to <b>{confirmBankModal.newVal || "N/A"}</b>?
+            </p>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmBankModal({ open: false, recordId: null, newVal: "", oldVal: "", sNo: "" })}
+              className="cursor-pointer"
+              disabled={confirmBankLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmBankChange}
+              className="cursor-pointer"
+              disabled={confirmBankLoading}
+            >
+              {confirmBankLoading ? "Updating..." : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

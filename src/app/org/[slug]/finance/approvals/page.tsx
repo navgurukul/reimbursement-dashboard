@@ -141,6 +141,38 @@ export default function FinanceReview() {
     endDate: "",
   });
 
+  // so they are not lost when navigating back from an expense view
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("finance-approvals-filters");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.filters) setFilters(parsed.filters);
+          if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+          if (parsed.filterOpen !== undefined) setFilterOpen(parsed.filterOpen);
+        } catch (e) {
+          console.error("Failed to parse saved filters", e);
+        }
+      }
+    }
+    setTimeout(() => {
+      isMounted.current = true;
+    }, 0);
+  }, []);
+  
+  // so they are not lost when navigating back from an expense view
+  useEffect(() => {
+    if (isMounted.current && typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "finance-approvals-filters",
+        JSON.stringify({ filters, searchQuery, filterOpen })
+      );
+    }
+  }, [filters, searchQuery, filterOpen]);
+
   const expenseTypeOptions = useMemo(
     () => Array.from(new Set(expenseList.map((e) => e.expense_type).filter(Boolean))),
     [expenseList]
@@ -561,7 +593,7 @@ export default function FinanceReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 mb-1">
         {/* <h2 className="subsection-heading">Finance Review</h2> */}
         <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
           <Filter className="mr-2 h-4 w-4" />
@@ -889,9 +921,9 @@ export default function FinanceReview() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300">
+          <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>
               <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
               <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
@@ -1041,7 +1073,7 @@ export default function FinanceReview() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => handleViewClick(expense)}
-                            className="hover:text-black text-gray-700 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black"
                           >
                             <Eye className="w-4 h-4" />
                           </button>

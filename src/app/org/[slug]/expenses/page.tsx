@@ -61,6 +61,7 @@ import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Pagination, usePagination, PER_PAGE } from "@/components/pagination";
+import * as XLSX from "xlsx-js-style";
 
 const defaultExpenseColumns = [
   { key: "date", label: "Date", visible: true },
@@ -133,9 +134,42 @@ export default function ExpensesPage() {
     isOpen: false,
     expenseId: null,
   });
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
   const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
+
+  // so they are not lost when navigating back from an expense view
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("expenses-filters");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.filters) setFilters(parsed.filters);
+          if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+          if (parsed.showFilters !== undefined) setShowFilters(parsed.showFilters);
+        } catch (e) {
+          console.error("Failed to parse saved filters", e);
+        }
+      }
+    }
+    setTimeout(() => {
+      isMounted.current = true;
+    }, 0);
+  }, []);
+
+  // so they are not lost when navigating back from an expense view
+  useEffect(() => {
+    if (isMounted.current && typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "expenses-filters",
+        JSON.stringify({ filters, searchQuery, showFilters })
+      );
+    }
+  }, [filters, searchQuery, showFilters]);
 
   const OPTION_ALL = "ALL";
   const OPTION_NO_DATES = "NO_DATES";
@@ -258,10 +292,10 @@ export default function ExpensesPage() {
     userRole === "member"
       ? [{ value: "my", label: "My Expenses" }]
       : [
-          { value: "my", label: "My Expenses" },
-          { value: "pending", label: "Pending Approval" },
-          { value: "all", label: "All Expenses" },
-        ];
+        { value: "my", label: "My Expenses" },
+        { value: "pending", label: "Pending Approval" },
+        { value: "all", label: "All Expenses" },
+      ];
 
   // Sync activeTab with URL query parameter
   useEffect(() => {
@@ -306,7 +340,7 @@ export default function ExpensesPage() {
             c.label === "Project of Expense" ||
             c.key === "Project of Expense"
         );
-        
+
         let projectCol: any = {
           key: "location",
           label: "Project of Expense",
@@ -348,7 +382,7 @@ export default function ExpensesPage() {
         //   let insertIdx = 1;
         //   if (projIdx >= 0) insertIdx = projIdx + 1;
         //   else if (categoryIdx >= 0) insertIdx = categoryIdx + 1;
-          
+
         //   expenseColumns.splice(insertIdx, 0, {
         //     key: "event_title",
         //     label: "Event Name",
@@ -778,6 +812,107 @@ export default function ExpensesPage() {
     setDeleteConfirmation({ isOpen: true, expenseId: id });
   };
 
+  const handleExport = (format: "csv" | "excel") => {
+    const exportData = filteredData.map((exp, index) => {
+      const getVal = (key: string) => {
+        if (exp[key] !== undefined && exp[key] !== null) return exp[key];
+        if (exp.custom_fields && exp.custom_fields[key] !== undefined) return exp.custom_fields[key];
+        return "";
+      };
+
+      const row: Record<string, any> = {
+        "S.No.": index + 1,
+        Timestamp: formatDateTime(exp.created_at),
+        "Unique ID": exp.unique_id || "N/A",
+      };
+
+      columns.filter((c) => c.visible).forEach((c) => {
+        if (c.key === "amount") {
+          row[c.label] = exp[c.key];
+        } else if (c.key === "date") {
+          row[c.label] = formatDate(exp[c.key]);
+        } else if (c.key === "creator_name") {
+          row[c.label] = exp.creator?.full_name || "—";
+        } else if (c.key === "approver") {
+          row[c.label] = exp.approver?.full_name || "—";
+        } else if (c.key === "receipt") {
+          row[c.label] = exp.receipt?.path ? "Yes" : "No";
+        } else if (c.key === "finance_comment") {
+          row[c.label] = exp.finance_comment || "—";
+        } else {
+          row[c.label] = getVal(c.key);
+        }
+      });
+
+      row["Status"] = exp.status;
+
+      return row;
+    });
+
+    if (exportData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const timestamp = new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    }).replace(/\//g, "-").replace(/, /g, "_").replace(/:/g, "꞉").toLowerCase();
+
+    const fileName = `Expenses_Export_${timestamp}`;
+
+    if (format === "csv") {
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const csv = XLSX.utils.sheet_to_csv(worksheet);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${fileName}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Auto-fit columns and style header
+      const colWidths = Object.keys(exportData[0] || {}).map((key, index) => {
+        let maxLen = key.toString().length;
+        exportData.forEach((row) => {
+          const val = row[key] ? row[key].toString() : "";
+          if (val.length > maxLen) {
+            maxLen = val.length;
+          }
+        });
+
+        // Style header cell
+        const colAddress = XLSX.utils.encode_col(index);
+        const cellAddress = colAddress + "1";
+        if (worksheet[cellAddress]) {
+          worksheet[cellAddress].s = {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "D3D3D3" } },
+          };
+        }
+
+        return { wch: Math.min(Math.max(maxLen, 10), 50) + 2 };
+      });
+      worksheet["!cols"] = colWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
+      XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    }
+  };
+
+
   // Helper function to get value from custom_fields or directly from expense
   // Define interfaces for expense data
   interface ExpenseField {
@@ -921,10 +1056,14 @@ export default function ExpensesPage() {
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                 </Button>
-                {/* <Button variant="outline" className="cursor-pointer">
+                <Button
+                  variant="outline"
+                  className="cursor-pointer"
+                  onClick={() => setExportModalOpen(true)}
+                >
                   <Download className="mr-2 h-4 w-4" />
                   Export
-                </Button> */}
+                </Button>
               </div>
             </div>
 
@@ -957,10 +1096,10 @@ export default function ExpensesPage() {
                           {expenseTypeOptions
                             .filter((opt: string) => opt.toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
                             .map((opt: string) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -989,10 +1128,10 @@ export default function ExpensesPage() {
                           {locationOptions
                             .filter((opt: string) => opt.toLowerCase().includes(searchQuery.projectOfExpense.toLowerCase()))
                             .map((opt: string) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1047,10 +1186,10 @@ export default function ExpensesPage() {
                           {statusOptions
                             .filter((opt: string) => opt.toLowerCase().includes(searchQuery.status.toLowerCase()))
                             .map((opt: string) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1109,8 +1248,8 @@ export default function ExpensesPage() {
                             ...(v === OPTION_ALL
                               ? { dateFrom: "", dateTo: "" }
                               : v === "SINGLE"
-                              ? { dateTo: "" }
-                              : {}),
+                                ? { dateTo: "" }
+                                : {}),
                           })
                         }
                       >
@@ -1154,10 +1293,10 @@ export default function ExpensesPage() {
                                   singleDateOptions
                                     .filter((dateKey: string) => formatDate(dateKey).toLowerCase().includes(searchQuery.dateFrom.toLowerCase()))
                                     .map((dateKey: string) => (
-                                    <SelectItem key={dateKey} value={dateKey}>
-                                      {formatDate(dateKey)}
-                                    </SelectItem>
-                                  ))
+                                      <SelectItem key={dateKey} value={dateKey}>
+                                        {formatDate(dateKey)}
+                                      </SelectItem>
+                                    ))
                                 ) : (
                                   <SelectItem value={OPTION_NO_DATES} disabled>
                                     No expense dates
@@ -1223,10 +1362,10 @@ export default function ExpensesPage() {
                           {creatorOptions
                             .filter((opt: string) => opt.toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
                             .map((opt: string) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1253,10 +1392,10 @@ export default function ExpensesPage() {
                           {uniqueIdOptions
                             .filter((opt: string) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
                             .map((opt: string) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1285,10 +1424,10 @@ export default function ExpensesPage() {
                           {approverOptions
                             .filter((opt: string) => opt.toLowerCase().includes(searchQuery.approver.toLowerCase()))
                             .map((opt: string) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1332,9 +1471,9 @@ export default function ExpensesPage() {
 
             {/* table */}
             <Card className="pt-0">
-              <CardContent className="p-0">
+              <CardContent className="p-0 max-h-[75vh] overflow-auto [&>div]:overflow-visible">
                 <Table>
-                  <TableHeader className="bg-gray-300">
+                  <TableHeader className="bg-gray-300 sticky top-0 z-10">
                     <TableRow>
                       <TableHead>S.No.</TableHead>
                       <TableHead>Timestamp</TableHead>
@@ -1378,166 +1517,172 @@ export default function ExpensesPage() {
                       pagination.paginatedData.map((exp, index) => {
                         const isHighlighted = highlightId === exp.id;
                         return (
-                        <TableRow
-                          key={exp.id}
-                          ref={isHighlighted ? highlightedRowRef : null}
-                          data-expense-row={exp.id}
-                          className={isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""}
-                        >
-                          <TableCell className="w-12 text-center">
-                            {pagination.getItemNumber(index)}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {formatDateTime(exp.created_at)}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            <div className="flex items-center space-x-2">
-                              <span className="font-mono">
-                                {exp.unique_id || "N/A"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          {columns
-                            .filter((c) => c.visible)
-                            .map((c) => (
-                              <TableCell key={c.key}>
-                                {c.key === "amount" ? (
-                                  formatCurrency(exp[c.key])
-                                ) : c.key === "date" ? (
-                                  formatDate(exp[c.key])
-                                ) : c.key === "creator_name" ? (
-                                  exp.creator?.full_name || "—"
-                                ) : c.key === "receipt" ? (
-                                  exp.receipt ? (
-                                    <Button
-                                      variant="link"
-                                      size="sm"
-                                      className="p-0 h-auto font-normal"
-                                      onClick={() => {
-                                        if (exp.receipt?.path) {
-                                          expenses
-                                            .getReceiptUrl(exp.receipt.path)
-                                            .then(({ url, error }) => {
-                                              if (error) {
-                                                console.error(
-                                                  "Error getting receipt URL:",
-                                                  error
-                                                );
-                                                toast.error(
-                                                  "Failed to load receipt"
-                                                );
-                                              } else if (url) {
-                                                window.open(url, "_blank");
-                                              }
-                                            });
-                                        }
-                                      }}
-                                    >
-                                      View Receipt
-                                    </Button>
-                                  ) : exp.hasVoucher ? (
-                                    <Button
-                                      variant="link"
-                                      size="sm"
-                                      className="p-0 h-auto font-normal text-blue-600"
-                                      onClick={() =>
-                                        router.push(
-                                          `/org/${slug}/expenses/${exp.id}/voucher`
-                                        )
-                                      }
-                                    >
-                                      View Voucher
-                                    </Button>
-                                  ) : (
-                                    "No receipt or voucher"
-                                  )
-                                ) : c.key === "approver" ? (
-                                  exp.approver?.full_name || "—"
-                                ) : c.key === "category" ? (
-                                  getExpenseValue(exp, "category")
-                                ) : c.key === "event_title" ? (
-                                  exp.event_title || "N/A"
-                                ) : typeof exp[c.key] === "object" &&
-                                  exp[c.key] !== null ? (
-                                  JSON.stringify(exp[c.key])
-                                ) : (
-                                  exp[c.key] || "—"
-                                )}
-                              </TableCell>
-                            ))}
-                          <TableCell>
-                            <ExpenseStatusBadge status={exp.status} />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-3 gap-3">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Eye
-                                      className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
-                                      onClick={() => {
-                                        // For pending tab, add nextId to enable sequential approval flow
-                                        const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}&page=${pagination.currentPage}`;
-                                        const globalIndex = pagination.getItemNumber(index) - 1;
-                                        if (
-                                          activeTab === "pending" &&
-                                          filteredData[globalIndex + 1]
-                                        ) {
-                                          const nextId =
-                                            filteredData[globalIndex + 1].id;
-                                          router.push(
-                                            `${baseUrl}&nextId=${nextId}`
-                                          );
-                                        } else {
-                                          router.push(baseUrl);
-                                        }
-                                      }}
-                                    />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>View Expense</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              {exp.status === "submitted" &&
-                                exp.approver?.user_id !== user?.id && (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Pencil
-                                          className="w-4 h-4 text-gray-600 cursor-pointer hover:text-gray-700"
-                                          onClick={() =>
-                                            router.push(
-                                              `/org/${slug}/expenses/${exp.id}/edit`
-                                            )
+                          <TableRow
+                            key={exp.id}
+                            ref={isHighlighted ? highlightedRowRef : null}
+                            data-expense-row={exp.id}
+                            className={isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""}
+                          >
+                            <TableCell className="w-12 text-center">
+                              {pagination.getItemNumber(index)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {formatDateTime(exp.created_at)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-mono">
+                                  {exp.unique_id || "N/A"}
+                                </span>
+                              </div>
+                            </TableCell>
+                            {columns
+                              .filter((c) => c.visible)
+                              .map((c) => (
+                                <TableCell key={c.key}>
+                                  {c.key === "amount" ? (
+                                    formatCurrency(exp[c.key])
+                                  ) : c.key === "date" ? (
+                                    formatDate(exp[c.key])
+                                  ) : c.key === "creator_name" ? (
+                                    exp.creator?.full_name || "—"
+                                  ) : c.key === "receipt" ? (
+                                    exp.receipt ? (
+                                      <Button
+                                        variant="link"
+                                        size="sm"
+                                        className="p-0 h-auto font-normal"
+                                        onClick={() => {
+                                          if (exp.receipt?.path) {
+                                            expenses
+                                              .getReceiptUrl(exp.receipt.path)
+                                              .then(({ url, error }) => {
+                                                if (error) {
+                                                  console.error(
+                                                    "Error getting receipt URL:",
+                                                    error
+                                                  );
+                                                  toast.error(
+                                                    "Failed to load receipt"
+                                                  );
+                                                } else if (url) {
+                                                  window.open(url, "_blank");
+                                                }
+                                              });
                                           }
-                                        />
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>Edit Expense</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                )}
-                              {(userRole === "admin" ||
-                                userRole === "owner") && (
+                                        }}
+                                      >
+                                        View Receipt
+                                      </Button>
+                                    ) : exp.hasVoucher ? (
+                                      <Button
+                                        variant="link"
+                                        size="sm"
+                                        className="p-0 h-auto font-normal text-blue-600"
+                                        onClick={() =>
+                                          router.push(
+                                            `/org/${slug}/expenses/${exp.id}/voucher`
+                                          )
+                                        }
+                                      >
+                                        View Voucher
+                                      </Button>
+                                    ) : (
+                                      "No receipt or voucher"
+                                    )
+                                  ) : c.key === "approver" ? (
+                                    exp.approver?.full_name || "—"
+                                  ) : c.key === "category" ? (
+                                    getExpenseValue(exp, "category")
+                                  ) : c.key === "event_title" ? (
+                                    exp.event_title || "N/A"
+                                  ) : typeof exp[c.key] === "object" &&
+                                    exp[c.key] !== null ? (
+                                    JSON.stringify(exp[c.key])
+                                  ) : (
+                                    exp[c.key] || "—"
+                                  )}
+                                </TableCell>
+                              ))}
+                            <TableCell>
+                              <ExpenseStatusBadge status={exp.status} />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-1 gap-0">
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Trash2
-                                        className="w-4 h-4 text-red-600 cursor-pointer hover:text-red-800"
-                                        onClick={() => handleDelete(exp.id)}
-                                      />
+                                      <div
+                                        className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
+                                        onClick={() => {
+                                          // For pending tab, add nextId to enable sequential approval flow
+                                          const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}&page=${pagination.currentPage}`;
+                                          const globalIndex = pagination.getItemNumber(index) - 1;
+                                          if (
+                                            activeTab === "pending" &&
+                                            filteredData[globalIndex + 1]
+                                          ) {
+                                            const nextId =
+                                              filteredData[globalIndex + 1].id;
+                                            router.push(
+                                              `${baseUrl}&nextId=${nextId}`
+                                            );
+                                          } else {
+                                            router.push(baseUrl);
+                                          }
+                                        }}
+                                      >
+                                        <Eye className="w-4 h-4 text-gray-600 hover:text-black" />
+                                      </div>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      <p>Delete Expense</p>
+                                      <p>View Expense</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                                {exp.status === "submitted" &&
+                                  exp.approver?.user_id !== user?.id && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div
+                                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
+                                            onClick={() =>
+                                              router.push(
+                                                `/org/${slug}/expenses/${exp.id}/edit`
+                                              )
+                                            }
+                                          >
+                                            <Pencil className="w-4 h-4 text-gray-600 hover:text-black" />
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Edit Expense</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                {(userRole === "admin" ||
+                                  userRole === "owner") && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div
+                                            className="p-1.5 rounded-md border border-transparent hover:border-red-300 hover:bg-red-50 transition-all cursor-pointer flex items-center justify-center"
+                                            onClick={() => handleDelete(exp.id)}
+                                          >
+                                            <Trash2 className="w-4 h-4 text-red-600 hover:text-red-700" />
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Delete Expense</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
                         );
                       })
                     )}
@@ -1591,6 +1736,42 @@ export default function ExpensesPage() {
               className="cursor-pointer"
             >
               Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={exportModalOpen}
+        onOpenChange={setExportModalOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Expenses</DialogTitle>
+            <DialogDescription>
+              Choose the format in which you want to export your expenses.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-row justify-center gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                handleExport("excel");
+                setExportModalOpen(false);
+              }}
+              className="cursor-pointer flex-1"
+            >
+              Microsoft Excel (.xlsx)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                handleExport("csv");
+                setExportModalOpen(false);
+              }}
+              className="cursor-pointer flex-1"
+            >
+              CSV (.csv)
             </Button>
           </div>
         </DialogContent>
