@@ -52,6 +52,7 @@ export function AppSidebar() {
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showRemovedModal, setShowRemovedModal] = useState(false);
+  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
   const isAdmin = userRole === "owner" || userRole === "admin";
 
   const { profile, user, refreshProfile, logout } = useAuthStore();
@@ -62,16 +63,27 @@ export function AppSidebar() {
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      const { data, error } = await supabase.auth.getUser();
+      try {
+        const { data, error } = await supabase.auth.getUser();
 
-      if (!data?.user || error) {
-        setShowRemovedModal(true);
-        await logout();
+        const isAuthError = error && (error.status === 401 || error.status === 403 || error.status === 400);
+        const isSessionMissing = !error && !data?.user;
 
-        clearInterval(interval);
-        setTimeout(() => {
-          router.replace("/auth/signin");
-        }, 5000);
+        if (isAuthError || isSessionMissing) {
+          setShowSessionExpiredModal(true);
+          clearInterval(interval);
+          
+          // Schedule the redirect first, so it doesn't get blocked if logout() hangs
+          setTimeout(() => {
+            window.location.href = "/auth/signin";
+          }, 5000);
+
+          try {
+            await logout();
+          } catch (_) {}
+        }
+      } catch (err) {
+        // Ignore unexpected errors (like network disconnects) to prevent false logouts
       }
     }, 60000); // every 1 min
 
@@ -332,6 +344,18 @@ export function AppSidebar() {
             <DialogTitle>You have been removed</DialogTitle>
             <DialogDescription>
               You have been removed from the dashboard. Redirecting to sign-in…
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+
+      {/* Session Expired Msg Modal */}
+      <Dialog open={showSessionExpiredModal} onOpenChange={setShowSessionExpiredModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Session Expired</DialogTitle>
+            <DialogDescription>
+              Your session has expired. Redirecting to sign-in…
             </DialogDescription>
           </DialogHeader>
         </DialogContent>
