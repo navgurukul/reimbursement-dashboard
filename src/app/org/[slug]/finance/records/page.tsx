@@ -46,6 +46,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Pagination, usePagination } from "@/components/pagination";
+import { isExportEnabled, recordsPerPage } from "@/lib/features";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -93,7 +94,7 @@ const getCustomFieldValue = (
 };
 
 export default function PaymentRecords() {
-  const RECORDS_PER_PAGE = 100;
+  const RECORDS_PER_PAGE = recordsPerPage;
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2326,31 +2327,35 @@ export default function PaymentRecords() {
           </Tabs>
         </div>
         <div className="flex w-full flex-wrap gap-2 lg:w-auto">
-          <Button
-            onClick={() => {
-              setExportRangeLabel("");
-              setExportLocationFilter("All Locations");
-              setShowExportModal(true);
-            }}
-            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Export Data
-          </Button>
-          <Button
-            onClick={() => {
-              setQuickExportMode("weekly");
-              setQuickExportLocation("All Locations");
-              setQuickExportDate("");
-              setShowQuickExportModal(true);
-            }}
-            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Weekly / Monthly
-          </Button>
+          {isExportEnabled && (
+            <>
+              <Button
+                onClick={() => {
+                  setExportRangeLabel("");
+                  setExportLocationFilter("All Locations");
+                  setShowExportModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Export Data
+              </Button>
+              <Button
+                onClick={() => {
+                  setQuickExportMode("weekly");
+                  setQuickExportLocation("All Locations");
+                  setQuickExportDate("");
+                  setShowQuickExportModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Weekly / Monthly
+              </Button>
+            </>
+          )}
           <Button className="w-full sm:w-auto" variant="outline" onClick={() => setFilterOpen((s) => !s)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters

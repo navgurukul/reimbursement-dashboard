@@ -60,6 +60,7 @@ import {
 import { formatDate, formatDateTime } from "@/lib/utils";
 import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { isExportEnabled } from "@/lib/features";
 import { Pagination, usePagination, PER_PAGE } from "@/components/pagination";
 import * as XLSX from "xlsx-js-style";
 
@@ -1056,14 +1057,16 @@ export default function ExpensesPage() {
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                 </Button>
-                <Button
-                  variant="outline"
-                  className="cursor-pointer"
-                  onClick={() => setExportModalOpen(true)}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Export
-                </Button>
+                {isExportEnabled && (
+                  <Button
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => setExportModalOpen(true)}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                )}
               </div>
             </div>
 

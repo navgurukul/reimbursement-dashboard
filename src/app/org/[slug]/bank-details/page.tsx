@@ -28,6 +28,7 @@ import {
   DialogClose as DialogCloseButton,
 } from "@/components/ui/dialog";
 import { Pagination, usePagination } from "@/components/pagination";
+import { isExportEnabled } from "@/lib/features";
 import { toast } from "sonner";
 import { useOrgStore } from "@/store/useOrgStore";
 import { notFound, useRouter } from "next/navigation";
@@ -700,13 +701,15 @@ export default function BankDetailsPage() {
           }}
           className="max-w-md"
         />
-        <Button
-          variant="outline"
-          onClick={() => setShowColumnsModal(true)}
-          className="flex items-center gap-2 cursor-pointer"
-        >
-          <Download className="w-4 h-4" /> Export Bank Details
-        </Button>
+        {isExportEnabled && (
+          <Button
+            variant="outline"
+            onClick={() => setShowColumnsModal(true)}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <Download className="w-4 h-4" /> Export Bank Details
+          </Button>
+        )}
       </div>
 
       {/* Table */}

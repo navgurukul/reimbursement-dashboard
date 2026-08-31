@@ -50,6 +50,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Pagination, usePagination } from "@/components/pagination";
+import { isExportEnabled } from "@/lib/features";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formatCurrency = (amount: number) => {
@@ -1259,33 +1260,35 @@ export default function PaymentProcessingOnly() {
           <Button onClick={() => setShowConfirmAllPaid(true)}>
             Mark all as Paid
           </Button>
-          <Button
-            onClick={() => {
-              if (selectedExpenses.size === 0) {
-                toast.warning("Please select at least one expense to export.", {
-                  icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
-                  style: {
-                    border: '1px solid #f59e0b',
-                    background: '#fffbeb',
-                  }
-                });
-                return;
-              }
-              if (activeProcessingTab === "NGIDFC Processing") {
-                setSelectedBankType("NGIDFC");
-              } else if (activeProcessingTab === "FCIDFC Processing") {
-                setSelectedBankType("FCIDCF");
-              } else {
-                setSelectedBankType("");
-              }
-              setShowExportModal(true);
-            }}
-            className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
+          {isExportEnabled && (
+            <Button
+              onClick={() => {
+                if (selectedExpenses.size === 0) {
+                  toast.warning("Please select at least one expense to export.", {
+                    icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+                    style: {
+                      border: '1px solid #f59e0b',
+                      background: '#fffbeb',
+                    }
+                  });
+                  return;
+                }
+                if (activeProcessingTab === "NGIDFC Processing") {
+                  setSelectedBankType("NGIDFC");
+                } else if (activeProcessingTab === "FCIDFC Processing") {
+                  setSelectedBankType("FCIDCF");
+                } else {
+                  setSelectedBankType("");
+                }
+                setShowExportModal(true);
+              }}
+              className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
+              variant="outline"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </Button>
+          )}
         </div>
       </div>
 

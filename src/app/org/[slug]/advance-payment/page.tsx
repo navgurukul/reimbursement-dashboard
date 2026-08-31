@@ -28,6 +28,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
+import { isExportEnabled } from "@/lib/features";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { toast } from "sonner";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
@@ -1603,27 +1604,31 @@ export default function AdvancePaymentRecords() {
         </div>
         {/* Actions */}
         <div className="flex w-full flex-wrap gap-2 lg:w-auto">
-          <Button
-            onClick={() => setShowExportBankModal(true)}
-            variant="outline"
-            className="flex w-full items-center gap-2 sm:w-auto"
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
-          <Button
-            onClick={() => {
-              setQuickExportMode("weekly");
-              setQuickExportLocation("All Locations");
-              setQuickExportDate("");
-              setShowQuickExportModal(true);
-            }}
-            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Weekly / Monthly
-          </Button>
+          {isExportEnabled && (
+            <>
+              <Button
+                onClick={() => setShowExportBankModal(true)}
+                variant="outline"
+                className="flex w-full items-center gap-2 sm:w-auto"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+              <Button
+                onClick={() => {
+                  setQuickExportMode("weekly");
+                  setQuickExportLocation("All Locations");
+                  setQuickExportDate("");
+                  setShowQuickExportModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Weekly / Monthly
+              </Button>
+            </>
+          )}
           <Button
             variant="outline"
             onClick={() => setFilterOpen((s) => !s)}
