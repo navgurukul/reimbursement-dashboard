@@ -1327,6 +1327,35 @@ export const projectOfExpenseDetails = {
 
 
 
+const EXPENSE_PAGE_SIZE = 1000;
+
+/**
+ * Fetch every row a query matches, one page at a time.
+ *
+ * A single PostgREST response is capped server-side (10,000 rows on this
+ * project). Before the legacy import an org fitted comfortably under that, so
+ * unpaginated `.select()` calls returned everything; afterwards they silently
+ * returned only the first 10,000 and the UI filtered that truncated array,
+ * showing confidently wrong lists, totals and exports.
+ *
+ * `build` must apply a deterministic sort. A sort on `created_at` alone is not
+ * deterministic — imported rows share timestamps — and paging an unstable sort
+ * skips and duplicates rows across page boundaries, so callers add `id` as a
+ * tie-breaker.
+ */
+async function fetchAllExpenseRows<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<{ data: T[] | null; error: DatabaseError | null }> {
+  const all: T[] = [];
+  for (let from = 0; ; from += EXPENSE_PAGE_SIZE) {
+    const { data, error } = await build(from, from + EXPENSE_PAGE_SIZE - 1);
+    if (error) return { data: null, error: error as DatabaseError };
+    const page = data ?? [];
+    all.push(...page);
+    if (page.length < EXPENSE_PAGE_SIZE) return { data: all, error: null };
+  }
+}
+
 // Expenses functions
 export const expenses = {
   /**
@@ -1453,20 +1482,25 @@ export const expenses = {
    * Get all expenses for a user in an organization
    */
   getByOrgAndUser: async (orgId: string, userId: string) => {
-    // Get expenses with creator
-    const { data: expenses, error } = await supabase
-      .from("expense_new")
-      .select(
-        `
+    // Get expenses with creator. Paged for the same reason as getByOrg: the
+    // legacy-import identity owns thousands of rows and would hit the cap.
+    const { data: expenses, error } = await fetchAllExpenseRows<any>((from, to) =>
+      supabase
+        .from("expense_new")
+        .select(
+          `
       *,
       creator:profiles!user_id (
         full_name
       )
     `
-      )
-      .eq("org_id", orgId)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+        )
+        .eq("org_id", orgId)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to)
+    );
 
     if (error) {
       return { data: null, error: error as DatabaseError };
@@ -1522,20 +1556,26 @@ export const expenses = {
    * Get all expenses for an organization (admin only)
    */
   getByOrg: async (orgId: string) => {
-    // Get expenses with creator
-    const { data: expenses, error } = await supabase
-      .from("expense_new")
-      .select(
-        `
+    // Get expenses with creator. Paged: a single response is capped at 10,000
+    // rows server-side, which silently truncated this list once the legacy
+    // import landed. `id` is a tie-breaker so page boundaries stay stable.
+    const { data: expenses, error } = await fetchAllExpenseRows<any>((from, to) =>
+      supabase
+        .from("expense_new")
+        .select(
+          `
       *,
       creator:profiles!user_id (
         full_name,
         email
       )
     `
-      )
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false });
+        )
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to)
+    );
 
     if (error) {
       return { data: null, error: error as DatabaseError };
