@@ -1345,7 +1345,11 @@ const EXPENSE_PAGE_SIZE = 1000;
  */
 async function fetchAllExpenseRows<T>(
   build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
-): Promise<{ data: T[] | null; error: DatabaseError | null }> {
+): Promise<
+  // Discriminated union so `if (error) return` narrows `data` to T[] at call
+  // sites, matching how the Supabase client's own result type behaves.
+  { data: T[]; error: null } | { data: null; error: DatabaseError }
+> {
   const all: T[] = [];
   for (let from = 0; ; from += EXPENSE_PAGE_SIZE) {
     const { data, error } = await build(from, from + EXPENSE_PAGE_SIZE - 1);
