@@ -28,3 +28,10 @@ export const recordsPerPage = readPositiveInt(
   process.env.NEXT_PUBLIC_RECORDS_PER_PAGE,
   10
 );
+
+/** List of emails allowed to access the Pune SOSC Dashboard */
+export const PUNE_SOSC_ALLOWED_EMAILS = [
+  "aarzoo@navgurukul.org",
+  "aanista@navgurukul.org",
+  "pooja.s@navgurukul.org",
+];

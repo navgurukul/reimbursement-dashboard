@@ -9,6 +9,7 @@ import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
 import { FileText, Landmark } from "lucide-react";
+import { PUNE_SOSC_ALLOWED_EMAILS } from "@/lib/features";
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -191,8 +192,8 @@ export function AppSidebar() {
       href: `/org/${organization?.slug}/abbreviations`,
       icon: Tags,
     },
-    // Show CP Pune-SoSC to all roles except 'member'
-    ...(userRole !== "member"
+    // Show CP Pune-SoSC ONLY to allowed users based on email
+    ...(PUNE_SOSC_ALLOWED_EMAILS.includes(userEmail)
       ? [
           {
             title: "Pune SOSC Dashboard",
