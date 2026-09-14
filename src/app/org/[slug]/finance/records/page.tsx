@@ -46,6 +46,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Pagination, usePagination } from "@/components/pagination";
+import { isExportEnabled, recordsPerPage } from "@/lib/features";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -93,7 +94,7 @@ const getCustomFieldValue = (
 };
 
 export default function PaymentRecords() {
-  const RECORDS_PER_PAGE = 100;
+  const RECORDS_PER_PAGE = recordsPerPage;
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -965,15 +966,30 @@ export default function PaymentRecords() {
 
         const orgId = orgData.id;
 
-        const { data, error } = await supabase
-          .from("expense_new")
-          .select("*")
-          .eq("payment_status", "paid")
-          .eq("org_id", orgId)
-          // Show records with missing paid_approval_time first, then the rest ascending
-          .order("paid_approval_time", { ascending: true, nullsFirst: true })
-          // Stable tie-breaker to prevent random ordering when timestamps match
-          .order("created_at", { ascending: true });
+        // Paged: a single PostgREST response is capped at 10,000 rows, which
+        // silently dropped every record paid after April 2024 once the legacy
+        // import landed — including all bank-tagged rows, leaving the
+        // NG/FC/KOTAK tabs empty. `id` keeps page boundaries stable.
+        const PAGE = 1000;
+        const collected: any[] = [];
+        let error: any = null;
+        for (let from = 0; ; from += PAGE) {
+          const { data: page, error: pageError } = await supabase
+            .from("expense_new")
+            .select("*")
+            .eq("payment_status", "paid")
+            .eq("org_id", orgId)
+            // Show records with missing paid_approval_time first, then the rest ascending
+            .order("paid_approval_time", { ascending: true, nullsFirst: true })
+            // Stable tie-breakers to prevent random ordering when timestamps match
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, from + PAGE - 1);
+          if (pageError) { error = pageError; break; }
+          collected.push(...(page || []));
+          if (!page || page.length < PAGE) break;
+        }
+        const data = collected;
 
         if (error) throw error;
 
@@ -2326,31 +2342,35 @@ export default function PaymentRecords() {
           </Tabs>
         </div>
         <div className="flex w-full flex-wrap gap-2 lg:w-auto">
-          <Button
-            onClick={() => {
-              setExportRangeLabel("");
-              setExportLocationFilter("All Locations");
-              setShowExportModal(true);
-            }}
-            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Export Data
-          </Button>
-          <Button
-            onClick={() => {
-              setQuickExportMode("weekly");
-              setQuickExportLocation("All Locations");
-              setQuickExportDate("");
-              setShowQuickExportModal(true);
-            }}
-            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Weekly / Monthly
-          </Button>
+          {isExportEnabled && (
+            <>
+              <Button
+                onClick={() => {
+                  setExportRangeLabel("");
+                  setExportLocationFilter("All Locations");
+                  setShowExportModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Export Data
+              </Button>
+              <Button
+                onClick={() => {
+                  setQuickExportMode("weekly");
+                  setQuickExportLocation("All Locations");
+                  setQuickExportDate("");
+                  setShowQuickExportModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Weekly / Monthly
+              </Button>
+            </>
+          )}
           <Button className="w-full sm:w-auto" variant="outline" onClick={() => setFilterOpen((s) => !s)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters

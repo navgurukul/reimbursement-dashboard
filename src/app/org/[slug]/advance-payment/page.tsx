@@ -28,6 +28,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
+import { isExportEnabled } from "@/lib/features";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { toast } from "sonner";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
@@ -568,13 +569,28 @@ export default function AdvancePaymentRecords() {
 
         const orgId = orgData.id;
 
-        // Fetch all paid expenses
-        const { data, error } = await supabase
-          .from("expense_new")
-          .select("*")
-          .eq("payment_status", "paid")
-          .eq("org_id", orgId)
-          .order("paid_approval_time", { ascending: true, nullsFirst: true });
+        // Fetch all paid expenses. Paged: a single PostgREST response is capped
+        // at 10,000 rows, which silently dropped every record paid after April
+        // 2024 once the legacy import landed. `created_at`/`id` are
+        // tie-breakers so page boundaries stay stable.
+        const PAGE = 1000;
+        const collected: any[] = [];
+        let error: any = null;
+        for (let from = 0; ; from += PAGE) {
+          const { data: page, error: pageError } = await supabase
+            .from("expense_new")
+            .select("*")
+            .eq("payment_status", "paid")
+            .eq("org_id", orgId)
+            .order("paid_approval_time", { ascending: true, nullsFirst: true })
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, from + PAGE - 1);
+          if (pageError) { error = pageError; break; }
+          collected.push(...(page || []));
+          if (!page || page.length < PAGE) break;
+        }
+        const data = collected;
 
         if (error) throw error;
 
@@ -1603,27 +1619,31 @@ export default function AdvancePaymentRecords() {
         </div>
         {/* Actions */}
         <div className="flex w-full flex-wrap gap-2 lg:w-auto">
-          <Button
-            onClick={() => setShowExportBankModal(true)}
-            variant="outline"
-            className="flex w-full items-center gap-2 sm:w-auto"
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
-          <Button
-            onClick={() => {
-              setQuickExportMode("weekly");
-              setQuickExportLocation("All Locations");
-              setQuickExportDate("");
-              setShowQuickExportModal(true);
-            }}
-            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Weekly / Monthly
-          </Button>
+          {isExportEnabled && (
+            <>
+              <Button
+                onClick={() => setShowExportBankModal(true)}
+                variant="outline"
+                className="flex w-full items-center gap-2 sm:w-auto"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+              <Button
+                onClick={() => {
+                  setQuickExportMode("weekly");
+                  setQuickExportLocation("All Locations");
+                  setQuickExportDate("");
+                  setShowQuickExportModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Weekly / Monthly
+              </Button>
+            </>
+          )}
           <Button
             variant="outline"
             onClick={() => setFilterOpen((s) => !s)}

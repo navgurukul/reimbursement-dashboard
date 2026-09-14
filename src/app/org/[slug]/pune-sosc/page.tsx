@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { PUNE_SOSC_ALLOWED_EMAILS } from "@/lib/features";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -52,6 +54,8 @@ export default function PuneSoSCDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { organization, userRole } = useOrgStore();
+  const { profile, user } = useAuthStore();
+  const userEmail = profile?.email || user?.email || user?.user_metadata?.email || "";
 
   const [expensesData, setExpensesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +79,15 @@ export default function PuneSoSCDashboard() {
   const isRestoringViewedExpenseRef = useRef(hasReturnNavigationParams);
 
   const orgId = organization?.id;
+
+  useEffect(() => {
+    // Basic route protection: redirect if email is known and not allowed
+    // Wait until profile/user is loaded
+    if ((profile || user) && userEmail && !PUNE_SOSC_ALLOWED_EMAILS.includes(userEmail)) {
+      toast.error("You do not have permission to access the Pune SOSC Dashboard.");
+      router.replace(`/org/${slug}/expenses`);
+    }
+  }, [userEmail, profile, user, slug, router]);
 
   useEffect(() => {
     async function fetchData() {
