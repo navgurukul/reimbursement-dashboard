@@ -18,6 +18,7 @@ import {
   Users,
   Calendar,
   Settings,
+  Shield,
   LogOut,
   Menu,
   ChevronDown,
@@ -223,13 +224,20 @@ export function AppSidebar() {
       : []),
   ];
 
-  const adminRoutes = {
-    title: "Settings",
-    href: `/org/${organization?.slug}/settings`,
-    icon: Settings,
-  };
+  const adminRoutes = [
+    {
+      title: "Settings",
+      href: `/org/${organization?.slug}/settings`,
+      icon: Settings,
+    },
+    {
+      title: "Access",
+      href: `/org/${organization?.slug}/access`,
+      icon: Shield,
+    }
+  ];
 
-  const sidebarItems = isAdmin ? [...baseRoutes, adminRoutes] : baseRoutes;
+  const sidebarItems = isAdmin ? [...baseRoutes, ...adminRoutes] : baseRoutes;
 
   function SidebarContent() {
     return (
