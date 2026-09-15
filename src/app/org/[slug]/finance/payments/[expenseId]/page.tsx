@@ -348,7 +348,7 @@ export default function PaymentProcessingDetails() {
   const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? 0;
   const tdsAmount = tdsPercentage
     ? expense?.tds_deduction_amount ??
-      Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
+      Math.round(((tdsBaseAmount || 0) * tdsPercentage) / 100)
     : expense?.tds_deduction_amount ?? null;
   const securityDepositAmount =
     expense?.security_deposit_amount !== null &&
@@ -358,10 +358,10 @@ export default function PaymentProcessingDetails() {
   const actualAmount =
     expense?.actual_amount ??
     (tdsBaseAmount !== null && tdsBaseAmount !== undefined
-      ? Number(
-          (Number(tdsBaseAmount) -
+      ? Math.round(
+          Number(tdsBaseAmount) -
             (tdsAmount ?? 0) -
-            (securityDepositAmount ?? 0)).toFixed(2)
+            (securityDepositAmount ?? 0)
         )
       : null);
 

@@ -2888,3 +2888,84 @@ export const authUsers = {
     }
   },
 };
+
+export interface AccessPermission {
+  id: string;
+  org_id: string;
+  email: string;
+  feature: string;
+  created_at: string;
+}
+
+export const accessPermissions = {
+  getByFeature: async (orgId: string, feature: string) => {
+    const { data, error } = await supabase
+      .from("access_permissions")
+      .select("*")
+      .eq("org_id", orgId)
+      .eq("feature", feature)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { data: [], error: error as DatabaseError };
+    }
+
+    return {
+      data: (data || []) as AccessPermission[],
+      error: null,
+    };
+  },
+
+  checkAccess: async (orgId: string, email: string, feature: string) => {
+    const { data, error } = await supabase
+      .from("access_permissions")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("email", email)
+      .eq("feature", feature)
+      .maybeSingle();
+
+    if (error) {
+      return { hasAccess: false, error: error as DatabaseError };
+    }
+
+    return {
+      hasAccess: !!data,
+      error: null,
+    };
+  },
+
+  grantAccess: async (orgId: string, email: string, feature: string) => {
+    const { data, error } = await supabase
+      .from("access_permissions")
+      .insert({
+        org_id: orgId,
+        email: email.toLowerCase().trim(),
+        feature,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+
+    return {
+      data: data as AccessPermission,
+      error: null,
+    };
+  },
+
+  revokeAccess: async (id: string) => {
+    const { error } = await supabase
+      .from("access_permissions")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      return { error: error as DatabaseError };
+    }
+
+    return { error: null };
+  },
+};

@@ -64,7 +64,7 @@ const calculateTdsAmount = (
 ) => {
   if (!percentage || baseAmount === null || baseAmount === undefined) return null;
   const amount = (baseAmount * percentage) / 100;
-  return Number(amount.toFixed(2));
+  return Math.round(amount);
 };
 
 const calculateActualAmount = (
@@ -75,7 +75,7 @@ const calculateActualAmount = (
   if (baseAmount === null || baseAmount === undefined) return null;
   const amount =
     Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
-  return Number(amount.toFixed(2));
+  return Math.round(amount);
 };
 
 const normalizeCustomFieldKey = (key: string) =>
@@ -624,6 +624,11 @@ export default function FinanceExpenseDetails() {
     if (error) {
       setExpense(prevExpense);
       toast.error("Failed to update TDS deduction");
+    } else {
+      toast.success("TDS deduction updated successfully", {
+        style: { border: "1px solid #22c55e", background: "#f2faf5ff" },
+        classNames: { icon: "text-[#22c55e]" }
+      });
     }
 
     setTdsUpdating(false);

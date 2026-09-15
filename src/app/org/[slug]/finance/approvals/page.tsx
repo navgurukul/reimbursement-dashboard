@@ -54,7 +54,7 @@ const calculateTdsAmount = (
 ) => {
   if (!percentage || baseAmount === null || baseAmount === undefined) return null;
   const amount = (baseAmount * percentage) / 100;
-  return Number(amount.toFixed(2));
+  return Math.round(amount);
 };
 
 const toDateOnly = (value?: string | Date | null) => {
@@ -162,7 +162,7 @@ export default function FinanceReview() {
       isMounted.current = true;
     }, 0);
   }, []);
-  
+
   // so they are not lost when navigating back from an expense view
   useEffect(() => {
     if (isMounted.current && typeof window !== "undefined") {
@@ -215,7 +215,7 @@ export default function FinanceReview() {
           : 0);
       const securityDepositAmount = expense.security_deposit_amount ?? 0;
       const actualAmountBase = expense.amount ?? 0;
-      return Number(actualAmountBase - tdsAmount - securityDepositAmount);
+      return Math.round(actualAmountBase - tdsAmount - securityDepositAmount);
     };
 
     return expenseList.filter((expense) => {
@@ -490,31 +490,31 @@ export default function FinanceReview() {
         toast.error(`${failed.length} approvals failed`);
       } else {
         toast.success("All expenses have been approved by Finance. Email notification has been sent to the expense creator.");
-        
+
         // Send email notifications to all expense creators
         await Promise.all(
           filteredExpenseList.map((expense) =>
             // Only send email if creator email exists
-            (expense.creator?.email || expense.creator_email) ? 
-            fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                expenseId: expense.id,
-                creatorEmail: expense.creator?.email || expense.creator_email,
-                creatorName: expense.creator_name,
-                approverName: "Finance Team",
-                orgName: organization?.name,
-                slug: organization?.slug,
-                amount: expense.amount,
-                expenseType: expense.expense_type,
-                status: "finance_approved",
-                decisionStage: "finance",
-              }),
-            }).catch((err) => {
-              console.error("Failed to send notification for expense:", expense.id, err);
-            })
-            : Promise.resolve()
+            (expense.creator?.email || expense.creator_email) ?
+              fetch("/api/expenses/notify-creator", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  expenseId: expense.id,
+                  creatorEmail: expense.creator?.email || expense.creator_email,
+                  creatorName: expense.creator_name,
+                  approverName: "Finance Team",
+                  orgName: organization?.name,
+                  slug: organization?.slug,
+                  amount: expense.amount,
+                  expenseType: expense.expense_type,
+                  status: "finance_approved",
+                  decisionStage: "finance",
+                }),
+              }).catch((err) => {
+                console.error("Failed to send notification for expense:", expense.id, err);
+              })
+              : Promise.resolve()
           )
         );
       }
@@ -562,7 +562,7 @@ export default function FinanceReview() {
       const tdsAmount = calculateTdsAmount(tdsBaseAmount, percentage);
       const securityDepositAmount = exp.security_deposit_amount ?? 0;
       const actualAmountBase = exp.amount ?? 0;
-      const actualAmount = actualAmountBase - (tdsAmount ?? 0) - securityDepositAmount;
+      const actualAmount = Math.round(actualAmountBase - (tdsAmount ?? 0) - securityDepositAmount);
       return {
         ...exp,
         tds_deduction_percentage: percentage,
@@ -588,6 +588,11 @@ export default function FinanceReview() {
 
     if (error) {
       toast.error("Failed to update TDS deduction");
+    } else {
+      toast.success("TDS deduction updated successfully", {
+        style: { border: "1px solid #22c55e", background: "#f2faf5ff" },
+        classNames: { icon: "text-[#22c55e]" }
+      });
     }
   };
 
@@ -630,10 +635,10 @@ export default function FinanceReview() {
                   {uniqueIdOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -658,10 +663,10 @@ export default function FinanceReview() {
                   {expenseTypeOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -686,10 +691,10 @@ export default function FinanceReview() {
                   {eventNameOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.eventName.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -714,10 +719,10 @@ export default function FinanceReview() {
                   {locationOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.location.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -823,10 +828,10 @@ export default function FinanceReview() {
                     {singleDateOptions
                       .filter((dateValue) => formatDateForLabel(dateValue).toLowerCase().includes(searchQuery.startDate.toLowerCase()))
                       .map((dateValue) => (
-                      <SelectItem key={dateValue} value={dateValue}>
-                        {formatDateForLabel(dateValue)}
-                      </SelectItem>
-                    ))}
+                        <SelectItem key={dateValue} value={dateValue}>
+                          {formatDateForLabel(dateValue)}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               )}
@@ -873,10 +878,10 @@ export default function FinanceReview() {
                   {submittedByOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.submittedBy.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -901,10 +906,10 @@ export default function FinanceReview() {
                   {approvedByOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.approvedBy.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -960,11 +965,11 @@ export default function FinanceReview() {
               <TableRow>
                 <TableCell
                   colSpan={14}
-                  className="text-center py-6 text-muted-foreground"
+                  className="text-start py-6 px-4 text-muted-foreground"
                 >
                   {expenseList.length === 0
-                    ? "No expenses pending finance review"
-                    : "No expenses match selected filters"}
+                    ? "Expenses are currently not available for finance review."
+                    : "No expenses match selected filters."}
                 </TableCell>
               </TableRow>
             ) : (
@@ -976,114 +981,113 @@ export default function FinanceReview() {
                     key={expense.id}
                     ref={isHighlighted ? highlightedRowRef : null}
                     data-expense-row={expense.id}
-                    className={`hover:bg-gray-50 transition-colors ${
-                      isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""
-                    }`}
+                    className={`hover:bg-gray-50 transition-colors ${isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""
+                      }`}
                   >
-                  <TableCell className="px-4 py-3 text-center">
-                    {pagination.getItemNumber(index)}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center whitespace-nowrap">
-                    {formatDateTime(expense.created_at)}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <span className="font-mono">
-                      {expense.unique_id || "N/A"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    {expense.expense_type}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    {expense.event_title || "N/A"}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    {expense.location || "N/A"}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center font-medium text-green-700">
-                    {formatCurrency(expense.amount)}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <select
-                        className="border px-2 py-1 rounded bg-white text-sm"
-                        value={
-                          expense.tds_deduction_percentage
-                            ? String(expense.tds_deduction_percentage)
-                            : ""
-                        }
-                        onChange={(e) => handleTdsChange(expense.id, e.target.value)}
-                      >
-                        <option value="">Select %</option>
-                        {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
-                          (percent) => (
-                            <option key={percent} value={percent}>
-                              {percent}%
-                            </option>
-                          )
-                        )}
-                      </select>
-                      <span className="text-xs text-muted-foreground">
-                        {expense.tds_deduction_percentage
-                          ? formatCurrency(
-                              expense.tds_deduction_amount ??
-                                calculateTdsAmount(
-                                  expense.approved_amount ?? expense.amount ??
-                                    0,
-                                  expense.tds_deduction_percentage
-                                ) ??
-                                0
-                            )
-                          : "—"}
+                    <TableCell className="px-4 py-3 text-center">
+                      {pagination.getItemNumber(index)}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center whitespace-nowrap">
+                      {formatDateTime(expense.created_at)}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      <span className="font-mono">
+                        {expense.unique_id || "N/A"}
                       </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center text-sm">
-                    {formatCurrency(
-                      (expense.amount ?? 0) -
-                        (expense.tds_deduction_amount ??
-                          (expense.tds_deduction_percentage
-                            ? calculateTdsAmount(
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      {expense.expense_type}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      {expense.event_title || "N/A"}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      {expense.location || "N/A"}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center font-medium text-green-700">
+                      {formatCurrency(expense.amount)}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <select
+                          className="border px-2 py-1 rounded bg-white text-sm"
+                          value={
+                            expense.tds_deduction_percentage
+                              ? String(expense.tds_deduction_percentage)
+                              : ""
+                          }
+                          onChange={(e) => handleTdsChange(expense.id, e.target.value)}
+                        >
+                          <option value="">Select %</option>
+                          {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                            (percent) => (
+                              <option key={percent} value={percent}>
+                                {percent}%
+                              </option>
+                            )
+                          )}
+                        </select>
+                        <span className="text-xs text-muted-foreground">
+                          {expense.tds_deduction_percentage
+                            ? formatCurrency(
+                              expense.tds_deduction_amount ??
+                              calculateTdsAmount(
+                                expense.approved_amount ?? expense.amount ??
+                                0,
+                                expense.tds_deduction_percentage
+                              ) ??
+                              0
+                            )
+                            : "—"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center text-sm">
+                      {formatCurrency(
+                        Math.round((expense.amount ?? 0) -
+                          (expense.tds_deduction_amount ??
+                            (expense.tds_deduction_percentage
+                              ? calculateTdsAmount(
                                 expense.approved_amount ?? expense.amount ?? 0,
                                 expense.tds_deduction_percentage
                               ) ?? 0
-                            : 0)) -
-                        (expense.security_deposit_amount ?? 0)
-                    )}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center whitespace-nowrap">
-                    {new Date(expense.date).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    {expense.creator_name}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    {expense.approver_name}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <ExpenseStatusBadge status="approved" />
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => handleViewClick(expense)}
-                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>View Expense</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableCell>
+                              : 0)) -
+                          (expense.security_deposit_amount ?? 0))
+                      )}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center whitespace-nowrap">
+                      {new Date(expense.date).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      {expense.creator_name}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      {expense.approver_name}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      <ExpenseStatusBadge status="approved" />
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleViewClick(expense)}
+                              className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>View Expense</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
                   </TableRow>
                 );
               })
