@@ -2348,6 +2348,12 @@ export default function PaymentRecords() {
                 onClick={() => {
                   setExportRangeLabel("");
                   setExportLocationFilter("All Locations");
+                  
+                  if (activeTab === "all") setExportBankType("ALL_RECORDS");
+                  else if (activeTab === "ngidfc") setExportBankType("NGIDFC Current");
+                  else if (activeTab === "fcidfc") setExportBankType("FCIDFC Current");
+                  else if (activeTab === "kotak") setExportBankType("KOTAK");
+                  
                   setShowExportModal(true);
                 }}
                 className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
@@ -3921,7 +3927,13 @@ export default function PaymentRecords() {
                 }
                 setShowExportDateModal(true);
               }}
-              disabled={!exportBankType}
+              disabled={
+                !exportBankType ||
+                (activeTab === "all" && exportBankType !== "ALL_RECORDS") ||
+                (activeTab === "ngidfc" && exportBankType !== "NGIDFC Current") ||
+                (activeTab === "fcidfc" && exportBankType !== "FCIDFC Current") ||
+                (activeTab === "kotak" && exportBankType !== "KOTAK")
+              }
               className="cursor-pointer"
             >
               Next
