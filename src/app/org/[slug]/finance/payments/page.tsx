@@ -1019,12 +1019,19 @@ export default function PaymentProcessingOnly() {
       .eq("id", expenseId);
 
     if (error) {
-      toast.error("Failed to update TDS deduction");
+      toast.error(`Failed to ${percentage === null ? 'remove' : 'update'} TDS deduction`);
     } else {
-      toast.success("TDS deduction updated successfully", {
-        style: { border: "1px solid #22c55e", background: "#f2faf5ff" },
-        classNames: { icon: "text-[#22c55e]" }
-      });
+      if (percentage === null) {
+        toast.success("TDS deduction removed successfully", {
+          style: { border: "1px solid #f59e0b", background: "#fffbeb" },
+          classNames: { icon: "text-[#f59e0b]" }
+        });
+      } else {
+        toast.success("TDS deduction updated successfully", {
+          style: { border: "1px solid #22c55e", background: "#f2faf5ff" },
+          classNames: { icon: "text-[#22c55e]" }
+        });
+      }
     }
   };
 
