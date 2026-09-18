@@ -1622,7 +1622,14 @@ export default function AdvancePaymentRecords() {
           {isExportEnabled && (
             <>
               <Button
-                onClick={() => setShowExportBankModal(true)}
+                onClick={() => {
+                  if (activeTab === "all") setExportBankType("ALL_RECORDS");
+                  else if (activeTab === "ngidfc") setExportBankType("NGIDFC Current");
+                  else if (activeTab === "fcidfc") setExportBankType("FCIDFC Current");
+                  else if (activeTab === "kotak") setExportBankType("KOTAK");
+                  
+                  setShowExportBankModal(true);
+                }}
                 variant="outline"
                 className="flex w-full items-center gap-2 sm:w-auto"
               >
@@ -2863,7 +2870,7 @@ export default function AdvancePaymentRecords() {
       <Dialog open={showExportBankModal} onOpenChange={setShowExportBankModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Select Advance Pyament Records to Export</DialogTitle>
+            <DialogTitle>Select Advance Payment Records to Export</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex items-center">
@@ -2936,7 +2943,13 @@ export default function AdvancePaymentRecords() {
                 }
                 setShowExportDateModal(true);
               }}
-              disabled={exportBankType === ""}
+              disabled={
+                !exportBankType ||
+                (activeTab === "all" && exportBankType !== "ALL_RECORDS") ||
+                (activeTab === "ngidfc" && exportBankType !== "NGIDFC Current") ||
+                (activeTab === "fcidfc" && exportBankType !== "FCIDFC Current") ||
+                (activeTab === "kotak" && exportBankType !== "KOTAK")
+              }
             >
               Next
             </Button>
