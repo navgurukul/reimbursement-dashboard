@@ -20,7 +20,7 @@ const readPositiveInt = (value: string | undefined, fallback: number) => {
  */
 export const isExportEnabled = readBoolean(
   process.env.NEXT_PUBLIC_ENABLE_EXPORT,
-  false
+  true
 );
 
 /** Rows per page in the finance Records table. */

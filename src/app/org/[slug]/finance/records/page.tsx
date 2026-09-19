@@ -425,9 +425,12 @@ export default function PaymentRecords() {
     if (stored !== null && stored !== undefined && stored !== "") {
       return Number(stored);
     }
-    const base = Number(record.amount ?? 0);
+    let base = Number(record.amount ?? 0);
     const tdsAmount = getTdsAmount(record);
     const securityDepositAmount = getSecurityDepositAmount(record);
+    if (!tdsAmount && !record.tds_deduction_percentage && record.approved_amount) {
+      base = Number(record.approved_amount);
+    }
     if (
       !base &&
       !tdsAmount &&
@@ -436,9 +439,10 @@ export default function PaymentRecords() {
     ) {
       return null;
     }
-    return Number(
-      (base - (tdsAmount ?? 0) - (securityDepositAmount ?? 0)).toFixed(2)
-    );
+    const roundedTdsAmount = tdsAmount ? Math.round(tdsAmount) : 0;
+    const amount = base - roundedTdsAmount - (securityDepositAmount ?? 0);
+    if (!tdsAmount) return Number(amount.toFixed(2));
+    return Math.round(amount);
   };
 
   const formatKotakVoucherDate = (dateValue?: string | Date | null) => {
@@ -717,10 +721,11 @@ export default function PaymentRecords() {
     const rows = getExportRecords().map((record: any, index: number) => {
       const tdsPercent = record.tds_deduction_percentage;
       const tdsAmount = getTdsAmount(record);
+      const displayTdsAmount = record.tds_round_off_amount != null ? record.tds_round_off_amount : tdsAmount;
       const tdsDisplay = tdsPercent
-        ? `${tdsPercent}% (${tdsAmount !== null ? formatCurrency(tdsAmount) : "—"})`
-        : tdsAmount !== null
-          ? formatCurrency(tdsAmount)
+        ? `${tdsPercent}% (${displayTdsAmount !== null ? formatCurrency(displayTdsAmount) : "—"})`
+        : displayTdsAmount !== null
+          ? formatCurrency(displayTdsAmount)
           : "N/A";
       const securityDepositAmount = getSecurityDepositAmount(record);
       const securityDepositDisplay =
@@ -1898,7 +1903,7 @@ export default function PaymentRecords() {
           "",
           "",
           tdsLine,
-          formatAmountValue(tdsAmount),
+          formatAmountValue(record.tds_round_off_amount ?? tdsAmount),
           "Cr",
           "",
           "",
@@ -2202,7 +2207,7 @@ export default function PaymentRecords() {
           "",
           "",
           tdsLine,
-          formatAmountValue(tdsAmount),
+          formatAmountValue(record.tds_round_off_amount ?? tdsAmount),
           "Cr",
           "",
           "",
@@ -2348,6 +2353,12 @@ export default function PaymentRecords() {
                 onClick={() => {
                   setExportRangeLabel("");
                   setExportLocationFilter("All Locations");
+
+                  if (activeTab === "all") setExportBankType("ALL_RECORDS");
+                  else if (activeTab === "ngidfc") setExportBankType("NGIDFC Current");
+                  else if (activeTab === "fcidfc") setExportBankType("FCIDFC Current");
+                  else if (activeTab === "kotak") setExportBankType("KOTAK");
+
                   setShowExportModal(true);
                 }}
                 className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
@@ -2402,10 +2413,10 @@ export default function PaymentRecords() {
                   {expenseTypes
                     .filter((t) => String(t).toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
                     .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2430,10 +2441,10 @@ export default function PaymentRecords() {
                   {eventNames
                     .filter((t) => String(t).toLowerCase().includes(searchQuery.eventName.toLowerCase()))
                     .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2458,10 +2469,10 @@ export default function PaymentRecords() {
                   {creators
                     .filter((t) => String(t).toLowerCase().includes(searchQuery.email.toLowerCase()))
                     .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2486,10 +2497,10 @@ export default function PaymentRecords() {
                   {uniqueIds
                     .filter((id) => String(id).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
                     .map((id) => (
-                    <SelectItem key={id} value={id}>
-                      {id}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={id} value={id}>
+                        {id}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2514,10 +2525,10 @@ export default function PaymentRecords() {
                   {locations
                     .filter((t) => String(t).toLowerCase().includes(searchQuery.location.toLowerCase()))
                     .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2542,8 +2553,8 @@ export default function PaymentRecords() {
                   {["Receipt", "Voucher"]
                     .filter((b) => b.toLowerCase().includes(searchQuery.bills.toLowerCase()))
                     .map((b) => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                  ))}
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2572,10 +2583,10 @@ export default function PaymentRecords() {
                     {paidByBankOptions
                       .filter((bank) => String(bank).toLowerCase().includes(searchQuery.paidByBank.toLowerCase()))
                       .map((bank) => (
-                      <SelectItem key={bank} value={bank}>
-                        {bank}
-                      </SelectItem>
-                    ))}
+                        <SelectItem key={bank} value={bank}>
+                          {bank}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2602,10 +2613,10 @@ export default function PaymentRecords() {
                     {utrValues
                       .filter((u) => String(u).toLowerCase().includes(searchQuery.utr.toLowerCase()))
                       .map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {u}
-                      </SelectItem>
-                    ))}
+                        <SelectItem key={u} value={u}>
+                          {u}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2673,10 +2684,10 @@ export default function PaymentRecords() {
                         {dateOfExpenseOptions
                           .filter((date) => formatDateForDisplay(date).toLowerCase().includes(searchQuery.startDate.toLowerCase()))
                           .map((date) => (
-                          <SelectItem key={date} value={date}>
-                            {formatDateForDisplay(date)}
-                          </SelectItem>
-                        ))}
+                            <SelectItem key={date} value={date}>
+                              {formatDateForDisplay(date)}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </>
@@ -2768,10 +2779,10 @@ export default function PaymentRecords() {
                         {paidDateFilterOptions
                           .filter((date) => formatDateForDisplay(date).toLowerCase().includes(searchQuery.paidStartDate.toLowerCase()))
                           .map((date) => (
-                          <SelectItem key={date} value={date}>
-                            {formatDateForDisplay(date)}
-                          </SelectItem>
-                        ))}
+                            <SelectItem key={date} value={date}>
+                              {formatDateForDisplay(date)}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </>
@@ -2822,10 +2833,10 @@ export default function PaymentRecords() {
                   {tdsDeductionOptions
                     .filter((opt) => formatTdsDeductionOptionLabel(opt).toLowerCase().includes(searchQuery.tdsDeduction.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {formatTdsDeductionOptionLabel(option)}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {formatTdsDeductionOptionLabel(option)}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2850,10 +2861,10 @@ export default function PaymentRecords() {
                   {securityDepositOptions
                     .filter((opt) => (opt === "N/A" ? "N/A" : formatCurrency(Number(opt))).toLowerCase().includes(searchQuery.securityDeposit.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -3057,9 +3068,11 @@ export default function PaymentRecords() {
                         return (
                           <div className="flex flex-col items-center gap-1">
                             <span className="text-sm">{tdsPercent}%</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
                               {tdsAmount !== null
-                                ? formatCurrency(tdsAmount)
+                                ? record.tds_round_off_amount != null
+                                  ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${record.tds_round_off_amount}`
+                                  : `TDS amount: ${formatCurrency(tdsAmount)}`
                                 : "—"}
                             </span>
                           </div>
@@ -3310,8 +3323,8 @@ export default function PaymentRecords() {
                                     }
                                     disabled={isMarkedAsAdvance}
                                     className={`flex items-center gap-2 ${isMarkedAsAdvance
-                                        ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
-                                        : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
+                                      ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
+                                      : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
                                       }`}
                                   >
                                     {isMarkedAsAdvance && <CheckCircle className="w-5 h-5 " />}
@@ -3921,7 +3934,13 @@ export default function PaymentRecords() {
                 }
                 setShowExportDateModal(true);
               }}
-              disabled={!exportBankType}
+              disabled={
+                !exportBankType ||
+                (activeTab === "all" && exportBankType !== "ALL_RECORDS") ||
+                (activeTab === "ngidfc" && exportBankType !== "NGIDFC Current") ||
+                (activeTab === "fcidfc" && exportBankType !== "FCIDFC Current") ||
+                (activeTab === "kotak" && exportBankType !== "KOTAK")
+              }
               className="cursor-pointer"
             >
               Next

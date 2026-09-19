@@ -87,8 +87,8 @@ export default function RecordsDetails() {
   const bankTabParam = searchParams.get("activeTab");
   const activeTab =
     bankTabParam === "ngidfc" ||
-    bankTabParam === "fcidfc" ||
-    bankTabParam === "kotak"
+      bankTabParam === "fcidfc" ||
+      bankTabParam === "kotak"
       ? bankTabParam
       : "all";
 
@@ -132,8 +132,8 @@ export default function RecordsDetails() {
       }
 
       const sNoParam = searchParams.get("sNo");
-      const expenseData = { 
-        ...data, 
+      const expenseData = {
+        ...data,
         event_title: eventTitleValue,
         hasVoucher: !voucherError && !!voucherData,
         voucherId: voucherData?.id || null,
@@ -182,21 +182,21 @@ export default function RecordsDetails() {
   const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? 0;
   const tdsAmount = tdsPercentage
     ? expense?.tds_deduction_amount ??
-      Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
+    Number(((tdsBaseAmount || 0) * tdsPercentage / 100).toFixed(2))
     : expense?.tds_deduction_amount ?? null;
   const securityDepositAmount =
     expense?.security_deposit_amount !== null &&
-    expense?.security_deposit_amount !== undefined
+      expense?.security_deposit_amount !== undefined
       ? Number(expense.security_deposit_amount)
       : null;
   const actualAmount =
     expense?.actual_amount ??
     (tdsBaseAmount !== null && tdsBaseAmount !== undefined
       ? Number(
-          (Number(tdsBaseAmount) -
-            (tdsAmount ?? 0) -
-            (securityDepositAmount ?? 0)).toFixed(2)
-        )
+        (Number(tdsBaseAmount) -
+          (tdsAmount ?? 0) -
+          (securityDepositAmount ?? 0)).toFixed(2)
+      )
       : null);
 
   return (
@@ -214,8 +214,8 @@ export default function RecordsDetails() {
             if (expenseId) query.set("expID", expenseId as string);
             router.push(`/org/${slug}/finance?${query.toString()}`);
           }}
-          // className="text-sm cursor-pointer"
-          // disabled={loading}
+        // className="text-sm cursor-pointer"
+        // disabled={loading}
         >
           <ArrowLeft />
           Back to Records
@@ -291,12 +291,16 @@ export default function RecordsDetails() {
                     <TableHead>TDS Deduction</TableHead>
                     <TableCell>
                       {tdsPercentage ? (
-                        <span className="text-amber-600 font-medium">
-                          {tdsPercentage}% ({formatCurrency(tdsAmount ?? 0)})
+                        <span className="text-amber-600 font-medium whitespace-nowrap">
+                          {expense?.tds_round_off_amount != null
+                            ? `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)}) | Round off: ₹${expense.tds_round_off_amount}`
+                            : `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)})`}
                         </span>
                       ) : tdsAmount !== null && tdsAmount !== undefined ? (
-                        <span className="text-amber-600 font-medium">
-                          {formatCurrency(tdsAmount)}
+                        <span className="text-amber-600 font-medium whitespace-nowrap">
+                          {expense?.tds_round_off_amount != null
+                            ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
+                            : `TDS amount: ${formatCurrency(tdsAmount)}`}
                         </span>
                       ) : (
                         "N/A"
@@ -341,8 +345,8 @@ export default function RecordsDetails() {
                       {hasVoucher
                         ? "Voucher Preview Below"
                         : expense?.receipt
-                        ? "Receipt Preview Below"
-                        : "N/A"}
+                          ? "Receipt Preview Below"
+                          : "N/A"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
