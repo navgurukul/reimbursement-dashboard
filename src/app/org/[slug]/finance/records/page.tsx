@@ -721,10 +721,11 @@ export default function PaymentRecords() {
     const rows = getExportRecords().map((record: any, index: number) => {
       const tdsPercent = record.tds_deduction_percentage;
       const tdsAmount = getTdsAmount(record);
+      const displayTdsAmount = record.tds_round_off_amount != null ? record.tds_round_off_amount : tdsAmount;
       const tdsDisplay = tdsPercent
-        ? `${tdsPercent}% (${tdsAmount !== null ? formatCurrency(tdsAmount) : "—"})`
-        : tdsAmount !== null
-          ? formatCurrency(tdsAmount)
+        ? `${tdsPercent}% (${displayTdsAmount !== null ? formatCurrency(displayTdsAmount) : "—"})`
+        : displayTdsAmount !== null
+          ? formatCurrency(displayTdsAmount)
           : "N/A";
       const securityDepositAmount = getSecurityDepositAmount(record);
       const securityDepositDisplay =
