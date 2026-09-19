@@ -271,22 +271,7 @@ export default function ExpensesPage() {
     [filters.amountMax, amountBounds]
   );
 
-  // Local input states so we can show bounds while allowing typing
-  const [amountMinInput, setAmountMinInput] = useState<string>(
-    String(amountBounds.min)
-  );
-  const [amountMaxInput, setAmountMaxInput] = useState<string>(
-    String(amountBounds.max)
-  );
 
-  useEffect(() => {
-    // keep inputs in sync when bounds or filters change
-    setAmountMinInput(filters.amountMin ? String(filters.amountMin) : String(amountBounds.min));
-  }, [filters.amountMin, amountBounds.min]);
-
-  useEffect(() => {
-    setAmountMaxInput(filters.amountMax ? String(filters.amountMax) : String(amountBounds.max));
-  }, [filters.amountMax, amountBounds.max]);
 
   // Determine tabs based on role
   const tabs =
@@ -1202,18 +1187,10 @@ export default function ExpensesPage() {
                           <Label className="text-sm">Amount Min</Label>
                           <Input
                             type="number"
-                            placeholder="Min Amount"
-                            value={amountMinInput}
+                            placeholder={String(amountBounds.min)}
+                            value={filters.amountMin}
                             onChange={(e) => {
-                              const v = e.target.value;
-                              setAmountMinInput(v);
-                              setFilters({ ...filters, amountMin: v });
-                            }}
-                            onBlur={() => {
-                              if (!amountMinInput || amountMinInput.trim() === "") {
-                                setAmountMinInput(String(amountBounds.min));
-                                setFilters({ ...filters, amountMin: "" });
-                              }
+                              setFilters((prev) => ({ ...prev, amountMin: e.target.value }));
                             }}
                           />
                         </div>
@@ -1221,18 +1198,10 @@ export default function ExpensesPage() {
                           <Label className="text-sm">Amount Max</Label>
                           <Input
                             type="number"
-                            placeholder="Max Amount"
-                            value={amountMaxInput}
+                            placeholder={String(amountBounds.max)}
+                            value={filters.amountMax}
                             onChange={(e) => {
-                              const v = e.target.value;
-                              setAmountMaxInput(v);
-                              setFilters({ ...filters, amountMax: v });
-                            }}
-                            onBlur={() => {
-                              if (!amountMaxInput || amountMaxInput.trim() === "") {
-                                setAmountMaxInput(String(amountBounds.max));
-                                setFilters({ ...filters, amountMax: "" });
-                              }
+                              setFilters((prev) => ({ ...prev, amountMax: e.target.value }));
                             }}
                           />
                         </div>
@@ -1313,10 +1282,10 @@ export default function ExpensesPage() {
                               placeholder="From"
                               value={filters.dateFrom}
                               onChange={(e) =>
-                                setFilters({
-                                  ...filters,
+                                setFilters((prev) => ({
+                                  ...prev,
                                   dateFrom: e.target.value,
-                                })
+                                }))
                               }
                             />
                           )}
@@ -1328,10 +1297,10 @@ export default function ExpensesPage() {
                                 placeholder="To"
                                 value={filters.dateTo}
                                 onChange={(e) =>
-                                  setFilters({
-                                    ...filters,
+                                  setFilters((prev) => ({
+                                    ...prev,
                                     dateTo: e.target.value,
-                                  })
+                                  }))
                                 }
                               />
                             </>
