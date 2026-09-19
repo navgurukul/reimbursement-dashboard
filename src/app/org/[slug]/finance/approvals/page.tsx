@@ -54,7 +54,7 @@ const calculateTdsAmount = (
 ) => {
   if (!percentage || baseAmount === null || baseAmount === undefined) return null;
   const amount = (baseAmount * percentage) / 100;
-  return Math.round(amount);
+  return amount;
 };
 
 const toDateOnly = (value?: string | Date | null) => {
@@ -214,8 +214,14 @@ export default function FinanceReview() {
           ? calculateTdsAmount(tdsBaseAmount, expense.tds_deduction_percentage) ?? 0
           : 0);
       const securityDepositAmount = expense.security_deposit_amount ?? 0;
-      const actualAmountBase = expense.amount ?? 0;
-      return Math.round(actualAmountBase - tdsAmount - securityDepositAmount);
+      let actualAmountBase = expense.amount ?? 0;
+      if (!expense.tds_deduction_percentage && !expense.tds_deduction_amount && expense.approved_amount) {
+        actualAmountBase = expense.approved_amount;
+      }
+      const roundedTdsAmount = tdsAmount ? Math.round(tdsAmount) : 0;
+      const amount = actualAmountBase - roundedTdsAmount - securityDepositAmount;
+      if (!tdsAmount) return amount;
+      return Math.round(amount);
     };
 
     return expenseList.filter((expense) => {
@@ -567,6 +573,7 @@ export default function FinanceReview() {
         ...exp,
         tds_deduction_percentage: percentage,
         tds_deduction_amount: tdsAmount,
+        tds_round_off_amount: tdsAmount !== null ? Math.round(tdsAmount) : null,
         actual_amount: actualAmount,
       };
     });
@@ -582,6 +589,7 @@ export default function FinanceReview() {
       .update({
         tds_deduction_percentage: percentage,
         tds_deduction_amount: tdsAmount,
+        tds_round_off_amount: tdsAmount !== null ? Math.round(tdsAmount) : null,
         actual_amount: actualAmount,
       })
       .eq("id", expenseId);
@@ -1034,17 +1042,19 @@ export default function FinanceReview() {
                             )
                           )}
                         </select>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
                           {expense.tds_deduction_percentage
-                            ? formatCurrency(
-                              expense.tds_deduction_amount ??
-                              calculateTdsAmount(
-                                expense.approved_amount ?? expense.amount ??
-                                0,
-                                expense.tds_deduction_percentage
-                              ) ??
-                              0
-                            )
+                            ? (() => {
+                              const exactAmount = expense.tds_deduction_amount ??
+                                calculateTdsAmount(
+                                  expense.approved_amount ?? expense.amount ?? 0,
+                                  expense.tds_deduction_percentage
+                                ) ?? 0;
+                              const roundAmount = expense.tds_round_off_amount;
+                              return roundAmount != null 
+                                ? `TDS amount: ${formatCurrency(exactAmount)} | Round off: ₹${roundAmount}`
+                                : `TDS amount: ${formatCurrency(exactAmount)}`;
+                            })()
                             : "—"}
                         </span>
                       </div>

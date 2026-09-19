@@ -230,6 +230,7 @@ export interface Expense {
   approved_amount?: number | null;
   tds_deduction_percentage?: number | null;
   tds_deduction_amount?: number | null;
+  tds_round_off_amount?: number | null;
   security_deposit_amount?: number | null;
   actual_amount?: number | null;
   approver_signature_url?: string | null; // Added approver signature URL

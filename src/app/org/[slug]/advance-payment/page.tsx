@@ -72,8 +72,8 @@ const calculateTdsAmount = (
   percentage: number | null | undefined
 ) => {
   if (!percentage || baseAmount === null || baseAmount === undefined) return null;
-  const amount = (Number(baseAmount) * percentage) / 100;
-  return Number(amount.toFixed(2));
+  const amount = (baseAmount * percentage) / 100;
+  return amount;
 };
 
 const calculateActualAmount = (

@@ -64,7 +64,7 @@ const calculateTdsAmount = (
 ) => {
   if (!percentage || baseAmount === null || baseAmount === undefined) return null;
   const amount = (baseAmount * percentage) / 100;
-  return Math.round(amount);
+  return amount;
 };
 
 const calculateActualAmount = (
@@ -73,8 +73,10 @@ const calculateActualAmount = (
   securityDepositAmount: number | null | undefined
 ) => {
   if (baseAmount === null || baseAmount === undefined) return null;
+  const roundedTdsAmount = tdsAmount ? Math.round(tdsAmount) : 0;
   const amount =
-    Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
+    Number(baseAmount) - roundedTdsAmount - (securityDepositAmount ?? 0);
+  if (!tdsAmount) return amount;
   return Math.round(amount);
 };
 
@@ -375,7 +377,7 @@ export default function FinanceExpenseDetails() {
       : null;
     const existingTdsAmount =
       expense.tds_deduction_amount !== null &&
-      expense.tds_deduction_amount !== undefined
+        expense.tds_deduction_amount !== undefined
         ? Number(expense.tds_deduction_amount)
         : null;
     const recalculatedTdsAmount = tdsPercentageValue
@@ -383,7 +385,7 @@ export default function FinanceExpenseDetails() {
       : existingTdsAmount;
     const securityDepositAmount =
       expense.security_deposit_amount !== null &&
-      expense.security_deposit_amount !== undefined
+        expense.security_deposit_amount !== undefined
         ? Number(expense.security_deposit_amount)
         : null;
     // Calculate TDS on approved amount (if available) but deduct it from the original expense amount.
@@ -432,9 +434,9 @@ export default function FinanceExpenseDetails() {
     setExpense((prev: any) =>
       prev
         ? {
-            ...prev,
-            ...payload,
-          }
+          ...prev,
+          ...payload,
+        }
         : prev
     );
     setEventTitle(updatedEventTitle);
@@ -591,21 +593,31 @@ export default function FinanceExpenseDetails() {
     const tdsAmount = calculateTdsAmount(baseAmount, percentage);
     const securityDepositAmount =
       expense.security_deposit_amount !== null &&
-      expense.security_deposit_amount !== undefined
+        expense.security_deposit_amount !== undefined
         ? Number(expense.security_deposit_amount)
         : null;
     // Use original expense amount as the base for actual amount deduction
-    const actualAmount = calculateActualAmount(
+    let actualAmount = calculateActualAmount(
       expense.amount ?? 0,
       tdsAmount,
       securityDepositAmount
     );
+
+    // If TDS is removed, fallback to approved amount
+    if (percentage === null && expense.approved_amount) {
+      actualAmount = calculateActualAmount(
+        expense.approved_amount,
+        0,
+        securityDepositAmount
+      );
+    }
 
     const prevExpense = expense;
     const updatedExpense = {
       ...expense,
       tds_deduction_percentage: percentage,
       tds_deduction_amount: tdsAmount,
+      tds_round_off_amount: tdsAmount !== null ? Math.round(tdsAmount) : null,
       actual_amount: actualAmount,
     };
 
@@ -617,6 +629,7 @@ export default function FinanceExpenseDetails() {
       .update({
         tds_deduction_percentage: percentage,
         tds_deduction_amount: tdsAmount,
+        tds_round_off_amount: tdsAmount !== null ? Math.round(tdsAmount) : null,
         actual_amount: actualAmount,
       })
       .eq("id", expenseId);
@@ -706,11 +719,11 @@ export default function FinanceExpenseDetails() {
   const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? null;
   const tdsAmount = tdsPercentage
     ? expense?.tds_deduction_amount ??
-      calculateTdsAmount(tdsBaseAmount, tdsPercentage)
+    calculateTdsAmount(tdsBaseAmount, tdsPercentage)
     : expense?.tds_deduction_amount ?? null;
   const securityDepositAmount =
     expense?.security_deposit_amount !== null &&
-    expense?.security_deposit_amount !== undefined
+      expense?.security_deposit_amount !== undefined
       ? Number(expense.security_deposit_amount)
       : null;
   const actualAmount =
@@ -801,52 +814,52 @@ export default function FinanceExpenseDetails() {
               <div className="flex items-start justify-between gap-3">
                 <h2 className="card-title">Expense Details</h2>
                 <div className="flex items-center gap-1 shrink-0">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleStartEdit}
-                        disabled={
-                          loading ||
-                          processing ||
-                          tdsUpdating ||
-                          securityDepositUpdating ||
-                          savingDetails ||
-                          isEditingDetails
-                        }
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Edit expense details</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleSaveDetails}
-                        disabled={
-                          loading ||
-                          processing ||
-                          tdsUpdating ||
-                          securityDepositUpdating ||
-                          savingDetails ||
-                          !isEditingDetails
-                        }
-                      >
-                        <Save className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Save expense details</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleStartEdit}
+                          disabled={
+                            loading ||
+                            processing ||
+                            tdsUpdating ||
+                            securityDepositUpdating ||
+                            savingDetails ||
+                            isEditingDetails
+                          }
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Edit expense details</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleSaveDetails}
+                          disabled={
+                            loading ||
+                            processing ||
+                            tdsUpdating ||
+                            securityDepositUpdating ||
+                            savingDetails ||
+                            !isEditingDetails
+                          }
+                        >
+                          <Save className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Save expense details</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -1021,12 +1034,12 @@ export default function FinanceExpenseDetails() {
                             )
                           )}
                         </select>
-                        <span className="text-xs text-muted-foreground">
-                          {tdsPercentage
-                            ? `${tdsPercentage}% (${formatCurrency(tdsAmount)})`
-                            : tdsAmount
-                              ? formatCurrency(tdsAmount)
-                              : "N/A"}
+                        <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
+                          {tdsAmount !== null
+                            ? expense?.tds_round_off_amount != null
+                              ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
+                              : `TDS amount: ${formatCurrency(tdsAmount)}`
+                            : "N/A"}
                         </span>
                       </div>
                     </TableCell>

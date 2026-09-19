@@ -348,21 +348,21 @@ export default function PaymentProcessingDetails() {
   const tdsBaseAmount = expense?.approved_amount ?? expense?.amount ?? 0;
   const tdsAmount = tdsPercentage
     ? expense?.tds_deduction_amount ??
-      Math.round(((tdsBaseAmount || 0) * tdsPercentage) / 100)
+    Math.round(((tdsBaseAmount || 0) * tdsPercentage) / 100)
     : expense?.tds_deduction_amount ?? null;
   const securityDepositAmount =
     expense?.security_deposit_amount !== null &&
-    expense?.security_deposit_amount !== undefined
+      expense?.security_deposit_amount !== undefined
       ? Number(expense.security_deposit_amount)
       : null;
   const actualAmount =
     expense?.actual_amount ??
     (tdsBaseAmount !== null && tdsBaseAmount !== undefined
       ? Math.round(
-          Number(tdsBaseAmount) -
-            (tdsAmount ?? 0) -
-            (securityDepositAmount ?? 0)
-        )
+        Number(tdsBaseAmount) -
+        (tdsAmount ?? 0) -
+        (securityDepositAmount ?? 0)
+      )
       : null);
 
   return (
@@ -472,12 +472,16 @@ export default function PaymentProcessingDetails() {
                     <TableHead>TDS Deduction</TableHead>
                     <TableCell>
                       {tdsPercentage ? (
-                        <span className="text-amber-600 font-medium">
-                          {tdsPercentage}% ({formatCurrency(tdsAmount ?? 0)})
+                        <span className="text-amber-600 font-medium whitespace-nowrap">
+                          {expense?.tds_round_off_amount != null
+                            ? `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)}) | Round off: ₹${expense.tds_round_off_amount}`
+                            : `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)})`}
                         </span>
                       ) : tdsAmount !== null && tdsAmount !== undefined ? (
-                        <span className="text-amber-600 font-medium">
-                          {formatCurrency(tdsAmount)}
+                        <span className="text-amber-600 font-medium whitespace-nowrap">
+                          {expense?.tds_round_off_amount != null
+                            ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
+                            : `TDS amount: ${formatCurrency(tdsAmount)}`}
                         </span>
                       ) : (
                         "N/A"

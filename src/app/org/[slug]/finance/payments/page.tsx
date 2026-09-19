@@ -67,7 +67,7 @@ const calculateTdsAmount = (
 ) => {
   if (!percentage || !baseAmount) return null;
   const amount = (baseAmount * percentage) / 100;
-  return Math.round(amount);
+  return amount;
 };
 
 const calculateActualAmount = (
@@ -76,8 +76,10 @@ const calculateActualAmount = (
   securityDepositAmount: number | null | undefined
 ) => {
   if (baseAmount === null || baseAmount === undefined) return null;
+  const roundedTdsAmount = tdsAmount ? Math.round(tdsAmount) : 0;
   const amount =
-    Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
+    Number(baseAmount) - roundedTdsAmount - (securityDepositAmount ?? 0);
+  if (!tdsAmount) return amount;
   return Math.round(amount);
 };
 
@@ -283,11 +285,19 @@ export default function PaymentProcessingOnly() {
       return storedActualAmount;
     }
 
-    const actualAmount = calculateActualAmount(
+    let actualAmount = calculateActualAmount(
       expense.amount ?? 0,
       getTdsDeductionAmount(expense),
       getSecurityDepositAmount(expense)
     );
+
+    if (!hasTdsDeduction(expense) && expense.approved_amount) {
+      actualAmount = calculateActualAmount(
+        expense.approved_amount,
+        0,
+        getSecurityDepositAmount(expense)
+      );
+    }
 
     return actualAmount ?? 0;
   };
@@ -990,15 +1000,24 @@ export default function PaymentProcessingOnly() {
           exp.security_deposit_amount !== undefined
           ? Number(exp.security_deposit_amount)
           : null;
-      const actualAmount = calculateActualAmount(
-        baseAmount,
+      let actualAmount = calculateActualAmount(
+        exp.amount ?? 0,
         tdsAmount,
         securityDepositAmount
       );
+
+      if (percentage === null && exp.approved_amount) {
+        actualAmount = calculateActualAmount(
+          exp.approved_amount,
+          0,
+          securityDepositAmount
+        );
+      }
       return {
         ...exp,
         tds_deduction_percentage: percentage,
         tds_deduction_amount: tdsAmount,
+        tds_round_off_amount: tdsAmount !== null ? Math.round(tdsAmount) : null,
         actual_amount: actualAmount,
       };
     });
@@ -1014,6 +1033,7 @@ export default function PaymentProcessingOnly() {
       .update({
         tds_deduction_percentage: percentage,
         tds_deduction_amount: tdsAmount,
+        tds_round_off_amount: tdsAmount !== null ? Math.round(tdsAmount) : null,
         actual_amount: actualAmount,
       })
       .eq("id", expenseId);
@@ -1069,6 +1089,8 @@ export default function PaymentProcessingOnly() {
         paid_by_bank: bankData?.[id] || null,
         tds_deduction_percentage: expense?.tds_deduction_percentage ?? null,
         tds_deduction_amount: expense?.tds_deduction_amount ?? null,
+        tds_round_off_amount: expense?.tds_round_off_amount ?? (expense?.tds_deduction_amount !== null && expense?.tds_deduction_amount !== undefined ? Math.round(expense.tds_deduction_amount) : null),
+        security_deposit_amount: expense?.security_deposit_amount ?? null,
       };
 
       return supabase
@@ -1759,8 +1781,8 @@ export default function PaymentProcessingOnly() {
                   key={expense.id}
                   ref={highlightedExpenseId === expense.id ? highlightedRowRef : null}
                   className={`hover:bg-gray-50 transition-colors ${highlightedExpenseId === expense.id
-                      ? "border-2 border-yellow-400 bg-yellow-50"
-                      : ""
+                    ? "border-2 border-yellow-400 bg-yellow-50"
+                    : ""
                     }`}
                 >
                   <TableCell className="px-4 py-3 text-center">
@@ -1940,17 +1962,19 @@ export default function PaymentProcessingOnly() {
                           )
                         )}
                       </select>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
                         {expense.tds_deduction_percentage
-                          ? formatCurrency(
-                            expense.tds_deduction_amount ??
-                            calculateTdsAmount(
-                              expense.approved_amount ?? expense.amount ??
-                              0,
-                              expense.tds_deduction_percentage
-                            ) ??
-                            0
-                          )
+                          ? (() => {
+                            const exactAmount = expense.tds_deduction_amount ??
+                              calculateTdsAmount(
+                                expense.approved_amount ?? expense.amount ?? 0,
+                                expense.tds_deduction_percentage
+                              ) ?? 0;
+                            const roundAmount = expense.tds_round_off_amount;
+                            return roundAmount != null 
+                              ? `TDS amount: ${formatCurrency(exactAmount)} | Round off: ₹${roundAmount}`
+                              : `TDS amount: ${formatCurrency(exactAmount)}`;
+                          })()
                           : "—"}
                       </span>
                     </div>
