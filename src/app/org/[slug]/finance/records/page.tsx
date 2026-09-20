@@ -4,6 +4,7 @@ import React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
+import { fetchAllPagedRows } from "@/lib/paged-fetch";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import {
@@ -91,6 +92,42 @@ const getCustomFieldValue = (
   }
 
   return null;
+};
+
+/**
+ * S.No. in All Records is the record's "PD Row No."; in a bank tab it is that
+ * bank's "REF No.". Both are persisted (`pd_row_no`, `bank_ref_no`, migration
+ * 20260908000000) so they stop shifting whenever an earlier row is imported,
+ * re-paid or removed. Until that migration has run the columns are absent from
+ * the row, so fall back to the old positional numbering instead of showing
+ * every S.No. as "—".
+ */
+const hasPersistedSequenceNumbers = (row: any) => Boolean(row) && "pd_row_no" in row;
+
+const withSerialNumbers = (sorted: any[]) =>
+  sorted.map((r: any, index: number) => {
+    if (hasPersistedSequenceNumbers(r)) {
+      return { ...r, serialNumber: r.pd_row_no ?? null };
+    }
+    // Positional numbering; "Mark as Advance" froze the number it saw so the
+    // Advance Payment Records page could show the same S.No.
+    const originalSerialNumber = r.custom_fields?.original_serial_number;
+    const useFrozen =
+      r.custom_fields?.marked_as_advance === true &&
+      originalSerialNumber !== null &&
+      originalSerialNumber !== undefined;
+    return { ...r, serialNumber: useFrozen ? originalSerialNumber : index + 1 };
+  });
+
+/** REF No. by record id for one bank: persisted, or positional before the migration. */
+const bankRefNumbers = (rows: any[], bank: string) => {
+  const map = new Map<string, number | null>();
+  rows
+    .filter((r: any) => (r.paid_by_bank || "") === bank)
+    .forEach((r: any, idx: number) => {
+      map.set(r.id, hasPersistedSequenceNumbers(r) ? (r.bank_ref_no ?? null) : idx + 1);
+    });
+  return map;
 };
 
 export default function PaymentRecords() {
@@ -705,14 +742,11 @@ export default function PaymentRecords() {
       "Advance Payment",
     ];
 
-    let exportIndicesMap: Map<string, number> | null = null;
-    if (exportBankType && exportBankType !== "ALL_RECORDS" && exportBankType !== "NO_BANK") {
-      exportIndicesMap = new Map();
-      const unfilteredBankRecords = records.filter((r: any) => (r.paid_by_bank || "") === exportBankType);
-      unfilteredBankRecords.forEach((r: any, idx: number) => {
-        exportIndicesMap!.set(r.id, idx + 1);
-      });
-    }
+    // Bank exports show the bank's REF No. as S.No.; everything else the PD Row No.
+    const exportRefNumbers =
+      exportBankType && exportBankType !== "ALL_RECORDS" && exportBankType !== "NO_BANK"
+        ? bankRefNumbers(records, exportBankType)
+        : null;
 
     const rows = getExportRecords().map((record: any, index: number) => {
       const tdsPercent = record.tds_deduction_percentage;
@@ -742,9 +776,9 @@ export default function PaymentRecords() {
       const isAdvance = isMarkedAsAdvance || hasAdvancePrefix;
       const advanceDisplay = isAdvance ? "Mark as Advance" : "Regular Payment";
 
-      const sNo = exportBankType === "ALL_RECORDS"
-        ? (record.serialNumber ?? index + 1)
-        : (exportIndicesMap ? (exportIndicesMap.get(record.id) ?? index + 1) : index + 1);
+      const sNo = exportRefNumbers
+        ? (exportRefNumbers.get(record.id) ?? "N/A")
+        : (record.serialNumber ?? "N/A");
 
       return [
         sNo,
@@ -969,12 +1003,11 @@ export default function PaymentRecords() {
         // Paged: a single PostgREST response is capped at 10,000 rows, which
         // silently dropped every record paid after April 2024 once the legacy
         // import landed — including all bank-tagged rows, leaving the
-        // NG/FC/KOTAK tabs empty. `id` keeps page boundaries stable.
-        const PAGE = 1000;
-        const collected: any[] = [];
-        let error: any = null;
-        for (let from = 0; ; from += PAGE) {
-          const { data: page, error: pageError } = await supabase
+        // NG/FC/KOTAK tabs empty. `id` keeps page boundaries stable, and
+        // fetchAllPagedRows retries a page whose request drops, so one bad
+        // connection out of ~19 no longer fails the whole load.
+        const { data, error } = await fetchAllPagedRows<any>((from, to) =>
+          supabase
             .from("expense_new")
             .select("*")
             .eq("payment_status", "paid")
@@ -984,16 +1017,12 @@ export default function PaymentRecords() {
             // Stable tie-breakers to prevent random ordering when timestamps match
             .order("created_at", { ascending: true })
             .order("id", { ascending: true })
-            .range(from, from + PAGE - 1);
-          if (pageError) { error = pageError; break; }
-          collected.push(...(page || []));
-          if (!page || page.length < PAGE) break;
-        }
-        const data = collected;
+            .range(from, to)
+        );
 
         if (error) throw error;
 
-        const rows = data || [];
+        const rows = data;
 
         // Fetch vouchers for these records (if any)
         try {
@@ -1071,6 +1100,11 @@ export default function PaymentRecords() {
             if (bTime === null) return 1;
             if (aTime !== bTime) return aTime - bTime; // ascending
 
+            // Same payment batch: follow the persisted PD Row No. so S.No. reads in order
+            if (a.pd_row_no != null && b.pd_row_no != null && a.pd_row_no !== b.pd_row_no) {
+              return a.pd_row_no - b.pd_row_no;
+            }
+
             // stable tie-breaker when paid timestamps match
             const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
             const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -1134,18 +1168,7 @@ export default function PaymentRecords() {
           });
 
           const sorted = sortByPaidApprovalTime(enriched);
-          const sortedWithSerial = sorted.map((r: any, index: number) => {
-            // If expense is already marked as advance payment, use the stored original serial number
-            // This ensures the S.No. matches between records tab and advance payment records page
-            const isMarkedAsAdvance = r.custom_fields?.marked_as_advance === true;
-            const originalSerialNumber = r.custom_fields?.original_serial_number;
-            return {
-              ...r,
-              serialNumber: isMarkedAsAdvance && originalSerialNumber !== null && originalSerialNumber !== undefined
-                ? originalSerialNumber
-                : index + 1,
-            };
-          });
+          const sortedWithSerial = withSerialNumbers(sorted);
 
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
@@ -1159,18 +1182,7 @@ export default function PaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
-          const fallbackWithSerial = fallback.map((r: any, index: number) => {
-            // If expense is already marked as advance payment, use the stored original serial number
-            // This ensures the S.No. matches between records tab and advance payment records page
-            const isMarkedAsAdvance = r.custom_fields?.marked_as_advance === true;
-            const originalSerialNumber = r.custom_fields?.original_serial_number;
-            return {
-              ...r,
-              serialNumber: isMarkedAsAdvance && originalSerialNumber !== null && originalSerialNumber !== undefined
-                ? originalSerialNumber
-                : index + 1,
-            };
-          });
+          const fallbackWithSerial = withSerialNumbers(fallback);
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
           setEventTitleLookup(eventTitleMap);
@@ -1211,12 +1223,15 @@ export default function PaymentRecords() {
   }, [records, activeTab]);
 
   const activeTabRecordIndices = useMemo(() => {
-    const indices = new Map<string, number>();
-    activeTabRecords.forEach((r: any, idx: number) => {
-      indices.set(r.id, idx + 1);
-    });
-    return indices;
-  }, [activeTabRecords]);
+    if (activeTab === "all") return new Map<string, number | null>();
+    return bankRefNumbers(records, BANK_STRING_MAP[activeTab]);
+  }, [records, activeTab]);
+  // "—" rather than a positional fallback: a missing number is legacy data or a
+  // failed assignment, and an invented one would end up in a bank narration.
+  const displaySerialNumber = (record: any): number | string =>
+    activeTab === "all"
+      ? (record.serialNumber ?? "—")
+      : (activeTabRecordIndices.get(record.id) ?? "—");
   const dateOfExpenseOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
     activeTabRecords.forEach((r: any) => {
@@ -1618,11 +1633,13 @@ export default function PaymentRecords() {
       setRecords((prev) => updateList(prev));
       setFilteredRecords((prev) => updateList(prev));
 
-      // Save to DB
-      const { error } = await supabase
+      // Save to DB and read the row back: the database issues a new REF No.
+      // when a paid row's bank changes (migration 20260908000000).
+      const { data: savedRows, error } = await supabase
         .from("expense_new")
         .update({ paid_by_bank: newVal || null })
-        .eq("id", recordId);
+        .eq("id", recordId)
+        .select("*");
 
       if (error) {
         toast.error(`S.No. ${sNo}: Failed to update Paid by bank`);
@@ -1634,8 +1651,17 @@ export default function PaymentRecords() {
         setRecords((prev) => revertList(prev));
         setFilteredRecords((prev) => revertList(prev));
       } else {
+        const saved = savedRows?.[0];
+        if (saved && hasPersistedSequenceNumbers(saved)) {
+          const refFields = { bank_ref_no: saved.bank_ref_no, bank_ref_bank: saved.bank_ref_bank };
+          const applyRef = (list: any[]) =>
+            list.map((r: any) => (r.id === recordId ? { ...r, ...refFields } : r));
+          setRecords((prev) => applyRef(prev));
+          setFilteredRecords((prev) => applyRef(prev));
+        }
+        const newRefNo = saved && newVal ? saved.bank_ref_no : null;
         toast.success(
-          `S.No. ${sNo}: Bank updated from ${oldVal || "N/A"} to ${newVal || "N/A"}`,
+          `S.No. ${sNo}: Bank updated from ${oldVal || "N/A"} to ${newVal || "N/A"}${newRefNo ? ` (REF No. ${newRefNo})` : ""}`,
           {
             style: {
               border: "1px solid #22c55e",
@@ -1752,11 +1778,7 @@ export default function PaymentRecords() {
 
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType && exportBankType !== "NO_BANK"
-      ? new Map(
-        filteredRecords
-          .filter((record) => (record.paid_by_bank || "") === exportBankType)
-          .map((record, idx) => [record.id, idx + 1])
-      )
+      ? bankRefNumbers(records, exportBankType)
       : null;
     const headers = isKotakExport
       ? [
@@ -1814,8 +1836,8 @@ export default function PaymentRecords() {
 
       if (isKotakExport) {
         const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
-        const serialNumber = record.serialNumber ?? index + 1;
-        const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
+        const serialNumber = record.serialNumber ?? "N/A";
+        const refNo = bankRefNoMap?.get(record.id) ?? "N/A";
         const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
         const ledgerAmount = formatAmountValue(record.amount);
 
@@ -1850,11 +1872,11 @@ export default function PaymentRecords() {
       const voucherDate = record.paid_approval_time
         ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
-      const serialNumber = record.serialNumber ?? index + 1;
+      const serialNumber = record.serialNumber ?? "N/A";
       const refNo =
         exportBankType === "NO_BANK"
           ? "N/A"
-          : bankRefNoMap?.get(record.id) ?? serialNumber;
+          : bankRefNoMap?.get(record.id) ?? "N/A";
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
       const voucherTypeName = exportBankType === "NGIDFC Current"
@@ -2055,11 +2077,7 @@ export default function PaymentRecords() {
 
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType && exportBankType !== "NO_BANK"
-      ? new Map(
-        filteredRecords
-          .filter((record) => (record.paid_by_bank || "") === exportBankType)
-          .map((record, idx) => [record.id, idx + 1])
-      )
+      ? bankRefNumbers(records, exportBankType)
       : null;
     const headers = isKotakExport
       ? [
@@ -2117,8 +2135,8 @@ export default function PaymentRecords() {
 
       if (isKotakExport) {
         const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
-        const serialNumber = record.serialNumber ?? index + 1;
-        const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
+        const serialNumber = record.serialNumber ?? "N/A";
+        const refNo = bankRefNoMap?.get(record.id) ?? "N/A";
         const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
         const ledgerAmount = formatAmountValue(record.amount);
 
@@ -2153,11 +2171,11 @@ export default function PaymentRecords() {
       const voucherDate = record.paid_approval_time
         ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
-      const serialNumber = record.serialNumber ?? index + 1;
+      const serialNumber = record.serialNumber ?? "N/A";
       const refNo =
         exportBankType === "NO_BANK"
           ? "N/A"
-          : bankRefNoMap?.get(record.id) ?? serialNumber;
+          : bankRefNoMap?.get(record.id) ?? "N/A";
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
       const voucherTypeName = exportBankType === "NGIDFC Current"
@@ -3025,7 +3043,7 @@ export default function PaymentRecords() {
                     }`}
                 >
                   <TableCell className="text-center py-2">
-                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index))}
+                    {displaySerialNumber(record)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
@@ -3266,7 +3284,7 @@ export default function PaymentRecords() {
                       onValueChange={(val) => {
                         const newVal = val === "none" ? "" : val;
                         const oldVal = record.paid_by_bank;
-                        const sNo = activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index));
+                        const sNo = displaySerialNumber(record);
                         setConfirmBankModal({
                           open: true,
                           recordId: record.id,
@@ -3372,7 +3390,7 @@ export default function PaymentRecords() {
                                 const params = new URLSearchParams();
                                 params.set("activeTab", activeTab);
                                 params.set("page", String(pagination.currentPage));
-                                const sNo = activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index));
+                                const sNo = displaySerialNumber(record);
                                 params.set("sNo", String(sNo));
                                 router.push(
                                   `/org/${slug}/finance/records/${record.id}?${params.toString()}`
