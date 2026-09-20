@@ -2,6 +2,7 @@ import supabase from "./supabase";
 import { StorageError } from "@supabase/storage-js";
 import { StorageApiError } from "@supabase/storage-js";
 import { getProfileSignatureUrl } from "./utils";
+import { fetchAllPagedRows } from "./paged-fetch";
 import { log } from "node:console";
 // Types
 
@@ -230,6 +231,7 @@ export interface Expense {
   approved_amount?: number | null;
   tds_deduction_percentage?: number | null;
   tds_deduction_amount?: number | null;
+  tds_round_off_amount?: number | null;
   security_deposit_amount?: number | null;
   actual_amount?: number | null;
   approver_signature_url?: string | null; // Added approver signature URL
@@ -1327,39 +1329,6 @@ export const projectOfExpenseDetails = {
 
 
 
-const EXPENSE_PAGE_SIZE = 1000;
-
-/**
- * Fetch every row a query matches, one page at a time.
- *
- * A single PostgREST response is capped server-side (10,000 rows on this
- * project). Before the legacy import an org fitted comfortably under that, so
- * unpaginated `.select()` calls returned everything; afterwards they silently
- * returned only the first 10,000 and the UI filtered that truncated array,
- * showing confidently wrong lists, totals and exports.
- *
- * `build` must apply a deterministic sort. A sort on `created_at` alone is not
- * deterministic — imported rows share timestamps — and paging an unstable sort
- * skips and duplicates rows across page boundaries, so callers add `id` as a
- * tie-breaker.
- */
-async function fetchAllExpenseRows<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
-): Promise<
-  // Discriminated union so `if (error) return` narrows `data` to T[] at call
-  // sites, matching how the Supabase client's own result type behaves.
-  { data: T[]; error: null } | { data: null; error: DatabaseError }
-> {
-  const all: T[] = [];
-  for (let from = 0; ; from += EXPENSE_PAGE_SIZE) {
-    const { data, error } = await build(from, from + EXPENSE_PAGE_SIZE - 1);
-    if (error) return { data: null, error: error as DatabaseError };
-    const page = data ?? [];
-    all.push(...page);
-    if (page.length < EXPENSE_PAGE_SIZE) return { data: all, error: null };
-  }
-}
-
 // Expenses functions
 export const expenses = {
   /**
@@ -1488,7 +1457,7 @@ export const expenses = {
   getByOrgAndUser: async (orgId: string, userId: string) => {
     // Get expenses with creator. Paged for the same reason as getByOrg: the
     // legacy-import identity owns thousands of rows and would hit the cap.
-    const { data: expenses, error } = await fetchAllExpenseRows<any>((from, to) =>
+    const { data: expenses, error } = await fetchAllPagedRows<any>((from, to) =>
       supabase
         .from("expense_new")
         .select(
@@ -1563,7 +1532,7 @@ export const expenses = {
     // Get expenses with creator. Paged: a single response is capped at 10,000
     // rows server-side, which silently truncated this list once the legacy
     // import landed. `id` is a tie-breaker so page boundaries stay stable.
-    const { data: expenses, error } = await fetchAllExpenseRows<any>((from, to) =>
+    const { data: expenses, error } = await fetchAllPagedRows<any>((from, to) =>
       supabase
         .from("expense_new")
         .select(

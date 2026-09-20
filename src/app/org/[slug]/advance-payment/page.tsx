@@ -4,6 +4,7 @@ import React from "react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
+import { fetchAllPagedRows } from "@/lib/paged-fetch";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import {
@@ -72,8 +73,8 @@ const calculateTdsAmount = (
   percentage: number | null | undefined
 ) => {
   if (!percentage || baseAmount === null || baseAmount === undefined) return null;
-  const amount = (Number(baseAmount) * percentage) / 100;
-  return Number(amount.toFixed(2));
+  const amount = (baseAmount * percentage) / 100;
+  return amount;
 };
 
 const calculateActualAmount = (
@@ -114,6 +115,19 @@ const formatDateForFileName = (date: Date | string | null | undefined) => {
   const year = value.getFullYear();
   return `${day}-${month}-${year}`;
 };
+
+/**
+ * S.No. here is the record's "PD Row No." from the Records tab, persisted in
+ * `pd_row_no` (migration 20260908000000). The number "Mark as Advance" froze
+ * into custom_fields is the fallback for rows numbered before that column
+ * existed, and a positional index only while the column is absent altogether.
+ */
+const withRecordsSerialNumbers = (sorted: any[]) =>
+  sorted.map((r: any, index: number) => {
+    const frozen = r.custom_fields?.original_serial_number;
+    if ("pd_row_no" in r) return { ...r, serialNumber: r.pd_row_no ?? frozen ?? null };
+    return { ...r, serialNumber: frozen ?? index + 1 };
+  });
 
 export default function AdvancePaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
@@ -572,12 +586,11 @@ export default function AdvancePaymentRecords() {
         // Fetch all paid expenses. Paged: a single PostgREST response is capped
         // at 10,000 rows, which silently dropped every record paid after April
         // 2024 once the legacy import landed. `created_at`/`id` are
-        // tie-breakers so page boundaries stay stable.
-        const PAGE = 1000;
-        const collected: any[] = [];
-        let error: any = null;
-        for (let from = 0; ; from += PAGE) {
-          const { data: page, error: pageError } = await supabase
+        // tie-breakers so page boundaries stay stable, and fetchAllPagedRows
+        // retries a page whose request drops so one bad connection out of ~19
+        // no longer fails the whole load.
+        const { data, error } = await fetchAllPagedRows<any>((from, to) =>
+          supabase
             .from("expense_new")
             .select("*")
             .eq("payment_status", "paid")
@@ -585,16 +598,12 @@ export default function AdvancePaymentRecords() {
             .order("paid_approval_time", { ascending: true, nullsFirst: true })
             .order("created_at", { ascending: true })
             .order("id", { ascending: true })
-            .range(from, from + PAGE - 1);
-          if (pageError) { error = pageError; break; }
-          collected.push(...(page || []));
-          if (!page || page.length < PAGE) break;
-        }
-        const data = collected;
+            .range(from, to)
+        );
 
         if (error) throw error;
 
-        const rows = data || [];
+        const rows = data;
 
         // Filter for advance payments only
         // Check if expense was marked as advance from Records tab using the flag
@@ -695,16 +704,7 @@ export default function AdvancePaymentRecords() {
           });
 
           const sorted = sortByMarkedAsAdvanceTime(enriched);
-          const sortedWithSerial = sorted.map((r: any, index: number) => {
-            // Use the original serial number from records tab if available, otherwise use index-based
-            const originalSerialNumber = r.custom_fields?.original_serial_number;
-            return {
-              ...r,
-              serialNumber: originalSerialNumber !== null && originalSerialNumber !== undefined 
-                ? originalSerialNumber 
-                : index + 1,
-            };
-          });
+          const sortedWithSerial = withRecordsSerialNumbers(sorted);
 
           // compute amount bounds
           const amounts = enriched.map((r: any) => getBaseAmount(r));
@@ -737,16 +737,7 @@ export default function AdvancePaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
-          const fallbackWithSerial = fallback.map((r: any, index: number) => {
-            // Use the original serial number from records tab if available, otherwise use index-based
-            const originalSerialNumber = r.custom_fields?.original_serial_number;
-            return {
-              ...r,
-              serialNumber: originalSerialNumber !== null && originalSerialNumber !== undefined 
-                ? originalSerialNumber 
-                : index + 1,
-            };
-          });
+          const fallbackWithSerial = withRecordsSerialNumbers(fallback);
           const amounts = fallback.map((r: any) => getBaseAmount(r));
           const actualAmounts = fallback
             .map((r: any) => getActualAmount(r))
@@ -1622,7 +1613,14 @@ export default function AdvancePaymentRecords() {
           {isExportEnabled && (
             <>
               <Button
-                onClick={() => setShowExportBankModal(true)}
+                onClick={() => {
+                  if (activeTab === "all") setExportBankType("ALL_RECORDS");
+                  else if (activeTab === "ngidfc") setExportBankType("NGIDFC Current");
+                  else if (activeTab === "fcidfc") setExportBankType("FCIDFC Current");
+                  else if (activeTab === "kotak") setExportBankType("KOTAK");
+                  
+                  setShowExportBankModal(true);
+                }}
                 variant="outline"
                 className="flex w-full items-center gap-2 sm:w-auto"
               >
@@ -2301,7 +2299,7 @@ export default function AdvancePaymentRecords() {
                     }`}
                 >
                   <TableCell className="text-center py-2">
-                    {record.serialNumber ?? pagination.getItemNumber(index)}
+                    {record.serialNumber ?? "—"}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
@@ -2863,7 +2861,7 @@ export default function AdvancePaymentRecords() {
       <Dialog open={showExportBankModal} onOpenChange={setShowExportBankModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Select Advance Pyament Records to Export</DialogTitle>
+            <DialogTitle>Select Advance Payment Records to Export</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex items-center">
@@ -2936,7 +2934,13 @@ export default function AdvancePaymentRecords() {
                 }
                 setShowExportDateModal(true);
               }}
-              disabled={exportBankType === ""}
+              disabled={
+                !exportBankType ||
+                (activeTab === "all" && exportBankType !== "ALL_RECORDS") ||
+                (activeTab === "ngidfc" && exportBankType !== "NGIDFC Current") ||
+                (activeTab === "fcidfc" && exportBankType !== "FCIDFC Current") ||
+                (activeTab === "kotak" && exportBankType !== "KOTAK")
+              }
             >
               Next
             </Button>

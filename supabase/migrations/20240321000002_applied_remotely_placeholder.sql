@@ -1,0 +1,9 @@
+-- Placeholder.
+--
+-- Version 20240321000002 is recorded as applied in the remote database's
+-- supabase_migrations.schema_migrations table, but the repo never held a copy
+-- of its SQL: it predates this project being managed with the Supabase CLI.
+--
+-- The file exists so local and remote migration histories line up and
+-- `supabase db push` can run. It is intentionally empty and will never be
+-- executed against the remote database, which already has this version.
