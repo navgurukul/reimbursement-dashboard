@@ -132,38 +132,38 @@ export default function DownloadAllExpensesAsPdf({
 
             toast.info(`Generating PDF for ${expensesList.length} expense(s)...`);
 
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 10;
-      const padding = 10;
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 10;
+            const padding = 10;
 
-      // Helper function to add border to current page
-      const addPageBorder = () => {
-        doc.setDrawColor(0);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(
-          margin,
-          margin,
-          pageWidth - margin * 2,
-          pageHeight - margin * 2,
-          0,
-          0
-        );
-      };
+            // Helper function to add border to current page
+            const addPageBorder = () => {
+                doc.setDrawColor(0);
+                doc.setLineWidth(0.3);
+                doc.roundedRect(
+                    margin,
+                    margin,
+                    pageWidth - margin * 2,
+                    pageHeight - margin * 2,
+                    0,
+                    0
+                );
+            };
 
-      // Process each expense
-      for (let idx = 0; idx < expensesList.length; idx++) {
-        const expense = expensesList[idx];
+            // Process each expense
+            for (let idx = 0; idx < expensesList.length; idx++) {
+                const expense = expensesList[idx];
 
-        // Add new page for each expense (except first one)
-        if (idx > 0) {
-          doc.addPage();
-          addPageBorder();
-        } else {
-          // Add border to first page
-          addPageBorder();
-        }
+                // Add new page for each expense (except first one)
+                if (idx > 0) {
+                    doc.addPage();
+                    addPageBorder();
+                } else {
+                    // Add border to first page
+                    addPageBorder();
+                }
 
                 // ===== Header =====
                 let y = margin + padding;
@@ -313,23 +313,23 @@ export default function DownloadAllExpensesAsPdf({
                                     }
                                 }
 
-                                        if (filePath) {
-                                            const { url, error } = await voucherAttachments.getUrl(
-                                                filePath
-                                            );
-                                            if (!error) {
-                                                voucherAttachmentUrl = url || null;
-                                                voucherAttachmentFilename = filename || null;
-                                            }
-                                        } else if (voucherAttachmentUrl) {
-                                            voucherAttachmentFilename = filename || null;
-                                        }
-                                        // Detect if attachment looks like a PDF
-                                        const ext = (voucherAttachmentFilename || voucherAttachmentUrl || "")
-                                            .toLowerCase()
-                                            .split(".")
-                                            .pop();
-                                        voucherAttachmentIsPdf = ext === "pdf";
+                                if (filePath) {
+                                    const { url, error } = await voucherAttachments.getUrl(
+                                        filePath
+                                    );
+                                    if (!error) {
+                                        voucherAttachmentUrl = url || null;
+                                        voucherAttachmentFilename = filename || null;
+                                    }
+                                } else if (voucherAttachmentUrl) {
+                                    voucherAttachmentFilename = filename || null;
+                                }
+                                // Detect if attachment looks like a PDF
+                                const ext = (voucherAttachmentFilename || voucherAttachmentUrl || "")
+                                    .toLowerCase()
+                                    .split(".")
+                                    .pop();
+                                voucherAttachmentIsPdf = ext === "pdf";
                             } catch (err) {
                                 // ignore attachment resolution errors
                             }
@@ -382,8 +382,8 @@ export default function DownloadAllExpensesAsPdf({
                 const hasTdsPercentage = tdsPercentageValue > 0;
                 const storedTdsAmount =
                     expense.tds_deduction_amount !== null &&
-                    expense.tds_deduction_amount !== undefined &&
-                    expense.tds_deduction_amount !== ""
+                        expense.tds_deduction_amount !== undefined &&
+                        expense.tds_deduction_amount !== ""
                         ? Number(expense.tds_deduction_amount)
                         : null;
                 const tdsBaseAmount = Number(expense.approved_amount ?? expense.amount ?? 0);
@@ -399,8 +399,8 @@ export default function DownloadAllExpensesAsPdf({
 
                 const securityDepositAmount =
                     expense.security_deposit_amount !== null &&
-                    expense.security_deposit_amount !== undefined &&
-                    expense.security_deposit_amount !== ""
+                        expense.security_deposit_amount !== undefined &&
+                        expense.security_deposit_amount !== ""
                         ? Number(expense.security_deposit_amount)
                         : null;
                 const hasSecurityDepositDeduction = securityDepositAmount !== null;
@@ -465,7 +465,8 @@ export default function DownloadAllExpensesAsPdf({
                 let amountDetailsInsertIndex = 7;
 
                 if (hasTdsDeduction) {
-                    const tdsValue = tdsAmount !== null ? `INR ${Number(tdsAmount).toFixed(2)}` : "N/A";
+                    const displayTdsAmount = expense?.tds_round_off_amount != null ? expense.tds_round_off_amount : tdsAmount;
+                    const tdsValue = displayTdsAmount !== null ? `INR ${Number(displayTdsAmount).toFixed(2)}` : "N/A";
                     body.splice(amountDetailsInsertIndex, 0, [
                         "TDS Deduction",
                         hasTdsPercentage ? `${tdsPercentageValue}% (${tdsValue})` : tdsValue,
@@ -890,7 +891,7 @@ export default function DownloadAllExpensesAsPdf({
                                     const pageImage = pdfImages[pIdx];
                                     const imgProps = doc.getImageProperties(pageImage) as any;
                                     const maxPreviewWidth = pageWidth - (margin + padding) * 2;
-                                    
+
                                     let maxPreviewHeight = pageHeight - margin * 2 - 20;
                                     if (pIdx === 0) {
                                         // Fit first page tightly in the remaining space on current page
@@ -1001,12 +1002,12 @@ export default function DownloadAllExpensesAsPdf({
                         const isPdfFile = mimeType === "application/pdf" || attachmentExt === "pdf";
 
                         if (mimeLooksLikeImage || extLooksLikeImage) {
-                                // Divider (dotted)
-                                doc.setDrawColor(0);
-                                doc.setLineWidth(0.2);
-                                (doc as any).setLineDash?.([2, 2], 0);
-                                doc.line(margin + padding, y, pageWidth - margin - padding, y);
-                                (doc as any).setLineDash?.([]);
+                            // Divider (dotted)
+                            doc.setDrawColor(0);
+                            doc.setLineWidth(0.2);
+                            (doc as any).setLineDash?.([2, 2], 0);
+                            doc.line(margin + padding, y, pageWidth - margin - padding, y);
+                            (doc as any).setLineDash?.([]);
 
                             y += 8;
 
@@ -1039,11 +1040,11 @@ export default function DownloadAllExpensesAsPdf({
                                 renderWidth = renderWidth * scale;
                             }
 
-                        if (y + renderHeight + 24 > pageHeight - margin) {
-                            doc.addPage();
-                            addPageBorder();
-                            y = margin + padding;
-                        }
+                            if (y + renderHeight + 24 > pageHeight - margin) {
+                                doc.addPage();
+                                addPageBorder();
+                                y = margin + padding;
+                            }
 
                             doc.addImage(
                                 base64Attachment,
@@ -1084,7 +1085,7 @@ export default function DownloadAllExpensesAsPdf({
                                     const pageImage = pdfImages[pIdx];
                                     const imgProps = doc.getImageProperties(pageImage) as any;
                                     const maxPreviewWidth = pageWidth - (margin + padding) * 2;
-                                    
+
                                     let maxPreviewHeight = pageHeight - margin * 2 - 20;
                                     if (pIdx === 0) {
                                         // Fit first page tightly in the remaining space on current page
@@ -1207,12 +1208,12 @@ export default function DownloadAllExpensesAsPdf({
                     .replace(/^_+|_+$/g, "");
                 const expenseDate = single.date
                     ? (() => {
-                          const d = new Date(single.date);
-                          const dd = String(d.getDate()).padStart(2, "0");
-                          const mm = String(d.getMonth() + 1).padStart(2, "0");
-                          const yyyy = d.getFullYear();
-                          return `${dd}-${mm}-${yyyy}`;
-                      })()
+                        const d = new Date(single.date);
+                        const dd = String(d.getDate()).padStart(2, "0");
+                        const mm = String(d.getMonth() + 1).padStart(2, "0");
+                        const yyyy = d.getFullYear();
+                        return `${dd}-${mm}-${yyyy}`;
+                    })()
                     : timestamp;
                 const amountStr = Number(single.approved_amount || single.amount || 0).toFixed(2);
                 const sNoVal = single.s_no || "S.No";

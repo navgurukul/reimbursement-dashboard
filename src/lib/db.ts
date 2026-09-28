@@ -2,6 +2,7 @@ import supabase from "./supabase";
 import { StorageError } from "@supabase/storage-js";
 import { StorageApiError } from "@supabase/storage-js";
 import { getProfileSignatureUrl } from "./utils";
+import { fetchAllPagedRows } from "./paged-fetch";
 import { log } from "node:console";
 // Types
 
@@ -256,6 +257,7 @@ export interface Expense {
   approved_amount?: number | null;
   tds_deduction_percentage?: number | null;
   tds_deduction_amount?: number | null;
+  tds_round_off_amount?: number | null;
   security_deposit_amount?: number | null;
   actual_amount?: number | null;
   approver_signature_url?: string | null; // Added approver signature URL
@@ -1529,20 +1531,25 @@ export const expenses = {
    * Get all expenses for a user in an organization
    */
   getByOrgAndUser: async (orgId: string, userId: string) => {
-    // Get expenses with creator
-    const { data: expenses, error } = await supabase
-      .from("expense_new")
-      .select(
-        `
+    // Get expenses with creator. Paged for the same reason as getByOrg: the
+    // legacy-import identity owns thousands of rows and would hit the cap.
+    const { data: expenses, error } = await fetchAllPagedRows<any>((from, to) =>
+      supabase
+        .from("expense_new")
+        .select(
+          `
       *,
       creator:profiles!user_id (
         full_name
       )
     `
-      )
-      .eq("org_id", orgId)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+        )
+        .eq("org_id", orgId)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to)
+    );
 
     if (error) {
       return { data: null, error: error as DatabaseError };
@@ -1598,20 +1605,26 @@ export const expenses = {
    * Get all expenses for an organization (admin only)
    */
   getByOrg: async (orgId: string) => {
-    // Get expenses with creator
-    const { data: expenses, error } = await supabase
-      .from("expense_new")
-      .select(
-        `
+    // Get expenses with creator. Paged: a single response is capped at 10,000
+    // rows server-side, which silently truncated this list once the legacy
+    // import landed. `id` is a tie-breaker so page boundaries stay stable.
+    const { data: expenses, error } = await fetchAllPagedRows<any>((from, to) =>
+      supabase
+        .from("expense_new")
+        .select(
+          `
       *,
       creator:profiles!user_id (
         full_name,
         email
       )
     `
-      )
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false });
+        )
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to)
+    );
 
     if (error) {
       return { data: null, error: error as DatabaseError };

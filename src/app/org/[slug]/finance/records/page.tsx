@@ -4,6 +4,7 @@ import React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
+import { fetchAllPagedRows } from "@/lib/paged-fetch";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import {
@@ -46,6 +47,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Pagination, usePagination } from "@/components/pagination";
+import { isExportEnabled, recordsPerPage } from "@/lib/features";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -92,8 +94,44 @@ const getCustomFieldValue = (
   return null;
 };
 
+/**
+ * S.No. in All Records is the record's "PD Row No."; in a bank tab it is that
+ * bank's "REF No.". Both are persisted (`pd_row_no`, `bank_ref_no`, migration
+ * 20260908000000) so they stop shifting whenever an earlier row is imported,
+ * re-paid or removed. Until that migration has run the columns are absent from
+ * the row, so fall back to the old positional numbering instead of showing
+ * every S.No. as "—".
+ */
+const hasPersistedSequenceNumbers = (row: any) => Boolean(row) && "pd_row_no" in row;
+
+const withSerialNumbers = (sorted: any[]) =>
+  sorted.map((r: any, index: number) => {
+    if (hasPersistedSequenceNumbers(r)) {
+      return { ...r, serialNumber: r.pd_row_no ?? null };
+    }
+    // Positional numbering; "Mark as Advance" froze the number it saw so the
+    // Advance Payment Records page could show the same S.No.
+    const originalSerialNumber = r.custom_fields?.original_serial_number;
+    const useFrozen =
+      r.custom_fields?.marked_as_advance === true &&
+      originalSerialNumber !== null &&
+      originalSerialNumber !== undefined;
+    return { ...r, serialNumber: useFrozen ? originalSerialNumber : index + 1 };
+  });
+
+/** REF No. by record id for one bank: persisted, or positional before the migration. */
+const bankRefNumbers = (rows: any[], bank: string) => {
+  const map = new Map<string, number | null>();
+  rows
+    .filter((r: any) => (r.paid_by_bank || "") === bank)
+    .forEach((r: any, idx: number) => {
+      map.set(r.id, hasPersistedSequenceNumbers(r) ? (r.bank_ref_no ?? null) : idx + 1);
+    });
+  return map;
+};
+
 export default function PaymentRecords() {
-  const RECORDS_PER_PAGE = 100;
+  const RECORDS_PER_PAGE = recordsPerPage;
   const [records, setRecords] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -309,6 +347,20 @@ export default function PaymentRecords() {
     id: string | null;
   }>({ open: false, id: null });
   const [markAdvanceLoading, setMarkAdvanceLoading] = useState(false);
+  const [confirmBankModal, setConfirmBankModal] = useState<{
+    open: boolean;
+    recordId: string | null;
+    newVal: string;
+    oldVal: string;
+    sNo: number | string;
+  }>({
+    open: false,
+    recordId: null,
+    newVal: "",
+    oldVal: "",
+    sNo: "",
+  });
+  const [confirmBankLoading, setConfirmBankLoading] = useState(false);
   const [editModal, setEditModal] = useState<{
     open: boolean;
     record: any | null;
@@ -410,9 +462,12 @@ export default function PaymentRecords() {
     if (stored !== null && stored !== undefined && stored !== "") {
       return Number(stored);
     }
-    const base = Number(record.amount ?? 0);
+    let base = Number(record.amount ?? 0);
     const tdsAmount = getTdsAmount(record);
     const securityDepositAmount = getSecurityDepositAmount(record);
+    if (!tdsAmount && !record.tds_deduction_percentage && record.approved_amount) {
+      base = Number(record.approved_amount);
+    }
     if (
       !base &&
       !tdsAmount &&
@@ -421,9 +476,10 @@ export default function PaymentRecords() {
     ) {
       return null;
     }
-    return Number(
-      (base - (tdsAmount ?? 0) - (securityDepositAmount ?? 0)).toFixed(2)
-    );
+    const roundedTdsAmount = tdsAmount ? Math.round(tdsAmount) : 0;
+    const amount = base - roundedTdsAmount - (securityDepositAmount ?? 0);
+    if (!tdsAmount) return Number(amount.toFixed(2));
+    return Math.round(amount);
   };
 
   const formatKotakVoucherDate = (dateValue?: string | Date | null) => {
@@ -690,22 +746,20 @@ export default function PaymentRecords() {
       "Advance Payment",
     ];
 
-    let exportIndicesMap: Map<string, number> | null = null;
-    if (exportBankType && exportBankType !== "ALL_RECORDS" && exportBankType !== "NO_BANK") {
-      exportIndicesMap = new Map();
-      const unfilteredBankRecords = records.filter((r: any) => (r.paid_by_bank || "") === exportBankType);
-      unfilteredBankRecords.forEach((r: any, idx: number) => {
-        exportIndicesMap!.set(r.id, idx + 1);
-      });
-    }
+    // Bank exports show the bank's REF No. as S.No.; everything else the PD Row No.
+    const exportRefNumbers =
+      exportBankType && exportBankType !== "ALL_RECORDS" && exportBankType !== "NO_BANK"
+        ? bankRefNumbers(records, exportBankType)
+        : null;
 
     const rows = getExportRecords().map((record: any, index: number) => {
       const tdsPercent = record.tds_deduction_percentage;
       const tdsAmount = getTdsAmount(record);
+      const displayTdsAmount = record.tds_round_off_amount != null ? record.tds_round_off_amount : tdsAmount;
       const tdsDisplay = tdsPercent
-        ? `${tdsPercent}% (${tdsAmount !== null ? formatCurrency(tdsAmount) : "—"})`
-        : tdsAmount !== null
-          ? formatCurrency(tdsAmount)
+        ? `${tdsPercent}% (${displayTdsAmount !== null ? formatCurrency(displayTdsAmount) : "—"})`
+        : displayTdsAmount !== null
+          ? formatCurrency(displayTdsAmount)
           : "N/A";
       const securityDepositAmount = getSecurityDepositAmount(record);
       const securityDepositDisplay =
@@ -727,9 +781,9 @@ export default function PaymentRecords() {
       const isAdvance = isMarkedAsAdvance || hasAdvancePrefix;
       const advanceDisplay = isAdvance ? "Mark as Advance" : "Regular Payment";
 
-      const sNo = exportBankType === "ALL_RECORDS"
-        ? (record.serialNumber ?? index + 1)
-        : (exportIndicesMap ? (exportIndicesMap.get(record.id) ?? index + 1) : index + 1);
+      const sNo = exportRefNumbers
+        ? (exportRefNumbers.get(record.id) ?? "N/A")
+        : (record.serialNumber ?? "N/A");
 
       return [
         sNo,
@@ -951,19 +1005,29 @@ export default function PaymentRecords() {
 
         const orgId = orgData.id;
 
-        const { data, error } = await supabase
-          .from("expense_new")
-          .select("*")
-          .eq("payment_status", "paid")
-          .eq("org_id", orgId)
-          // Show records with missing paid_approval_time first, then the rest ascending
-          .order("paid_approval_time", { ascending: true, nullsFirst: true })
-          // Stable tie-breaker to prevent random ordering when timestamps match
-          .order("created_at", { ascending: true });
+        // Paged: a single PostgREST response is capped at 10,000 rows, which
+        // silently dropped every record paid after April 2024 once the legacy
+        // import landed — including all bank-tagged rows, leaving the
+        // NG/FC/KOTAK tabs empty. `id` keeps page boundaries stable, and
+        // fetchAllPagedRows retries a page whose request drops, so one bad
+        // connection out of ~19 no longer fails the whole load.
+        const { data, error } = await fetchAllPagedRows<any>((from, to) =>
+          supabase
+            .from("expense_new")
+            .select("*")
+            .eq("payment_status", "paid")
+            .eq("org_id", orgId)
+            // Show records with missing paid_approval_time first, then the rest ascending
+            .order("paid_approval_time", { ascending: true, nullsFirst: true })
+            // Stable tie-breakers to prevent random ordering when timestamps match
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to)
+        );
 
         if (error) throw error;
 
-        const rows = data || [];
+        const rows = data;
 
         // Fetch vouchers for these records (if any)
         try {
@@ -1041,6 +1105,11 @@ export default function PaymentRecords() {
             if (bTime === null) return 1;
             if (aTime !== bTime) return aTime - bTime; // ascending
 
+            // Same payment batch: follow the persisted PD Row No. so S.No. reads in order
+            if (a.pd_row_no != null && b.pd_row_no != null && a.pd_row_no !== b.pd_row_no) {
+              return a.pd_row_no - b.pd_row_no;
+            }
+
             // stable tie-breaker when paid timestamps match
             const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
             const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -1104,18 +1173,7 @@ export default function PaymentRecords() {
           });
 
           const sorted = sortByPaidApprovalTime(enriched);
-          const sortedWithSerial = sorted.map((r: any, index: number) => {
-            // If expense is already marked as advance payment, use the stored original serial number
-            // This ensures the S.No. matches between records tab and advance payment records page
-            const isMarkedAsAdvance = r.custom_fields?.marked_as_advance === true;
-            const originalSerialNumber = r.custom_fields?.original_serial_number;
-            return {
-              ...r,
-              serialNumber: isMarkedAsAdvance && originalSerialNumber !== null && originalSerialNumber !== undefined
-                ? originalSerialNumber
-                : index + 1,
-            };
-          });
+          const sortedWithSerial = withSerialNumbers(sorted);
 
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
@@ -1129,18 +1187,7 @@ export default function PaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
-          const fallbackWithSerial = fallback.map((r: any, index: number) => {
-            // If expense is already marked as advance payment, use the stored original serial number
-            // This ensures the S.No. matches between records tab and advance payment records page
-            const isMarkedAsAdvance = r.custom_fields?.marked_as_advance === true;
-            const originalSerialNumber = r.custom_fields?.original_serial_number;
-            return {
-              ...r,
-              serialNumber: isMarkedAsAdvance && originalSerialNumber !== null && originalSerialNumber !== undefined
-                ? originalSerialNumber
-                : index + 1,
-            };
-          });
+          const fallbackWithSerial = withSerialNumbers(fallback);
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
           setEventTitleLookup(eventTitleMap);
@@ -1181,12 +1228,15 @@ export default function PaymentRecords() {
   }, [records, activeTab]);
 
   const activeTabRecordIndices = useMemo(() => {
-    const indices = new Map<string, number>();
-    activeTabRecords.forEach((r: any, idx: number) => {
-      indices.set(r.id, idx + 1);
-    });
-    return indices;
-  }, [activeTabRecords]);
+    if (activeTab === "all") return new Map<string, number | null>();
+    return bankRefNumbers(records, BANK_STRING_MAP[activeTab]);
+  }, [records, activeTab]);
+  // "—" rather than a positional fallback: a missing number is legacy data or a
+  // failed assignment, and an invented one would end up in a bank narration.
+  const displaySerialNumber = (record: any): number | string =>
+    activeTab === "all"
+      ? (record.serialNumber ?? "—")
+      : (activeTabRecordIndices.get(record.id) ?? "—");
   const dateOfExpenseOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
     activeTabRecords.forEach((r: any) => {
@@ -1574,6 +1624,66 @@ export default function PaymentRecords() {
     }
   };
 
+  const confirmBankChange = async () => {
+    const { recordId, newVal, oldVal, sNo } = confirmBankModal;
+    if (!recordId) return;
+
+    setConfirmBankLoading(true);
+    try {
+      // Update locally immediately
+      const updateList = (list: any[]) =>
+        list.map((r: any) =>
+          r.id === recordId ? { ...r, paid_by_bank: newVal } : r
+        );
+      setRecords((prev) => updateList(prev));
+      setFilteredRecords((prev) => updateList(prev));
+
+      // Save to DB and read the row back: the database issues a new REF No.
+      // when a paid row's bank changes (migration 20260908000000).
+      const { data: savedRows, error } = await supabase
+        .from("expense_new")
+        .update({ paid_by_bank: newVal || null })
+        .eq("id", recordId)
+        .select("*");
+
+      if (error) {
+        toast.error(`S.No. ${sNo}: Failed to update Paid by bank`);
+        // Revert on error
+        const revertList = (list: any[]) =>
+          list.map((r: any) =>
+            r.id === recordId ? { ...r, paid_by_bank: oldVal } : r
+          );
+        setRecords((prev) => revertList(prev));
+        setFilteredRecords((prev) => revertList(prev));
+      } else {
+        const saved = savedRows?.[0];
+        if (saved && hasPersistedSequenceNumbers(saved)) {
+          const refFields = { bank_ref_no: saved.bank_ref_no, bank_ref_bank: saved.bank_ref_bank };
+          const applyRef = (list: any[]) =>
+            list.map((r: any) => (r.id === recordId ? { ...r, ...refFields } : r));
+          setRecords((prev) => applyRef(prev));
+          setFilteredRecords((prev) => applyRef(prev));
+        }
+        const newRefNo = saved && newVal ? saved.bank_ref_no : null;
+        toast.success(
+          `S.No. ${sNo}: Bank updated from ${oldVal || "N/A"} to ${newVal || "N/A"}${newRefNo ? ` (REF No. ${newRefNo})` : ""}`,
+          {
+            style: {
+              border: "1px solid #22c55e",
+              background: "#f1fcf4",
+            },
+            icon: <CheckCircle className="w-5 h-5 text-green-500" />,
+          }
+        );
+      }
+    } catch (err: any) {
+      toast.error(`Error updating bank: ${err.message}`);
+    } finally {
+      setConfirmBankLoading(false);
+      setConfirmBankModal({ open: false, recordId: null, newVal: "", oldVal: "", sNo: "" });
+    }
+  };
+
   const exportToCSV = () => {
     const formatExportDateForName = (dateValue?: string) => {
       if (!dateValue) return "";
@@ -1673,11 +1783,7 @@ export default function PaymentRecords() {
 
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType && exportBankType !== "NO_BANK"
-      ? new Map(
-        filteredRecords
-          .filter((record) => (record.paid_by_bank || "") === exportBankType)
-          .map((record, idx) => [record.id, idx + 1])
-      )
+      ? bankRefNumbers(records, exportBankType)
       : null;
     const headers = isKotakExport
       ? [
@@ -1735,8 +1841,8 @@ export default function PaymentRecords() {
 
       if (isKotakExport) {
         const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
-        const serialNumber = record.serialNumber ?? index + 1;
-        const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
+        const serialNumber = record.serialNumber ?? "N/A";
+        const refNo = bankRefNoMap?.get(record.id) ?? "N/A";
         const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
         const ledgerAmount = formatAmountValue(record.amount);
 
@@ -1771,11 +1877,11 @@ export default function PaymentRecords() {
       const voucherDate = record.paid_approval_time
         ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
-      const serialNumber = record.serialNumber ?? index + 1;
+      const serialNumber = record.serialNumber ?? "N/A";
       const refNo =
         exportBankType === "NO_BANK"
           ? "N/A"
-          : bankRefNoMap?.get(record.id) ?? serialNumber;
+          : bankRefNoMap?.get(record.id) ?? "N/A";
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
       const voucherTypeName = exportBankType === "NGIDFC Current"
@@ -1819,7 +1925,7 @@ export default function PaymentRecords() {
           "",
           "",
           tdsLine,
-          formatAmountValue(tdsAmount),
+          formatAmountValue(record.tds_round_off_amount ?? tdsAmount),
           "Cr",
           "",
           "",
@@ -1976,11 +2082,7 @@ export default function PaymentRecords() {
 
     const isKotakExport = exportBankType === "KOTAK";
     const bankRefNoMap = exportBankType && exportBankType !== "NO_BANK"
-      ? new Map(
-        filteredRecords
-          .filter((record) => (record.paid_by_bank || "") === exportBankType)
-          .map((record, idx) => [record.id, idx + 1])
-      )
+      ? bankRefNumbers(records, exportBankType)
       : null;
     const headers = isKotakExport
       ? [
@@ -2038,8 +2140,8 @@ export default function PaymentRecords() {
 
       if (isKotakExport) {
         const voucherDate = formatKotakVoucherDate(record.paid_approval_time);
-        const serialNumber = record.serialNumber ?? index + 1;
-        const refNo = bankRefNoMap?.get(record.id) ?? serialNumber;
+        const serialNumber = record.serialNumber ?? "N/A";
+        const refNo = bankRefNoMap?.get(record.id) ?? "N/A";
         const narration = `Being paid to for ${expenseCreditPerson} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
         const ledgerAmount = formatAmountValue(record.amount);
 
@@ -2074,11 +2176,11 @@ export default function PaymentRecords() {
       const voucherDate = record.paid_approval_time
         ? formatKotakVoucherDate(record.paid_approval_time)
         : "—";
-      const serialNumber = record.serialNumber ?? index + 1;
+      const serialNumber = record.serialNumber ?? "N/A";
       const refNo =
         exportBankType === "NO_BANK"
           ? "N/A"
-          : bankRefNoMap?.get(record.id) ?? serialNumber;
+          : bankRefNoMap?.get(record.id) ?? "N/A";
       const narration = `Being paid to for ${beneficiaryName} PD Row no. - ${serialNumber} & REF NO. - ${refNo}`;
 
       const voucherTypeName = exportBankType === "NGIDFC Current"
@@ -2123,7 +2225,7 @@ export default function PaymentRecords() {
           "",
           "",
           tdsLine,
-          formatAmountValue(tdsAmount),
+          formatAmountValue(record.tds_round_off_amount ?? tdsAmount),
           "Cr",
           "",
           "",
@@ -2250,7 +2352,7 @@ export default function PaymentRecords() {
   return (
     <div className="space-y-4">
 
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-1">
         {/* Bank Tabs */}
         <div className="w-full overflow-x-auto lg:w-auto">
           <Tabs value={activeTab} onValueChange={(v) => handleBankTabChange(v as any)}>
@@ -2263,31 +2365,41 @@ export default function PaymentRecords() {
           </Tabs>
         </div>
         <div className="flex w-full flex-wrap gap-2 lg:w-auto">
-          <Button
-            onClick={() => {
-              setExportRangeLabel("");
-              setExportLocationFilter("All Locations");
-              setShowExportModal(true);
-            }}
-            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Export Data
-          </Button>
-          <Button
-            onClick={() => {
-              setQuickExportMode("weekly");
-              setQuickExportLocation("All Locations");
-              setQuickExportDate("");
-              setShowQuickExportModal(true);
-            }}
-            className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Weekly / Monthly
-          </Button>
+          {isExportEnabled && (
+            <>
+              <Button
+                onClick={() => {
+                  setExportRangeLabel("");
+                  setExportLocationFilter("All Locations");
+
+                  if (activeTab === "all") setExportBankType("ALL_RECORDS");
+                  else if (activeTab === "ngidfc") setExportBankType("NGIDFC Current");
+                  else if (activeTab === "fcidfc") setExportBankType("FCIDFC Current");
+                  else if (activeTab === "kotak") setExportBankType("KOTAK");
+
+                  setShowExportModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Export Data
+              </Button>
+              <Button
+                onClick={() => {
+                  setQuickExportMode("weekly");
+                  setQuickExportLocation("All Locations");
+                  setQuickExportDate("");
+                  setShowQuickExportModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Weekly / Monthly
+              </Button>
+            </>
+          )}
           <Button className="w-full sm:w-auto" variant="outline" onClick={() => setFilterOpen((s) => !s)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters
@@ -2319,10 +2431,10 @@ export default function PaymentRecords() {
                   {expenseTypes
                     .filter((t) => String(t).toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
                     .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2347,10 +2459,10 @@ export default function PaymentRecords() {
                   {eventNames
                     .filter((t) => String(t).toLowerCase().includes(searchQuery.eventName.toLowerCase()))
                     .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2375,10 +2487,10 @@ export default function PaymentRecords() {
                   {creators
                     .filter((t) => String(t).toLowerCase().includes(searchQuery.email.toLowerCase()))
                     .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2403,10 +2515,10 @@ export default function PaymentRecords() {
                   {uniqueIds
                     .filter((id) => String(id).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
                     .map((id) => (
-                    <SelectItem key={id} value={id}>
-                      {id}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={id} value={id}>
+                        {id}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2431,10 +2543,10 @@ export default function PaymentRecords() {
                   {locations
                     .filter((t) => String(t).toLowerCase().includes(searchQuery.location.toLowerCase()))
                     .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2459,8 +2571,8 @@ export default function PaymentRecords() {
                   {["Receipt", "Voucher"]
                     .filter((b) => b.toLowerCase().includes(searchQuery.bills.toLowerCase()))
                     .map((b) => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                  ))}
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2489,10 +2601,10 @@ export default function PaymentRecords() {
                     {paidByBankOptions
                       .filter((bank) => String(bank).toLowerCase().includes(searchQuery.paidByBank.toLowerCase()))
                       .map((bank) => (
-                      <SelectItem key={bank} value={bank}>
-                        {bank}
-                      </SelectItem>
-                    ))}
+                        <SelectItem key={bank} value={bank}>
+                          {bank}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2519,10 +2631,10 @@ export default function PaymentRecords() {
                     {utrValues
                       .filter((u) => String(u).toLowerCase().includes(searchQuery.utr.toLowerCase()))
                       .map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {u}
-                      </SelectItem>
-                    ))}
+                        <SelectItem key={u} value={u}>
+                          {u}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2590,10 +2702,10 @@ export default function PaymentRecords() {
                         {dateOfExpenseOptions
                           .filter((date) => formatDateForDisplay(date).toLowerCase().includes(searchQuery.startDate.toLowerCase()))
                           .map((date) => (
-                          <SelectItem key={date} value={date}>
-                            {formatDateForDisplay(date)}
-                          </SelectItem>
-                        ))}
+                            <SelectItem key={date} value={date}>
+                              {formatDateForDisplay(date)}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </>
@@ -2685,10 +2797,10 @@ export default function PaymentRecords() {
                         {paidDateFilterOptions
                           .filter((date) => formatDateForDisplay(date).toLowerCase().includes(searchQuery.paidStartDate.toLowerCase()))
                           .map((date) => (
-                          <SelectItem key={date} value={date}>
-                            {formatDateForDisplay(date)}
-                          </SelectItem>
-                        ))}
+                            <SelectItem key={date} value={date}>
+                              {formatDateForDisplay(date)}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </>
@@ -2739,10 +2851,10 @@ export default function PaymentRecords() {
                   {tdsDeductionOptions
                     .filter((opt) => formatTdsDeductionOptionLabel(opt).toLowerCase().includes(searchQuery.tdsDeduction.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {formatTdsDeductionOptionLabel(option)}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {formatTdsDeductionOptionLabel(option)}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2767,10 +2879,10 @@ export default function PaymentRecords() {
                   {securityDepositOptions
                     .filter((opt) => (opt === "N/A" ? "N/A" : formatCurrency(Number(opt))).toLowerCase().includes(searchQuery.securityDeposit.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2853,9 +2965,9 @@ export default function PaymentRecords() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[100vh] overflow-x-auto overflow-y-auto">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300">
+          <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>
               <TableHead className="text-center py-3">S.No.</TableHead>
               <TableHead className="text-center py-3">Timestamp</TableHead>
@@ -2942,7 +3054,7 @@ export default function PaymentRecords() {
                     }`}
                 >
                   <TableCell className="text-center py-2">
-                    {activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index))}
+                    {displaySerialNumber(record)}
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {formatDateTime(record.updated_at || record.created_at)}
@@ -2974,9 +3086,11 @@ export default function PaymentRecords() {
                         return (
                           <div className="flex flex-col items-center gap-1">
                             <span className="text-sm">{tdsPercent}%</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
                               {tdsAmount !== null
-                                ? formatCurrency(tdsAmount)
+                                ? record.tds_round_off_amount != null
+                                  ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${record.tds_round_off_amount}`
+                                  : `TDS amount: ${formatCurrency(tdsAmount)}`
                                 : "—"}
                             </span>
                           </div>
@@ -3178,7 +3292,31 @@ export default function PaymentRecords() {
                     />
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    {record.paid_by_bank || "N/A"}
+                    <Select
+                      value={record.paid_by_bank || "none"}
+                      onValueChange={(val) => {
+                        const newVal = val === "none" ? "" : val;
+                        const oldVal = record.paid_by_bank;
+                        const sNo = displaySerialNumber(record);
+                        setConfirmBankModal({
+                          open: true,
+                          recordId: record.id,
+                          newVal,
+                          oldVal,
+                          sNo,
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm w-40 mx-auto bg-transparent cursor-pointer">
+                        <SelectValue placeholder="N/A" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">N/A</SelectItem>
+                        {Array.from(new Set(["NGIDFC Current", "FCIDFC Current", "KOTAK", "SBI", ...paidByBankOptions])).map((bank) => (
+                          <SelectItem key={bank} value={bank}>{bank}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-center py-2">
                     {(() => {
@@ -3203,8 +3341,8 @@ export default function PaymentRecords() {
                                     }
                                     disabled={isMarkedAsAdvance}
                                     className={`flex items-center gap-2 ${isMarkedAsAdvance
-                                        ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
-                                        : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
+                                      ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
+                                      : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
                                       }`}
                                   >
                                     {isMarkedAsAdvance && <CheckCircle className="w-5 h-5 " />}
@@ -3265,7 +3403,7 @@ export default function PaymentRecords() {
                                 const params = new URLSearchParams();
                                 params.set("activeTab", activeTab);
                                 params.set("page", String(pagination.currentPage));
-                                const sNo = activeTab === "all" ? (record.serialNumber ?? pagination.getItemNumber(index)) : (activeTabRecordIndices.get(record.id) ?? pagination.getItemNumber(index));
+                                const sNo = displaySerialNumber(record);
                                 params.set("sNo", String(sNo));
                                 router.push(
                                   `/org/${slug}/finance/records/${record.id}?${params.toString()}`
@@ -3593,6 +3731,41 @@ export default function PaymentRecords() {
         </DialogContent>
       </Dialog>
 
+      {/* Confirm Bank Change modal */}
+      <Dialog
+        open={confirmBankModal.open}
+        onOpenChange={() => setConfirmBankModal({ open: false, recordId: null, newVal: "", oldVal: "", sNo: "" })}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Bank Update</DialogTitle>
+          </DialogHeader>
+          <div>
+            <p>
+              Are you sure you want to update the bank for <b>S.No. {confirmBankModal.sNo}</b> from{" "}
+              <b>{confirmBankModal.oldVal || "N/A"}</b> to <b>{confirmBankModal.newVal || "N/A"}</b>?
+            </p>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmBankModal({ open: false, recordId: null, newVal: "", oldVal: "", sNo: "" })}
+              className="cursor-pointer"
+              disabled={confirmBankLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmBankChange}
+              className="cursor-pointer"
+              disabled={confirmBankLoading}
+            >
+              {confirmBankLoading ? "Updating..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Mark as Advance Payment modal */}
       <Dialog
         open={markAdvanceModal.open}
@@ -3779,7 +3952,13 @@ export default function PaymentRecords() {
                 }
                 setShowExportDateModal(true);
               }}
-              disabled={!exportBankType}
+              disabled={
+                !exportBankType ||
+                (activeTab === "all" && exportBankType !== "ALL_RECORDS") ||
+                (activeTab === "ngidfc" && exportBankType !== "NGIDFC Current") ||
+                (activeTab === "fcidfc" && exportBankType !== "FCIDFC Current") ||
+                (activeTab === "kotak" && exportBankType !== "KOTAK")
+              }
               className="cursor-pointer"
             >
               Next

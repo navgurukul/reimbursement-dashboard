@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# legacy migration tooling (local only)
+.venv-legacy-migration/
+
+# legacy migration manifests - contain staff emails and financial records, never commit to a public repo
+outputs/

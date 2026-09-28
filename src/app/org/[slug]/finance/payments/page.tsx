@@ -8,7 +8,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useEffect, useMemo, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { Eye, Download, Pencil, Save, Filter } from "lucide-react";
+import { Eye, Download, Pencil, Save, Filter, AlertTriangle } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { auth, profiles } from "@/lib/db";
 
@@ -50,6 +50,8 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Pagination, usePagination } from "@/components/pagination";
+import { isExportEnabled } from "@/lib/features";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formatCurrency = (amount: number) => {
   if (isNaN(amount) || amount === null || amount === undefined) return "—";
@@ -65,7 +67,7 @@ const calculateTdsAmount = (
 ) => {
   if (!percentage || !baseAmount) return null;
   const amount = (baseAmount * percentage) / 100;
-  return Number(amount.toFixed(2));
+  return amount;
 };
 
 const calculateActualAmount = (
@@ -74,9 +76,11 @@ const calculateActualAmount = (
   securityDepositAmount: number | null | undefined
 ) => {
   if (baseAmount === null || baseAmount === undefined) return null;
+  const roundedTdsAmount = tdsAmount ? Math.round(tdsAmount) : 0;
   const amount =
-    Number(baseAmount) - (tdsAmount ?? 0) - (securityDepositAmount ?? 0);
-  return Number(amount.toFixed(2));
+    Number(baseAmount) - roundedTdsAmount - (securityDepositAmount ?? 0);
+  if (!tdsAmount) return amount;
+  return Math.round(amount);
 };
 
 const isDirectPaymentUniqueId = (value: unknown) =>
@@ -97,6 +101,7 @@ export default function PaymentProcessingOnly() {
     Record<string, { utr?: boolean; debit?: boolean }>
   >({});
   const [paidByBank, setPaidByBank] = useState<Record<string, string>>({});
+  const [activeProcessingTab, setActiveProcessingTab] = useState<"All Data" | "NGIDFC Processing" | "FCIDFC Processing">("All Data");
   const [showConfirmAllPaid, setShowConfirmAllPaid] = useState(false);
   const [confirmExpenseId, setConfirmExpenseId] = useState<string | null>(null);
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
@@ -127,6 +132,39 @@ export default function PaymentProcessingOnly() {
     minActualAmount: "",
     maxActualAmount: "",
   });
+
+  // so they are not lost when navigating back from an expense view
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("finance-payments-filters");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.filters) setFilters(parsed.filters);
+          if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+          if (parsed.filterOpen !== undefined) setFilterOpen(parsed.filterOpen);
+          if (parsed.activeProcessingTab) setActiveProcessingTab(parsed.activeProcessingTab);
+        } catch (e) {
+          console.error("Failed to parse saved filters", e);
+        }
+      }
+    }
+    setTimeout(() => {
+      isMounted.current = true;
+    }, 0);
+  }, []);
+
+  // so they are not lost when navigating back from an expense view
+  useEffect(() => {
+    if (isMounted.current && typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "finance-payments-filters",
+        JSON.stringify({ filters, searchQuery, filterOpen, activeProcessingTab })
+      );
+    }
+  }, [filters, searchQuery, filterOpen, activeProcessingTab]);
 
   const router = useRouter();
 
@@ -159,7 +197,7 @@ export default function PaymentProcessingOnly() {
   });
   const [enteredPassword, setEnteredPassword] = useState("");
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
-  
+
   const searchParams = useSearchParams();
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
@@ -247,11 +285,19 @@ export default function PaymentProcessingOnly() {
       return storedActualAmount;
     }
 
-    const actualAmount = calculateActualAmount(
+    let actualAmount = calculateActualAmount(
       expense.amount ?? 0,
       getTdsDeductionAmount(expense),
       getSecurityDepositAmount(expense)
     );
+
+    if (!hasTdsDeduction(expense) && expense.approved_amount) {
+      actualAmount = calculateActualAmount(
+        expense.approved_amount,
+        0,
+        getSecurityDepositAmount(expense)
+      );
+    }
 
     return actualAmount ?? 0;
   };
@@ -484,30 +530,53 @@ export default function PaymentProcessingOnly() {
     if (!bankLabel) return [];
 
     return processingExpenses.filter(
-      (expense) => (paidByBank[expense.id] || "") === bankLabel
+      (expense) =>
+        (paidByBank[expense.id] || "") === bankLabel &&
+        selectedExpenses.has(expense.id)
     );
   };
 
   const validateSelectedAccountTypeForExport = () => {
     const bankLabel = getPaidByBankLabelForAccountType(selectedBankType);
     if (!bankLabel) {
-      toast.error("Please select an account type before exporting.");
+      toast.warning("Please select an account type before exporting.", {
+        icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+        style: {
+          border: '1px solid #f59e0b',
+          background: '#fffbeb',
+          color: '#92400e',
+        }
+      });
       return false;
     }
 
     const expensesForSelectedType = getExpensesForSelectedAccountType();
     if (expensesForSelectedType.length === 0) {
-      toast.error(
-        `No expenses found with “${bankLabel}” selected in the “Paid By Bank” column.`
-      );
+      toast.warning(
+        `No expenses found with “${bankLabel}” selected in the “Paid By Bank” column.`, {
+        icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+        style: {
+          border: '1px solid #f59e0b',
+          background: '#fffbeb',
+        }
+      });
       return false;
     }
 
     return true;
   };
 
+  const tabFilteredExpenses = useMemo(() => {
+    return filteredProcessingExpenses.filter((expense) => {
+      const bank = paidByBank[expense.id] || "";
+      if (activeProcessingTab === "NGIDFC Processing") return bank === "NGIDFC Current";
+      if (activeProcessingTab === "FCIDFC Processing") return bank === "FCIDFC Current";
+      return bank !== "NGIDFC Current" && bank !== "FCIDFC Current";
+    });
+  }, [filteredProcessingExpenses, paidByBank, activeProcessingTab]);
+
   // Use pagination hook
-  const pagination = usePagination(filteredProcessingExpenses);
+  const pagination = usePagination(tabFilteredExpenses);
 
   useEffect(() => {
     async function fetchExpensesAndBankDetails() {
@@ -602,6 +671,18 @@ export default function PaymentProcessingOnly() {
           // Initialize value_date to today's date if not already set
           const defaultDate = new Date().toISOString().split("T")[0];
 
+          let derivedDebitAccount = exp.debit_account;
+          if (exp.paid_by_bank === "FCIDFC Current") {
+            if (!derivedDebitAccount || derivedDebitAccount === "10064244213") {
+              derivedDebitAccount = "10268100007";
+            }
+          } else if (exp.paid_by_bank === "NGIDFC Current") {
+            if (!derivedDebitAccount || derivedDebitAccount === "10268100007") {
+              derivedDebitAccount = "10064244213";
+            }
+          }
+          if (!derivedDebitAccount) derivedDebitAccount = "10064244213";
+
           return {
             ...exp,
             beneficiary_name:
@@ -609,7 +690,7 @@ export default function PaymentProcessingOnly() {
             account_number:
               exp.account_number || matchedBank?.account_number || "N/A",
             ifsc: exp.ifsc || matchedBank?.ifsc_code || "N/A",
-            debit_account: exp.debit_account || "10064244213",
+            debit_account: derivedDebitAccount,
             utr: exp.utr || "N/A",
             unique_id: displayUniqueId || "N/A",
             value_date: exp.value_date || defaultDate,
@@ -625,7 +706,9 @@ export default function PaymentProcessingOnly() {
         setPaidByBank((prev) => {
           const next = { ...prev };
           enrichedExpenses.forEach((exp) => {
-            if (!next[exp.id] && isDirectPaymentUniqueId(exp.unique_id)) {
+            if (exp.paid_by_bank) {
+              next[exp.id] = exp.paid_by_bank;
+            } else if (!next[exp.id] && isDirectPaymentUniqueId(exp.unique_id)) {
               next[exp.id] = "KOTAK";
             }
           });
@@ -658,14 +741,14 @@ export default function PaymentProcessingOnly() {
 
   // Scroll to highlighted row when it's set
   useEffect(() => {
-    if (highlightedExpenseId && filteredProcessingExpenses.length > 0) {
+    if (highlightedExpenseId && tabFilteredExpenses.length > 0) {
       // Find which page the highlighted expense is on
-      const recordIndex = filteredProcessingExpenses.findIndex(r => r.id === highlightedExpenseId);
+      const recordIndex = tabFilteredExpenses.findIndex(r => r.id === highlightedExpenseId);
       if (recordIndex !== -1) {
         const itemsPerPage = 10;
         const pageNumber = Math.floor(recordIndex / itemsPerPage) + 1;
         pagination.setCurrentPage(pageNumber);
-        
+
         // Scroll to the highlighted row after pagination updates
         setTimeout(() => {
           highlightedRowRef.current?.scrollIntoView({
@@ -675,7 +758,7 @@ export default function PaymentProcessingOnly() {
         }, 200);
       }
     }
-  }, [highlightedExpenseId, filteredProcessingExpenses, pagination.setCurrentPage]);
+  }, [highlightedExpenseId, tabFilteredExpenses, pagination.setCurrentPage]);
 
   const handlePageChange = (nextPage: number) => {
     if (nextPage === pagination.currentPage) return;
@@ -914,18 +997,27 @@ export default function PaymentProcessingOnly() {
       const tdsAmount = calculateTdsAmount(baseAmount, percentage);
       const securityDepositAmount =
         exp.security_deposit_amount !== null &&
-        exp.security_deposit_amount !== undefined
+          exp.security_deposit_amount !== undefined
           ? Number(exp.security_deposit_amount)
           : null;
-      const actualAmount = calculateActualAmount(
-        baseAmount,
+      let actualAmount = calculateActualAmount(
+        exp.amount ?? 0,
         tdsAmount,
         securityDepositAmount
       );
+
+      if (percentage === null && exp.approved_amount) {
+        actualAmount = calculateActualAmount(
+          exp.approved_amount,
+          0,
+          securityDepositAmount
+        );
+      }
       return {
         ...exp,
         tds_deduction_percentage: percentage,
         tds_deduction_amount: tdsAmount,
+        tds_round_off_amount: tdsAmount !== null ? Math.round(tdsAmount) : null,
         actual_amount: actualAmount,
       };
     });
@@ -941,12 +1033,25 @@ export default function PaymentProcessingOnly() {
       .update({
         tds_deduction_percentage: percentage,
         tds_deduction_amount: tdsAmount,
+        tds_round_off_amount: tdsAmount !== null ? Math.round(tdsAmount) : null,
         actual_amount: actualAmount,
       })
       .eq("id", expenseId);
 
     if (error) {
-      toast.error("Failed to update TDS deduction");
+      toast.error(`Failed to ${percentage === null ? 'remove' : 'update'} TDS deduction`);
+    } else {
+      if (percentage === null) {
+        toast.success("TDS deduction removed successfully", {
+          style: { border: "1px solid #f59e0b", background: "#fffbeb" },
+          classNames: { icon: "text-[#f59e0b]" }
+        });
+      } else {
+        toast.success("TDS deduction updated successfully", {
+          style: { border: "1px solid #22c55e", background: "#f2faf5ff" },
+          classNames: { icon: "text-[#22c55e]" }
+        });
+      }
     }
   };
 
@@ -974,7 +1079,7 @@ export default function PaymentProcessingOnly() {
 
   const markExpensesPaidWithTimestamp = async (ids: string[], bankData?: Record<string, string>) => {
     const paidAt = new Date().toISOString();
-    
+
     // Create update payload with paid_by_bank for each expense
     const updatePromises = ids.map((id) => {
       const expense = processingExpenses.find((exp) => exp.id === id);
@@ -984,6 +1089,8 @@ export default function PaymentProcessingOnly() {
         paid_by_bank: bankData?.[id] || null,
         tds_deduction_percentage: expense?.tds_deduction_percentage ?? null,
         tds_deduction_amount: expense?.tds_deduction_amount ?? null,
+        tds_round_off_amount: expense?.tds_round_off_amount ?? (expense?.tds_deduction_amount !== null && expense?.tds_deduction_amount !== undefined ? Math.round(expense.tds_deduction_amount) : null),
+        security_deposit_amount: expense?.security_deposit_amount ?? null,
       };
 
       return supabase
@@ -996,7 +1103,7 @@ export default function PaymentProcessingOnly() {
 
     // Execute all updates
     const results = await Promise.all(updatePromises);
-    
+
     // Check for errors
     for (const result of results) {
       if (result.error) {
@@ -1098,9 +1205,9 @@ export default function PaymentProcessingOnly() {
       }
 
       toast.success("Selected expenses marked as paid. Email notifications have been sent to the expense creators.");
-      
+
       setProcessingExpenses((prev) => prev.filter((exp) => !selectedExpenses.has(exp.id)));
-      
+
       setPaidByBank((prev) => {
         const next = { ...prev };
         expensesToProcess.forEach(id => delete next[id]);
@@ -1160,8 +1267,26 @@ export default function PaymentProcessingOnly() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-1">
+        <Tabs
+          value={activeProcessingTab}
+          onValueChange={(val) => {
+            setActiveProcessingTab(val as any);
+            setSelectedExpenses(new Set()); // clear selection on tab change
+            pagination.setCurrentPage(1); // reset to page 1
+          }}
+          className="w-auto overflow-x-auto"
+        >
+          <TabsList className="w-max min-w-max gap-2">
+            {["All Data", "NGIDFC Processing", "FCIDFC Processing"].map((tab) => (
+              <TabsTrigger key={tab} value={tab} className="cursor-pointer">
+                {tab}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        <div className="flex gap-2 items-center flex-wrap shrink-0">
           <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
             <Filter className="mr-2 h-4 w-4" />
             Filters
@@ -1169,14 +1294,35 @@ export default function PaymentProcessingOnly() {
           <Button onClick={() => setShowConfirmAllPaid(true)}>
             Mark all as Paid
           </Button>
-          <Button
-            onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
-            variant="outline"
-          >
-            <Download className="w-4 h-4" />
-            Export csv or .xlsx
-          </Button>
+          {isExportEnabled && (
+            <Button
+              onClick={() => {
+                if (selectedExpenses.size === 0) {
+                  toast.warning("Please select at least one expense to export.", {
+                    icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+                    style: {
+                      border: '1px solid #f59e0b',
+                      background: '#fffbeb',
+                    }
+                  });
+                  return;
+                }
+                if (activeProcessingTab === "NGIDFC Processing") {
+                  setSelectedBankType("NGIDFC");
+                } else if (activeProcessingTab === "FCIDFC Processing") {
+                  setSelectedBankType("FCIDCF");
+                } else {
+                  setSelectedBankType("");
+                }
+                setShowExportModal(true);
+              }}
+              className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
+              variant="outline"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1203,10 +1349,10 @@ export default function PaymentProcessingOnly() {
                   {expenseTypeOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.expenseType.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1231,10 +1377,10 @@ export default function PaymentProcessingOnly() {
                   {createdByOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1259,10 +1405,10 @@ export default function PaymentProcessingOnly() {
                   {emailOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.email.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1287,10 +1433,10 @@ export default function PaymentProcessingOnly() {
                   {eventNameOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.eventName.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1315,10 +1461,10 @@ export default function PaymentProcessingOnly() {
                   {locationOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.location.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1343,10 +1489,10 @@ export default function PaymentProcessingOnly() {
                   {approvedByOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.approvedBy.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1371,10 +1517,10 @@ export default function PaymentProcessingOnly() {
                   {uniqueIdOptions
                     .filter((opt) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1399,10 +1545,10 @@ export default function PaymentProcessingOnly() {
                   {tdsDeductionOptions
                     .filter((opt) => formatTdsDeductionOptionLabel(opt).toLowerCase().includes(searchQuery.tdsDeduction.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {formatTdsDeductionOptionLabel(option)}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {formatTdsDeductionOptionLabel(option)}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1427,10 +1573,10 @@ export default function PaymentProcessingOnly() {
                   {securityDepositOptions
                     .filter((opt) => (opt === "N/A" ? "N/A" : formatCurrency(Number(opt))).toLowerCase().includes(searchQuery.securityDeposit.toLowerCase()))
                     .map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={option} value={option}>
+                        {option === "N/A" ? "N/A" : formatCurrency(Number(option))}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1499,25 +1645,25 @@ export default function PaymentProcessingOnly() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300">
+          <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>
               <TableHead className="px-4 py-3 text-center">
                 <Checkbox
-                className="border border-black cursor-pointer"
+                  className="border border-black cursor-pointer"
                   checked={
-                    filteredProcessingExpenses.length > 0 &&
-                    filteredProcessingExpenses.every((exp) => selectedExpenses.has(exp.id))
+                    tabFilteredExpenses.length > 0 &&
+                    tabFilteredExpenses.every((exp) => selectedExpenses.has(exp.id))
                   }
                   onCheckedChange={(checked) => {
                     if (checked) {
                       const newSelected = new Set(selectedExpenses);
-                      filteredProcessingExpenses.forEach((exp) => newSelected.add(exp.id));
+                      tabFilteredExpenses.forEach((exp) => newSelected.add(exp.id));
                       setSelectedExpenses(newSelected);
                     } else {
                       const newSelected = new Set(selectedExpenses);
-                      filteredProcessingExpenses.forEach((exp) => newSelected.delete(exp.id));
+                      tabFilteredExpenses.forEach((exp) => newSelected.delete(exp.id));
                       setSelectedExpenses(newSelected);
                     }
                   }}
@@ -1560,7 +1706,7 @@ export default function PaymentProcessingOnly() {
                 TDS Deduction
               </TableHead>
               <TableHead className="px-4 py-3 text-center">
-                Security Deposit 
+                Security Deposit
               </TableHead>
               <TableHead className="px-4 py-3 text-center">
                 Actual Amount
@@ -1616,15 +1762,17 @@ export default function PaymentProcessingOnly() {
           <TableBody>
             {loading ? (
               <TableSkeleton colSpan={25} rows={5} />
-            ) : filteredProcessingExpenses.length === 0 ? (
+            ) : tabFilteredExpenses.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={25}
-                  className="text-center py-6 text-muted-foreground"
+                  className="text-start py-6 px-4 text-muted-foreground"
                 >
                   {processingExpenses.length === 0
                     ? "No expenses in payment processing."
-                    : "No expenses match selected filters."}
+                    : filteredProcessingExpenses.length === 0
+                      ? "No expenses match selected filters."
+                      : `Expenses are currently not available for payment processing.`}
                 </TableCell>
               </TableRow>
             ) : (
@@ -1632,11 +1780,10 @@ export default function PaymentProcessingOnly() {
                 <TableRow
                   key={expense.id}
                   ref={highlightedExpenseId === expense.id ? highlightedRowRef : null}
-                  className={`hover:bg-gray-50 transition-colors ${
-                    highlightedExpenseId === expense.id 
-                      ? "border-2 border-yellow-400 bg-yellow-50" 
-                      : ""
-                  }`}
+                  className={`hover:bg-gray-50 transition-colors ${highlightedExpenseId === expense.id
+                    ? "border-2 border-yellow-400 bg-yellow-50"
+                    : ""
+                    }`}
                 >
                   <TableCell className="px-4 py-3 text-center">
                     <Checkbox
@@ -1730,15 +1877,15 @@ export default function PaymentProcessingOnly() {
                             size="icon"
                             variant="outline"
                             className="h-7 w-full px-1 text-sm"
-                            onClick={() =>
+                            onClick={async () => {
                               setEditingFields((prev) => ({
                                 ...prev,
                                 [expense.id]: {
                                   ...prev[expense.id],
                                   debit: false,
                                 },
-                              }))
-                            }
+                              }));
+                            }}
                             title="Save"
                           >
                             <Save className="w-4 h-4" />
@@ -1778,8 +1925,8 @@ export default function PaymentProcessingOnly() {
                       value={
                         expense.value_date
                           ? new Date(expense.value_date)
-                              .toISOString()
-                              .split("T")[0]
+                            .toISOString()
+                            .split("T")[0]
                           : new Date().toISOString().split("T")[0]
                       }
                       onChange={(e) => {
@@ -1821,24 +1968,26 @@ export default function PaymentProcessingOnly() {
                           )}
                         </SelectContent>
                       </Select>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
                         {expense.tds_deduction_percentage
-                          ? formatCurrency(
-                              expense.tds_deduction_amount ??
-                                calculateTdsAmount(
-                                  expense.approved_amount ?? expense.amount ??
-                                    0,
-                                  expense.tds_deduction_percentage
-                                ) ??
-                                0
-                            )
+                          ? (() => {
+                            const exactAmount = expense.tds_deduction_amount ??
+                              calculateTdsAmount(
+                                expense.approved_amount ?? expense.amount ?? 0,
+                                expense.tds_deduction_percentage
+                              ) ?? 0;
+                            const roundAmount = expense.tds_round_off_amount;
+                            return roundAmount != null 
+                              ? `TDS amount: ${formatCurrency(exactAmount)} | Round off: ₹${roundAmount}`
+                              : `TDS amount: ${formatCurrency(exactAmount)}`;
+                          })()
                           : "—"}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     {expense.security_deposit_amount !== null &&
-                    expense.security_deposit_amount !== undefined
+                      expense.security_deposit_amount !== undefined
                       ? formatCurrency(Number(expense.security_deposit_amount))
                       : "N/A"}
                   </TableCell>
@@ -1962,12 +2111,8 @@ export default function PaymentProcessingOnly() {
                   <TableCell className="px-4 py-3 text-center">
                     <Select
                       value={paidByBank[expense.id] || "none"}
-                      onValueChange={(value) => {
+                      onValueChange={async (value) => {
                         const selectedBank = value === "none" ? "" : value;
-                        setPaidByBank((prev) => ({
-                          ...prev,
-                          [expense.id]: selectedBank,
-                        }));
 
                         let newDebitAccount = expense.debit_account;
                         if (selectedBank === "NGIDFC Current") {
@@ -1975,6 +2120,31 @@ export default function PaymentProcessingOnly() {
                         } else if (selectedBank === "FCIDFC Current") {
                           newDebitAccount = "10268100007";
                         }
+
+                        // Save to DB immediately BEFORE updating local state to prevent unmount cancellation
+                        const { error } = await supabase
+                          .from("expense_new")
+                          .update({
+                            paid_by_bank: selectedBank || null
+                          })
+                          .eq("id", expense.id);
+
+                        if (error) {
+                          toast.error(`Failed to save bank selection: ${error.message || "Unknown error"}`);
+                          return; // Halt if DB update fails
+                        } else {
+                          toast.success(
+                            selectedBank
+                              ? `Expense assigned to ${selectedBank}`
+                              : "Bank selection cleared"
+                          );
+                        }
+
+                        // Now update local state
+                        setPaidByBank((prev) => ({
+                          ...prev,
+                          [expense.id]: selectedBank,
+                        }));
 
                         if (newDebitAccount !== expense.debit_account) {
                           setProcessingExpenses((prev) =>
@@ -2018,9 +2188,9 @@ export default function PaymentProcessingOnly() {
                                 `/org/${slug}/finance/payments/${expense.id}`
                               )
                             }
-                            className="cursor-pointer"
+                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black"
                           >
-                            <Eye className="w-4 h-4 text-gray-700" />
+                            <Eye className="w-4 h-4" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -2033,9 +2203,9 @@ export default function PaymentProcessingOnly() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => setConfirmExpenseId(expense.id)}
-                            className="text-green-600 hover:text-green-800 transition-transform hover:scale-110 cursor-pointer"
+                            className="p-1 rounded-md border border-transparent hover:border-green-300 hover:bg-green-50 transition-all cursor-pointer text-green-600 hover:text-green-800"
                           >
-                            <CheckCircle className="w-5 h-5 " />
+                            <CheckCircle className="w-5 h-5" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -2050,7 +2220,7 @@ export default function PaymentProcessingOnly() {
           </TableBody>
         </Table>
       </div>
-      {filteredProcessingExpenses.length > 0 && (
+      {tabFilteredExpenses.length > 0 && (
         <Pagination
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
@@ -2066,7 +2236,7 @@ export default function PaymentProcessingOnly() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Select Account Type</DialogTitle>
-              Only expenses with a selected bank in 'Paid by Bank' will be exported.
+            Only expenses with a selected bank in 'Paid by Bank' will be exported.
           </DialogHeader>
 
           <div className="space-y-6">
@@ -2079,7 +2249,7 @@ export default function PaymentProcessingOnly() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="FCIDCF" id="fcidcf" />
-                  <Label htmlFor="fcidcf" className="font-normal cursor-pointer">FCIDCF Current</Label>
+                  <Label htmlFor="fcidcf" className="font-normal cursor-pointer">FCIDCF</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="KOTAK" id="kotak" />
@@ -2103,7 +2273,11 @@ export default function PaymentProcessingOnly() {
                 setShowExportModal(false);
                 setShowColumnsModal(true);
               }}
-              disabled={!selectedBankType}
+              disabled={
+                !selectedBankType ||
+                (activeProcessingTab === "NGIDFC Processing" && selectedBankType !== "NGIDFC") ||
+                (activeProcessingTab === "FCIDFC Processing" && selectedBankType !== "FCIDCF")
+              }
               className="cursor-pointer"
             >
               Next

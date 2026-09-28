@@ -132,8 +132,8 @@ export default function RecordsDetails() {
       }
 
       const sNoParam = searchParams.get("sNo");
-      const expenseData = { 
-        ...data, 
+      const expenseData = {
+        ...data,
         event_title: eventTitleValue,
         hasVoucher: !voucherError && !!voucherData,
         voucherId: voucherData?.id || null,
@@ -299,12 +299,16 @@ export default function RecordsDetails() {
                     <TableHead>TDS Deduction</TableHead>
                     <TableCell>
                       {tdsPercentage ? (
-                        <span className="text-amber-600 font-medium">
-                          {tdsPercentage}% ({formatCurrency(tdsAmount ?? 0)})
+                        <span className="text-amber-600 font-medium whitespace-nowrap">
+                          {expense?.tds_round_off_amount != null
+                            ? `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)}) | Round off: ₹${expense.tds_round_off_amount}`
+                            : `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)})`}
                         </span>
                       ) : tdsAmount !== null && tdsAmount !== undefined ? (
-                        <span className="text-amber-600 font-medium">
-                          {formatCurrency(tdsAmount)}
+                        <span className="text-amber-600 font-medium whitespace-nowrap">
+                          {expense?.tds_round_off_amount != null
+                            ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
+                            : `TDS amount: ${formatCurrency(tdsAmount)}`}
                         </span>
                       ) : (
                         "N/A"
