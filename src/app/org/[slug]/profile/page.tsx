@@ -65,6 +65,7 @@ export default function ProfilePage() {
     full_name: string;
     email: string;
     avatar_url?: string;
+    display_name?: string;
   } | null>(null);
 
   const supabase = createClient(
@@ -82,7 +83,7 @@ export default function ProfilePage() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("full_name, email")
+          .select("full_name, email, display_name")
           .eq("user_id", user.id)
           .single();
 
@@ -348,7 +349,7 @@ export default function ProfilePage() {
           </label>
         </div>
 
-        <div className="flex-1 flex flex-col gap-8 justify-center">
+        <div className="flex-1 flex flex-col gap-3 justify-start">
           <div className="flex items-center gap-2 mb-2">
             {/* <User className="w-6 h-6 text-[#111827]" /> */}
             <span className="font-bold text-xl text-[#111827]">
@@ -356,7 +357,7 @@ export default function ProfilePage() {
             </span>
           </div>
 
-          <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-base font-semibold mb-2 text-[#111827]">
                 Full Name
@@ -399,6 +400,39 @@ export default function ProfilePage() {
             </div>
             <div>
               <label className="block text-base font-semibold mb-2 text-[#111827]">
+                Display Name
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2">
+                  <User className="w-5 h-5 text-slate-400" />
+                </span>
+                <input
+                  className="w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="Enter your display name"
+                  value={userProfile?.display_name || ""}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    if (/^[O]*$/.test(val)) {
+                      setUserProfile((prev) =>
+                        prev ? { ...prev, display_name: val } : null
+                      );
+                    } else {
+                      toast.warning("Only 'OOO' characters are allowed", { 
+                        id: "display-name-error",
+                        style: {
+                          backgroundColor: "#f9f6eaff", // amber-100
+                          borderColor: "#F59E0B",     // amber-500
+                          color: "#92400E"            // amber-900
+                        }
+                      });
+                    }
+                  }}
+                />
+              </div>
+              <p className="text-sm text-gray-500 mt-2">When on leave, please set your status to OOO (Out of Office)</p>
+            </div>
+            <div>
+              <label className="block text-base font-semibold mb-2 text-[#111827]">
                 Unique ID
               </label>
               <div className="relative">
@@ -417,6 +451,31 @@ export default function ProfilePage() {
                 />
               </div>
             </div>
+          </div>
+          
+          <div className="flex justify-end mt-2">
+            <Button
+              onClick={async () => {
+                if (!user?.id) return;
+                const { error } = await supabase
+                  .from("profiles")
+                  .update({ display_name: userProfile?.display_name || null })
+                  .eq("user_id", user.id);
+                if (error) {
+                  toast.error("Failed to update display name");
+                } else {
+                  toast.success("Display name updated successfully", {
+                    style: {
+                      backgroundColor: "#f3f8f6ff",
+                      borderColor: "#10B981",
+                      color: "#047857"
+                    }
+                  });
+                }
+              }}
+            >
+              Save
+            </Button>
           </div>
         </div>
       </div>
