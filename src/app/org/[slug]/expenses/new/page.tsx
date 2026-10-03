@@ -66,7 +66,7 @@ interface Column {
   type: string;
   required?: boolean;
   visible?: boolean;
-  options?: Array<string | { value: string; label: string }>;
+  options?: Array<string | { value: string; label: string; display_name?: string }>;
 }
 
 interface ExpenseData {
@@ -165,6 +165,9 @@ export default function NewExpensePage() {
       console.error("Scroll to creator signature failed:", e);
     }
   };
+
+  const [oooModalOpen, setOooModalOpen] = useState(false);
+  const [oooApproverName, setOooApproverName] = useState("");
 
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({
@@ -594,7 +597,7 @@ export default function NewExpensePage() {
         const { data: membersData } =
           await organizations.getOrganizationMembers(orgId);
 
-        let approverOptions: Array<{ value: string; label: string }> = [];
+        let approverOptions: Array<{ value: string; label: string; display_name?: string }> = [];
 
         if (membersData) {
           // Filter to get only approvers (owners, admins, managers)
@@ -615,10 +618,18 @@ export default function NewExpensePage() {
             ]) || []
           );
 
+          const approverDisplayNames = new Map(
+            profilesData?.map((profile) => [
+              profile.user_id,
+              profile.display_name,
+            ]) || []
+          );
+
           // Create approver options
           approverOptions = approvers.map((approver) => ({
             value: approver.user_id,
             label: approverNames.get(approver.user_id) || approver.user_id,
+            display_name: approverDisplayNames.get(approver.user_id),
           }));
         }
 
@@ -837,6 +848,68 @@ export default function NewExpensePage() {
     expenseTypeApproverMapping,
     columns,
   ]);
+
+  const prevApproversRef = useRef<{
+    main: string;
+    mainSecond: string;
+    items: Record<number, { approver: string; second: string }>;
+  }>({ main: "", mainSecond: "", items: {} });
+
+  useEffect(() => {
+    const approverCol = columns.find(c => c.key === "approver");
+    if (!approverCol || !approverCol.options) return;
+
+    const checkAndAlert = (currentId: string, prevId: string) => {
+      if (currentId && currentId !== prevId) {
+        const opt = (approverCol.options as any[]).find((o) => o.value === currentId);
+        if (opt && opt.display_name === "OOO") {
+          setOooApproverName(opt.label || currentId);
+          setOooModalOpen(true);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    let alerted = false;
+
+    if (!alerted && checkAndAlert(formData.approver as string, prevApproversRef.current.main)) {
+      alerted = true;
+    }
+    if (!alerted && checkAndAlert(formData.second_approver_id as string, prevApproversRef.current.mainSecond)) {
+      alerted = true;
+    }
+
+    if (!alerted) {
+      for (const id of expenseItems) {
+        const item = expenseItemsData[id];
+        const prevItem = prevApproversRef.current.items[id] || { approver: "", second: "" };
+        if (item) {
+          if (checkAndAlert(item.approver as string, prevItem.approver)) {
+            alerted = true;
+            break;
+          }
+          if (checkAndAlert(item.second_approver_id as string, prevItem.second)) {
+            alerted = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // Update refs
+    prevApproversRef.current.main = formData.approver || "";
+    prevApproversRef.current.mainSecond = formData.second_approver_id || "";
+    const newItemsRef: Record<number, { approver: string; second: string }> = {};
+    for (const id of expenseItems) {
+      newItemsRef[id] = {
+        approver: (expenseItemsData[id]?.approver as string) || "",
+        second: (expenseItemsData[id]?.second_approver_id as string) || "",
+      };
+    }
+    prevApproversRef.current.items = newItemsRef;
+
+  }, [formData.approver, formData.second_approver_id, expenseItemsData, expenseItems, columns]);
 
   // Handle single receipt files
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3167,6 +3240,21 @@ export default function NewExpensePage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <Dialog open={oooModalOpen} onOpenChange={setOooModalOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Approver On Leave</DialogTitle>
+                  <DialogDescription>
+                    <strong className="text-black">{oooApproverName}</strong> is on leave. Please select another approver name on the Approver dropdown.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button onClick={() => setOooModalOpen(false)}>OK</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
 
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
