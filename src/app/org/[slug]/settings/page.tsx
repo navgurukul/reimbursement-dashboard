@@ -276,6 +276,315 @@ interface ProjectOfExpenseDetailsForm {
   project_description: string;
 }
 
+function UserDisplayNamesSection() {
+  const { organization } = useOrgStore();
+  const orgId = organization?.id;
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const [oooUsers, setOooUsers] = useState<any[]>([]);
+  const [isLoadingOoo, setIsLoadingOoo] = useState(true);
+
+  const fetchOooUsers = async () => {
+    setIsLoadingOoo(true);
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, display_name")
+        .not("display_name", "is", null);
+      if (error) throw error;
+      const filtered = (data || []).filter(u => u.display_name?.trim() !== "");
+      setOooUsers(filtered);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingOoo(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOooUsers();
+  }, []);
+
+  // Search effect
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (!orgId) {
+        setUsers([]);
+        return;
+      }
+      setIsSearching(true);
+      try {
+        // Fetch users in this org excluding members
+        const { data: orgUsers, error: orgError } = await supabase
+          .from("organization_users")
+          .select("user_id, role")
+          .eq("org_id", orgId)
+          .neq("role", "member");
+          
+        if (orgError) throw orgError;
+        
+        if (!orgUsers || orgUsers.length === 0) {
+          setUsers([]);
+          return;
+        }
+
+        const userIds = orgUsers.map(u => u.user_id);
+
+        let query = supabase
+          .from("profiles")
+          .select("id, user_id, full_name, email, display_name")
+          .in("user_id", userIds)
+          .limit(10);
+          
+        if (searchTerm.trim().length > 0) {
+           query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        }
+
+        const { data: profilesData, error: profileError } = await query;
+          
+        if (profileError) throw profileError;
+        
+        const finalUsers = (profilesData || []).map(p => {
+          const orgUser = orgUsers.find(u => u.user_id === p.user_id || u.user_id === p.id);
+          return {
+            ...p,
+            role: orgUser?.role
+          };
+        });
+        
+        setUsers(finalUsers);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, orgId]);
+
+  const handleUpdateDisplayName = async () => {
+    if (!selectedUser) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ display_name: displayName || null })
+        .eq("id", selectedUser.id);
+      if (error) {
+        toast.error("Failed to update display name");
+      } else {
+        toast.success("Display name updated successfully", {
+          style: {
+            backgroundColor: "#f3f8f6ff",
+            borderColor: "#10B981",
+            color: "#047857"
+          }
+        });
+        setSelectedUser(null);
+        setDisplayName("");
+        setSearchTerm("");
+        fetchOooUsers();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update display name");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRemoveDisplayName = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ display_name: null })
+        .eq("id", id);
+      if (error) throw error;
+      toast.success("Display name removed");
+      setOooUsers((prev: any[]) => prev.filter(u => u.id !== id));
+      if (selectedUser?.id === id) {
+        setDisplayName("");
+        setSelectedUser((prev: any) => prev ? { ...prev, display_name: null } : null);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove display name");
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>User Display Names</CardTitle>
+        <CardDescription>
+          Search for users and update their display names, such as adding OOO (Out of Office) when they are on leave.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="space-y-2 flex-1">
+            <Label>Select User</Label>
+            <DropdownMenu open={open} onOpenChange={setOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between font-normal text-left">
+                  <span className="truncate">
+                    {selectedUser ? `${selectedUser.full_name} (${selectedUser.email})${selectedUser.role ? ` • ${selectedUser.role}` : ""}` : "Search user by name or email..."}
+                  </span>
+                  <span className="text-muted-foreground">▾</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-[300px] md:w-[400px] p-2" align="start">
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  placeholder="Search user by name or email..."
+                  className="h-9"
+                  autoFocus
+                />
+                <DropdownMenuSeparator className="my-2" />
+                <div className="max-h-48 overflow-y-auto">
+                  {isSearching ? (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">Searching...</p>
+                  ) : users.length === 0 ? (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">
+                      No users found
+                    </p>
+                  ) : (
+                    users.map((user) => (
+                      <DropdownMenuItem
+                        key={user.id}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setSelectedUser(user);
+                          setDisplayName(user.display_name || "");
+                          setOpen(false);
+                          setSearchTerm("");
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-medium">{user.full_name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {user.email}{user.role ? ` • ${user.role}` : ""}
+                          </span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="space-y-2 flex-1">
+            <Label>Display Name</Label>
+            <Input
+              placeholder="e.g. OOO"
+              value={displayName}
+              maxLength={3}
+              className="border-gray-200"
+              onChange={(e) => {
+                const val = e.target.value.toUpperCase();
+                if (val.length > 3) return;
+                if (/^[O]*$/.test(val)) {
+                  setDisplayName(val);
+                } else {
+                  toast.warning("Only 'OOO' characters are allowed", {
+                    id: "display-name-error",
+                    style: {
+                      backgroundColor: "#f9f6eaff",
+                      borderColor: "#F59E0B",
+                      color: "#92400E"
+                    }
+                  });
+                }
+              }}
+              // disabled={!selectedUser}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && selectedUser) {
+                  handleUpdateDisplayName();
+                }
+              }}
+            />
+          </div>
+
+          <div className="flex gap-2 w-full md:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedUser(null);
+                setDisplayName("");
+                setSearchTerm("");
+              }}
+              disabled={!selectedUser && !displayName && !searchTerm}
+              className="flex-1 md:flex-none"
+            >
+              Clear
+            </Button>
+            <Button
+              onClick={handleUpdateDisplayName}
+              disabled={!selectedUser || isSaving}
+              className="flex-1 md:flex-none"
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </div>
+
+        {oooUsers.length > 0 && (
+          <div className="mt-6 border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User Name</TableHead>
+                  <TableHead>User Email</TableHead>
+                  <TableHead>Display Name</TableHead>
+                  <TableHead className="w-[100px]">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {oooUsers.map(user => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      {user.full_name}
+                    </TableCell>
+                    <TableCell>
+                      {user.email}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {user.display_name}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveDisplayName(user.id)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Remove
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { userRole } = useOrgStore();
   if (userRole !== "owner" && userRole !== "admin") {
@@ -2613,6 +2922,8 @@ export default function SettingsPage() {
           </AlertDialog>
         </CardContent>
       </Card>
+
+      <UserDisplayNamesSection />
       {/* </TabsContent> */}
       {/* </Tabs> */}
     </div>
