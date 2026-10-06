@@ -19,6 +19,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { CalendarOff } from "lucide-react";
 import { toast } from "sonner";
 import { ExpenseTypeApproverMappingEntry, LocationApproverMappingEntry } from "@/lib/db";
 
@@ -28,7 +31,7 @@ export default function ApproverInfoPage() {
 
   const [expenseTypeMapping, setExpenseTypeMapping] = useState<ExpenseTypeApproverMappingEntry[]>([]);
   const [locationMapping, setLocationMapping] = useState<LocationApproverMappingEntry[]>([]);
-  const [approverNames, setApproverNames] = useState<Map<string, string>>(new Map());
+  const [approverNames, setApproverNames] = useState<Map<string, { name: string, displayName?: string | null }>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -66,12 +69,20 @@ export default function ApproverInfoPage() {
             approvers.map((approver) => approver.user_id)
           );
 
-          const namesMap = new Map(
-            profilesData?.map((profile) => [
-              profile.user_id,
-              profile.full_name || profile.email,
-            ]) || []
-          );
+          const namesMap = new Map<string, { name: string, displayName: string | null }>();
+          profilesData?.forEach((profile) => {
+            const data = { 
+              name: profile.full_name || profile.email,
+              displayName: (profile as any).display_name || null 
+            };
+            namesMap.set(profile.user_id, data);
+            if (profile.full_name) {
+              namesMap.set(profile.full_name, data);
+            }
+            if (profile.email) {
+              namesMap.set(profile.email, data);
+            }
+          });
           setApproverNames(namesMap);
         }
       } catch (error) {
@@ -85,14 +96,53 @@ export default function ApproverInfoPage() {
     fetchData();
   }, [orgId]);
 
-  const getApproverLabel = (idOrName?: string | string[]): string => {
+  const getApproverLabel = (idOrName?: string | string[]): React.ReactNode => {
     if (!idOrName) return "N/A";
     
     if (Array.isArray(idOrName)) {
-      return idOrName.map(id => getApproverLabel(id)).join(", ");
+      return (
+        <div className="flex flex-col gap-1">
+          {idOrName.map((id, index) => (
+            <div key={index}>{getApproverLabel(id)}</div>
+          ))}
+        </div>
+      );
     }
     
-    return approverNames.get(idOrName) || idOrName;
+    const data = approverNames.get(idOrName);
+    if (data) {
+      return (
+        <div className="flex items-center gap-2">
+          <span>{data.name}</span>
+          {data.displayName === 'OOO' ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge 
+                    variant="outline" 
+                    className="px-2 py-2 h-5 text-[10px] bg-orange-100 text-orange-800 border-orange-200 cursor-help flex items-center gap-1"
+                  >
+                    <CalendarOff className="w-3 h-3 text-red-600" />
+                    {data.displayName}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>This approver on leave (out of office)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : data.displayName ? (
+            <Badge 
+              variant="outline" 
+              className="px-1 py-0 h-5 text-[10px]"
+            >
+              {data.displayName}
+            </Badge>
+          ) : null}
+        </div>
+      );
+    }
+    return idOrName;
   };
 
   const getListStr = (val?: string | string[]): string => {
@@ -141,12 +191,12 @@ export default function ApproverInfoPage() {
                       </TableCell>
                       <TableCell>
                         {mapping.approver_name 
-                          ? getListStr(mapping.approver_name) 
+                          ? getApproverLabel(mapping.approver_name) 
                           : getApproverLabel(mapping.approver_id)}
                       </TableCell>
                       <TableCell>
                         {mapping.second_approver_name 
-                          ? getListStr(mapping.second_approver_name) 
+                          ? getApproverLabel(mapping.second_approver_name) 
                           : getApproverLabel(mapping.second_approver_id)}
                       </TableCell>
                     </TableRow>
@@ -196,12 +246,12 @@ export default function ApproverInfoPage() {
                       </TableCell>
                       <TableCell>
                         {mapping.approver_name 
-                          ? getListStr(mapping.approver_name) 
+                          ? getApproverLabel(mapping.approver_name) 
                           : getApproverLabel(mapping.approver_id)}
                       </TableCell>
                       <TableCell>
                         {mapping.second_approver_name 
-                          ? getListStr(mapping.second_approver_name) 
+                          ? getApproverLabel(mapping.second_approver_name) 
                           : getApproverLabel(mapping.second_approver_id)}
                       </TableCell>
                     </TableRow>
