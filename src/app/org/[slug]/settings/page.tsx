@@ -294,12 +294,29 @@ function UserDisplayNamesSection() {
   const [isLoadingOoo, setIsLoadingOoo] = useState(true);
 
   const fetchOooUsers = async () => {
+    if (!orgId) return;
     setIsLoadingOoo(true);
     try {
+      const { data: orgUsers, error: orgError } = await supabase
+        .from("organization_users")
+        .select("user_id")
+        .eq("org_id", orgId);
+        
+      if (orgError) throw orgError;
+      
+      if (!orgUsers || orgUsers.length === 0) {
+        setOooUsers([]);
+        return;
+      }
+      
+      const userIds = orgUsers.map(u => u.user_id);
+
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, display_name")
+        .select("id, full_name, email, display_name, user_id")
+        .in("user_id", userIds)
         .not("display_name", "is", null);
+        
       if (error) throw error;
       const filtered = (data || []).filter(u => u.display_name?.trim() !== "");
       setOooUsers(filtered);
@@ -312,7 +329,7 @@ function UserDisplayNamesSection() {
 
   useEffect(() => {
     fetchOooUsers();
-  }, []);
+  }, [orgId]);
 
   // Search effect
   useEffect(() => {
@@ -343,7 +360,7 @@ function UserDisplayNamesSection() {
           .from("profiles")
           .select("id, user_id, full_name, email, display_name")
           .in("user_id", userIds)
-          .limit(10);
+          // .limit(10);
           
         if (searchTerm.trim().length > 0) {
            query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
