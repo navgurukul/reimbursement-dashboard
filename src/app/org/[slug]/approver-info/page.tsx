@@ -145,10 +145,18 @@ export default function ApproverInfoPage() {
     return idOrName;
   };
 
-  const getListStr = (val?: string | string[]): string => {
-    if (!val) return "N/A";
-    if (Array.isArray(val)) return val.join(", ");
-    return val;
+  const getListChips = (val?: string | string[]): React.ReactNode => {
+    if (!val) return <span className="text-muted-foreground">N/A</span>;
+    const items = Array.isArray(val) ? val : [val];
+    return (
+      <div className="flex flex-wrap gap-1.5 py-1">
+        {items.map((item, i) => (
+          <Badge key={i} variant="secondary" className="font-normal bg-gray-200 border border-transparent hover:border-gray-400 rounded-md text-sm whitespace-nowrap">
+            {item}
+          </Badge>
+        ))}
+      </div>
+    );
   };
 
   if (!orgId) return null;
@@ -186,8 +194,8 @@ export default function ApproverInfoPage() {
                 ) : (
                   expenseTypeMapping.map((mapping, idx) => (
                     <TableRow key={idx}>
-                      <TableCell className="font-medium">
-                        {getListStr(mapping.expense_type)}
+                      <TableCell className="font-medium min-w-[200px] max-w-[400px]">
+                        {getListChips(mapping.expense_type)}
                       </TableCell>
                       <TableCell>
                         {mapping.approver_name 
@@ -238,11 +246,11 @@ export default function ApproverInfoPage() {
                 ) : (
                   locationMapping.map((mapping, idx) => (
                     <TableRow key={idx}>
-                      <TableCell className="font-medium">
-                        {getListStr(mapping.location)}
+                      <TableCell className="font-medium min-w-[150px] max-w-[300px]">
+                        {getListChips(mapping.location)}
                       </TableCell>
-                      <TableCell>
-                        {getListStr(mapping.expense_type)}
+                      <TableCell className="min-w-[200px] max-w-[400px]">
+                        {getListChips(mapping.expense_type)}
                       </TableCell>
                       <TableCell>
                         {mapping.approver_name 
