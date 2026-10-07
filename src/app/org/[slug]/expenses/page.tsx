@@ -271,7 +271,22 @@ export default function ExpensesPage() {
     [filters.amountMax, amountBounds]
   );
 
+  // Local input states so we can show bounds while allowing typing
+  const [amountMinInput, setAmountMinInput] = useState<string>(
+    filters.amountMin || ""
+  );
+  const [amountMaxInput, setAmountMaxInput] = useState<string>(
+    filters.amountMax || ""
+  );
 
+  useEffect(() => {
+    // keep inputs in sync when bounds or filters change
+    setAmountMinInput(filters.amountMin || "");
+  }, [filters.amountMin]);
+
+  useEffect(() => {
+    setAmountMaxInput(filters.amountMax || "");
+  }, [filters.amountMax]);
 
   // Determine tabs based on role
   const tabs =
@@ -525,7 +540,7 @@ export default function ExpensesPage() {
                 }
 
                 // Get approver name from our map
-                const approverName = expense.approver?.full_name || expense.approver_name || "—";
+                const approverName = expense.custom_fields?.approver_name || expense.approver?.full_name || "—";
                 // approverNamesMap[expense.id] || "Unknown Approver";
 
                 // Set approver info on the expense
@@ -1190,7 +1205,15 @@ export default function ExpensesPage() {
                             placeholder={String(amountBounds.min)}
                             value={filters.amountMin}
                             onChange={(e) => {
-                              setFilters((prev) => ({ ...prev, amountMin: e.target.value }));
+                              const v = e.target.value;
+                              setAmountMinInput(v);
+                              setFilters({ ...filters, amountMin: v });
+                            }}
+                            onBlur={() => {
+                              if (!amountMinInput || amountMinInput.trim() === "") {
+                                setAmountMinInput("");
+                                setFilters({ ...filters, amountMin: "" });
+                              }
                             }}
                           />
                         </div>
@@ -1201,7 +1224,15 @@ export default function ExpensesPage() {
                             placeholder={String(amountBounds.max)}
                             value={filters.amountMax}
                             onChange={(e) => {
-                              setFilters((prev) => ({ ...prev, amountMax: e.target.value }));
+                              const v = e.target.value;
+                              setAmountMaxInput(v);
+                              setFilters({ ...filters, amountMax: v });
+                            }}
+                            onBlur={() => {
+                              if (!amountMaxInput || amountMaxInput.trim() === "") {
+                                setAmountMaxInput("");
+                                setFilters({ ...filters, amountMax: "" });
+                              }
                             }}
                           />
                         </div>
@@ -1563,7 +1594,7 @@ export default function ExpensesPage() {
                                       "No receipt or voucher"
                                     )
                                   ) : c.key === "approver" ? (
-                                    exp.approver?.full_name || "—"
+                                    exp.custom_fields?.approver_name || exp.approver?.full_name || "—"
                                   ) : c.key === "category" ? (
                                     getExpenseValue(exp, "category")
                                   ) : c.key === "event_title" ? (

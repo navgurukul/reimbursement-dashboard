@@ -1834,26 +1834,26 @@ export default function PaymentProcessingOnly() {
                     {expense.ifsc}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
-                    <select
-                      className="border px-2 py-1 rounded bg-white text-sm"
-                      value={expense.payment_type}
-                      onChange={(e) => {
+                    <Select
+                      value={expense.payment_type || "NEFT"}
+                      onValueChange={(value) => {
                         const updated = processingExpenses.map((exp) =>
                           exp.id === expense.id
-                            ? { ...exp, payment_type: e.target.value }
+                            ? { ...exp, payment_type: value }
                             : exp
                         );
                         setProcessingExpenses(updated);
                       }}
                     >
-                      <option value="IFT">IFT - Within Bank Payment</option>
-                      <option value="NEFT">
-                        NEFT - Inter-Bank(NEFT) Payment
-                      </option>
-                      <option value="RTGS">
-                        RTGS - Inter-Bank(RTGS) Payment
-                      </option>
-                    </select>
+                      <SelectTrigger className="w-[280px] h-8 text-sm bg-white mx-auto">
+                        <SelectValue placeholder="Payment Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="IFT">IFT - Within Bank Payment</SelectItem>
+                        <SelectItem value="NEFT">NEFT - Inter-Bank(NEFT) Payment</SelectItem>
+                        <SelectItem value="RTGS">RTGS - Inter-Bank(RTGS) Payment</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
 
                   <TableCell className="px-4 py-3 text-center">
@@ -1944,24 +1944,30 @@ export default function PaymentProcessingOnly() {
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <div className="flex flex-col items-center gap-1">
-                      <select
-                        className="border px-2 py-1 rounded bg-white text-sm"
+                      <Select
                         value={
                           expense.tds_deduction_percentage
                             ? String(expense.tds_deduction_percentage)
-                            : ""
+                            : "none"
                         }
-                        onChange={(e) => handleTdsChange(expense.id, e.target.value)}
+                        onValueChange={(value) =>
+                          handleTdsChange(expense.id, value === "none" ? "" : value)
+                        }
                       >
-                        <option value="">Select %</option>
-                        {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
-                          (percent) => (
-                            <option key={percent} value={percent}>
-                              {percent}%
-                            </option>
-                          )
-                        )}
-                      </select>
+                        <SelectTrigger className="w-[110px] h-8 text-sm bg-white">
+                          <SelectValue placeholder="Select %" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Select %</SelectItem>
+                          {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
+                            (percent) => (
+                              <SelectItem key={percent} value={String(percent)}>
+                                {percent}%
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
                       <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
                         {expense.tds_deduction_percentage
                           ? (() => {
@@ -2103,11 +2109,10 @@ export default function PaymentProcessingOnly() {
                   </TableCell>
 
                   <TableCell className="px-4 py-3 text-center">
-                    <select
-                      className="border px-2 py-1 rounded bg-white text-sm cursor-pointer"
-                      value={paidByBank[expense.id] || ""}
-                      onChange={async (e) => {
-                        const selectedBank = e.target.value;
+                    <Select
+                      value={paidByBank[expense.id] || "none"}
+                      onValueChange={async (value) => {
+                        const selectedBank = value === "none" ? "" : value;
 
                         let newDebitAccount = expense.debit_account;
                         if (selectedBank === "NGIDFC Current") {
@@ -2152,11 +2157,16 @@ export default function PaymentProcessingOnly() {
                         }
                       }}
                     >
-                      <option value="">Select Bank</option>
-                      <option value="NGIDFC Current">NGIDFC Current</option>
-                      <option value="FCIDFC Current">FCIDFC</option>
-                      <option value="KOTAK">KOTAK</option>
-                    </select>
+                      <SelectTrigger className="w-[160px] h-8 text-sm bg-white mx-auto">
+                        <SelectValue placeholder="Select Bank" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select Bank</SelectItem>
+                        <SelectItem value="NGIDFC Current">NGIDFC Current</SelectItem>
+                        <SelectItem value="FCIDFC Current">FCIDFC Current</SelectItem>
+                        <SelectItem value="KOTAK">KOTAK</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
 
                   <TableCell className="px-4 py-3 text-center">

@@ -65,6 +65,7 @@ export default function ProfilePage() {
     full_name: string;
     email: string;
     avatar_url?: string;
+    display_name?: string;
   } | null>(null);
 
   const supabase = createClient(
@@ -82,7 +83,7 @@ export default function ProfilePage() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("full_name, email")
+          .select("full_name, email, display_name")
           .eq("user_id", user.id)
           .single();
 
@@ -293,7 +294,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Personal Information */}
-      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 flex flex-col md:flex-row gap-8 shadow-sm">
+      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 flex flex-col md:flex-row gap-8">
         <div className="flex flex-col items-center w-full md:w-[340px] bg-[#f9fafb] rounded-2xl border border-[#e5e7eb] p-8">
           <div className="w-[180px] h-[180px] rounded bg-white flex items-center justify-center mb-4 border border-[#e5e7eb] overflow-hidden">
             {formData.profile_photo_url ? (
@@ -348,7 +349,7 @@ export default function ProfilePage() {
           </label>
         </div>
 
-        <div className="flex-1 flex flex-col gap-8 justify-center">
+        <div className="flex-1 flex flex-col gap-3 justify-start">
           <div className="flex items-center gap-2 mb-2">
             {/* <User className="w-6 h-6 text-[#111827]" /> */}
             <span className="font-bold text-xl text-[#111827]">
@@ -356,7 +357,7 @@ export default function ProfilePage() {
             </span>
           </div>
 
-          <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-base font-semibold mb-2 text-[#111827]">
                 Full Name
@@ -399,6 +400,39 @@ export default function ProfilePage() {
             </div>
             <div>
               <label className="block text-base font-semibold mb-2 text-[#111827]">
+                Display Name
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2">
+                  <User className="w-5 h-5 text-slate-400" />
+                </span>
+                <input
+                  className="w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="Enter your display name"
+                  value={userProfile?.display_name || ""}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    if (/^[O]*$/.test(val)) {
+                      setUserProfile((prev) =>
+                        prev ? { ...prev, display_name: val } : null
+                      );
+                    } else {
+                      toast.warning("Only 'OOO' characters are allowed", { 
+                        id: "display-name-error",
+                        style: {
+                          backgroundColor: "#f9f6eaff", // amber-100
+                          borderColor: "#F59E0B",     // amber-500
+                          color: "#92400E"            // amber-900
+                        }
+                      });
+                    }
+                  }}
+                />
+              </div>
+              <p className="text-sm text-gray-500 mt-2">When on leave, please set your status to OOO (Out of Office)</p>
+            </div>
+            <div>
+              <label className="block text-base font-semibold mb-2 text-[#111827]">
                 Unique ID
               </label>
               <div className="relative">
@@ -418,11 +452,36 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+          
+          <div className="flex justify-end mt-2">
+            <Button
+              onClick={async () => {
+                if (!user?.id) return;
+                const { error } = await supabase
+                  .from("profiles")
+                  .update({ display_name: userProfile?.display_name || null })
+                  .eq("user_id", user.id);
+                if (error) {
+                  toast.error("Failed to update display name");
+                } else {
+                  toast.success("Display name updated successfully", {
+                    style: {
+                      backgroundColor: "#f3f8f6ff",
+                      borderColor: "#10B981",
+                      color: "#047857"
+                    }
+                  });
+                }
+              }}
+            >
+              Save
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Bank Information */}
-      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 shadow-sm">
+      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8">
         <div className="flex items-center gap-2 mb-6">
           {/* <Landmark className="w-6 h-6 text-[#111827]" /> */}
           <span className="font-bold text-xl text-[#111827]">
@@ -519,114 +578,112 @@ export default function ProfilePage() {
       </div>
 
       {/* Bank Document Preview */}
-      {bankDetails?.document_url && (
-        <div className="border-[#e5e7eb]">
-          <div className="mt-4 rounded-lg border border-gray-200 bg-white">
-            <div className="border-b px-4 py-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
-                  <div>
-                    <p className="text-base font-semibold">
-                      Bank Document
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Opens by default for quick review
-                    </p>
-                  </div>
+      <div className="border-[#e5e7eb]">
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white">
+          <div className="border-b px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-base font-semibold">
+                    Bank Document
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Opens by default for quick review
+                  </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <TooltipProvider delayDuration={150}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          className="cursor-pointer"
-                          onClick={() => window.open(bankDetails.document_url, "_blank")}
-                          aria-label="Open document in new tab"
-                          disabled={!isDocumentValid}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p>Open in new tab</p>
-                      </TooltipContent>
-                    </Tooltip>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="cursor-pointer"
+                        onClick={() => bankDetails?.document_url && window.open(bankDetails.document_url, "_blank")}
+                        aria-label="Open document in new tab"
+                        disabled={!isDocumentValid}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Open in new tab</p>
+                    </TooltipContent>
+                  </Tooltip>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          className="cursor-pointer"
-                          onClick={() => setIsDocumentPaneOpen((prev) => !prev)}
-                          aria-label={
-                            isDocumentPaneOpen
-                              ? "Hide document preview"
-                              : "Show document preview"
-                          }
-                        >
-                          {isDocumentPaneOpen ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p>
-                          {isDocumentPaneOpen
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="cursor-pointer"
+                        onClick={() => setIsDocumentPaneOpen((prev) => !prev)}
+                        aria-label={
+                          isDocumentPaneOpen
                             ? "Hide document preview"
-                            : "Show document preview"}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
+                            : "Show document preview"
+                        }
+                      >
+                        {isDocumentPaneOpen ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>
+                        {isDocumentPaneOpen
+                          ? "Hide document preview"
+                          : "Show document preview"}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
-
-            {isDocumentPaneOpen && (
-              <div className="p-4">
-                {isDocumentValid === null ? (
-                  <div className="flex flex-col items-center justify-center h-[200px] text-gray-500">
-                    <Spinner size="md" className="mb-2" />
-                    <p className="mt-2 text-sm">Checking document...</p>
-                  </div>
-                ) : isDocumentValid ? (
-                  bankDetails.document_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
-                    <div
-                      className="overflow-y-auto rounded-md border bg-muted"
-                      style={{ height: "auto" }}
-                    >
-                      <img
-                        src={bankDetails.document_url}
-                        alt="Bank Document"
-                        className="w-full object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-[68vh] min-h-[360px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
-                      <iframe
-                        src={`${bankDetails.document_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
-                        className="h-full w-full border-none"
-                        title="Bank Document"
-                      />
-                    </div>
-                  )
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-[200px] text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                    <FileText className="w-10 h-10 mb-2 text-gray-400" />
-                    <p className="font-medium text-gray-600">Bank Document not available</p>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
+
+          {isDocumentPaneOpen && (
+            <div className="p-4">
+              {isDocumentValid === null ? (
+                <div className="flex flex-col items-center justify-center h-[200px] text-gray-500">
+                  <Spinner size="md" className="mb-2" />
+                  <p className="mt-2 text-sm">Checking document...</p>
+                </div>
+              ) : isDocumentValid && bankDetails?.document_url ? (
+                bankDetails.document_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
+                  <div
+                    className="overflow-y-auto rounded-md border bg-muted"
+                    style={{ height: "auto" }}
+                  >
+                    <img
+                      src={bankDetails.document_url}
+                      alt="Bank Document"
+                      className="w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-[68vh] min-h-[360px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
+                    <iframe
+                      src={`${bankDetails.document_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
+                      className="h-full w-full border-none"
+                      title="Bank Document"
+                    />
+                  </div>
+                )
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[200px] text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                  <FileText className="w-10 h-10 mb-2 text-gray-400" />
+                  <p className="font-medium text-gray-600">Bank Document not available</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Signature */}
       <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">

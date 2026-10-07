@@ -999,66 +999,72 @@ export default function FinanceReview() {
                     className={`hover:bg-gray-50 transition-colors ${isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""
                       }`}
                   >
-                    <TableCell className="px-4 py-3 text-center">
-                      {pagination.getItemNumber(index)}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-center whitespace-nowrap">
-                      {formatDateTime(expense.created_at)}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-center">
-                      <span className="font-mono">
-                        {expense.unique_id || "N/A"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-center">
-                      {expense.expense_type}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-center">
-                      {expense.event_title || "N/A"}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-center">
-                      {expense.location || "N/A"}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-center font-medium text-green-700">
-                      {formatCurrency(expense.amount)}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <select
-                          className="border px-2 py-1 rounded bg-white text-sm"
-                          value={
-                            expense.tds_deduction_percentage
-                              ? String(expense.tds_deduction_percentage)
-                              : ""
-                          }
-                          onChange={(e) => handleTdsChange(expense.id, e.target.value)}
-                        >
-                          <option value="">Select %</option>
+                  <TableCell className="px-4 py-3 text-center">
+                    {pagination.getItemNumber(index)}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center whitespace-nowrap">
+                    {formatDateTime(expense.created_at)}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <span className="font-mono">
+                      {expense.unique_id || "N/A"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.expense_type}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.event_title || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    {expense.location || "N/A"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center font-medium text-green-700">
+                    {formatCurrency(expense.amount)}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <Select
+                        value={
+                          expense.tds_deduction_percentage
+                            ? String(expense.tds_deduction_percentage)
+                            : "none"
+                        }
+                        onValueChange={(value) =>
+                          handleTdsChange(expense.id, value === "none" ? "" : value)
+                        }
+                      >
+                        <SelectTrigger className="w-[110px] h-8 text-sm bg-white">
+                          <SelectValue placeholder="Select %" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Select %</SelectItem>
                           {Array.from({ length: 50 }, (_, idx) => idx + 1).map(
                             (percent) => (
-                              <option key={percent} value={percent}>
+                              <SelectItem key={percent} value={String(percent)}>
                                 {percent}%
-                              </option>
+                              </SelectItem>
                             )
                           )}
-                        </select>
-                        <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
-                          {expense.tds_deduction_percentage
-                            ? (() => {
-                              const exactAmount = expense.tds_deduction_amount ??
-                                calculateTdsAmount(
-                                  expense.approved_amount ?? expense.amount ?? 0,
-                                  expense.tds_deduction_percentage
-                                ) ?? 0;
-                              const roundAmount = expense.tds_round_off_amount;
-                              return roundAmount != null 
-                                ? `TDS amount: ${formatCurrency(exactAmount)} | Round off: ₹${roundAmount}`
-                                : `TDS amount: ${formatCurrency(exactAmount)}`;
-                            })()
-                            : "—"}
-                        </span>
-                      </div>
-                    </TableCell>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
+                        {expense.tds_deduction_percentage
+                          ? (() => {
+                            const exactAmount = expense.tds_deduction_amount ??
+                              calculateTdsAmount(
+                                expense.approved_amount ?? expense.amount ?? 0,
+                                expense.tds_deduction_percentage
+                              ) ?? 0;
+                            const roundAmount = expense.tds_round_off_amount;
+                            return roundAmount != null 
+                              ? `TDS amount: ${formatCurrency(exactAmount)} | Round off: ₹${roundAmount}`
+                              : `TDS amount: ${formatCurrency(exactAmount)}`;
+                          })()
+                          : "—"}
+                      </span>
+                    </div>
+                  </TableCell>
                     <TableCell className="px-4 py-3 text-center text-sm">
                       {formatCurrency(
                         Math.round((expense.amount ?? 0) -
