@@ -1,6 +1,6 @@
 import supabase from "./supabase";
 import type { DatabaseError } from "./db";
-import { fetchAllPagedRows } from "./paged-fetch";
+import { fetchAllPagedRows, fetchAllPagedRowsParallel } from "./paged-fetch";
 
 /**
  * Server-side paging for expense lists.
@@ -151,6 +151,30 @@ export async function fetchVoucherMap(expenseIds: string[]) {
   if (error) console.error("Error fetching vouchers:", error);
   const map: Record<string, any> = {};
   data.forEach((v) => {
+    map[v.expense_id] = v;
+  });
+  return map;
+}
+
+/**
+ * Every voucher in the org, keyed by expense_id. For pages that show thousands
+ * of expenses this is far cheaper than looking vouchers up by expense id: the
+ * org has ~2k vouchers (2–3 requests) versus ~19k ids (100+ requests).
+ * Every voucher row carries the same org_id as its expense.
+ */
+export async function fetchOrgVoucherMap(orgId: string) {
+  const { data, error } = await fetchAllPagedRowsParallel<any>((from, to) =>
+    supabase
+      .from("vouchers")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
+  if (error) console.error("Error fetching vouchers:", error);
+  const map: Record<string, any> = {};
+  (data ?? []).forEach((v) => {
     map[v.expense_id] = v;
   });
   return map;

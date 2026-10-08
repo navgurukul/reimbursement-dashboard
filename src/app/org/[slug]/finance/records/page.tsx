@@ -4,8 +4,8 @@ import React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
-import { fetchAllPagedRows } from "@/lib/paged-fetch";
-import { fetchVoucherMap } from "@/lib/expense-list";
+import { fetchAllPagedRowsParallel } from "@/lib/paged-fetch";
+import { fetchOrgVoucherMap } from "@/lib/expense-list";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import {
@@ -47,7 +47,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Pagination, usePagination } from "@/components/pagination";
+import { Pagination } from "@/components/pagination";
+import {
+  comparePaymentRecords,
+  enrichPaymentRecordsPage,
+  fetchBankDetailsIndex,
+  fetchPaymentRecordsPage,
+  type BankDetailsIndex,
+} from "@/lib/payment-records";
 import { isExportEnabled, recordsPerPage } from "@/lib/features";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -133,9 +140,24 @@ const bankRefNumbers = (rows: any[], bank: string) => {
 
 export default function PaymentRecords() {
   const RECORDS_PER_PAGE = recordsPerPage;
-  const [records, setRecords] = useState<any[]>([]);
+  // Full mode: every paid record (~19k). Loaded only when filters, exports or
+  // edit need it — see ensureFullDataset().
+  const [records, setRecordsState] = useState<any[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fullStatus, setFullStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const fullMode = fullStatus === "ready";
+  // Fast mode (default): only the rows on screen, straight from the database.
+  const [pageRows, setPageRows] = useState<any[]>([]);
+  const [pageTotal, setPageTotal] = useState(0);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageReloadKey, setPageReloadKey] = useState(0);
+  // Row updates (edit, UTR, bank, advance, removal) are written as updater
+  // functions; apply them to the fast-mode rows too so the screen stays in
+  // sync whichever mode is showing.
+  const setRecords: React.Dispatch<React.SetStateAction<any[]>> = (value) => {
+    setRecordsState(value);
+    if (typeof value === "function") setPageRows(value);
+  };
   const { slug } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -184,6 +206,33 @@ export default function PaymentRecords() {
     securityDeposit: "All Security Deposits",
     paidByBank: "All Banks",
   });
+
+  // Is any filter actually narrowing the list? (Fast mode can't apply
+  // filters, so an active filter switches the table to full mode.)
+  const filtersActive =
+    filters.expenseType !== "All Expense Type" ||
+    filters.eventName !== "All Events" ||
+    filters.createdBy !== "All Creators" ||
+    filters.email !== "All Emails" ||
+    filters.uniqueId !== "All Unique IDs" ||
+    filters.location !== "All Locations" ||
+    filters.bills === "Receipt" ||
+    filters.bills === "Voucher" ||
+    filters.paidByBank !== "All Banks" ||
+    (Boolean(filters.utr) && filters.utr !== "All UTRs") ||
+    (filters.dateMode !== "All Dates" &&
+      !(filters.dateMode === "Single Date" && !filters.startDate)) ||
+    (filters.paidDateMode !== "All Dates" &&
+      !(filters.paidDateMode === "Single Date" && !filters.paidStartDate)) ||
+    filters.minAmount !== "" ||
+    filters.maxAmount !== "" ||
+    filters.minActualAmount !== "" ||
+    filters.maxActualAmount !== "" ||
+    filters.tdsDeduction !== "All TDS Deductions" ||
+    filters.securityDeposit !== "All Security Deposits";
+
+  // Table loading state for whichever mode is on screen.
+  const loading = fullMode ? false : filtersActive ? fullStatus !== "error" : pageLoading;
 
   const isMounted = useRef(false);
 
@@ -262,15 +311,38 @@ export default function PaymentRecords() {
     router.replace(`?${params.toString()}`, { scroll: false });
   };
 
-  // Use pagination hook
-  const pagination = usePagination(filteredRecords, RECORDS_PER_PAGE);
+  // Pagination over whichever mode is on screen. Same shape as the old
+  // usePagination() result so the rest of the page is unchanged.
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalItems = fullMode ? filteredRecords.length : filtersActive ? 0 : pageTotal;
+  const paginatedData = useMemo(
+    () =>
+      fullMode
+        ? filteredRecords.slice(
+          (currentPage - 1) * RECORDS_PER_PAGE,
+          currentPage * RECORDS_PER_PAGE
+        )
+        : filtersActive
+          ? []
+          : pageRows,
+    [fullMode, filtersActive, filteredRecords, pageRows, currentPage, RECORDS_PER_PAGE]
+  );
+  const pagination = {
+    currentPage,
+    setCurrentPage,
+    totalPages: Math.max(1, Math.ceil(totalItems / RECORDS_PER_PAGE)),
+    totalItems,
+    paginatedData,
+    getItemNumber: (index: number) => (currentPage - 1) * RECORDS_PER_PAGE + index + 1,
+    resetPage: () => setCurrentPage(1),
+  };
 
-  // Reset page when filters change
+  // Reset page when filters or the bank tab change
   useEffect(() => {
     if (!isRestoringViewedExpenseRef.current) {
       pagination.resetPage();
     }
-  }, [filters]);
+  }, [filters, activeTab]);
 
   // Handle expID from URL parameter
   useEffect(() => {
@@ -301,14 +373,15 @@ export default function PaymentRecords() {
   useEffect(() => {
     const hasRequestedPage = Number(searchParams.get("page")) > 0;
 
-    if (highlightedExpenseId && filteredRecords.length > 0 && !hasRequestedPage) {
+    // Only possible with the full list; fast mode returns via ?page=.
+    if (fullMode && highlightedExpenseId && filteredRecords.length > 0 && !hasRequestedPage) {
       const recordIndex = filteredRecords.findIndex(r => r.id === highlightedExpenseId);
       if (recordIndex !== -1) {
         const pageNumber = Math.floor(recordIndex / RECORDS_PER_PAGE) + 1;
         pagination.setCurrentPage(pageNumber);
       }
     }
-  }, [highlightedExpenseId, filteredRecords, searchParams, RECORDS_PER_PAGE, pagination.setCurrentPage]);
+  }, [fullMode, highlightedExpenseId, filteredRecords, searchParams, RECORDS_PER_PAGE, pagination.setCurrentPage]);
 
   // Scroll to highlighted row after the target page renders
   useEffect(() => {
@@ -990,10 +1063,32 @@ export default function PaymentRecords() {
     return Array.from(uniqueDates).sort((a, b) => a.localeCompare(b));
   }, [filteredRecords, exportBankType, records, filters]);
 
-  useEffect(() => {
-    const fetchRecords = async () => {
+  // Full mode loader: every paid record, enriched and sorted, exactly as the
+  // page used to load on open. Now only runs when filters, exports or edit
+  // need it, and only once per visit.
+  const fullLoadPromiseRef = useRef<Promise<boolean> | null>(null);
+  const ensureFullDataset = (): Promise<boolean> => {
+    if (!fullLoadPromiseRef.current) {
+      fullLoadPromiseRef.current = loadFullDataset().then((ok) => {
+        if (!ok) fullLoadPromiseRef.current = null; // allow a retry
+        return ok;
+      });
+    }
+    return fullLoadPromiseRef.current;
+  };
+
+  /** Same as ensureFullDataset, with a toast while the user waits. */
+  const ensureFullDatasetWithToast = async (): Promise<boolean> => {
+    if (fullMode) return true;
+    const toastId = toast.loading("Loading all records…");
+    const ok = await ensureFullDataset();
+    toast.dismiss(toastId);
+    return ok;
+  };
+
+  const loadFullDataset = async (): Promise<boolean> => {
       try {
-        setLoading(true);
+        setFullStatus("loading");
 
         // Get organization ID from slug
         const { data: orgData, error: orgError } = await organizations.getBySlug(
@@ -1012,7 +1107,8 @@ export default function PaymentRecords() {
         // NG/FC/KOTAK tabs empty. `id` keeps page boundaries stable, and
         // fetchAllPagedRows retries a page whose request drops, so one bad
         // connection out of ~19 no longer fails the whole load.
-        const { data, error } = await fetchAllPagedRows<any>((from, to) =>
+        // Pages are requested several at a time rather than one after another.
+        const { data, error } = await fetchAllPagedRowsParallel<any>((from, to) =>
           supabase
             .from("expense_new")
             .select("*")
@@ -1034,9 +1130,10 @@ export default function PaymentRecords() {
         try {
           const expenseIds = rows.map((r: any) => r.id).filter(Boolean);
           if (expenseIds.length > 0) {
-            // Chunked: one `.in()` with thousands of ids makes a URL too long
-            // for the API gateway, and the request fails.
-            const voucherMap = await fetchVoucherMap(expenseIds);
+            // All of the org's vouchers (~2k rows, 2-3 requests). Looking them
+            // up by ~19k expense ids would mean 100+ requests, and a single
+            // `.in()` that long exceeds the gateway's URL limit and fails.
+            const voucherMap = await fetchOrgVoucherMap(orgId);
 
             // attach voucher info to rows
             rows.forEach((r: any) => {
@@ -1076,39 +1173,9 @@ export default function PaymentRecords() {
           }
         }
 
+        // Shared with fast mode so both show the same row at the same position.
         const sortByPaidApprovalTime = (list: any[]) =>
-          [...list].sort((a, b) => {
-            const aTime = a.paid_approval_time
-              ? new Date(a.paid_approval_time).getTime()
-              : null;
-            const bTime = b.paid_approval_time
-              ? new Date(b.paid_approval_time).getTime()
-              : null;
-
-            // nulls first (show items missing paid_approval_time at the top)
-            if (aTime === null && bTime === null) {
-              // stable fallback to avoid random shuffles
-              const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
-              const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
-              if (aCreated !== bCreated) return aCreated - bCreated;
-              return String(a.id || "").localeCompare(String(b.id || ""));
-            }
-            // nulls first => missing paid_approval_time appears at top
-            if (aTime === null) return -1;
-            if (bTime === null) return 1;
-            if (aTime !== bTime) return aTime - bTime; // ascending
-
-            // Same payment batch: follow the persisted PD Row No. so S.No. reads in order
-            if (a.pd_row_no != null && b.pd_row_no != null && a.pd_row_no !== b.pd_row_no) {
-              return a.pd_row_no - b.pd_row_no;
-            }
-
-            // stable tie-breaker when paid timestamps match
-            const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
-            if (aCreated !== bCreated) return aCreated - bCreated;
-            return String(a.id || "").localeCompare(String(b.id || ""));
-          });
+          [...list].sort(comparePaymentRecords);
 
         const withTitles = rows.map((r: any) => ({
           ...r,
@@ -1172,6 +1239,8 @@ export default function PaymentRecords() {
           setFilteredRecords(sortedWithSerial);
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
+          setFullStatus("ready");
+          return true;
         } catch (bankErr) {
           // If bank details fetch fails, fall back to existing titles and default Unique ID
           const fallback = sortByPaidApprovalTime(
@@ -1185,16 +1254,84 @@ export default function PaymentRecords() {
           setFilteredRecords(fallbackWithSerial);
           setEventTitleLookup(eventTitleMap);
           setEventOptions(eventsDataList);
+          setFullStatus("ready");
+          return true;
         }
       } catch (err: any) {
         toast.error("Failed to load records", { description: err.message });
-      } finally {
-        setLoading(false);
+        setFullStatus("error");
+        return false;
       }
-    };
+  };
 
-    fetchRecords();
-  }, []);
+  // Filters need the full list: load it as soon as the panel opens or a
+  // (restored) filter is active.
+  useEffect(() => {
+    if (filterOpen || filtersActive) ensureFullDataset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterOpen, filtersActive]);
+
+  // ---- Fast mode: fetch just the current page from the database ----
+  const [orgId, setOrgId] = useState<string | null>(null);
+  useEffect(() => {
+    organizations.getBySlug(slug as string).then(({ data, error }) => {
+      if (error || !data) {
+        toast.error("Failed to load records", { description: "Organization not found" });
+        setPageLoading(false);
+        return;
+      }
+      setOrgId(data.id);
+    });
+  }, [slug]);
+
+  const bankIndexPromiseRef = useRef<Promise<BankDetailsIndex | null> | null>(null);
+  const pageRequestSeq = useRef(0);
+  useEffect(() => {
+    if (fullMode || filtersActive || !orgId) return;
+    const seq = ++pageRequestSeq.current;
+    setPageLoading(true);
+
+    (async () => {
+      if (!bankIndexPromiseRef.current) {
+        bankIndexPromiseRef.current = fetchBankDetailsIndex();
+      }
+      const bank = activeTab === "all" ? null : BANK_STRING_MAP[activeTab];
+      const { rows, total, error } = await fetchPaymentRecordsPage({
+        orgId,
+        bank,
+        page: currentPage,
+        pageSize: RECORDS_PER_PAGE,
+      });
+      if (seq !== pageRequestSeq.current) return;
+      if (error) {
+        toast.error("Failed to load records", { description: error.message });
+        setPageRows([]);
+        setPageTotal(0);
+        setPageLoading(false);
+        return;
+      }
+
+      const bankIndex = await bankIndexPromiseRef.current;
+      const enriched = await enrichPaymentRecordsPage(rows, bankIndex);
+      if (seq !== pageRequestSeq.current) return;
+
+      // S.No. is the persisted PD Row No. (same as full mode).
+      setPageRows(
+        enriched.map((r: any) => ({
+          ...r,
+          serialNumber: hasPersistedSequenceNumbers(r) ? r.pd_row_no ?? null : null,
+        }))
+      );
+      setPageTotal(total);
+      setPageLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, activeTab, currentPage, pageReloadKey, fullMode, filtersActive, RECORDS_PER_PAGE]);
+
+  /** After a row leaves the list in fast mode, re-read the page and total. */
+  const reloadPageIfFastMode = () => {
+    if (!fullMode) setPageReloadKey((k) => k + 1);
+  };
 
   // Derive options from fetched records
   const expenseTypes = Array.from(
@@ -1229,7 +1366,11 @@ export default function PaymentRecords() {
   const displaySerialNumber = (record: any): number | string =>
     activeTab === "all"
       ? (record.serialNumber ?? "—")
-      : (activeTabRecordIndices.get(record.id) ?? "—");
+      : fullMode
+        ? (activeTabRecordIndices.get(record.id) ?? "—")
+        // Fast mode has no full list to count positions in; the persisted
+        // REF No. is what bankRefNumbers() returns for these rows anyway.
+        : ((hasPersistedSequenceNumbers(record) ? record.bank_ref_no : null) ?? "—");
   const dateOfExpenseOptions = useMemo(() => {
     const uniqueDates = new Set<string>();
     activeTabRecords.forEach((r: any) => {
@@ -1412,15 +1553,11 @@ export default function PaymentRecords() {
   // Auto-apply filters when filter values change or when records update
   useEffect(() => {
     // only apply when records are loaded
-    if (!loading) applyFilters();
-  }, [filters, records, activeTab]);
+    if (fullMode) applyFilters();
+  }, [filters, records, activeTab, fullMode]);
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    if (!isRestoringViewedExpenseRef.current) {
-      pagination.resetPage();
-    }
-  }, [filteredRecords]);
+  // (Page reset happens on filter / tab change above — not on every data
+  // update, which used to jump back to page 1 after e.g. a UTR edit.)
 
   const clearFilters = () => {
     setFilters((prev) => ({
@@ -1480,6 +1617,7 @@ export default function PaymentRecords() {
 
       setRecords((prev) => prev.filter((r) => r.id !== id));
       setFilteredRecords((prev) => prev.filter((r: any) => r.id !== id));
+      reloadPageIfFastMode();
       toast.success("Sent back to Payment Processing");
       setSendBackModal({ open: false, id: null });
     } catch (err: any) {
@@ -1496,7 +1634,7 @@ export default function PaymentRecords() {
       setMarkAdvanceLoading(true);
 
       // Get the current record
-      const record = records.find((r) => r.id === id);
+      const record = [...pageRows, ...records].find((r) => r.id === id);
       if (!record) {
         toast.error("Record not found");
         return;
@@ -1542,7 +1680,9 @@ export default function PaymentRecords() {
     }
   };
 
-  const openEditModal = (record: any) => {
+  const openEditModal = async (record: any) => {
+    // The event dropdown and title lookup come from the full list.
+    if (!(await ensureFullDatasetWithToast())) return;
     setEditForm({
       expense_type: record.expense_type || "",
       event_id: record.event_id || "",
@@ -1657,6 +1797,8 @@ export default function PaymentRecords() {
           setRecords((prev) => applyRef(prev));
           setFilteredRecords((prev) => applyRef(prev));
         }
+        // The row may have left the current bank tab.
+        reloadPageIfFastMode();
         const newRefNo = saved && newVal ? saved.bank_ref_no : null;
         toast.success(
           `S.No. ${sNo}: Bank updated from ${oldVal || "N/A"} to ${newVal || "N/A"}${newRefNo ? ` (REF No. ${newRefNo})` : ""}`,
@@ -2361,7 +2503,9 @@ export default function PaymentRecords() {
           {isExportEnabled && (
             <>
               <Button
-                onClick={() => {
+                onClick={async () => {
+                  // Exports work on the full list; load it first if needed.
+                  if (!(await ensureFullDatasetWithToast())) return;
                   setExportRangeLabel("");
                   setExportLocationFilter("All Locations");
 
@@ -2379,7 +2523,8 @@ export default function PaymentRecords() {
                 Export Data
               </Button>
               <Button
-                onClick={() => {
+                onClick={async () => {
+                  if (!(await ensureFullDatasetWithToast())) return;
                   setQuickExportMode("weekly");
                   setQuickExportLocation("All Locations");
                   setQuickExportDate("");
@@ -2399,6 +2544,20 @@ export default function PaymentRecords() {
           </Button>
         </div>
       </div>
+
+      {fullStatus === "loading" && (
+        <p className="text-xs text-gray-500">
+          Loading all records for filters and exports…
+        </p>
+      )}
+      {fullStatus === "error" && (filterOpen || filtersActive) && (
+        <p className="text-xs text-red-600">
+          Could not load all records for filtering.{" "}
+          <button className="underline cursor-pointer" onClick={() => ensureFullDataset()}>
+            Try again
+          </button>
+        </p>
+      )}
 
       {/* Filter panel */}
       {filterOpen && (
@@ -3027,7 +3186,7 @@ export default function PaymentRecords() {
           <TableBody>
             {loading ? (
               <TableSkeleton colSpan={20} rows={5} />
-            ) : filteredRecords.length === 0 ? (
+            ) : pagination.totalItems === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={20}
@@ -3171,12 +3330,12 @@ export default function PaymentRecords() {
                           className="border px-2 py-1 rounded text-sm text-center w-full"
                           value={record.utr || ""}
                           onChange={(e) => {
-                            const updated = records.map((r) =>
-                              r.id === record.id
-                                ? { ...r, utr: e.target.value }
-                                : r
+                            const value = e.target.value;
+                            setRecords((prev) =>
+                              prev.map((r) =>
+                                r.id === record.id ? { ...r, utr: value } : r
+                              )
                             );
-                            setRecords(updated);
                             // keep filtered view in sync
                             setFilteredRecords((prev) =>
                               prev.map((r: any) =>
@@ -3466,7 +3625,7 @@ export default function PaymentRecords() {
           </TableBody>
         </Table>
       </div>
-      {filteredRecords.length > 0 && (
+      {pagination.totalItems > 0 && (
         <Pagination
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
@@ -3835,6 +3994,7 @@ export default function PaymentRecords() {
                   setFilteredRecords((prev) =>
                     prev.filter((r: any) => r.id !== id)
                   );
+                  reloadPageIfFastMode();
                   toast.success("Record removed from Payment Records");
                 } catch (err: any) {
                   toast.error("Failed to remove record", {

@@ -95,3 +95,50 @@ export async function fetchAllPagedRows<T>(
     if (page.length < EXPENSE_PAGE_SIZE) return { data: all, error: null };
   }
 }
+
+/**
+ * Same result as `fetchAllPagedRows`, but requests several pages at once.
+ *
+ * The sequential version waits for page N before asking for page N+1, so a
+ * 19-page read costs 19 round trips back to back. Here pages are requested in
+ * waves of `concurrency`; the read stops at the first short page. Each page
+ * keeps the same retry-with-backoff behaviour, and the rows come back in the
+ * same order as the sequential version.
+ */
+export async function fetchAllPagedRowsParallel<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  concurrency = 5
+): Promise<
+  { data: T[]; error: null } | { data: null; error: DatabaseError }
+> {
+  const fetchPage = async (from: number) => {
+    let pageError: unknown = null;
+    for (let attempt = 1; attempt <= PAGE_MAX_ATTEMPTS; attempt++) {
+      let result: { data: T[] | null; error: unknown };
+      try {
+        result = await build(from, from + EXPENSE_PAGE_SIZE - 1);
+      } catch (thrown) {
+        result = { data: null, error: thrown };
+      }
+      pageError = result.error ?? null;
+      if (!pageError) return { page: result.data ?? [], error: null };
+      if (attempt === PAGE_MAX_ATTEMPTS || !isTransientPageError(pageError)) break;
+      await delay(PAGE_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
+    }
+    return { page: [] as T[], error: pageError };
+  };
+
+  const all: T[] = [];
+  for (let wave = 0; ; wave++) {
+    const starts = Array.from(
+      { length: concurrency },
+      (_, i) => (wave * concurrency + i) * EXPENSE_PAGE_SIZE
+    );
+    const results = await Promise.all(starts.map(fetchPage));
+    for (const { page, error } of results) {
+      if (error) return { data: null, error: error as DatabaseError };
+      all.push(...page);
+      if (page.length < EXPENSE_PAGE_SIZE) return { data: all, error: null };
+    }
+  }
+}

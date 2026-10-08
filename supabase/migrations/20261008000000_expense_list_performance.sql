@@ -37,8 +37,10 @@ create index if not exists idx_expense_new_org_status_created
   on public.expense_new (org_id, status, created_at desc);
 
 -- Records / Advance Payment (paid expenses, ordered by paid time).
+-- Column order and NULLS FIRST match the pages' ORDER BY exactly, so Postgres
+-- can read rows already sorted instead of sorting ~19k rows on every request.
 create index if not exists idx_expense_new_org_payment_paid
-  on public.expense_new (org_id, payment_status, paid_approval_time, created_at, id);
+  on public.expense_new (org_id, payment_status, paid_approval_time asc nulls first, created_at, id);
 
 -- Voucher lookup by expense.
 create index if not exists idx_vouchers_expense_id
