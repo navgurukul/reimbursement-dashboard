@@ -585,8 +585,15 @@ export default function PaymentProcessingOnly() {
       try {
         setLoading(true);
 
+        // Only finance-approved, not-yet-paid expenses are shown here, so ask
+        // the database for just those instead of downloading the whole org.
+        // The client-side filter below stays as a second check.
         const { data: expenseData, error: expenseError } =
-          await expenses.getByOrg(orgId);
+          await expenses.getByOrg(orgId, (q) =>
+            q
+              .eq("status", "finance_approved")
+              .or("payment_status.is.null,payment_status.eq.pending")
+          );
         if (expenseError) throw expenseError;
 
         let filteredExpenses = (expenseData || [])

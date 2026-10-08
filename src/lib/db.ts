@@ -1528,12 +1528,18 @@ export const expenses = {
   /**
    * Get all expenses for an organization (admin only)
    */
-  getByOrg: async (orgId: string) => {
+  getByOrg: async (
+    orgId: string,
+    // Optional extra WHERE clauses (e.g. `q => q.eq("status", "approved")`).
+    // Queue pages pass one so the database returns only the rows they show
+    // instead of the browser downloading the whole org and filtering it.
+    applyFilter?: (query: any) => any
+  ) => {
     // Get expenses with creator. Paged: a single response is capped at 10,000
     // rows server-side, which silently truncated this list once the legacy
     // import landed. `id` is a tie-breaker so page boundaries stay stable.
-    const { data: expenses, error } = await fetchAllPagedRows<any>((from, to) =>
-      supabase
+    const { data: expenses, error } = await fetchAllPagedRows<any>((from, to) => {
+      let query: any = supabase
         .from("expense_new")
         .select(
           `
@@ -1544,11 +1550,13 @@ export const expenses = {
       )
     `
         )
-        .eq("org_id", orgId)
+        .eq("org_id", orgId);
+      if (applyFilter) query = applyFilter(query);
+      return query
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
-        .range(from, to)
-    );
+        .range(from, to);
+    });
 
     if (error) {
       return { data: null, error: error as DatabaseError };
@@ -2856,4 +2864,4 @@ export const authUsers = {
       };
     }
   },
-};
+};

@@ -5,6 +5,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
 import { fetchAllPagedRows } from "@/lib/paged-fetch";
+import { fetchVoucherMap } from "@/lib/expense-list";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import {
@@ -595,6 +596,9 @@ export default function AdvancePaymentRecords() {
             .select("*")
             .eq("payment_status", "paid")
             .eq("org_id", orgId)
+            // Only rows marked as advance are shown, so filter in the
+            // database rather than downloading every paid expense.
+            .contains("custom_fields", { marked_as_advance: true })
             .order("paid_approval_time", { ascending: true, nullsFirst: true })
             .order("created_at", { ascending: true })
             .order("id", { ascending: true })
@@ -616,17 +620,9 @@ export default function AdvancePaymentRecords() {
         try {
           const expenseIds = advanceRows.map((r: any) => r.id).filter(Boolean);
           if (expenseIds.length > 0) {
-            const { data: allVouchers, error: voucherError } = await supabase
-              .from("vouchers")
-              .select("*")
-              .in("expense_id", expenseIds);
-
-            const voucherMap: Record<string, any> = {};
-            if (!voucherError && allVouchers) {
-              allVouchers.forEach((v: any) => {
-                voucherMap[v.expense_id] = v;
-              });
-            }
+            // Chunked: one `.in()` with thousands of ids makes a URL too long
+            // for the API gateway, and the request fails.
+            const voucherMap = await fetchVoucherMap(expenseIds);
 
             // attach voucher info to rows
             advanceRows.forEach((r: any) => {

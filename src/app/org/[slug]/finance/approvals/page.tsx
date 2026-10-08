@@ -327,7 +327,11 @@ export default function FinanceReview() {
 
       try {
         setLoading(true);
-        const { data, error } = await expenses.getByOrg(orgId);
+        // Only manager-approved expenses are shown here, so ask the database
+        // for just those instead of downloading the whole org (~20k rows).
+        const { data, error } = await expenses.getByOrg(orgId, (q) =>
+          q.eq("status", "approved")
+        );
         if (error) throw error;
 
         let managerApprovedExpenses = (data || [])

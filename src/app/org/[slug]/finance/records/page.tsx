@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import supabase from "@/lib/supabase";
 import { expenses, organizations } from "@/lib/db";
 import { fetchAllPagedRows } from "@/lib/paged-fetch";
+import { fetchVoucherMap } from "@/lib/expense-list";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import {
@@ -1033,17 +1034,9 @@ export default function PaymentRecords() {
         try {
           const expenseIds = rows.map((r: any) => r.id).filter(Boolean);
           if (expenseIds.length > 0) {
-            const { data: allVouchers, error: voucherError } = await supabase
-              .from("vouchers")
-              .select("*")
-              .in("expense_id", expenseIds);
-
-            const voucherMap: Record<string, any> = {};
-            if (!voucherError && allVouchers) {
-              allVouchers.forEach((v: any) => {
-                voucherMap[v.expense_id] = v;
-              });
-            }
+            // Chunked: one `.in()` with thousands of ids makes a URL too long
+            // for the API gateway, and the request fails.
+            const voucherMap = await fetchVoucherMap(expenseIds);
 
             // attach voucher info to rows
             rows.forEach((r: any) => {
@@ -4321,4 +4314,4 @@ export default function PaymentRecords() {
       </Dialog>
     </div>
   );
-}
+}
