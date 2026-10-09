@@ -44,11 +44,27 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
         return `Expense created with amount ${newValue || "0"}`;
       case "updated":
         if (oldValue && newValue) {
+          // Check if the value starts with a field name, e.g. "Amount: 50"
+          const oldMatch = oldValue.match(/^([^:]+):\s*(.*)$/);
+          const newMatch = newValue.match(/^([^:]+):\s*(.*)$/);
+          
+          if (oldMatch && newMatch && oldMatch[1] === newMatch[1]) {
+            return (
+              <>
+                Changed <span className="font-semibold">{oldMatch[1]}</span> from "{oldMatch[2]}" to "{newMatch[2]}"
+              </>
+            );
+          }
+          
           // If it looks like an amount (numeric)
           if (!isNaN(parseFloat(oldValue)) && !isNaN(parseFloat(newValue))) {
-            return `Amount changed from ${oldValue} to ${newValue}`;
+            return (
+               <>Changed <span className="font-semibold">Amount</span> from {oldValue} to {newValue}</>
+            );
           }
-          return `Changed from "${oldValue}" to "${newValue}"`;
+          return (
+             <>Changed from "{oldValue}" to "{newValue}"</>
+          );
         }
         return `Value updated to "${newValue}"`;
       case "approved":
@@ -103,7 +119,7 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
               <div className="flex items-center gap-2 mb-1">
                 <ExpenseStatusBadge status={item.action_type} />
                 <span className="text-sm font-medium text-gray-800">
-                  {item.user_name}
+                  {item.profile?.full_name || item.user_name}
                 </span>
               </div>
               <p className="text-xs text-gray-500 mb-1">
