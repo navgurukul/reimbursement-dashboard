@@ -2500,6 +2500,29 @@ export const expenseHistory = {
         };
       }
 
+      // Fetch user profiles for all unique user_ids
+      const userIds = [...new Set((data || []).map((item: any) => item.user_id).filter((id: any) => id))];
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", userIds);
+
+        if (profilesData && profilesData.length > 0) {
+          const profileMap: Record<string, string> = {};
+          profilesData.forEach((p: any) => {
+            profileMap[p.user_id] = p.full_name;
+          });
+
+          // Attach profile full_name to history items
+          data.forEach((item: any) => {
+            if (profileMap[item.user_id]) {
+              item.profile = { full_name: profileMap[item.user_id] };
+            }
+          });
+        }
+      }
+
       return {
         data: data as ExpenseHistoryEntry[],
         error: null,
@@ -2544,6 +2567,29 @@ export const expenseHistory = {
           data: [],
           error: error as DatabaseError,
         };
+      }
+
+      // Fetch user profiles for all unique user_ids
+      const userIds = [...new Set((data || []).map((item: any) => item.user_id).filter((id: any) => id))];
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", userIds);
+
+        if (profilesData && profilesData.length > 0) {
+          const profileMap: Record<string, string> = {};
+          profilesData.forEach((p: any) => {
+            profileMap[p.user_id] = p.full_name;
+          });
+
+          // Attach profile full_name to history items
+          data.forEach((item: any) => {
+            if (profileMap[item.user_id]) {
+              item.profile = { full_name: profileMap[item.user_id] };
+            }
+          });
+        }
       }
 
       return {

@@ -37,13 +37,13 @@ export function Pagination({
           size="sm"
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage <= 1 || isLoading}
-          className="cursor-pointer caret-transparent px-3 py-2 h-auto text-black hover:bg-gray-100 border border-gray-300 rounded-md"
-          variant="outline"
+          className="cursor-pointer caret-transparent px-3 py-1 h-auto border border-gray-300 rounded-md"
+          variant="default"
         >
-          ←
+          Previous
         </Button>
 
-        <div className="text-sm text-slate-600 font-medium whitespace-nowrap">
+        <div className="text-sm text-slate-600 font-medium whitespace-nowrap px-2">
           Page {currentPage} of {totalPages}
         </div>
 
@@ -52,10 +52,10 @@ export function Pagination({
           size="sm"
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage >= totalPages || isLoading}
-          className="cursor-pointer caret-transparent px-3 py-2 h-auto text-black hover:bg-gray-100 border border-gray-300 rounded-md"
-          variant="outline"
+          className="cursor-pointer caret-transparent px-3 py-1 h-auto border border-gray-300 rounded-md"
+          variant="default"
         >
-          →
+          Next
         </Button>
       </div>
     </div>

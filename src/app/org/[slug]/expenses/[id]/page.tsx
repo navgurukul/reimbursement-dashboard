@@ -30,6 +30,7 @@ import {
   EyeOff,
   ExternalLink,
   Download,
+  Upload,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
@@ -143,7 +144,7 @@ export default function ViewExpensePage() {
   const router = useRouter();
   const params = useParams();
   const { organization, userRole } = useOrgStore();
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const orgId = organization?.id!;
   const expenseId = params.id as string;
   const slug = params.slug as string;
@@ -171,6 +172,7 @@ export default function ViewExpensePage() {
   const [relevantPolicy, setRelevantPolicy] = useState<Policy | null>(null);
   const [isOverPolicy, setIsOverPolicy] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [resubmitting, setResubmitting] = useState(false);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [showCustomAmountInput, setShowCustomAmountInput] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
@@ -225,6 +227,63 @@ export default function ViewExpensePage() {
       }
     } catch (e) {
       console.error("Scroll to approver signature failed:", e);
+    }
+  };
+
+  const handleResubmit = async () => {
+    if (!currentUserId || !expense) return;
+    try {
+      setResubmitting(true);
+      const updates: any = {
+        status: "submitted",
+        finance_comment: null,
+        finance_decision_at: null,
+        payment_status: null,
+        finance_approve_time: null,
+        manager_approve_time: null,
+        approved_amount: null,
+      };
+
+      const { error } = await expenses.update(expenseId, updates);
+      if (error) throw error;
+
+      await expenseHistory.addEntry(
+        expenseId,
+        currentUserId,
+        profile?.full_name || "Unknown User",
+        "updated",
+        expense.status,
+        "submitted"
+      );
+
+      // notify approver
+      if (expense.approver_id) {
+        const { data: approverProfile } = await profiles.getById(expense.approver_id);
+        if (approverProfile?.email) {
+          await fetch("/api/expenses/notify-approver", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              expenseId,
+              approverEmail: approverProfile.email,
+              approverName: approverProfile.full_name,
+              requesterName: profile?.full_name || "Unknown User",
+              orgName: organization?.name,
+              slug,
+              amount: expense.amount,
+              expenseType: expense.expense_type,
+            }),
+          });
+        }
+      }
+
+      toast.success("Expense resubmitted successfully");
+      window.location.reload();
+    } catch (error: any) {
+      toast.error("Failed to resubmit expense");
+      console.error(error);
+    } finally {
+      setResubmitting(false);
     }
   };
 
@@ -1332,8 +1391,9 @@ export default function ViewExpensePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size="lg" />
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] gap-4">
+        <Spinner size="lg" className="h-16 w-16 text-primary" />
+        <p className="text-muted-foreground font-medium animate-pulse">Loading data...</p>
       </div>
     );
   }
@@ -1747,7 +1807,7 @@ export default function ViewExpensePage() {
 
   return (
     <div className="container mx-auto py-6">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <Button
           variant="link"
           onClick={() => router.push(backToExpensesUrl)}
@@ -1755,6 +1815,29 @@ export default function ViewExpensePage() {
           <ArrowLeft />
           Back to Expenses
         </Button>
+        {expense.user_id === currentUserId && (expense.status === "rejected" || expense.status === "finance_rejected") && (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => router.push(`/org/${slug}/expenses/${expenseId}/edit`)}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit Expense
+            </Button>
+            <Button onClick={handleResubmit} disabled={resubmitting}>
+              {resubmitting ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  Resubmitting...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Resubmit
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Show message if expense is created using Advance Unique ID */}

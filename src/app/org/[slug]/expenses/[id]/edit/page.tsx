@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses, expenseHistory, vouchers } from "@/lib/db";
+import { orgSettings, expenses, expenseHistory, vouchers, profiles } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,16 +42,18 @@ export default function EditExpensePage() {
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [expenseCreditPersonOptions, setExpenseCreditPersonOptions] = useState<string[]>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
+  const [voucherData, setVoucherData] = useState<any>(null);
 
   const getDisplayFieldLabel = (key: string) => {
     const labelMap: Record<string, string> = {
       description: "Description",
       approver_name: "Approver Name",
       location_of_expense: "Project of Expense",
+      project_of_expense: "Project of Expense",
       expense_credit_person: "Expense Credit Person",
     };
 
-    return labelMap[key] || key;
+    return labelMap[key] || key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
   useEffect(() => {
@@ -75,8 +77,11 @@ export default function EditExpensePage() {
         });
 
         // Check if expense has voucher
-        const { data: voucherData } = await vouchers.getByExpenseId(expenseId);
-        setHasVoucher(!!voucherData);
+        const { data: voucherRes } = await vouchers.getByExpenseId(expenseId);
+        if (voucherRes) {
+          setHasVoucher(true);
+          setVoucherData(voucherRes);
+        }
 
         // Fetch organization settings for dropdowns
         const { data: settings, error: settingsError } = await orgSettings.getByOrgId(orgId);
@@ -104,7 +109,7 @@ export default function EditExpensePage() {
 
           // Extract location options
           const locationCol = settings.expense_columns.find(
-            (col: any) => col.key === "location" || col.key === "location_of_expense"
+            (col: any) => col.key === "location" || col.key === "location_of_expense" || col.key === "Project of Expense" || col.label?.trim().toLowerCase() === "project of expense" || col.label?.trim().toLowerCase() === "location of expense"
           );
           if (locationCol && locationCol.options) {
             const options = locationCol.options;
@@ -177,25 +182,25 @@ export default function EditExpensePage() {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, isResubmit: boolean = false) => {
     e.preventDefault();
     setSaving(true);
-  
+
     try {
       // Get current user from Supabase
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
         throw new Error("User not authenticated. Please log in again.");
       }
-  
+
+      let userName = "Unknown User";
+
       // Get username for history entries using improved extraction
       try {
         const authRaw = localStorage.getItem('auth-storage');
         const authStorage = JSON.parse(authRaw || '{}');
-        
+
         // Try multiple paths and nested data
-        let userName = "Unknown User";
-        
         if (authStorage?.state?.user?.profile?.full_name) {
           userName = authStorage.state.user.profile.full_name;
         } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
@@ -205,7 +210,7 @@ export default function EditExpensePage() {
             userName = match[1];
           }
         }
-                
+
         // Check what fields have changed
         if (expense.expense_type !== formData.expense_type) {
           // Log expense type change
@@ -214,11 +219,11 @@ export default function EditExpensePage() {
             session.user.id,
             userName,
             'updated',
-            expense.expense_type,
-            formData.expense_type
+            `Expense Type: ${expense.expense_type}`,
+            `Expense Type: ${formData.expense_type}`
           );
         }
-  
+
         if (expense.amount !== parseFloat(formData.amount)) {
           // Log amount change
           await expenseHistory.addEntry(
@@ -226,32 +231,45 @@ export default function EditExpensePage() {
             session.user.id,
             userName,
             'updated',
-            expense.amount.toString(),
-            formData.amount.toString()
+            `Amount: ${expense.amount.toString()}`,
+            `Amount: ${formData.amount.toString()}`
           );
         }
-  
+
         // Add custom fields
         Object.entries(formData).forEach(([key, value]) => {
           if (key !== "expense_type" && key !== "amount" && key !== "date") {
             // Log changes to custom fields if they're different
             if (expense.custom_fields[key] !== value) {
+              const fieldLabel = key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
               expenseHistory.addEntry(
                 expenseId,
                 session.user.id,
                 userName,
                 'updated',
-                expense.custom_fields[key]?.toString() || '',
-                value?.toString() || ''
+                `${fieldLabel}: ${expense.custom_fields[key]?.toString() || ''}`,
+                `${fieldLabel}: ${value?.toString() || ''}`
               ).catch(err => console.error("Error logging field update:", err));
             }
           }
         });
+
+        // Log resubmit if applicable
+        if (isResubmit) {
+          await expenseHistory.addEntry(
+            expenseId,
+            session.user.id,
+            userName,
+            'updated',
+            expense.status,
+            'submitted'
+          );
+        }
       } catch (error) {
         console.error('Error extracting username from localStorage:', error);
         // If username extraction fails, still update the expense without history entries
       }
-  
+
       // Prepare expense data
       const updates: any = {
         expense_type: formData.expense_type,
@@ -259,26 +277,65 @@ export default function EditExpensePage() {
         date: formData.date,
         custom_fields: {},
       };
-  
+
+      if (isResubmit) {
+        updates.status = "submitted";
+        updates.finance_comment = null;
+        updates.finance_decision_at = null;
+        updates.payment_status = null;
+        updates.finance_approve_time = null;
+        updates.manager_approve_time = null;
+        updates.approved_amount = null;
+      }
+
       // Add custom fields
       Object.entries(formData).forEach(([key, value]) => {
         if (key !== "expense_type" && key !== "amount" && key !== "date") {
           updates.custom_fields[key] = value;
         }
       });
-  
+
       // Update expense with receipt if provided
       const { error } = await expenses.update(
         expenseId,
         updates,
         receiptFile || undefined
       );
-  
+
       if (error) {
         throw error;
       }
-  
-      toast.success("Expense updated successfully");
+
+      if (isResubmit) {
+        toast.success("Expense resubmitted successfully");
+
+        // Notify approver
+        try {
+          if (expense.approver_id) {
+            const { data: approverProfile } = await profiles.getById(expense.approver_id);
+            if (approverProfile?.email) {
+              await fetch("/api/expenses/notify-approver", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  expenseId,
+                  approverEmail: approverProfile.email,
+                  approverName: approverProfile.full_name,
+                  requesterName: userName,
+                  orgName: organization?.name,
+                  slug,
+                  amount: updates.amount,
+                  expenseType: updates.expense_type,
+                }),
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to notify approver on resubmit:", err);
+        }
+      } else {
+        toast.success("Expense updated successfully");
+      }
       router.push(`/org/${slug}/expenses/${expenseId}`);
     } catch (error: any) {
       console.error("Error updating expense:", error);
@@ -317,22 +374,39 @@ export default function EditExpensePage() {
           variant="link"
           onClick={() => router.push(`/org/${slug}/expenses/${expenseId}`)}
         >
-          <ArrowLeft/>
+          <ArrowLeft />
           Back to Expense
         </Button>
-        <Button onClick={handleSubmit} disabled={saving}>
-          {saving ? (
-            <>
-              <Spinner className="mr-2 h-4 w-4" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={(e) => handleSubmit(e, false)} disabled={saving} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
+            {saving ? (
+              <>
+                <Spinner className="h-4 w-4" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </>
+            )}
+          </Button>
+          {/* {(expense?.status === "rejected" || expense?.status === "finance_rejected") && (
+            <Button onClick={(e) => handleSubmit(e, true)} disabled={saving} className="bg-black">
+              {saving ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  Resubmitting...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Save & Resubmit
+                </>
+              )}
+            </Button>
+          )} */}
+        </div>
       </div>
 
       <Card>
@@ -341,7 +415,46 @@ export default function EditExpensePage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {(() => {
+              // Find the key for Project of Expense
+              const projectOfExpenseEntry = expense?.custom_fields ? Object.entries(expense.custom_fields).find(([key, value]) => {
+                const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+                return normalizedKey === "location" || normalizedKey === "location of expense" || normalizedKey === "location_of_expense" || normalizedKey === "project of expense";
+              }) : undefined;
+              const projectKey = projectOfExpenseEntry ? projectOfExpenseEntry[0] : null;
+
+              return (
+                <>
             <div className="grid grid-cols-2 gap-4">
+              {projectKey && (
+                <div className="space-y-2">
+                  <Label htmlFor={projectKey}>{getDisplayFieldLabel(projectKey)}</Label>
+                  {locationOptions.length > 0 ? (
+                    <Select
+                      value={formData[projectKey] || ""}
+                      onValueChange={(val: string) => handleInputChange(projectKey, val)}
+                    >
+                      <SelectTrigger id={projectKey} className="w-full">
+                        <SelectValue placeholder={`Select ${getDisplayFieldLabel(projectKey)}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locationOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id={projectKey}
+                      value={formData[projectKey] || ""}
+                      onChange={(e) => handleInputChange(projectKey, e.target.value)}
+                    />
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="expense_type">Expense Type</Label>
                 {expenseTypeOptions.length > 0 ? (
@@ -394,13 +507,23 @@ export default function EditExpensePage() {
                   type="date"
                   value={formData.date || ""}
                   onChange={(e) => handleInputChange("date", e.target.value)}
+                  className="block w-full"
                   required
                 />
               </div>
             </div>
 
             {/* Custom fields */}
-            {Object.entries(expense.custom_fields).map(([key, value]) => {
+            {Object.entries(expense.custom_fields)
+              .filter(([key]) => {
+                const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+                const excludedKeys = [
+                  "location", "location of expense", "project of expense",
+                  "approver name", "second approver id", "second approver name"
+                ];
+                return !excludedKeys.includes(normalizedKey);
+              })
+              .map(([key, value]) => {
               // Check if this field is location_of_expense and has options
               const normalizedKey = key.replace(/_/g, " ").toLowerCase();
               const isLocationField =
@@ -443,6 +566,13 @@ export default function EditExpensePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  ) : normalizedKey === "description" ? (
+                    <Textarea
+                      id={key}
+                      value={formData[key] || ""}
+                      onChange={(e) => handleInputChange(key, e.target.value)}
+                      className="min-h-[50px]"
+                    />
                   ) : (
                     <Input
                       id={key}
@@ -453,6 +583,9 @@ export default function EditExpensePage() {
                 </div>
               );
             })}
+                </>
+              );
+            })()}
 
             {/* Receipt upload section - only show if no voucher exists */}
             {!hasVoucher && (
@@ -514,7 +647,7 @@ export default function EditExpensePage() {
 
       {/* Voucher Preview - only show if expense has voucher */}
       {hasVoucher && (
-        <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} />
+        <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} defaultEditMode={true} />
       )}
     </div>
   );

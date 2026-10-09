@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
-import { FileText, Eye, EyeOff } from "lucide-react";
-import { vouchers, voucherAttachments } from "@/lib/db";
+import { FileText, Eye, EyeOff, Edit2, Save, X } from "lucide-react";
+import { vouchers, voucherAttachments, expenses, expenseHistory } from "@/lib/db";
+import supabase from "@/lib/supabase";
 import {
   Tooltip,
   TooltipContent,
@@ -14,14 +15,19 @@ import { Button } from "@/components/ui/button";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { useOrgStore } from "@/store/useOrgStore";
 import VoucherDownloadAsPdf from "@/components/VoucherDownloadAsPdf";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 type Props = {
   expense: any;
   expenseId?: string;
   defaultOpen?: boolean;
+  defaultEditMode?: boolean;
 };
 
-export default function VoucherPreview({ expense, expenseId, defaultOpen = true }: Props) {
+export default function VoucherPreview({ expense, expenseId, defaultOpen = true, defaultEditMode = false }: Props) {
   const { organization } = useOrgStore();
   const [voucherDetails, setVoucherDetails] = React.useState<any | null>(null);
   const [voucherSignatureUrl, setVoucherSignatureUrl] = React.useState<string | null>(null);
@@ -29,6 +35,10 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
   const [voucherAttachmentFilename, setVoucherAttachmentFilename] = React.useState<string | null>(null);
   const [voucherPreviewLoading, setVoucherPreviewLoading] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState<boolean>(defaultOpen);
+  const [isEditing, setIsEditing] = React.useState(defaultEditMode);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [editForm, setEditForm] = React.useState<any>({});
+  const [newAttachment, setNewAttachment] = React.useState<File | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -52,6 +62,15 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
 
         setVoucherDetails(voucherData);
         setIsOpen(true);
+        if (defaultEditMode) {
+          setEditForm({
+            your_name: voucherData.your_name || "",
+            amount: voucherData.amount || "",
+            credit_person: voucherData.credit_person || "",
+            purpose: voucherData.purpose || "",
+            date: expense?.date ? new Date(expense.date).toISOString().split("T")[0] : "",
+          });
+        }
 
         if (voucherData.signature_url) {
           const { url } = await vouchers.getSignatureUrl(voucherData.signature_url);
@@ -102,6 +121,144 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <TooltipProvider delayDuration={150}>
+
+              {voucherDetails && !isEditing && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setEditForm({
+                          your_name: voucherDetails.your_name || "",
+                          amount: voucherDetails.amount || "",
+                          credit_person: voucherDetails.credit_person || "",
+                          purpose: voucherDetails.purpose || "",
+                          date: expense?.date ? new Date(expense.date).toISOString().split("T")[0] : "",
+                        });
+                        setNewAttachment(null);
+                        setIsEditing(true);
+                      }}
+                      aria-label="Edit voucher"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>Edit voucher</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {voucherDetails && isEditing && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => setIsEditing(false)}
+                    disabled={isSaving}
+                  >
+                    <X className="h-4 w-4 mr-1" /> Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="cursor-pointer"
+                    onClick={async () => {
+                      try {
+                        setIsSaving(true);
+
+                        let attachmentValue = voucherDetails.attachment_url || voucherDetails.attachment;
+
+                        if (newAttachment) {
+                          const { path, error: uploadError } = await voucherAttachments.upload(
+                            newAttachment,
+                            expense.user_id || organization?.id || "unknown",
+                            organization?.id || "unknown"
+                          );
+                          if (uploadError) throw uploadError;
+                          attachmentValue = `${newAttachment.name},${path}`;
+                        }
+
+                        const { error } = await vouchers.update(voucherDetails.id, {
+                          your_name: editForm.your_name,
+                          amount: parseFloat(editForm.amount) || 0,
+                          credit_person: editForm.credit_person,
+                          purpose: editForm.purpose,
+                          ...(newAttachment && { attachment: attachmentValue })
+                        });
+                        if (error) throw error;
+
+                        try {
+                          const { data: { session } } = await supabase.auth.getSession();
+                          let userName = "Unknown User";
+                          let userId = session?.user?.id || expense?.user_id || "unknown";
+
+                          const authRaw = localStorage.getItem('auth-storage');
+                          const authStorage = JSON.parse(authRaw || '{}');
+                          if (authStorage?.state?.user?.profile?.full_name) {
+                            userName = authStorage.state.user.profile.full_name;
+                          } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
+                            const match = authRaw.match(/"full_name":\s*"([^"]+)"/);
+                            if (match && match[1]) userName = match[1];
+                          }
+
+                          const logChange = async (fieldLabel: string, oldVal: any, newVal: any) => {
+                            if (String(oldVal || "") !== String(newVal || "")) {
+                              await expenseHistory.addEntry(
+                                expense?.id || voucherDetails.expense_id,
+                                userId,
+                                userName,
+                                'updated',
+                                `${fieldLabel}: ${oldVal || "None"}`,
+                                `${fieldLabel}: ${newVal || "None"}`
+                              ).catch(console.error);
+                            }
+                          };
+
+                          await logChange("Voucher Name", voucherDetails.your_name, editForm.your_name);
+                          await logChange("Voucher Amount", voucherDetails.amount, parseFloat(editForm.amount) || 0);
+                          await logChange("Credit Person", voucherDetails.credit_person, editForm.credit_person);
+                          await logChange("Purpose", voucherDetails.purpose, editForm.purpose);
+
+                          if (newAttachment) {
+                            await logChange("Attachment", "Previous", "Updated");
+                          }
+
+                          const oldDate = expense?.date ? new Date(expense.date).toISOString().split("T")[0] : "";
+                          if (editForm.date && editForm.date !== oldDate) {
+                            await logChange("Date", oldDate, editForm.date);
+                            await expenses.update(expense.id, { date: editForm.date });
+                            window.location.reload();
+                          }
+                        } catch (e) { console.error("Error logging history:", e); }
+
+                        if (newAttachment) {
+                          window.location.reload();
+                        }
+
+                        setVoucherDetails({
+                          ...voucherDetails,
+                          your_name: editForm.your_name,
+                          amount: parseFloat(editForm.amount) || 0,
+                          credit_person: editForm.credit_person,
+                          purpose: editForm.purpose,
+                          ...(newAttachment && { attachment: attachmentValue })
+                        });
+                        setIsEditing(false);
+                        toast.success("Voucher updated successfully");
+                      } catch (err) {
+                        toast.error("Failed to update voucher");
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? <Spinner className="h-4 w-4 mr-1" /> : <Save className="h-4 w-4 mr-1" />} Save
+                  </Button>
+                </>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -142,31 +299,51 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Your Name</p>
-                  <p className="font-medium">{voucherDetails?.your_name || expense?.creator?.full_name || "N/A"}</p>
+                  <Label className="text-sm text-muted-foreground">Your Name</Label>
+                  {isEditing ? (
+                    <Input value={editForm.your_name} onChange={(e) => setEditForm({ ...editForm, your_name: e.target.value })} className="mt-1 h-8" />
+                  ) : (
+                    <p className="font-medium">{voucherDetails?.your_name || expense?.creator?.full_name || "N/A"}</p>
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground">Amount</p>
+                    <Label className="text-sm text-muted-foreground">Amount</Label>
                     <ExpenseStatusBadge status={expense?.status} />
                   </div>
-                  <p className="font-medium">{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(voucherDetails?.amount ?? expense?.amount ?? 0)}</p>
+                  {isEditing ? (
+                    <Input type="number" value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} className="mt-1 h-8" />
+                  ) : (
+                    <p className="font-medium">{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(voucherDetails?.amount ?? expense?.amount ?? 0)}</p>
+                  )}
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Date</p>
-                  <p className="font-medium">{expense?.date ? new Date(expense.date).toLocaleDateString("en-GB") : "N/A"}</p>
+                  <Label className="text-sm text-muted-foreground">Date</Label>
+                  {isEditing ? (
+                    <Input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} className="mt-1 h-8 block w-full" />
+                  ) : (
+                    <p className="font-medium">{expense?.date ? new Date(expense.date).toLocaleDateString("en-GB") : "N/A"}</p>
+                  )}
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Credit Person</p>
-                  <p className="font-medium">{voucherDetails?.credit_person || "N/A"}</p>
+                  <Label className="text-sm text-muted-foreground">Credit Person</Label>
+                  {isEditing ? (
+                    <Input value={editForm.credit_person} onChange={(e) => setEditForm({ ...editForm, credit_person: e.target.value })} className="mt-1 h-8" />
+                  ) : (
+                    <p className="font-medium">{voucherDetails?.credit_person || "N/A"}</p>
+                  )}
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Approver</p>
+                  <Label className="text-sm text-muted-foreground">Approver</Label>
                   <p className="font-medium">{expense?.approver?.full_name || "N/A"}</p>
                 </div>
                 <div className="md:col-span-2">
-                  <p className="text-sm text-muted-foreground">Purpose</p>
-                  <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">{voucherDetails?.purpose || "N/A"}</div>
+                  <Label className="text-sm text-muted-foreground">Purpose</Label>
+                  {isEditing ? (
+                    <Textarea value={editForm.purpose} onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })} className="mt-1 min-h-[60px]" />
+                  ) : (
+                    <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">{voucherDetails?.purpose || "N/A"}</div>
+                  )}
                 </div>
               </div>
 
@@ -181,27 +358,40 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
                 )}
               </div>
 
-              {voucherAttachmentUrl ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">Attachment</p>
-                  </div>
-                  {voucherAttachmentFilename?.toLowerCase().endsWith(".pdf") ? (
-                    <div className="rounded-md border bg-white overflow-hidden" style={{ height: "500px" }}>
-                      <iframe src={`${voucherAttachmentUrl}#toolbar=0&navpanes=0&scrollbar=1`} className="h-full w-full border-none" title="Attachment PDF Preview" />
-                    </div>
-                  ) : (
-                    <div className="rounded-md border bg-muted">
-                      <img src={voucherAttachmentUrl} alt="Voucher attachment preview" className="max-h-[500px] w-full object-contain" />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex gap-1">
-                  <p className="text-sm font-medium">Attachment : </p>
-                  <p className="text-sm text-muted-foreground">Not Available</p>
+              {isEditing && (
+                <div className="space-y-2 border-t pt-4 mt-4 mb-4">
+                  <Label className="text-sm text-muted-foreground">Update Attachment</Label>
+                  <Input type="file" onChange={(e) => setNewAttachment(e.target.files?.[0] || null)} className="mt-1" />
+                  {newAttachment && <p className="text-sm text-blue-600 mt-1">New file selected: {newAttachment.name}</p>}
                 </div>
               )}
+              
+              {(() => {
+                const previewUrl = newAttachment ? URL.createObjectURL(newAttachment) : voucherAttachmentUrl;
+                const previewFilename = newAttachment ? newAttachment.name : voucherAttachmentFilename;
+
+                return previewUrl ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Attachment</p>
+                    </div>
+                    {previewFilename?.toLowerCase().endsWith(".pdf") ? (
+                      <div className="rounded-md border bg-white overflow-hidden" style={{ height: "500px" }}>
+                        <iframe src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`} className="h-full w-full border-none" title="Attachment PDF Preview" />
+                      </div>
+                    ) : (
+                      <div className="rounded-md border bg-muted">
+                        <img src={previewUrl} alt="Voucher attachment preview" className="w-full max-h-[500px] object-contain" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex gap-1">
+                    <p className="text-sm font-medium">Attachment : </p>
+                    <p className="text-sm text-muted-foreground">Not Available</p>
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>

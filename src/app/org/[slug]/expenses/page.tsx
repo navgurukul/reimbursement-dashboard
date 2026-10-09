@@ -1351,20 +1351,20 @@ export default function ExpensesPage() {
                     )}
                   </TableBody>
                 </Table>
-                {totalCount > 0 && (
-                  <div className="px-6">
-                    <Pagination
-                      currentPage={currentPage}
-                      totalPages={totalPages}
-                      totalItems={totalCount}
-                      onPageChange={handlePageChange}
-                      isLoading={loading}
-                      itemLabel="Expenses"
-                    />
-                  </div>
-                )}
               </CardContent>
             </Card>
+            {totalCount > 0 && (
+              <div className="px-2">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalCount}
+                  onPageChange={handlePageChange}
+                  isLoading={loading}
+                  itemLabel="Expenses"
+                />
+              </div>
+            )}
           </TabsContent>
         ))}
       </Tabs>
