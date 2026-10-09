@@ -1391,8 +1391,9 @@ export default function ViewExpensePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size="lg" />
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] gap-4">
+        <Spinner size="lg" className="h-16 w-16 text-primary" />
+        <p className="text-muted-foreground font-medium animate-pulse">Loading data...</p>
       </div>
     );
   }
