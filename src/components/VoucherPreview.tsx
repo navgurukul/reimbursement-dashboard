@@ -24,9 +24,10 @@ type Props = {
   expense: any;
   expenseId?: string;
   defaultOpen?: boolean;
+  defaultEditMode?: boolean;
 };
 
-export default function VoucherPreview({ expense, expenseId, defaultOpen = true }: Props) {
+export default function VoucherPreview({ expense, expenseId, defaultOpen = true, defaultEditMode = false }: Props) {
   const { organization } = useOrgStore();
   const [voucherDetails, setVoucherDetails] = React.useState<any | null>(null);
   const [voucherSignatureUrl, setVoucherSignatureUrl] = React.useState<string | null>(null);
@@ -34,7 +35,7 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
   const [voucherAttachmentFilename, setVoucherAttachmentFilename] = React.useState<string | null>(null);
   const [voucherPreviewLoading, setVoucherPreviewLoading] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState<boolean>(defaultOpen);
-  const [isEditing, setIsEditing] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(defaultEditMode);
   const [isSaving, setIsSaving] = React.useState(false);
   const [editForm, setEditForm] = React.useState<any>({});
   const [newAttachment, setNewAttachment] = React.useState<File | null>(null);
@@ -61,6 +62,15 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true 
 
         setVoucherDetails(voucherData);
         setIsOpen(true);
+        if (defaultEditMode) {
+          setEditForm({
+            your_name: voucherData.your_name || "",
+            amount: voucherData.amount || "",
+            credit_person: voucherData.credit_person || "",
+            purpose: voucherData.purpose || "",
+            date: expense?.date ? new Date(expense.date).toISOString().split("T")[0] : "",
+          });
+        }
 
         if (voucherData.signature_url) {
           const { url } = await vouchers.getSignatureUrl(voucherData.signature_url);

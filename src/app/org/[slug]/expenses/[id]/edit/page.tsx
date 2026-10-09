@@ -647,7 +647,7 @@ export default function EditExpensePage() {
 
       {/* Voucher Preview - only show if expense has voucher */}
       {hasVoucher && (
-        <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} />
+        <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} defaultEditMode={true} />
       )}
     </div>
   );
