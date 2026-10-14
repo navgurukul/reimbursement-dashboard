@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses, expenseHistory, vouchers, profiles } from "@/lib/db";
+import { orgSettings, expenses, expenseHistory, vouchers, profiles, expenseEvents } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ export default function EditExpensePage() {
   const [expenseCreditPersonOptions, setExpenseCreditPersonOptions] = useState<string[]>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
   const [voucherData, setVoucherData] = useState<any>(null);
+  const [eventTitle, setEventTitle] = useState<string | null>(null);
 
   const getDisplayFieldLabel = (key: string) => {
     const labelMap: Record<string, string> = {
@@ -75,6 +76,18 @@ export default function EditExpensePage() {
           date: new Date(data.date).toISOString().split("T")[0],
           ...data.custom_fields,
         });
+
+        // Fetch related event title if linked
+        if (data.event_id) {
+          try {
+            const { data: eventData } = await expenseEvents.getById(data.event_id);
+            if (eventData) {
+              setEventTitle(eventData.title);
+            }
+          } catch (e) {
+            console.error("Error fetching event details:", e);
+          }
+        }
 
         // Check if expense has voucher
         const { data: voucherRes } = await vouchers.getByExpenseId(expenseId);
@@ -426,6 +439,23 @@ export default function EditExpensePage() {
               return (
                 <>
             <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Event Name</Label>
+                <Input value={eventTitle || "N/A"} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label>Unique ID</Label>
+                <Input value={expense.unique_id || "N/A"} className="font-mono" disabled />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Input value={expense.status ? expense.status.charAt(0).toUpperCase() + expense.status.slice(1).replace("_", " ") : "N/A"} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label>Approver</Label>
+                <Input value={expense.approver?.full_name || "—"} disabled />
+              </div>
+
               {projectKey && (
                 <div className="space-y-2">
                   <Label htmlFor={projectKey}>{getDisplayFieldLabel(projectKey)}</Label>
