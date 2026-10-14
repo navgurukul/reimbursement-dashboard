@@ -267,6 +267,22 @@ export default function EditExpensePage() {
           }
         });
 
+        // Log receipt update if a new receiptFile is uploaded
+        if (receiptFile) {
+          const oldReceipt =
+            expense.receipt?.filename ||
+            (expense.receipt?.path ? expense.receipt.path.split("/").pop() : "None");
+          const newReceipt = receiptFile.name;
+          await expenseHistory.addEntry(
+            expenseId,
+            session.user.id,
+            userName,
+            "updated",
+            `Receipt: ${oldReceipt}`,
+            `Receipt: ${newReceipt}`
+          );
+        }
+
         // Log resubmit if applicable
         if (isResubmit) {
           await expenseHistory.addEntry(
@@ -658,21 +674,6 @@ export default function EditExpensePage() {
                     </Button>
                   )}
                 </div>
-                {receiptPreview && (
-                  <div className="mt-2">
-                    {receiptPreview.startsWith("data:image") ? (
-                      <img
-                        src={receiptPreview}
-                        alt="Receipt preview"
-                        className="max-h-40 rounded-md"
-                      />
-                    ) : (
-                      <div className="p-2 border rounded-md">
-                        <p className="text-sm">PDF receipt selected</p>
-                      </div>
-                    )}
-                  </div>
-                )}
                 {expense.receipt && !receiptPreview && (
                   <div className="mt-2">
                     <p className="text-sm text-muted-foreground">
@@ -686,9 +687,14 @@ export default function EditExpensePage() {
         </CardContent>
       </Card>
 
-      {/* Current Receipt Preview - only show if expense has receipt */}
-      {expense.receipt && !receiptFile && !hasVoucher && (
-        <ReceiptPreview expense={expense} defaultOpen={true} />
+      {/* Receipt Preview - show if expense has receipt or user selected a new receipt */}
+      {(receiptPreview || expense.receipt) && !hasVoucher && (
+        <ReceiptPreview
+          expense={expense}
+          previewUrl={receiptPreview}
+          filename={receiptFile?.name}
+          defaultOpen={true}
+        />
       )}
 
       {/* Voucher Preview - only show if expense has voucher */}
