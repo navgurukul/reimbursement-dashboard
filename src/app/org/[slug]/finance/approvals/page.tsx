@@ -935,11 +935,11 @@ export default function FinanceReview() {
           </div>
 
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setFilterOpen(false)}>
-              Close
-            </Button>
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
+            </Button>
+            <Button variant="outline" onClick={() => setFilterOpen(false)}>
+              Close
             </Button>
           </div>
         </div>

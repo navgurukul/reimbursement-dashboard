@@ -1136,9 +1136,11 @@ export default function ExpensesPage() {
                         });
                       }}
                     >
-                      Clear
+                      Clear Filters
                     </Button>
-                    <Button onClick={() => setShowFilters(false)}>Apply</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFilters(false)}>Close</Button>
                   </div>
                 </CardContent>
               </Card>
