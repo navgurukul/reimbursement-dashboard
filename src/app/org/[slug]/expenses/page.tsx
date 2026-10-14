@@ -36,6 +36,7 @@ import {
   Trash2,
   Search,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import {
@@ -147,6 +148,8 @@ export default function ExpensesPage() {
     approvers: [],
   });
   const filterOptionsCache = useRef<Record<string, ExpenseFilterOptions>>({});
+  const [navigatingEditId, setNavigatingEditId] = useState<string | null>(null);
+  const [navigatingViewId, setNavigatingViewId] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     expenseId: string | null;
@@ -1287,6 +1290,7 @@ export default function ExpensesPage() {
                                       <div
                                         className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
                                         onClick={() => {
+                                          setNavigatingViewId(exp.id);
                                           // For pending tab, add nextId to enable sequential approval flow
                                           // The detail page works out the next pending
                                           // expense itself, so no nextId is needed.
@@ -1295,7 +1299,11 @@ export default function ExpensesPage() {
                                           );
                                         }}
                                       >
-                                        <Eye className="w-4 h-4 text-gray-600 hover:text-black" />
+                                        {navigatingViewId === exp.id ? (
+                                          <Spinner className="w-4 h-4" />
+                                        ) : (
+                                          <Eye className="w-4 h-4 text-gray-600 hover:text-black" />
+                                        )}
                                       </div>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -1310,13 +1318,18 @@ export default function ExpensesPage() {
                                         <TooltipTrigger asChild>
                                           <div
                                             className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
-                                            onClick={() =>
+                                            onClick={() => {
+                                              setNavigatingEditId(exp.id);
                                               router.push(
                                                 `/org/${slug}/expenses/${exp.id}/edit`
-                                              )
-                                            }
+                                              );
+                                            }}
                                           >
-                                            <Pencil className="w-4 h-4 text-gray-600 hover:text-black" />
+                                            {navigatingEditId === exp.id ? (
+                                              <Spinner className="w-4 h-4" />
+                                            ) : (
+                                              <Pencil className="w-4 h-4 text-gray-600 hover:text-black" />
+                                            )}
                                           </div>
                                         </TooltipTrigger>
                                         <TooltipContent>

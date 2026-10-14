@@ -441,19 +441,35 @@ export default function EditExpensePage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Event Name</Label>
-                <Input value={eventTitle || "N/A"} disabled />
+                <Input
+                  value={eventTitle || "N/A"}
+                  readOnly
+                  className="text-foreground font-medium"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Unique ID</Label>
-                <Input value={expense.unique_id || "N/A"} className="font-mono" disabled />
+                <Input
+                  value={expense.unique_id || "N/A"}
+                  readOnly
+                  className="text-foreground font-medium"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Input value={expense.status ? expense.status.charAt(0).toUpperCase() + expense.status.slice(1).replace("_", " ") : "N/A"} disabled />
+                <Input
+                  value={expense.status ? expense.status.charAt(0).toUpperCase() + expense.status.slice(1).replace("_", " ") : "N/A"}
+                  readOnly
+                  className="text-foreground font-medium"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Approver</Label>
-                <Input value={expense.approver?.full_name || "—"} disabled />
+                <Input
+                  value={expense.approver?.full_name || "—"}
+                  readOnly
+                  className="text-foreground font-medium"
+                />
               </div>
 
               {projectKey && (

@@ -173,6 +173,7 @@ export default function ViewExpensePage() {
   const [isOverPolicy, setIsOverPolicy] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
+  const [editingLoading, setEditingLoading] = useState(false);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [showCustomAmountInput, setShowCustomAmountInput] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
@@ -1818,16 +1819,32 @@ export default function ViewExpensePage() {
         {expense.user_id === currentUserId && (expense.status === "rejected" || expense.status === "finance_rejected") && (
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => router.push(`/org/${slug}/expenses/${expenseId}/edit`)}
+              onClick={() => {
+                setEditingLoading(true);
+                router.push(`/org/${slug}/expenses/${expenseId}/edit`);
+              }}
+              disabled={editingLoading || resubmitting}
             >
-              <Pencil className="h-4 w-4" />
-              Edit Expense
+              {editingLoading ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  Edit Expense
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Edit Expense
+                </>
+              )}
             </Button>
-            <Button onClick={handleResubmit} disabled={resubmitting}>
+            <Button
+              onClick={handleResubmit}
+              disabled={resubmitting || editingLoading}
+            >
               {resubmitting ? (
                 <>
                   <Spinner className="h-4 w-4" />
-                  Resubmitting...
+                  Resubmit
                 </>
               ) : (
                 <>
