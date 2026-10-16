@@ -476,7 +476,27 @@ export default function ViewExpensePage() {
 
           const rejectedToday = isDateToday(rejectionDate);
           setIsRejectedToday(rejectedToday);
-          setShowRejectedModal(rejectedToday);
+
+          const isFromEdit =
+            searchParams.get("fromEdit") === "true" ||
+            searchParams.get("edited") === "true";
+
+          let isSuppressed = false;
+          try {
+            isSuppressed =
+              sessionStorage.getItem(`hide_rejected_modal_${expenseId}`) === "true";
+            if (isSuppressed) {
+              sessionStorage.removeItem(`hide_rejected_modal_${expenseId}`);
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          if (isFromEdit || isSuppressed) {
+            setShowRejectedModal(false);
+          } else {
+            setShowRejectedModal(rejectedToday);
+          }
         } else {
           setIsRejectedToday(false);
           setShowRejectedModal(false);

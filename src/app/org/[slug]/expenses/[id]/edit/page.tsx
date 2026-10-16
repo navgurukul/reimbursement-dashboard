@@ -471,7 +471,10 @@ export default function EditExpensePage() {
       } else {
         toast.success("Expense updated successfully");
       }
-      router.push(`/org/${slug}/expenses/${expenseId}`);
+      try {
+        sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
+      } catch (e) {}
+      router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
     } catch (error: any) {
       console.error("Error updating expense:", error);
       toast.error("Failed to update expense", {
@@ -507,7 +510,12 @@ export default function EditExpensePage() {
       <div className="flex items-center justify-between">
         <Button
           variant="link"
-          onClick={() => router.push(`/org/${slug}/expenses/${expenseId}`)}
+          onClick={() => {
+            try {
+              sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
+            } catch (e) {}
+            router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
+          }}
         >
           <ArrowLeft />
           Back to Expense
