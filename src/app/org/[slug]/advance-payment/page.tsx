@@ -2187,10 +2187,11 @@ export default function AdvancePaymentRecords() {
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-3">
-            <Button className="cursor-pointer" onClick={clearFilters}>
-              Clear
+            <Button variant="outline" className="cursor-pointer" onClick={clearFilters}>
+              Clear Filters
             </Button>
             <Button
+              variant="outline"
               className="cursor-pointer"
               onClick={() => setFilterOpen(false)}
             >

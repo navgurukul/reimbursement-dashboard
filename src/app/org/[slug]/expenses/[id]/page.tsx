@@ -30,6 +30,8 @@ import {
   EyeOff,
   ExternalLink,
   Download,
+  Upload,
+  CheckCircle,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
@@ -42,6 +44,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import supabase from "@/lib/supabase";
 import ExpenseHistory from "./history/expense-history";
 import { ExpenseComments } from "./history/expense-comments";
@@ -53,6 +63,11 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatDate } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
+import {
+  isDateToday,
+  getResubmissionDetails,
+  ResubmissionInfo,
+} from "@/lib/features";
 
 // Utility function to convert image URL to base64
 async function convertImageUrlToBase64(url: string): Promise<string> {
@@ -143,7 +158,7 @@ export default function ViewExpensePage() {
   const router = useRouter();
   const params = useParams();
   const { organization, userRole } = useOrgStore();
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const orgId = organization?.id!;
   const expenseId = params.id as string;
   const slug = params.slug as string;
@@ -171,6 +186,8 @@ export default function ViewExpensePage() {
   const [relevantPolicy, setRelevantPolicy] = useState<Policy | null>(null);
   const [isOverPolicy, setIsOverPolicy] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [editingLoading, setEditingLoading] = useState(false);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [showCustomAmountInput, setShowCustomAmountInput] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
@@ -212,6 +229,13 @@ export default function ViewExpensePage() {
   >(null);
   const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
+  const [showRejectedModal, setShowRejectedModal] = useState(false);
+  const [isRejectedToday, setIsRejectedToday] = useState(false);
+  const [resubmissionInfo, setResubmissionInfo] = useState<ResubmissionInfo>({
+    isResubmitted: false,
+    rejectedBy: null,
+    rejectionDate: null,
+  });
 
   const approverSigRef = useRef<HTMLDivElement | null>(null);
   const [approverHighlight, setApproverHighlight] = useState(false);
@@ -225,6 +249,63 @@ export default function ViewExpensePage() {
       }
     } catch (e) {
       console.error("Scroll to approver signature failed:", e);
+    }
+  };
+
+  const handleResubmit = async () => {
+    if (!currentUserId || !expense) return;
+    try {
+      setResubmitting(true);
+      const updates: any = {
+        status: "submitted",
+        finance_comment: null,
+        finance_decision_at: null,
+        payment_status: null,
+        finance_approve_time: null,
+        manager_approve_time: null,
+        approved_amount: null,
+      };
+
+      const { error } = await expenses.update(expenseId, updates);
+      if (error) throw error;
+
+      await expenseHistory.addEntry(
+        expenseId,
+        currentUserId,
+        profile?.full_name || "Unknown User",
+        "updated",
+        expense.status,
+        "submitted"
+      );
+
+      // notify approver
+      if (expense.approver_id) {
+        const { data: approverProfile } = await profiles.getById(expense.approver_id);
+        if (approverProfile?.email) {
+          await fetch("/api/expenses/notify-approver", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              expenseId,
+              approverEmail: approverProfile.email,
+              approverName: approverProfile.full_name,
+              requesterName: profile?.full_name || "Unknown User",
+              orgName: organization?.name,
+              slug,
+              amount: expense.amount,
+              expenseType: expense.expense_type,
+            }),
+          });
+        }
+      }
+
+      toast.success("Expense resubmitted successfully");
+      window.location.reload();
+    } catch (error: any) {
+      toast.error("Failed to resubmit expense");
+      console.error(error);
+    } finally {
+      setResubmitting(false);
     }
   };
 
@@ -377,6 +458,67 @@ export default function ViewExpensePage() {
         }
 
         setExpense(data);
+
+        // Fetch expense history to evaluate rejection and resubmission
+        let historyList: any[] = [];
+        try {
+          const { data: hList } = await expenseHistory.getByExpenseId(expenseId);
+          if (hList) {
+            historyList = hList;
+          }
+        } catch (e) {
+          console.warn("Failed to fetch expense history:", e);
+        }
+
+        const resubmitDetails = getResubmissionDetails(historyList, data?.status);
+        setResubmissionInfo(resubmitDetails);
+
+        if (
+          data?.status === "rejected" ||
+          data?.status === "finance_rejected"
+        ) {
+          let rejectionDate: string | null = null;
+          const latestRejection = historyList?.find(
+            (h: any) =>
+              h.action_type === "rejected" ||
+              h.action_type === "finance_rejected"
+          );
+          if (latestRejection?.created_at) {
+            rejectionDate = latestRejection.created_at;
+          }
+
+          if (!rejectionDate) {
+            rejectionDate =
+              (data as any).finance_decision_at || data.updated_at;
+          }
+
+          const rejectedToday = isDateToday(rejectionDate);
+          setIsRejectedToday(rejectedToday);
+
+          const isFromEdit =
+            searchParams.get("fromEdit") === "true" ||
+            searchParams.get("edited") === "true";
+
+          let isSuppressed = false;
+          try {
+            isSuppressed =
+              sessionStorage.getItem(`hide_rejected_modal_${expenseId}`) === "true";
+            if (isSuppressed) {
+              sessionStorage.removeItem(`hide_rejected_modal_${expenseId}`);
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          if (isFromEdit || isSuppressed) {
+            setShowRejectedModal(false);
+          } else {
+            setShowRejectedModal(rejectedToday);
+          }
+        } else {
+          setIsRejectedToday(false);
+          setShowRejectedModal(false);
+        }
         // initialize editable description state
         const d: any = data;
         const desc =
@@ -1332,8 +1474,9 @@ export default function ViewExpensePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size="lg" />
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] gap-4">
+        <Spinner size="lg" className="h-16 w-16 text-primary" />
+        <p className="text-muted-foreground font-medium animate-pulse">Loading data...</p>
       </div>
     );
   }
@@ -1747,7 +1890,7 @@ export default function ViewExpensePage() {
 
   return (
     <div className="container mx-auto py-6">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <Button
           variant="link"
           onClick={() => router.push(backToExpensesUrl)}
@@ -1755,7 +1898,86 @@ export default function ViewExpensePage() {
           <ArrowLeft />
           Back to Expenses
         </Button>
+        {((user?.id && expense.user_id === user.id) ||
+          (currentUserId && expense.user_id === currentUserId)) &&
+          isRejectedToday &&
+          (expense.status === "rejected" ||
+            expense.status === "finance_rejected") && (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => {
+                setEditingLoading(true);
+                router.push(`/org/${slug}/expenses/${expenseId}/edit`);
+              }}
+              disabled={editingLoading || resubmitting}
+            >
+              {editingLoading ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  Edit Expense
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Edit Expense
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={handleResubmit}
+              disabled={resubmitting || editingLoading}
+            >
+              {resubmitting ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  Resubmit
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Resubmit
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
+
+      {/* Show message if expense is rejected by Manager or Finance today */}
+      {isRejectedToday &&
+        (expense.status === "rejected" ||
+          expense.status === "finance_rejected") && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-semibold text-red-900">
+                Expense Rejected by {expense.status === "finance_rejected" ? "Finance" : "Manager"}
+              </p>
+              <p className="text-red-600 text-xs mt-0.5">
+                You can edit this rejected expense and submit it again for approval.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Show banner if expense was previously rejected, edited, and resubmitted */}
+      {resubmissionInfo.isResubmitted && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-950">
+                Resubmitted Expense (Previously Rejected by {resubmissionInfo.rejectedBy})
+              </p>
+              <p className="text-amber-700 text-xs mt-0.5">
+                This expense was edited and resubmitted after being previously rejected by {resubmissionInfo.rejectedBy}.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Show message if expense is created using Advance Unique ID */}
       {expense.unique_id &&
@@ -2738,6 +2960,52 @@ export default function ViewExpensePage() {
           </Card>
         </div>
       </div>
+
+      {/* Rejected Expense Information Dialog Popup */}
+      <Dialog
+        open={showRejectedModal && isRejectedToday}
+        onOpenChange={setShowRejectedModal}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="flex flex-col items-center text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-2">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Expense Rejected
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground pt-1 text-center">
+              This expense was rejected by{" "}
+              <span className="font-semibold text-red-600">
+                {expense?.status === "finance_rejected"
+                  ? "Finance"
+                  : "Manager"}
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-amber-900 space-y-2">
+            <div className="flex items-start gap-2.5">
+              <div className="text-sm leading-relaxed">
+                <p className="text-sm text-amber-800 mt-1">
+                  You can edit the expense details, correct any missing or invalid information/receipt/voucher, and resubmit it for approval.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              className="border border-black"
+              onClick={() => setShowRejectedModal(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

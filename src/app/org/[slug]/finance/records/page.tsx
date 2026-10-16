@@ -3117,7 +3117,7 @@ export default function PaymentRecords() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible mb-0">
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>
@@ -4474,4 +4474,4 @@ export default function PaymentRecords() {
       </Dialog>
     </div>
   );
-}
+}
