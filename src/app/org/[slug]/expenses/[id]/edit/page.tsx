@@ -42,6 +42,7 @@ export default function EditExpensePage() {
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [expenseCreditPersonOptions, setExpenseCreditPersonOptions] = useState<string[]>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
+  const [isVoucherEditing, setIsVoucherEditing] = useState(false);
   const [voucherData, setVoucherData] = useState<any>(null);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
 
@@ -113,6 +114,7 @@ export default function EditExpensePage() {
         if (voucherRes) {
           setHasVoucher(true);
           setVoucherData(voucherRes);
+          setIsVoucherEditing(true);
         }
 
         // Fetch organization settings for dropdowns
@@ -239,6 +241,12 @@ export default function EditExpensePage() {
 
   const handleSubmit = async (e: React.FormEvent, isResubmit: boolean = false) => {
     e.preventDefault();
+
+    if (hasVoucher && isVoucherEditing) {
+      toast.error("Please save Voucher Preview before saving changes.");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -473,7 +481,7 @@ export default function EditExpensePage() {
       }
       try {
         sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
-      } catch (e) {}
+      } catch (e) { }
       router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
     } catch (error: any) {
       console.error("Error updating expense:", error);
@@ -513,7 +521,7 @@ export default function EditExpensePage() {
           onClick={() => {
             try {
               sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
-            } catch (e) {}
+            } catch (e) { }
             router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
           }}
         >
@@ -568,239 +576,239 @@ export default function EditExpensePage() {
 
               return (
                 <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Event Name</Label>
-                <Input
-                  value={eventTitle || "N/A"}
-                  readOnly
-                  className="text-foreground font-medium"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Unique ID</Label>
-                <Input
-                  value={expense.unique_id || "N/A"}
-                  readOnly
-                  className="text-foreground font-medium"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Input
-                  value={expense.status ? expense.status.charAt(0).toUpperCase() + expense.status.slice(1).replace("_", " ") : "N/A"}
-                  readOnly
-                  className="text-foreground font-medium"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Approver</Label>
-                <Input
-                  value={expense.approver?.full_name || "—"}
-                  readOnly
-                  className="text-foreground font-medium"
-                />
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Event Name</Label>
+                      <Input
+                        value={eventTitle || "N/A"}
+                        readOnly
+                        className="text-foreground font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unique ID</Label>
+                      <Input
+                        value={expense.unique_id || "N/A"}
+                        readOnly
+                        className="text-foreground font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Input
+                        value={expense.status ? expense.status.charAt(0).toUpperCase() + expense.status.slice(1).replace("_", " ") : "N/A"}
+                        readOnly
+                        className="text-foreground font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Approver</Label>
+                      <Input
+                        value={expense.approver?.full_name || "—"}
+                        readOnly
+                        className="text-foreground font-medium"
+                      />
+                    </div>
 
-              {projectKey && (
-                <div className="space-y-2">
-                  <Label htmlFor={projectKey}>{getDisplayFieldLabel(projectKey)}</Label>
-                  {locationOptions.length > 0 ? (
-                    <Select
-                      value={formData[projectKey] || formData.project_of_expense || ""}
-                      onValueChange={(val: string) => handleInputChange(projectKey, val)}
-                    >
-                      <SelectTrigger id={projectKey} className="w-full">
-                        <SelectValue placeholder={`Select ${getDisplayFieldLabel(projectKey)}`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locationOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id={projectKey}
-                      value={formData[projectKey] || formData.project_of_expense || ""}
-                      onChange={(e) => handleInputChange(projectKey, e.target.value)}
-                    />
-                  )}
-                </div>
-              )}
+                    {projectKey && (
+                      <div className="space-y-2">
+                        <Label htmlFor={projectKey}>{getDisplayFieldLabel(projectKey)}</Label>
+                        {locationOptions.length > 0 ? (
+                          <Select
+                            value={formData[projectKey] || formData.project_of_expense || ""}
+                            onValueChange={(val: string) => handleInputChange(projectKey, val)}
+                          >
+                            <SelectTrigger id={projectKey} className="w-full">
+                              <SelectValue placeholder={`Select ${getDisplayFieldLabel(projectKey)}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {locationOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            id={projectKey}
+                            value={formData[projectKey] || formData.project_of_expense || ""}
+                            onChange={(e) => handleInputChange(projectKey, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    )}
 
-              <div className="space-y-2">
-                <Label htmlFor="expense_type">Expense Type</Label>
-                {expenseTypeOptions.length > 0 ? (
-                  <Select
-                    value={formData.expense_type || ""}
-                    onValueChange={(value: string) =>
-                      handleInputChange("expense_type", value)
-                    }
-                  >
-                    <SelectTrigger id="expense_type" className="w-full">
-                      <SelectValue placeholder="Select expense type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {expenseTypeOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id="expense_type"
-                    value={formData.expense_type || ""}
-                    onChange={(e) =>
-                      handleInputChange("expense_type", e.target.value)
-                    }
-                    required
-                  />
-                )}
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="expense_type">Expense Type</Label>
+                      {expenseTypeOptions.length > 0 ? (
+                        <Select
+                          value={formData.expense_type || ""}
+                          onValueChange={(value: string) =>
+                            handleInputChange("expense_type", value)
+                          }
+                        >
+                          <SelectTrigger id="expense_type" className="w-full">
+                            <SelectValue placeholder="Select expense type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {expenseTypeOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id="expense_type"
+                          value={formData.expense_type || ""}
+                          onChange={(e) =>
+                            handleInputChange("expense_type", e.target.value)
+                          }
+                          required
+                        />
+                      )}
+                    </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  value={formData.amount || ""}
-                  onChange={(e) =>
-                    handleInputChange("amount", parseFloat(e.target.value))
-                  }
-                  required
-                />
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="amount">Amount</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        value={formData.amount || ""}
+                        onChange={(e) =>
+                          handleInputChange("amount", parseFloat(e.target.value))
+                        }
+                        required
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date || ""}
-                  onChange={(e) => handleInputChange("date", e.target.value)}
-                  className="block w-full"
-                  required
-                />
-              </div>
-            </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="date">Date</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={formData.date || ""}
+                        onChange={(e) => handleInputChange("date", e.target.value)}
+                        className="block w-full"
+                        required
+                      />
+                    </div>
+                  </div>
 
-            {/* Custom fields */}
-            {Object.entries(expense.custom_fields)
-              .filter(([key]) => {
-                const normalizedKey = key.replace(/_/g, " ").toLowerCase();
-                const excludedKeys = [
-                  "location", "location of expense", "project of expense",
-                  "approver name", "second approver id", "second approver name"
-                ];
-                return !excludedKeys.includes(normalizedKey);
-              })
-              .map(([key, value]) => {
-              // Check if this field is location_of_expense and has options
-              const normalizedKey = key.replace(/_/g, " ").toLowerCase();
-              const isLocationField =
-                normalizedKey === "location" ||
-                normalizedKey === "location of expense" ||
-                normalizedKey === "location_of_expense";
-              const isExpenseCreditPersonField =
-                normalizedKey === "expense credit person" ||
-                key.toLowerCase() === "expense_credit_person";
+                  {/* Custom fields */}
+                  {Object.entries(expense.custom_fields)
+                    .filter(([key]) => {
+                      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+                      const excludedKeys = [
+                        "location", "location of expense", "project of expense",
+                        "approver name", "second approver id", "second approver name"
+                      ];
+                      return !excludedKeys.includes(normalizedKey);
+                    })
+                    .map(([key, value]) => {
+                      // Check if this field is location_of_expense and has options
+                      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+                      const isLocationField =
+                        normalizedKey === "location" ||
+                        normalizedKey === "location of expense" ||
+                        normalizedKey === "location_of_expense";
+                      const isExpenseCreditPersonField =
+                        normalizedKey === "expense credit person" ||
+                        key.toLowerCase() === "expense_credit_person";
 
-              if (isExpenseCreditPersonField && !hasDirectPaymentUniqueId) {
-                return null;
-              }
-
-              const hasLocationOptions = isLocationField && locationOptions.length > 0;
-              const hasExpenseCreditPersonOptions =
-                isExpenseCreditPersonField && expenseCreditPersonOptions.length > 0;
-              const dropdownOptions = hasLocationOptions
-                ? locationOptions
-                : expenseCreditPersonOptions;
-
-              return (
-                <div key={key} className="space-y-2">
-                  <Label htmlFor={key}>{getDisplayFieldLabel(key)}</Label>
-                  {hasLocationOptions || hasExpenseCreditPersonOptions ? (
-                    <Select
-                      value={
-                        isExpenseCreditPersonField
-                          ? formData[key] || formData.expense_credit_person || ""
-                          : formData[key] || ""
+                      if (isExpenseCreditPersonField && !hasDirectPaymentUniqueId) {
+                        return null;
                       }
-                      onValueChange={(value: string) =>
-                        handleInputChange(key, value)
-                      }
-                    >
-                      <SelectTrigger id={key} className="w-full">
-                        <SelectValue placeholder={`Select ${getDisplayFieldLabel(key)}`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dropdownOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : normalizedKey === "description" ? (
-                    <Textarea
-                      id={key}
-                      value={formData[key] || ""}
-                      onChange={(e) => handleInputChange(key, e.target.value)}
-                      className="min-h-[50px]"
-                    />
-                  ) : (
-                    <Input
-                      id={key}
-                      value={
-                        isExpenseCreditPersonField
-                          ? formData[key] || formData.expense_credit_person || ""
-                          : formData[key] || ""
-                      }
-                      onChange={(e) => handleInputChange(key, e.target.value)}
-                    />
-                  )}
-                </div>
-              );
-            })}
 
-            {/* Direct Payment fallback if expense_credit_person was not present in custom_fields */}
-            {hasDirectPaymentUniqueId &&
-              !Object.keys(expense.custom_fields || {}).some((k) => {
-                const norm = k.replace(/_/g, " ").toLowerCase();
-                return norm === "expense credit person" || k.toLowerCase() === "expense_credit_person";
-              }) && (
-                <div key="expense_credit_person" className="space-y-2">
-                  <Label htmlFor="expense_credit_person">Expense Credit Person</Label>
-                  {expenseCreditPersonOptions.length > 0 ? (
-                    <Select
-                      value={formData.expense_credit_person || ""}
-                      onValueChange={(val: string) => handleInputChange("expense_credit_person", val)}
-                    >
-                      <SelectTrigger id="expense_credit_person" className="w-full">
-                        <SelectValue placeholder="Select Expense Credit Person" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {expenseCreditPersonOptions.map((opt) => (
-                          <SelectItem key={opt} value={opt}>
-                            {opt}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="expense_credit_person"
-                      value={formData.expense_credit_person || ""}
-                      onChange={(e) => handleInputChange("expense_credit_person", e.target.value)}
-                    />
-                  )}
-                </div>
-              )}
+                      const hasLocationOptions = isLocationField && locationOptions.length > 0;
+                      const hasExpenseCreditPersonOptions =
+                        isExpenseCreditPersonField && expenseCreditPersonOptions.length > 0;
+                      const dropdownOptions = hasLocationOptions
+                        ? locationOptions
+                        : expenseCreditPersonOptions;
+
+                      return (
+                        <div key={key} className="space-y-2">
+                          <Label htmlFor={key}>{getDisplayFieldLabel(key)}</Label>
+                          {hasLocationOptions || hasExpenseCreditPersonOptions ? (
+                            <Select
+                              value={
+                                isExpenseCreditPersonField
+                                  ? formData[key] || formData.expense_credit_person || ""
+                                  : formData[key] || ""
+                              }
+                              onValueChange={(value: string) =>
+                                handleInputChange(key, value)
+                              }
+                            >
+                              <SelectTrigger id={key} className="w-full">
+                                <SelectValue placeholder={`Select ${getDisplayFieldLabel(key)}`} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {dropdownOptions.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : normalizedKey === "description" ? (
+                            <Textarea
+                              id={key}
+                              value={formData[key] || ""}
+                              onChange={(e) => handleInputChange(key, e.target.value)}
+                              className="min-h-[50px]"
+                            />
+                          ) : (
+                            <Input
+                              id={key}
+                              value={
+                                isExpenseCreditPersonField
+                                  ? formData[key] || formData.expense_credit_person || ""
+                                  : formData[key] || ""
+                              }
+                              onChange={(e) => handleInputChange(key, e.target.value)}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+
+                  {/* Direct Payment fallback if expense_credit_person was not present in custom_fields */}
+                  {hasDirectPaymentUniqueId &&
+                    !Object.keys(expense.custom_fields || {}).some((k) => {
+                      const norm = k.replace(/_/g, " ").toLowerCase();
+                      return norm === "expense credit person" || k.toLowerCase() === "expense_credit_person";
+                    }) && (
+                      <div key="expense_credit_person" className="space-y-2">
+                        <Label htmlFor="expense_credit_person">Expense Credit Person</Label>
+                        {expenseCreditPersonOptions.length > 0 ? (
+                          <Select
+                            value={formData.expense_credit_person || ""}
+                            onValueChange={(val: string) => handleInputChange("expense_credit_person", val)}
+                          >
+                            <SelectTrigger id="expense_credit_person" className="w-full">
+                              <SelectValue placeholder="Select Expense Credit Person" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {expenseCreditPersonOptions.map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            id="expense_credit_person"
+                            value={formData.expense_credit_person || ""}
+                            onChange={(e) => handleInputChange("expense_credit_person", e.target.value)}
+                          />
+                        )}
+                      </div>
+                    )}
                 </>
               );
             })()}
@@ -855,7 +863,13 @@ export default function EditExpensePage() {
 
       {/* Voucher Preview - only show if expense has voucher */}
       {hasVoucher && (
-        <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} defaultEditMode={true} />
+        <VoucherPreview
+          expense={expense}
+          expenseId={expenseId}
+          defaultOpen={true}
+          defaultEditMode={true}
+          onEditingChange={setIsVoucherEditing}
+        />
       )}
     </div>
   );

@@ -25,9 +25,16 @@ type Props = {
   expenseId?: string;
   defaultOpen?: boolean;
   defaultEditMode?: boolean;
+  onEditingChange?: (isEditing: boolean) => void;
 };
 
-export default function VoucherPreview({ expense, expenseId, defaultOpen = true, defaultEditMode = false }: Props) {
+export default function VoucherPreview({
+  expense,
+  expenseId,
+  defaultOpen = true,
+  defaultEditMode = false,
+  onEditingChange,
+}: Props) {
   const { organization } = useOrgStore();
   const [voucherDetails, setVoucherDetails] = React.useState<any | null>(null);
   const [voucherSignatureUrl, setVoucherSignatureUrl] = React.useState<string | null>(null);
@@ -39,6 +46,20 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true,
   const [isSaving, setIsSaving] = React.useState(false);
   const [editForm, setEditForm] = React.useState<any>({});
   const [newAttachment, setNewAttachment] = React.useState<File | null>(null);
+
+  React.useEffect(() => {
+    if (voucherDetails) {
+      onEditingChange?.(isEditing);
+    } else {
+      onEditingChange?.(false);
+    }
+  }, [isEditing, voucherDetails, onEditingChange]);
+
+  React.useEffect(() => {
+    return () => {
+      onEditingChange?.(false);
+    };
+  }, [onEditingChange]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -229,13 +250,8 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true,
                           if (editForm.date && editForm.date !== oldDate) {
                             await logChange("Date", oldDate, editForm.date);
                             await expenses.update(expense.id, { date: editForm.date });
-                            window.location.reload();
                           }
                         } catch (e) { console.error("Error logging history:", e); }
-
-                        if (newAttachment) {
-                          window.location.reload();
-                        }
 
                         setVoucherDetails({
                           ...voucherDetails,
@@ -365,7 +381,7 @@ export default function VoucherPreview({ expense, expenseId, defaultOpen = true,
                   {newAttachment && <p className="text-sm text-blue-600 mt-1">New file selected: {newAttachment.name}</p>}
                 </div>
               )}
-              
+
               {(() => {
                 const previewUrl = newAttachment ? URL.createObjectURL(newAttachment) : voucherAttachmentUrl;
                 const previewFilename = newAttachment ? newAttachment.name : voucherAttachmentFilename;
