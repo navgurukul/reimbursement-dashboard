@@ -43,6 +43,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import supabase from "@/lib/supabase";
 import ExpenseHistory from "./history/expense-history";
 import { ExpenseComments } from "./history/expense-comments";
@@ -215,6 +223,7 @@ export default function ViewExpensePage() {
   >(null);
   const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
+  const [showRejectedModal, setShowRejectedModal] = useState(false);
 
   const approverSigRef = useRef<HTMLDivElement | null>(null);
   const [approverHighlight, setApproverHighlight] = useState(false);
@@ -437,6 +446,12 @@ export default function ViewExpensePage() {
         }
 
         setExpense(data);
+        if (
+          data?.status === "rejected" ||
+          data?.status === "finance_rejected"
+        ) {
+          setShowRejectedModal(true);
+        }
         // initialize editable description state
         const d: any = data;
         const desc =
@@ -1816,7 +1831,10 @@ export default function ViewExpensePage() {
           <ArrowLeft />
           Back to Expenses
         </Button>
-        {expense.user_id === currentUserId && (expense.status === "rejected" || expense.status === "finance_rejected") && (
+        {((user?.id && expense.user_id === user.id) ||
+          (currentUserId && expense.user_id === currentUserId)) &&
+          (expense.status === "rejected" ||
+            expense.status === "finance_rejected") && (
           <div className="flex items-center gap-2">
             <Button
               onClick={() => {
@@ -1856,6 +1874,27 @@ export default function ViewExpensePage() {
           </div>
         )}
       </div>
+
+      {/* Show message if expense is rejected by Manager or Finance */}
+      {(expense.status === "rejected" ||
+        expense.status === "finance_rejected") && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-semibold text-red-900">
+                Expense Rejected by {expense.status === "finance_rejected" ? "Finance" : "Manager"}
+              </p>
+              <p className="text-red-700 mt-0.5">
+                जो expense reject हुआ है, आप उसी expense को edit करके again resubmit कर सकते हैं।
+              </p>
+              <p className="text-red-600 text-xs mt-0.5">
+                (You can edit this rejected expense and submit it again for approval.)
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Show message if expense is created using Advance Unique ID */}
       {expense.unique_id &&
@@ -2838,6 +2877,52 @@ export default function ViewExpensePage() {
           </Card>
         </div>
       </div>
+
+      {/* Rejected Expense Information Dialog Popup */}
+      <Dialog open={showRejectedModal} onOpenChange={setShowRejectedModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="flex flex-col items-center text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-2">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Expense Rejected
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground pt-1 text-center">
+              This expense was rejected by{" "}
+              <span className="font-semibold text-red-600">
+                {expense?.status === "finance_rejected"
+                  ? "Finance"
+                  : "Manager"}
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-amber-900 space-y-2">
+            <div className="flex items-start gap-2.5">
+              <div className="text-sm leading-relaxed">
+                <p className="font-semibold text-amber-950">
+                  जो expense reject हुआ है, आप उसी expense को edit करके again resubmit कर सकते हैं।
+                </p>
+                <p className="text-amber-800 text-xs mt-1">
+                  You can edit the expense details, correct any missing or invalid information/receipt/voucher, and resubmit it for approval.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              className="border border-black"
+              onClick={() => setShowRejectedModal(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
