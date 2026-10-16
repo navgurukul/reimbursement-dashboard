@@ -31,6 +31,7 @@ import {
   ExternalLink,
   Download,
   Upload,
+  CheckCircle,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
@@ -62,7 +63,11 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatDate } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
-import { isDateToday } from "@/lib/features";
+import {
+  isDateToday,
+  getResubmissionDetails,
+  ResubmissionInfo,
+} from "@/lib/features";
 
 // Utility function to convert image URL to base64
 async function convertImageUrlToBase64(url: string): Promise<string> {
@@ -226,6 +231,11 @@ export default function ViewExpensePage() {
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [isRejectedToday, setIsRejectedToday] = useState(false);
+  const [resubmissionInfo, setResubmissionInfo] = useState<ResubmissionInfo>({
+    isResubmitted: false,
+    rejectedBy: null,
+    rejectionDate: null,
+  });
 
   const approverSigRef = useRef<HTMLDivElement | null>(null);
   const [approverHighlight, setApproverHighlight] = useState(false);
@@ -448,25 +458,33 @@ export default function ViewExpensePage() {
         }
 
         setExpense(data);
+
+        // Fetch expense history to evaluate rejection and resubmission
+        let historyList: any[] = [];
+        try {
+          const { data: hList } = await expenseHistory.getByExpenseId(expenseId);
+          if (hList) {
+            historyList = hList;
+          }
+        } catch (e) {
+          console.warn("Failed to fetch expense history:", e);
+        }
+
+        const resubmitDetails = getResubmissionDetails(historyList, data?.status);
+        setResubmissionInfo(resubmitDetails);
+
         if (
           data?.status === "rejected" ||
           data?.status === "finance_rejected"
         ) {
           let rejectionDate: string | null = null;
-          try {
-            const { data: historyList } = await expenseHistory.getByExpenseId(
-              expenseId
-            );
-            const latestRejection = historyList?.find(
-              (h: any) =>
-                h.action_type === "rejected" ||
-                h.action_type === "finance_rejected"
-            );
-            if (latestRejection?.created_at) {
-              rejectionDate = latestRejection.created_at;
-            }
-          } catch (e) {
-            console.warn("Failed to fetch rejection history:", e);
+          const latestRejection = historyList?.find(
+            (h: any) =>
+              h.action_type === "rejected" ||
+              h.action_type === "finance_rejected"
+          );
+          if (latestRejection?.created_at) {
+            rejectionDate = latestRejection.created_at;
           }
 
           if (!rejectionDate) {
@@ -1936,11 +1954,25 @@ export default function ViewExpensePage() {
               <p className="font-semibold text-red-900">
                 Expense Rejected by {expense.status === "finance_rejected" ? "Finance" : "Manager"}
               </p>
-              <p className="text-red-700 mt-0.5">
-                जो expense reject हुआ है, आप उसी expense को edit करके again resubmit कर सकते हैं।
-              </p>
               <p className="text-red-600 text-xs mt-0.5">
-                (You can edit this rejected expense and submit it again for approval.)
+                You can edit this rejected expense and submit it again for approval.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Show banner if expense was previously rejected, edited, and resubmitted */}
+      {resubmissionInfo.isResubmitted && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-950">
+                Resubmitted Expense (Previously Rejected by {resubmissionInfo.rejectedBy})
+              </p>
+              <p className="text-amber-700 text-xs mt-0.5">
+                This expense was edited and resubmitted after being previously rejected by {resubmissionInfo.rejectedBy}.
               </p>
             </div>
           </div>
@@ -2956,10 +2988,7 @@ export default function ViewExpensePage() {
           <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-amber-900 space-y-2">
             <div className="flex items-start gap-2.5">
               <div className="text-sm leading-relaxed">
-                <p className="font-semibold text-amber-950">
-                  जो expense reject हुआ है, आप उसी expense को edit करके again resubmit कर सकते हैं।
-                </p>
-                <p className="text-amber-800 text-xs mt-1">
+                <p className="text-sm text-amber-800 mt-1">
                   You can edit the expense details, correct any missing or invalid information/receipt/voucher, and resubmit it for approval.
                 </p>
               </div>
