@@ -214,6 +214,7 @@ export interface Expense {
   receipt: ReceiptInfo | null;
   unique_id?: string | null;
   expense_credit_person?: string | null;
+  location?: string | null;
   custom_fields: Record<string, any> & {
     isVoucher?: boolean;
     yourName?: string;

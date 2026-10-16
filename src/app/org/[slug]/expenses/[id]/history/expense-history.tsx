@@ -22,7 +22,21 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
           return;
         }
 
-        setHistory(data || []);
+        // Filter out redundant Location and Location Of Expense entries
+        const filteredHistory = (data || []).filter((item: any) => {
+          if (item.action_type === "updated" && item.old_value && item.new_value) {
+            const oldMatch = item.old_value.match(/^([^:]+):\s*(.*)$/);
+            if (oldMatch) {
+              const fieldName = oldMatch[1].trim().toLowerCase();
+              if (fieldName === "location" || fieldName === "location of expense") {
+                return false;
+              }
+            }
+          }
+          return true;
+        });
+
+        setHistory(filteredHistory);
       } catch (error) {
         console.error("Failed to load expense history:", error);
       } finally {
@@ -55,6 +69,24 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
               </>
             );
           }
+
+          const knownStatuses = [
+            "submitted",
+            "approved",
+            "rejected",
+            "finance_approved",
+            "finance_rejected",
+          ];
+          if (
+            knownStatuses.includes(String(oldValue).trim().toLowerCase()) ||
+            knownStatuses.includes(String(newValue).trim().toLowerCase())
+          ) {
+            return (
+              <>
+                Changed <span className="font-semibold">Expense Status</span> from "{oldValue}" to "{newValue}"
+              </>
+            );
+          }
           
           // If it looks like an amount (numeric)
           if (!isNaN(parseFloat(oldValue)) && !isNaN(parseFloat(newValue))) {
@@ -73,7 +105,7 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
         return "Expense rejected";
       case "finance_approved":
         return "Approved by Finance";
-      case "finance_rejected":
+      case "financerejected":
         return "Rejected by Finance";
       default:
         return `Action: ${actionType}`;
