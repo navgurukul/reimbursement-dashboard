@@ -62,6 +62,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatDate } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
+import { isDateToday } from "@/lib/features";
 
 // Utility function to convert image URL to base64
 async function convertImageUrlToBase64(url: string): Promise<string> {
@@ -224,6 +225,7 @@ export default function ViewExpensePage() {
   const [voucherPreviewLoading, setVoucherPreviewLoading] = useState(false);
   const [isVoucherPaneOpen, setIsVoucherPaneOpen] = useState(false);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
+  const [isRejectedToday, setIsRejectedToday] = useState(false);
 
   const approverSigRef = useRef<HTMLDivElement | null>(null);
   const [approverHighlight, setApproverHighlight] = useState(false);
@@ -450,7 +452,34 @@ export default function ViewExpensePage() {
           data?.status === "rejected" ||
           data?.status === "finance_rejected"
         ) {
-          setShowRejectedModal(true);
+          let rejectionDate: string | null = null;
+          try {
+            const { data: historyList } = await expenseHistory.getByExpenseId(
+              expenseId
+            );
+            const latestRejection = historyList?.find(
+              (h: any) =>
+                h.action_type === "rejected" ||
+                h.action_type === "finance_rejected"
+            );
+            if (latestRejection?.created_at) {
+              rejectionDate = latestRejection.created_at;
+            }
+          } catch (e) {
+            console.warn("Failed to fetch rejection history:", e);
+          }
+
+          if (!rejectionDate) {
+            rejectionDate =
+              (data as any).finance_decision_at || data.updated_at;
+          }
+
+          const rejectedToday = isDateToday(rejectionDate);
+          setIsRejectedToday(rejectedToday);
+          setShowRejectedModal(rejectedToday);
+        } else {
+          setIsRejectedToday(false);
+          setShowRejectedModal(false);
         }
         // initialize editable description state
         const d: any = data;
@@ -1833,6 +1862,7 @@ export default function ViewExpensePage() {
         </Button>
         {((user?.id && expense.user_id === user.id) ||
           (currentUserId && expense.user_id === currentUserId)) &&
+          isRejectedToday &&
           (expense.status === "rejected" ||
             expense.status === "finance_rejected") && (
           <div className="flex items-center gap-2">
@@ -1875,9 +1905,10 @@ export default function ViewExpensePage() {
         )}
       </div>
 
-      {/* Show message if expense is rejected by Manager or Finance */}
-      {(expense.status === "rejected" ||
-        expense.status === "finance_rejected") && (
+      {/* Show message if expense is rejected by Manager or Finance today */}
+      {isRejectedToday &&
+        (expense.status === "rejected" ||
+          expense.status === "finance_rejected") && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
@@ -2879,7 +2910,10 @@ export default function ViewExpensePage() {
       </div>
 
       {/* Rejected Expense Information Dialog Popup */}
-      <Dialog open={showRejectedModal} onOpenChange={setShowRejectedModal}>
+      <Dialog
+        open={showRejectedModal && isRejectedToday}
+        onOpenChange={setShowRejectedModal}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="flex flex-col items-center text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-2">
