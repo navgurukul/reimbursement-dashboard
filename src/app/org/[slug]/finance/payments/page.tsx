@@ -1642,17 +1642,17 @@ export default function PaymentProcessingOnly() {
           </div>
 
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setFilterOpen(false)}>
-              Close
-            </Button>
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
+            </Button>
+            <Button variant="outline" onClick={() => setFilterOpen(false)}>
+              Close
             </Button>
           </div>
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible mb-0">
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses, expenseHistory, vouchers } from "@/lib/db";
+import { orgSettings, expenses, expenseHistory, vouchers, profiles, expenseEvents } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,16 +42,20 @@ export default function EditExpensePage() {
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [expenseCreditPersonOptions, setExpenseCreditPersonOptions] = useState<string[]>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
+  const [isVoucherEditing, setIsVoucherEditing] = useState(false);
+  const [voucherData, setVoucherData] = useState<any>(null);
+  const [eventTitle, setEventTitle] = useState<string | null>(null);
 
   const getDisplayFieldLabel = (key: string) => {
     const labelMap: Record<string, string> = {
       description: "Description",
       approver_name: "Approver Name",
       location_of_expense: "Project of Expense",
+      project_of_expense: "Project of Expense",
       expense_credit_person: "Expense Credit Person",
     };
 
-    return labelMap[key] || key;
+    return labelMap[key] || key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
   useEffect(() => {
@@ -67,16 +71,51 @@ export default function EditExpensePage() {
           return;
         }
         setExpense(data);
+
+        // Normalize initial values for Project of Expense and Expense Credit Person
+        const initialProjectOfExpense =
+          data.custom_fields?.project_of_expense ||
+          data.custom_fields?.["Project of Expense"] ||
+          data.custom_fields?.location_of_expense ||
+          data.custom_fields?.["Location of Expense"] ||
+          data.custom_fields?.location ||
+          (data as any).location ||
+          "";
+
+        const initialExpenseCreditPerson =
+          data.custom_fields?.expense_credit_person ||
+          data.custom_fields?.["Expense Credit Person"] ||
+          data.expense_credit_person ||
+          "";
+
         setFormData({
           expense_type: data.expense_type,
           amount: data.amount,
           date: new Date(data.date).toISOString().split("T")[0],
           ...data.custom_fields,
+          project_of_expense: initialProjectOfExpense,
+          ...(initialExpenseCreditPerson ? { expense_credit_person: initialExpenseCreditPerson } : {}),
         });
 
+        // Fetch related event title if linked
+        if (data.event_id) {
+          try {
+            const { data: eventData } = await expenseEvents.getById(data.event_id);
+            if (eventData) {
+              setEventTitle(eventData.title);
+            }
+          } catch (e) {
+            console.error("Error fetching event details:", e);
+          }
+        }
+
         // Check if expense has voucher
-        const { data: voucherData } = await vouchers.getByExpenseId(expenseId);
-        setHasVoucher(!!voucherData);
+        const { data: voucherRes } = await vouchers.getByExpenseId(expenseId);
+        if (voucherRes) {
+          setHasVoucher(true);
+          setVoucherData(voucherRes);
+          setIsVoucherEditing(true);
+        }
 
         // Fetch organization settings for dropdowns
         const { data: settings, error: settingsError } = await orgSettings.getByOrgId(orgId);
@@ -104,7 +143,7 @@ export default function EditExpensePage() {
 
           // Extract location options
           const locationCol = settings.expense_columns.find(
-            (col: any) => col.key === "location" || col.key === "location_of_expense"
+            (col: any) => col.key === "location" || col.key === "location_of_expense" || col.key === "Project of Expense" || col.label?.trim().toLowerCase() === "project of expense" || col.label?.trim().toLowerCase() === "location of expense"
           );
           if (locationCol && locationCol.options) {
             const options = locationCol.options;
@@ -171,31 +210,60 @@ export default function EditExpensePage() {
     key: string,
     value: string | number | boolean | string[]
   ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+    const isProjectOrLocation =
+      normalizedKey === "location" ||
+      normalizedKey === "location of expense" ||
+      normalizedKey === "project of expense";
+    const isCreditPerson =
+      normalizedKey === "expense credit person" ||
+      key.toLowerCase() === "expense_credit_person";
+
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
+      };
+
+      if (isProjectOrLocation && typeof value === "string") {
+        next.project_of_expense = value;
+        if ("Project of Expense" in next) next["Project of Expense"] = value;
+      }
+
+      if (isCreditPerson && typeof value === "string") {
+        next.expense_credit_person = value;
+        if ("Expense Credit Person" in next) next["Expense Credit Person"] = value;
+      }
+
+      return next;
+    });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, isResubmit: boolean = false) => {
     e.preventDefault();
+
+    if (hasVoucher && isVoucherEditing) {
+      toast.error("Please save Voucher Preview before saving changes.");
+      return;
+    }
+
     setSaving(true);
-  
+
     try {
       // Get current user from Supabase
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
         throw new Error("User not authenticated. Please log in again.");
       }
-  
+
+      let userName = "Unknown User";
+
       // Get username for history entries using improved extraction
       try {
         const authRaw = localStorage.getItem('auth-storage');
         const authStorage = JSON.parse(authRaw || '{}');
-        
+
         // Try multiple paths and nested data
-        let userName = "Unknown User";
-        
         if (authStorage?.state?.user?.profile?.full_name) {
           userName = authStorage.state.user.profile.full_name;
         } else if (typeof authRaw === 'string' && authRaw.includes('full_name')) {
@@ -205,7 +273,7 @@ export default function EditExpensePage() {
             userName = match[1];
           }
         }
-                
+
         // Check what fields have changed
         if (expense.expense_type !== formData.expense_type) {
           // Log expense type change
@@ -214,72 +282,213 @@ export default function EditExpensePage() {
             session.user.id,
             userName,
             'updated',
-            expense.expense_type,
-            formData.expense_type
+            `Expense Type: ${expense.expense_type}`,
+            `Expense Type: ${formData.expense_type}`
           );
         }
-  
-        if (expense.amount !== parseFloat(formData.amount)) {
+
+        const rawAmount = parseFloat(String(formData.amount ?? ""));
+        const roundedAmount = isNaN(rawAmount) ? 0 : Math.round(rawAmount);
+
+        if (expense.amount !== roundedAmount) {
           // Log amount change
           await expenseHistory.addEntry(
             expenseId,
             session.user.id,
             userName,
             'updated',
-            expense.amount.toString(),
-            formData.amount.toString()
+            `Amount: ${expense.amount.toString()}`,
+            `Amount: ${roundedAmount.toString()}`
           );
         }
-  
+
         // Add custom fields
+        let projectOfExpenseLogged = false;
         Object.entries(formData).forEach(([key, value]) => {
           if (key !== "expense_type" && key !== "amount" && key !== "date") {
+            const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+            // Skip redundant location keys so only Project of Expense is logged
+            if (
+              normalizedKey === "location" ||
+              normalizedKey === "location of expense" ||
+              normalizedKey === "location_of_expense"
+            ) {
+              return;
+            }
+
+            if (normalizedKey === "project of expense" || normalizedKey === "project_of_expense") {
+              if (projectOfExpenseLogged) return;
+              projectOfExpenseLogged = true;
+
+              const oldVal =
+                expense.custom_fields?.project_of_expense ||
+                expense.custom_fields?.["Project of Expense"] ||
+                (expense as any).location ||
+                "";
+              if (oldVal !== value) {
+                expenseHistory.addEntry(
+                  expenseId,
+                  session.user.id,
+                  userName,
+                  'updated',
+                  `Project Of Expense: ${oldVal || ''}`,
+                  `Project Of Expense: ${value?.toString() || ''}`
+                ).catch(err => console.error("Error logging field update:", err));
+              }
+              return;
+            }
+
             // Log changes to custom fields if they're different
             if (expense.custom_fields[key] !== value) {
+              const fieldLabel = key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
               expenseHistory.addEntry(
                 expenseId,
                 session.user.id,
                 userName,
                 'updated',
-                expense.custom_fields[key]?.toString() || '',
-                value?.toString() || ''
+                `${fieldLabel}: ${expense.custom_fields[key]?.toString() || ''}`,
+                `${fieldLabel}: ${value?.toString() || ''}`
               ).catch(err => console.error("Error logging field update:", err));
             }
           }
         });
+
+        // Log receipt update if a new receiptFile is uploaded
+        if (receiptFile) {
+          const oldReceipt =
+            expense.receipt?.filename ||
+            (expense.receipt?.path ? expense.receipt.path.split("/").pop() : "None");
+          const newReceipt = receiptFile.name;
+          await expenseHistory.addEntry(
+            expenseId,
+            session.user.id,
+            userName,
+            "updated",
+            `Receipt: ${oldReceipt}`,
+            `Receipt: ${newReceipt}`
+          );
+        }
+
+        // Log resubmit if applicable
+        if (isResubmit) {
+          await expenseHistory.addEntry(
+            expenseId,
+            session.user.id,
+            userName,
+            'updated',
+            `Expense Status: ${expense.status}`,
+            'Expense Status: submitted'
+          );
+        }
       } catch (error) {
         console.error('Error extracting username from localStorage:', error);
         // If username extraction fails, still update the expense without history entries
       }
-  
+
+      // Resolve updated project_of_expense and expense_credit_person
+      const updatedProjectOfExpense =
+        formData.project_of_expense ||
+        formData["Project of Expense"] ||
+        formData.location_of_expense ||
+        formData["Location of Expense"] ||
+        formData.location ||
+        null;
+
+      const updatedExpenseCreditPerson =
+        formData.expense_credit_person ||
+        formData["Expense Credit Person"] ||
+        null;
+
+      const rawAmount = parseFloat(String(formData.amount ?? ""));
+      const roundedAmount = isNaN(rawAmount) ? 0 : Math.round(rawAmount);
+
       // Prepare expense data
       const updates: any = {
         expense_type: formData.expense_type,
-        amount: parseFloat(formData.amount),
+        amount: roundedAmount,
         date: formData.date,
+        location: updatedProjectOfExpense,
+        expense_credit_person: updatedExpenseCreditPerson,
         custom_fields: {},
       };
-  
-      // Add custom fields
+
+      if (isResubmit) {
+        updates.status = "submitted";
+        updates.finance_comment = null;
+        updates.finance_decision_at = null;
+        updates.payment_status = null;
+        updates.finance_approve_time = null;
+        updates.manager_approve_time = null;
+        updates.approved_amount = null;
+      }
+
+      // Add custom fields (excluding redundant location keys)
       Object.entries(formData).forEach(([key, value]) => {
         if (key !== "expense_type" && key !== "amount" && key !== "date") {
-          updates.custom_fields[key] = value;
+          const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+          if (
+            normalizedKey !== "location" &&
+            normalizedKey !== "location of expense" &&
+            normalizedKey !== "location_of_expense"
+          ) {
+            updates.custom_fields[key] = value;
+          }
         }
       });
-  
+
+      // Synchronize custom_fields with database columns
+      if (updatedProjectOfExpense !== null) {
+        updates.custom_fields.project_of_expense = updatedProjectOfExpense;
+      }
+      if (updatedExpenseCreditPerson !== null) {
+        updates.custom_fields.expense_credit_person = updatedExpenseCreditPerson;
+      }
+
       // Update expense with receipt if provided
       const { error } = await expenses.update(
         expenseId,
         updates,
         receiptFile || undefined
       );
-  
+
       if (error) {
         throw error;
       }
-  
-      toast.success("Expense updated successfully");
-      router.push(`/org/${slug}/expenses/${expenseId}`);
+
+      if (isResubmit) {
+        toast.success("Expense resubmitted successfully");
+
+        // Notify approver
+        try {
+          if (expense.approver_id) {
+            const { data: approverProfile } = await profiles.getById(expense.approver_id);
+            if (approverProfile?.email) {
+              await fetch("/api/expenses/notify-approver", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  expenseId,
+                  approverEmail: approverProfile.email,
+                  approverName: approverProfile.full_name,
+                  requesterName: userName,
+                  orgName: organization?.name,
+                  slug,
+                  amount: updates.amount,
+                  expenseType: updates.expense_type,
+                }),
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to notify approver on resubmit:", err);
+        }
+      } else {
+        toast.success("Expense updated successfully");
+      }
+      try {
+        sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
+      } catch (e) { }
+      router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
     } catch (error: any) {
       console.error("Error updating expense:", error);
       toast.error("Failed to update expense", {
@@ -315,24 +524,46 @@ export default function EditExpensePage() {
       <div className="flex items-center justify-between">
         <Button
           variant="link"
-          onClick={() => router.push(`/org/${slug}/expenses/${expenseId}`)}
+          onClick={() => {
+            try {
+              sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
+            } catch (e) { }
+            router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
+          }}
         >
-          <ArrowLeft/>
+          <ArrowLeft />
           Back to Expense
         </Button>
-        <Button onClick={handleSubmit} disabled={saving}>
-          {saving ? (
-            <>
-              <Spinner className="mr-2 h-4 w-4" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={(e) => handleSubmit(e, false)} disabled={saving} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
+            {saving ? (
+              <>
+                <Spinner className="h-4 w-4" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </>
+            )}
+          </Button>
+          {/* {(expense?.status === "rejected" || expense?.status === "finance_rejected") && (
+            <Button onClick={(e) => handleSubmit(e, true)} disabled={saving} className="bg-black">
+              {saving ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  Resubmitting...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Save & Resubmit
+                </>
+              )}
+            </Button>
+          )} */}
+        </div>
       </div>
 
       <Card>
@@ -341,118 +572,275 @@ export default function EditExpensePage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="expense_type">Expense Type</Label>
-                {expenseTypeOptions.length > 0 ? (
-                  <Select
-                    value={formData.expense_type || ""}
-                    onValueChange={(value: string) =>
-                      handleInputChange("expense_type", value)
-                    }
-                  >
-                    <SelectTrigger id="expense_type" className="w-full">
-                      <SelectValue placeholder="Select expense type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {expenseTypeOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id="expense_type"
-                    value={formData.expense_type || ""}
-                    onChange={(e) =>
-                      handleInputChange("expense_type", e.target.value)
-                    }
-                    required
-                  />
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  value={formData.amount || ""}
-                  onChange={(e) =>
-                    handleInputChange("amount", parseFloat(e.target.value))
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date || ""}
-                  onChange={(e) => handleInputChange("date", e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Custom fields */}
-            {Object.entries(expense.custom_fields).map(([key, value]) => {
-              // Check if this field is location_of_expense and has options
-              const normalizedKey = key.replace(/_/g, " ").toLowerCase();
-              const isLocationField =
-                normalizedKey === "location" ||
-                normalizedKey === "location of expense" ||
-                normalizedKey === "location_of_expense";
-              const isExpenseCreditPersonField =
-                normalizedKey === "expense credit person" ||
-                key.toLowerCase() === "expense_credit_person";
-
-              if (isExpenseCreditPersonField && !hasDirectPaymentUniqueId) {
-                return null;
-              }
-
-              const hasLocationOptions = isLocationField && locationOptions.length > 0;
-              const hasExpenseCreditPersonOptions =
-                isExpenseCreditPersonField && expenseCreditPersonOptions.length > 0;
-              const dropdownOptions = hasLocationOptions
-                ? locationOptions
-                : expenseCreditPersonOptions;
+            {(() => {
+              // Find the key for Project of Expense
+              const projectOfExpenseEntry = expense?.custom_fields ? Object.entries(expense.custom_fields).find(([key, value]) => {
+                const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+                return normalizedKey === "location" || normalizedKey === "location of expense" || normalizedKey === "location_of_expense" || normalizedKey === "project of expense";
+              }) : undefined;
+              const projectKey = projectOfExpenseEntry ? projectOfExpenseEntry[0] : "project_of_expense";
 
               return (
-                <div key={key} className="space-y-2">
-                  <Label htmlFor={key}>{getDisplayFieldLabel(key)}</Label>
-                  {hasLocationOptions || hasExpenseCreditPersonOptions ? (
-                    <Select
-                      value={formData[key] || ""}
-                      onValueChange={(value: string) =>
-                        handleInputChange(key, value)
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Event Name</Label>
+                      <Input
+                        value={eventTitle || "N/A"}
+                        readOnly
+                        className="text-foreground font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unique ID</Label>
+                      <Input
+                        value={expense.unique_id || "N/A"}
+                        readOnly
+                        className="text-foreground font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Input
+                        value={expense.status ? expense.status.charAt(0).toUpperCase() + expense.status.slice(1).replace("_", " ") : "N/A"}
+                        readOnly
+                        className="text-foreground font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Approver</Label>
+                      <Input
+                        value={expense.approver?.full_name || "—"}
+                        readOnly
+                        className="text-foreground font-medium"
+                      />
+                    </div>
+
+                    {projectKey && (
+                      <div className="space-y-2">
+                        <Label htmlFor={projectKey}>{getDisplayFieldLabel(projectKey)}</Label>
+                        {locationOptions.length > 0 ? (
+                          <Select
+                            value={formData[projectKey] || formData.project_of_expense || ""}
+                            onValueChange={(val: string) => handleInputChange(projectKey, val)}
+                          >
+                            <SelectTrigger id={projectKey} className="w-full">
+                              <SelectValue placeholder={`Select ${getDisplayFieldLabel(projectKey)}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {locationOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            id={projectKey}
+                            value={formData[projectKey] || formData.project_of_expense || ""}
+                            onChange={(e) => handleInputChange(projectKey, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="expense_type">Expense Type</Label>
+                      {expenseTypeOptions.length > 0 ? (
+                        <Select
+                          value={formData.expense_type || ""}
+                          onValueChange={(value: string) =>
+                            handleInputChange("expense_type", value)
+                          }
+                        >
+                          <SelectTrigger id="expense_type" className="w-full">
+                            <SelectValue placeholder="Select expense type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {expenseTypeOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id="expense_type"
+                          value={formData.expense_type || ""}
+                          onChange={(e) =>
+                            handleInputChange("expense_type", e.target.value)
+                          }
+                          required
+                        />
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="amount">Amount</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="1"
+                        value={formData.amount ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            handleInputChange("amount", "");
+                          } else {
+                            const parsed = parseFloat(val);
+                            handleInputChange("amount", isNaN(parsed) ? "" : parsed);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value;
+                          if (val !== "") {
+                            const parsed = parseFloat(val);
+                            if (!isNaN(parsed)) {
+                              const rounded = Math.round(parsed);
+                              if (rounded !== parsed) {
+                                handleInputChange("amount", rounded);
+                                toast.success(`Amount rounded off: ₹${parsed} → ₹${rounded}`);
+                              }
+                            }
+                          }
+                        }}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Decimal amount are automatically rounded off.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="date">Date</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={formData.date || ""}
+                        onChange={(e) => handleInputChange("date", e.target.value)}
+                        className="block w-full"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Custom fields */}
+                  {Object.entries(expense.custom_fields)
+                    .filter(([key]) => {
+                      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+                      const excludedKeys = [
+                        "location", "location of expense", "project of expense",
+                        "approver name", "second approver id", "second approver name"
+                      ];
+                      return !excludedKeys.includes(normalizedKey);
+                    })
+                    .map(([key, value]) => {
+                      // Check if this field is location_of_expense and has options
+                      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+                      const isLocationField =
+                        normalizedKey === "location" ||
+                        normalizedKey === "location of expense" ||
+                        normalizedKey === "location_of_expense";
+                      const isExpenseCreditPersonField =
+                        normalizedKey === "expense credit person" ||
+                        key.toLowerCase() === "expense_credit_person";
+
+                      if (isExpenseCreditPersonField && !hasDirectPaymentUniqueId) {
+                        return null;
                       }
-                    >
-                      <SelectTrigger id={key} className="w-full">
-                        <SelectValue placeholder={`Select ${getDisplayFieldLabel(key)}`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dropdownOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id={key}
-                      value={formData[key] || ""}
-                      onChange={(e) => handleInputChange(key, e.target.value)}
-                    />
-                  )}
-                </div>
+
+                      const hasLocationOptions = isLocationField && locationOptions.length > 0;
+                      const hasExpenseCreditPersonOptions =
+                        isExpenseCreditPersonField && expenseCreditPersonOptions.length > 0;
+                      const dropdownOptions = hasLocationOptions
+                        ? locationOptions
+                        : expenseCreditPersonOptions;
+
+                      return (
+                        <div key={key} className="space-y-2">
+                          <Label htmlFor={key}>{getDisplayFieldLabel(key)}</Label>
+                          {hasLocationOptions || hasExpenseCreditPersonOptions ? (
+                            <Select
+                              value={
+                                isExpenseCreditPersonField
+                                  ? formData[key] || formData.expense_credit_person || ""
+                                  : formData[key] || ""
+                              }
+                              onValueChange={(value: string) =>
+                                handleInputChange(key, value)
+                              }
+                            >
+                              <SelectTrigger id={key} className="w-full">
+                                <SelectValue placeholder={`Select ${getDisplayFieldLabel(key)}`} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {dropdownOptions.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : normalizedKey === "description" ? (
+                            <Textarea
+                              id={key}
+                              value={formData[key] || ""}
+                              onChange={(e) => handleInputChange(key, e.target.value)}
+                              className="min-h-[50px]"
+                            />
+                          ) : (
+                            <Input
+                              id={key}
+                              value={
+                                isExpenseCreditPersonField
+                                  ? formData[key] || formData.expense_credit_person || ""
+                                  : formData[key] || ""
+                              }
+                              onChange={(e) => handleInputChange(key, e.target.value)}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+
+                  {/* Direct Payment fallback if expense_credit_person was not present in custom_fields */}
+                  {hasDirectPaymentUniqueId &&
+                    !Object.keys(expense.custom_fields || {}).some((k) => {
+                      const norm = k.replace(/_/g, " ").toLowerCase();
+                      return norm === "expense credit person" || k.toLowerCase() === "expense_credit_person";
+                    }) && (
+                      <div key="expense_credit_person" className="space-y-2">
+                        <Label htmlFor="expense_credit_person">Expense Credit Person</Label>
+                        {expenseCreditPersonOptions.length > 0 ? (
+                          <Select
+                            value={formData.expense_credit_person || ""}
+                            onValueChange={(val: string) => handleInputChange("expense_credit_person", val)}
+                          >
+                            <SelectTrigger id="expense_credit_person" className="w-full">
+                              <SelectValue placeholder="Select Expense Credit Person" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {expenseCreditPersonOptions.map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            id="expense_credit_person"
+                            value={formData.expense_credit_person || ""}
+                            onChange={(e) => handleInputChange("expense_credit_person", e.target.value)}
+                          />
+                        )}
+                      </div>
+                    )}
+                </>
               );
-            })}
+            })()}
 
             {/* Receipt upload section - only show if no voucher exists */}
             {!hasVoucher && (
@@ -479,21 +867,6 @@ export default function EditExpensePage() {
                     </Button>
                   )}
                 </div>
-                {receiptPreview && (
-                  <div className="mt-2">
-                    {receiptPreview.startsWith("data:image") ? (
-                      <img
-                        src={receiptPreview}
-                        alt="Receipt preview"
-                        className="max-h-40 rounded-md"
-                      />
-                    ) : (
-                      <div className="p-2 border rounded-md">
-                        <p className="text-sm">PDF receipt selected</p>
-                      </div>
-                    )}
-                  </div>
-                )}
                 {expense.receipt && !receiptPreview && (
                   <div className="mt-2">
                     <p className="text-sm text-muted-foreground">
@@ -507,14 +880,25 @@ export default function EditExpensePage() {
         </CardContent>
       </Card>
 
-      {/* Current Receipt Preview - only show if expense has receipt */}
-      {expense.receipt && !receiptFile && !hasVoucher && (
-        <ReceiptPreview expense={expense} defaultOpen={true} />
+      {/* Receipt Preview - show if expense has receipt or user selected a new receipt */}
+      {(receiptPreview || expense.receipt) && !hasVoucher && (
+        <ReceiptPreview
+          expense={expense}
+          previewUrl={receiptPreview}
+          filename={receiptFile?.name}
+          defaultOpen={true}
+        />
       )}
 
       {/* Voucher Preview - only show if expense has voucher */}
       {hasVoucher && (
-        <VoucherPreview expense={expense} expenseId={expenseId} defaultOpen={true} />
+        <VoucherPreview
+          expense={expense}
+          expenseId={expenseId}
+          defaultOpen={true}
+          defaultEditMode={true}
+          onEditingChange={setIsVoucherEditing}
+        />
       )}
     </div>
   );

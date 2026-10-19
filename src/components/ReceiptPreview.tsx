@@ -16,15 +16,34 @@ type Props = {
   expense: any;
   defaultOpen?: boolean;
   compact?: boolean;
+  previewUrl?: string | null;
+  filename?: string | null;
 };
 
-export default function ReceiptPreview({ expense, defaultOpen = true, compact = false }: Props) {
-  const [receiptPreviewUrl, setReceiptPreviewUrl] = React.useState<string | null>(null);
+export default function ReceiptPreview({
+  expense,
+  defaultOpen = true,
+  compact = false,
+  previewUrl = null,
+  filename = null,
+}: Props) {
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = React.useState<string | null>(previewUrl);
   const [isOpen, setIsOpen] = React.useState<boolean>(defaultOpen);
   const [loading, setLoading] = React.useState<boolean>(false);
-  const [isPdf, setIsPdf] = React.useState<boolean>(false);
+  const [isPdf, setIsPdf] = React.useState<boolean>(
+    Boolean(
+      previewUrl?.startsWith("data:application/pdf") ||
+      previewUrl?.toLowerCase().includes(".pdf") ||
+      filename?.toLowerCase().endsWith(".pdf")
+    )
+  );
 
   const handleOpenInNewTab = async () => {
+    if (previewUrl || receiptPreviewUrl) {
+      window.open(previewUrl || receiptPreviewUrl!, "_blank", "noopener,noreferrer");
+      return;
+    }
+
     if (!expense?.receipt?.path) return;
 
     try {
@@ -51,6 +70,18 @@ export default function ReceiptPreview({ expense, defaultOpen = true, compact = 
   };
 
   React.useEffect(() => {
+    if (previewUrl) {
+      setReceiptPreviewUrl(previewUrl);
+      setIsOpen(true);
+      setIsPdf(
+        previewUrl.startsWith("data:application/pdf") ||
+        previewUrl.toLowerCase().includes(".pdf") ||
+        Boolean(filename?.toLowerCase().endsWith(".pdf"))
+      );
+      setLoading(false);
+      return;
+    }
+
     let isCancelled = false;
 
     const loadReceiptPreview = async () => {
@@ -90,7 +121,7 @@ export default function ReceiptPreview({ expense, defaultOpen = true, compact = 
     return () => {
       isCancelled = true;
     };
-  }, [expense?.receipt?.path, expense]);
+  }, [expense?.receipt?.path, expense, previewUrl, filename]);
 
   return (
     <div className={`bg-white rounded shadow border ${compact ? "p-4" : "p-6"}`}>
@@ -163,7 +194,7 @@ export default function ReceiptPreview({ expense, defaultOpen = true, compact = 
               </div>
             ) : (
               <div className="overflow-y-auto rounded-md border bg-muted" style={{ height: "auto" }}>
-                <img src={receiptPreviewUrl} alt={expense.receipt?.filename || "Receipt preview"} className="w-full object-contain" />
+                <img src={receiptPreviewUrl} alt={filename || expense?.receipt?.filename || "Receipt preview"} className="w-full object-contain" />
               </div>
             )
           ) : (

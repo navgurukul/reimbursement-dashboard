@@ -31,7 +31,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { FileText, Clock, ArrowLeft, Pencil, Save } from "lucide-react";
+import { FileText, Clock, ArrowLeft, Pencil, Save, CheckCircle } from "lucide-react";
+import { getResubmissionDetails, ResubmissionInfo } from "@/lib/features";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
@@ -177,6 +178,11 @@ export default function FinanceExpenseDetails() {
   const [comment, setComment] = useState("");
   const [hasVoucher, setHasVoucher] = useState(false);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
+  const [resubmissionInfo, setResubmissionInfo] = useState<ResubmissionInfo>({
+    isResubmitted: false,
+    rejectedBy: null,
+    rejectionDate: null,
+  });
   const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
@@ -215,6 +221,16 @@ export default function FinanceExpenseDetails() {
       }
 
       const expenseData = { ...data };
+
+      // Fetch expense history to evaluate resubmission after rejection
+      try {
+        const { data: hList } = await expenseHistory.getByExpenseId(expenseId as string);
+        if (hList) {
+          setResubmissionInfo(getResubmissionDetails(hList, expenseData.status));
+        }
+      } catch (e) {
+        console.warn("Failed to fetch expense history:", e);
+      }
 
       // Fetch related event title if any
       if (expenseData.event_id) {
@@ -793,6 +809,23 @@ export default function FinanceExpenseDetails() {
           </div>
         )}
       </div>
+
+      {/* Show banner if expense was previously rejected, edited, and resubmitted */}
+      {resubmissionInfo.isResubmitted && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-950">
+                Resubmitted Expense (Previously Rejected by {resubmissionInfo.rejectedBy})
+              </p>
+              <p className="text-amber-700 text-xs mt-0.5">
+                This expense was edited and resubmitted after being previously rejected by {resubmissionInfo.rejectedBy}.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Show message if expense is created using Advance Unique ID */}
       {expense && expense.unique_id &&
