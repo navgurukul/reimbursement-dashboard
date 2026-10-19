@@ -51,7 +51,7 @@ export const isDateToday = (dateString?: string | null): boolean => {
   /**
    * Target rejection date in DD-MM-YYYY format
    */
-  const REJECTION_DATE = "16-10-2026";
+  const REJECTION_DATE = "20-10-2026";
 
   // Format date to "DD-MM-YYYY" in local timezone
   const day = String(d.getDate()).padStart(2, "0");
