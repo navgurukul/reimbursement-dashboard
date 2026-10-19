@@ -37,7 +37,7 @@ export const PUNE_SOSC_ALLOWED_EMAILS = [
 ];
 
 /**
- * Checks whether an expense was rejected on the specified target date (16-10-2026).
+ * Checks whether an expense was rejected on or after the specified target date (16-10-2026).
  * Used to conditionally display:
  * - The "Expense Rejected by Manager / Finance" warning banner
  * - The "Edit Expense" and "Resubmit" action buttons
@@ -59,8 +59,12 @@ export const isDateToday = (dateString?: string | null): boolean => {
   const year = String(d.getFullYear());
   const formattedDate = `${day}-${month}-${year}`;
 
-  // Check if the rejection date matches the target date
-  const isTargetDate = formattedDate === REJECTION_DATE;
+  const [tDay, tMonth, tYear] = REJECTION_DATE.split("-");
+
+  // Check if the rejection date matches the target date or is after it
+  const isTargetDate =
+    formattedDate === REJECTION_DATE ||
+    `${year}-${month}-${day}` >= `${tYear}-${tMonth}-${tDay}`;
 
   return isTargetDate;
 };
