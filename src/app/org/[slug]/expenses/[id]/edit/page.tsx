@@ -287,7 +287,10 @@ export default function EditExpensePage() {
           );
         }
 
-        if (expense.amount !== parseFloat(formData.amount)) {
+        const rawAmount = parseFloat(String(formData.amount ?? ""));
+        const roundedAmount = isNaN(rawAmount) ? 0 : Math.round(rawAmount);
+
+        if (expense.amount !== roundedAmount) {
           // Log amount change
           await expenseHistory.addEntry(
             expenseId,
@@ -295,7 +298,7 @@ export default function EditExpensePage() {
             userName,
             'updated',
             `Amount: ${expense.amount.toString()}`,
-            `Amount: ${formData.amount.toString()}`
+            `Amount: ${roundedAmount.toString()}`
           );
         }
 
@@ -396,10 +399,13 @@ export default function EditExpensePage() {
         formData["Expense Credit Person"] ||
         null;
 
+      const rawAmount = parseFloat(String(formData.amount ?? ""));
+      const roundedAmount = isNaN(rawAmount) ? 0 : Math.round(rawAmount);
+
       // Prepare expense data
       const updates: any = {
         expense_type: formData.expense_type,
-        amount: parseFloat(formData.amount),
+        amount: roundedAmount,
         date: formData.date,
         location: updatedProjectOfExpense,
         expense_credit_person: updatedExpenseCreditPerson,
@@ -676,12 +682,35 @@ export default function EditExpensePage() {
                       <Input
                         id="amount"
                         type="number"
-                        value={formData.amount || ""}
-                        onChange={(e) =>
-                          handleInputChange("amount", parseFloat(e.target.value))
-                        }
+                        step="1"
+                        value={formData.amount ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            handleInputChange("amount", "");
+                          } else {
+                            const parsed = parseFloat(val);
+                            handleInputChange("amount", isNaN(parsed) ? "" : parsed);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value;
+                          if (val !== "") {
+                            const parsed = parseFloat(val);
+                            if (!isNaN(parsed)) {
+                              const rounded = Math.round(parsed);
+                              if (rounded !== parsed) {
+                                handleInputChange("amount", rounded);
+                                toast.success(`Amount rounded off: ₹${parsed} → ₹${rounded}`);
+                              }
+                            }
+                          }
+                        }}
                         required
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Decimal amount are automatically rounded off.
+                      </p>
                     </div>
 
                     <div className="space-y-2">

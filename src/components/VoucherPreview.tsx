@@ -201,11 +201,14 @@ export default function VoucherPreview({
                           attachmentValue = `${newAttachment.name},${path}`;
                         }
 
+                        const vAmount = parseFloat(String(editForm.amount ?? ""));
+                        const roundedVAmount = isNaN(vAmount) ? 0 : Math.round(vAmount);
+
                         const { error } = await vouchers.update(voucherDetails.id, {
                           your_name: editForm.your_name,
-                          amount: parseFloat(editForm.amount) || 0,
+                          amount: roundedVAmount,
                           credit_person: editForm.credit_person,
-                          purpose: editForm.purpose,
+                          purpose: editForm.purpose || "",
                           ...(newAttachment && { attachment: attachmentValue })
                         });
                         if (error) throw error;
@@ -238,7 +241,7 @@ export default function VoucherPreview({
                           };
 
                           await logChange("Voucher Name", voucherDetails.your_name, editForm.your_name);
-                          await logChange("Voucher Amount", voucherDetails.amount, parseFloat(editForm.amount) || 0);
+                          await logChange("Voucher Amount", voucherDetails.amount, parseFloat(String(editForm.amount ?? "")) || 0);
                           await logChange("Credit Person", voucherDetails.credit_person, editForm.credit_person);
                           await logChange("Purpose", voucherDetails.purpose, editForm.purpose);
 
@@ -256,7 +259,7 @@ export default function VoucherPreview({
                         setVoucherDetails({
                           ...voucherDetails,
                           your_name: editForm.your_name,
-                          amount: parseFloat(editForm.amount) || 0,
+                          amount: parseFloat(String(editForm.amount ?? "")) || 0,
                           credit_person: editForm.credit_person,
                           purpose: editForm.purpose,
                           ...(newAttachment && { attachment: attachmentValue })
@@ -328,7 +331,26 @@ export default function VoucherPreview({
                     <ExpenseStatusBadge status={expense?.status} />
                   </div>
                   {isEditing ? (
-                    <Input type="number" value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} className="mt-1 h-8" />
+                    <div>
+                      <Input
+                        type="number"
+                        step="1"
+                        value={editForm.amount}
+                        onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                        onBlur={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val)) {
+                            const rounded = Math.round(val);
+                            if (rounded !== val) {
+                              setEditForm({ ...editForm, amount: rounded });
+                              toast.success(`Amount rounded off: ₹${val} → ₹${rounded}`);
+                            }
+                          }
+                        }}
+                        className="mt-1 h-8"
+                      />
+                      <p className="text-xs text-muted-foreground mt-0.5">Decimal amounts are automatically rounded off.</p>
+                    </div>
                   ) : (
                     <p className="font-medium">{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(voucherDetails?.amount ?? expense?.amount ?? 0)}</p>
                   )}
@@ -356,7 +378,11 @@ export default function VoucherPreview({
                 <div className="md:col-span-2">
                   <Label className="text-sm text-muted-foreground">Purpose</Label>
                   {isEditing ? (
-                    <Textarea value={editForm.purpose} onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })} className="mt-1 min-h-[60px]" />
+                    <Textarea
+                      value={editForm.purpose}
+                      onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })}
+                      className="mt-1 min-h-[60px]"
+                    />
                   ) : (
                     <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">{voucherDetails?.purpose || "N/A"}</div>
                   )}
