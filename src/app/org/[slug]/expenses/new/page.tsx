@@ -2199,7 +2199,7 @@ export default function NewExpensePage() {
             receipt: null,
             creator_email: user.email,
             approver_email: approverEmail,
-            location: item.location || null,
+            location: (item.location as string) || null,
           };
 
           const { data: itemData, error: itemError } = await expenses.create(
