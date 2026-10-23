@@ -1189,16 +1189,96 @@ export default function SettingsPage() {
     }
   };
 
+  const getApproverLabel = (id: string) =>
+    approverOptions.find((opt) => opt.value === id)?.label || id;
+
+  const normalizeIds = (value?: string | string[]) => {
+    if (!value) return [] as string[];
+    return Array.isArray(value)
+      ? value.filter((v) => v && v.trim())
+      : value.trim()
+        ? [value]
+        : [];
+  };
+
+  const normalizeNames = (value?: string | string[]) => {
+    if (!value) return [] as string[];
+    if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+    return value
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  };
+
+  const resolveIdsFromNames = (names?: string | string[]) => {
+    const nameList = normalizeNames(names);
+    if (!nameList.length) return [] as string[];
+    const mapByLabel = new Map(
+      approverOptions.map((opt) => [opt.label.toLowerCase(), opt.value])
+    );
+    return nameList
+      .map((name) => mapByLabel.get(name.toLowerCase()))
+      .filter((v): v is string => Boolean(v));
+  };
+
   const handleSaveLocationApproverMapping = async () => {
     setSavingLocationMapping(true);
     try {
       const toSave = locationApproverMapping.filter((m) => {
         if (!m.location) return false;
         if (Array.isArray(m.location)) {
-          return m.location.length > 0;
+          return m.location.some((l) => l && l !== "__new__");
         }
         return m.location.trim() !== "" && m.location !== "__new__";
       });
+
+      // Validation 1: Approver and Second Approver cannot be the same
+      for (let i = 0; i < toSave.length; i++) {
+        const approvers = normalizeIds(toSave[i].approver_id);
+        const secondApprovers = normalizeIds(toSave[i].second_approver_id);
+        const overlap = approvers.filter((id) => secondApprovers.includes(id));
+        if (overlap.length > 0) {
+          const names = overlap.map(getApproverLabel).join(", ");
+          toast.warning(
+            `"${names}" cannot be assigned as both Approver and Second Approver for the same location mapping.`
+          );
+          setSavingLocationMapping(false);
+          return;
+        }
+      }
+
+      // Validation 2: Check conflicting location + expense type across rows
+      for (let i = 0; i < toSave.length; i++) {
+        const locsA = normalizeIds(toSave[i].location).filter((l) => l !== "__new__");
+        const typesA = normalizeIds(toSave[i].expense_type);
+        for (let j = i + 1; j < toSave.length; j++) {
+          const locsB = normalizeIds(toSave[j].location).filter((l) => l !== "__new__");
+          const typesB = normalizeIds(toSave[j].expense_type);
+          const commonLocs = locsA.filter((la) =>
+            locsB.some((lb) => lb.trim().toLowerCase() === la.trim().toLowerCase())
+          );
+          for (const loc of commonLocs) {
+            const commonTypes = typesA.filter((ta) =>
+              typesB.some((tb) => tb.trim().toLowerCase() === ta.trim().toLowerCase())
+            );
+            if (commonTypes.length > 0) {
+              toast.warning(
+                `Location "${loc}" with expense type "${commonTypes[0]}" is mapped more than once. Please remove duplicate assignments.`
+              );
+              setSavingLocationMapping(false);
+              return;
+            }
+            if (typesA.length === 0 && typesB.length === 0) {
+              toast.warning(
+                `Location "${loc}" without expense type is mapped more than once. Please remove duplicate assignments.`
+              );
+              setSavingLocationMapping(false);
+              return;
+            }
+          }
+        }
+      }
+
       const { error } = await orgSettings.updateLocationApproverMapping(
         orgId,
         toSave
@@ -1222,6 +1302,37 @@ export default function SettingsPage() {
         }
         return m.expense_type.trim() !== "" && m.expense_type !== "__new__";
       });
+
+      // Validation: Check duplicate expense types across rows
+      const seenTypes = new Map<string, number>();
+      for (let i = 0; i < toSave.length; i++) {
+        const types = normalizeIds(toSave[i].expense_type);
+        for (const t of types) {
+          const lower = t.trim().toLowerCase();
+          if (seenTypes.has(lower)) {
+            toast.warning(
+              `Expense type "${t}" is mapped more than once. Please remove duplicate assignments.`
+            );
+            setSavingExpenseTypeMapping(false);
+            return;
+          }
+          seenTypes.set(lower, i);
+        }
+
+        // Validation: Approver and Second Approver cannot be the same
+        const approvers = normalizeIds(toSave[i].approver_id);
+        const secondApprovers = normalizeIds(toSave[i].second_approver_id);
+        const overlap = approvers.filter((id) => secondApprovers.includes(id));
+        if (overlap.length > 0) {
+          const names = overlap.map(getApproverLabel).join(", ");
+          toast.warning(
+            `"${names}" cannot be both Approver and Second Approver for the same expense type.`
+          );
+          setSavingExpenseTypeMapping(false);
+          return;
+        }
+      }
+
       const { error } = await orgSettings.updateExpenseTypeApproverMapping(
         orgId,
         toSave
@@ -1648,37 +1759,7 @@ export default function SettingsPage() {
     }
   };
 
-  const getApproverLabel = (id: string) =>
-    approverOptions.find((opt) => opt.value === id)?.label || id;
 
-  const normalizeIds = (value?: string | string[]) => {
-    if (!value) return [] as string[];
-    return Array.isArray(value)
-      ? value.filter((v) => v && v.trim())
-      : value.trim()
-        ? [value]
-        : [];
-  };
-
-  const normalizeNames = (value?: string | string[]) => {
-    if (!value) return [] as string[];
-    if (Array.isArray(value)) return value.filter((v) => v && v.trim());
-    return value
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean);
-  };
-
-  const resolveIdsFromNames = (names?: string | string[]) => {
-    const nameList = normalizeNames(names);
-    if (!nameList.length) return [] as string[];
-    const mapByLabel = new Map(
-      approverOptions.map((opt) => [opt.label.toLowerCase(), opt.value])
-    );
-    return nameList
-      .map((name) => mapByLabel.get(name.toLowerCase()))
-      .filter((v): v is string => Boolean(v));
-  };
 
   return (
     <div className="space-y-6">
@@ -1893,11 +1974,43 @@ export default function SettingsPage() {
                   <MultiSelect
                     options={expenseTypeOptionsForSelect}
                     value={selectedExpenseTypes}
-                    onChange={(nextIds) =>
+                    onChange={(nextIds) => {
+                      const newlyAdded = nextIds.filter(
+                        (t) => !selectedExpenseTypes.includes(t) && t !== "__new__"
+                      );
+                      const validIds: string[] = [];
+                      for (const t of nextIds) {
+                        if (newlyAdded.includes(t)) {
+                          const conflictRow = expenseTypeApproverMapping.find(
+                            (m, i) =>
+                              i !== index &&
+                              normalizeIds(m.expense_type).some(
+                                (et) => et.trim().toLowerCase() === t.trim().toLowerCase()
+                              )
+                          );
+                          if (conflictRow) {
+                            const approverNames = [
+                              ...normalizeIds(conflictRow.approver_id).map(getApproverLabel),
+                              ...normalizeIds(conflictRow.second_approver_id).map(getApproverLabel),
+                            ].filter(Boolean);
+                            if (approverNames.length > 0) {
+                              toast.warning(
+                                `Approver (${approverNames.join(", ")}) is already assigned for expense type "${t}".`
+                              );
+                            } else {
+                              toast.warning(
+                                `Expense type "${t}" is already assigned in another mapping.`
+                              );
+                            }
+                            continue;
+                          }
+                        }
+                        validIds.push(t);
+                      }
                       updateMappingEntry(index, {
-                        expense_type: nextIds,
-                      })
-                    }
+                        expense_type: validIds,
+                      });
+                    }}
                     placeholder="Select expense types"
                     searchPlaceholder="Search expense type..."
                     hideBadges
@@ -1909,14 +2022,26 @@ export default function SettingsPage() {
                     <MultiSelect
                       options={approverOptions}
                       value={selectedApproverIds}
-                      onChange={(nextIds) =>
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((id) => !selectedApproverIds.includes(id));
+                        const validIds: string[] = [];
+                        for (const id of nextIds) {
+                          if (newlyAdded.includes(id) && selectedSecondApproverIds.includes(id)) {
+                            const name = getApproverLabel(id);
+                            toast.warning(
+                              `"${name}" is already assigned as Second Approver for this expense type.`
+                            );
+                            continue;
+                          }
+                          validIds.push(id);
+                        }
                         updateMappingEntry(index, {
-                          approver_id: nextIds,
-                          approver_name: nextIds.length
-                            ? nextIds.map(getApproverLabel).join(", ")
+                          approver_id: validIds,
+                          approver_name: validIds.length
+                            ? validIds.map(getApproverLabel).join(", ")
                             : undefined,
-                        })
-                      }
+                        });
+                      }}
                       placeholder="Select one or more approvers"
                       searchPlaceholder="Search approver"
                       hideBadges
@@ -1927,14 +2052,26 @@ export default function SettingsPage() {
                     <MultiSelect
                       options={approverOptions}
                       value={selectedSecondApproverIds}
-                      onChange={(nextIds) =>
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((id) => !selectedSecondApproverIds.includes(id));
+                        const validIds: string[] = [];
+                        for (const id of nextIds) {
+                          if (newlyAdded.includes(id) && selectedApproverIds.includes(id)) {
+                            const name = getApproverLabel(id);
+                            toast.warning(
+                              `"${name}" is already assigned as Approver for this expense type.`
+                            );
+                            continue;
+                          }
+                          validIds.push(id);
+                        }
                         updateMappingEntry(index, {
-                          second_approver_id: nextIds,
-                          second_approver_name: nextIds.length
-                            ? nextIds.map(getApproverLabel).join(", ")
+                          second_approver_id: validIds,
+                          second_approver_name: validIds.length
+                            ? validIds.map(getApproverLabel).join(", ")
                             : undefined,
-                        })
-                      }
+                        });
+                      }}
                       placeholder="Select one or more approvers"
                       searchPlaceholder="Search second approver"
                       hideBadges
@@ -2200,9 +2337,49 @@ export default function SettingsPage() {
                     <MultiSelect
                       options={locationOptionsForSelect}
                       value={selectedLocations}
-                      onChange={(nextIds) =>
-                        updateMappingEntry(index, { location: nextIds })
-                      }
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter(
+                          (l) => !selectedLocations.includes(l) && l !== "__new__"
+                        );
+                        const validIds: string[] = [];
+                        for (const loc of nextIds) {
+                          if (newlyAdded.includes(loc)) {
+                            // Only check conflict if expense_type is already selected in this row
+                            if (selectedExpenseTypes.length > 0) {
+                              let hasConflict = false;
+                              for (let i = 0; i < locationApproverMapping.length; i++) {
+                                if (i === index) continue;
+                                const otherRow = locationApproverMapping[i];
+                                const otherLocs = normalizeIds(otherRow.location).filter((l) => l !== "__new__");
+                                if (otherLocs.some((l) => l.trim().toLowerCase() === loc.trim().toLowerCase())) {
+                                  const otherTypes = normalizeIds(otherRow.expense_type);
+                                  const matchingTypes = selectedExpenseTypes.filter((ct) =>
+                                    otherTypes.some((ot) => ot.trim().toLowerCase() === ct.trim().toLowerCase())
+                                  );
+
+                                  if (matchingTypes.length > 0) {
+                                    hasConflict = true;
+                                    const approverNames = [
+                                      ...normalizeIds(otherRow.approver_id).map(getApproverLabel),
+                                      ...normalizeIds(otherRow.second_approver_id).map(getApproverLabel),
+                                    ].filter(Boolean);
+                                    const approverPart = approverNames.length > 0
+                                      ? `Approver (${approverNames.join(", ")}) is already assigned`
+                                      : `Mapping already exists`;
+                                    toast.warning(
+                                      `${approverPart} for location "${loc}" with expense type "${matchingTypes.join(", ")}".`
+                                    );
+                                    break;
+                                  }
+                                }
+                              }
+                              if (hasConflict) continue;
+                            }
+                          }
+                          validIds.push(loc);
+                        }
+                        updateMappingEntry(index, { location: validIds });
+                      }}
                       placeholder="Select locations"
                       searchPlaceholder="Search location..."
                       hideBadges
@@ -2215,11 +2392,48 @@ export default function SettingsPage() {
                     <MultiSelect
                       options={expenseTypeOptionsForSelect}
                       value={selectedExpenseTypes}
-                      onChange={(nextIds) =>
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((t) => !selectedExpenseTypes.includes(t));
+                        const validIds: string[] = [];
+                        for (const type of nextIds) {
+                          if (newlyAdded.includes(type)) {
+                            // Only check conflict if location is already selected in this row
+                            if (selectedLocations.length > 0) {
+                              let hasConflict = false;
+                              for (const loc of selectedLocations) {
+                                for (let i = 0; i < locationApproverMapping.length; i++) {
+                                  if (i === index) continue;
+                                  const otherRow = locationApproverMapping[i];
+                                  const otherLocs = normalizeIds(otherRow.location).filter((l) => l !== "__new__");
+                                  if (otherLocs.some((l) => l.trim().toLowerCase() === loc.trim().toLowerCase())) {
+                                    const otherTypes = normalizeIds(otherRow.expense_type);
+                                    if (otherTypes.some((ot) => ot.trim().toLowerCase() === type.trim().toLowerCase())) {
+                                      hasConflict = true;
+                                      const approverNames = [
+                                        ...normalizeIds(otherRow.approver_id).map(getApproverLabel),
+                                        ...normalizeIds(otherRow.second_approver_id).map(getApproverLabel),
+                                      ].filter(Boolean);
+                                      const approverPart = approverNames.length > 0
+                                        ? `Approver (${approverNames.join(", ")}) is already assigned`
+                                        : `Mapping already exists`;
+                                      toast.warning(
+                                        `${approverPart} for location "${loc}" with expense type "${type}".`
+                                      );
+                                      break;
+                                    }
+                                  }
+                                }
+                                if (hasConflict) break;
+                              }
+                              if (hasConflict) continue;
+                            }
+                          }
+                          validIds.push(type);
+                        }
                         updateMappingEntry(index, {
-                          expense_type: nextIds,
-                        })
-                      }
+                          expense_type: validIds,
+                        });
+                      }}
                       placeholder="Select expense types"
                       searchPlaceholder="Search expense type..."
                       hideBadges
@@ -2232,14 +2446,26 @@ export default function SettingsPage() {
                     <MultiSelect
                       options={approverOptions}
                       value={selectedApproverIds}
-                      onChange={(nextIds) =>
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((id) => !selectedApproverIds.includes(id));
+                        const validIds: string[] = [];
+                        for (const id of nextIds) {
+                          if (newlyAdded.includes(id) && selectedSecondApproverIds.includes(id)) {
+                            const name = getApproverLabel(id);
+                            toast.warning(
+                              `"${name}" is already assigned as Second Approver for this location mapping.`
+                            );
+                            continue;
+                          }
+                          validIds.push(id);
+                        }
                         updateMappingEntry(index, {
-                          approver_id: nextIds,
-                          approver_name: nextIds.length
-                            ? nextIds.map(getApproverLabel).join(", ")
+                          approver_id: validIds,
+                          approver_name: validIds.length
+                            ? validIds.map(getApproverLabel).join(", ")
                             : undefined,
-                        })
-                      }
+                        });
+                      }}
                       placeholder="Select one or more approvers"
                       searchPlaceholder="Search approver"
                       hideBadges
@@ -2250,14 +2476,26 @@ export default function SettingsPage() {
                     <MultiSelect
                       options={approverOptions}
                       value={selectedSecondApproverIds}
-                      onChange={(nextIds) =>
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((id) => !selectedSecondApproverIds.includes(id));
+                        const validIds: string[] = [];
+                        for (const id of nextIds) {
+                          if (newlyAdded.includes(id) && selectedApproverIds.includes(id)) {
+                            const name = getApproverLabel(id);
+                            toast.warning(
+                              `"${name}" is already assigned as Approver for this location mapping.`
+                            );
+                            continue;
+                          }
+                          validIds.push(id);
+                        }
                         updateMappingEntry(index, {
-                          second_approver_id: nextIds,
-                          second_approver_name: nextIds.length
-                            ? nextIds.map(getApproverLabel).join(", ")
+                          second_approver_id: validIds,
+                          second_approver_name: validIds.length
+                            ? validIds.map(getApproverLabel).join(", ")
                             : undefined,
-                        })
-                      }
+                        });
+                      }}
                       placeholder="Select one or more approvers"
                       searchPlaceholder="Search second approver"
                       hideBadges
