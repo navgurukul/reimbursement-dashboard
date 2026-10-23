@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings, expenses } from "@/lib/db";
+import supabase from "@/lib/supabase";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -36,6 +37,7 @@ import {
   Trash2,
   Search,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import {
@@ -58,10 +60,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import supabase from "@/lib/supabase";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { isExportEnabled } from "@/lib/features";
-import { Pagination, usePagination, PER_PAGE } from "@/components/pagination";
+import { Pagination, PER_PAGE } from "@/components/pagination";
+import {
+  fetchExpensePage,
+  fetchExpenseStatusCounts,
+  fetchExpenseFilterOptions,
+  fetchAllExpensesForExport,
+  type ExpenseFilterOptions,
+  type ExpenseListScope,
+} from "@/lib/expense-list";
 import * as XLSX from "xlsx-js-style";
 
 const defaultExpenseColumns = [
@@ -89,11 +98,14 @@ export default function ExpensesPage() {
   const { user } = useAuthStore();
 
   const orgId = organization?.id!;
+  const userId = user?.id;
 
   const [columns, setColumns] = useState<any[]>([]);
-  const [expensesData, setExpensesData] = useState<any[]>([]);
-  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
-  const [allExpenses, setAllExpenses] = useState<any[]>([]);
+  // Only the rows on the current page are held in memory; the database does
+  // the filtering, counting and paging (see src/lib/expense-list.ts).
+  const [rows, setRows] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   const [stats, setStats] = useState({
     total: 0,
     approved: 0,
@@ -103,9 +115,10 @@ export default function ExpensesPage() {
     finance_rejected: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [activeTab, setActiveTab] = useState<"my" | "pending" | "all">("my");
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({
+  const [filters, setFiltersState] = useState({
     expenseType: "",
     eventName: "",
     projectOfExpense: "",
@@ -128,6 +141,16 @@ export default function ExpensesPage() {
     uniqueId: "",
     approver: "",
   });
+  const [filterOptions, setFilterOptions] = useState<ExpenseFilterOptions>({
+    expenseTypes: [],
+    locations: [],
+    statuses: [],
+    creators: [],
+    approvers: [],
+  });
+  const filterOptionsCache = useRef<Record<string, ExpenseFilterOptions>>({});
+  const [navigatingEditId, setNavigatingEditId] = useState<string | null>(null);
+  const [navigatingViewId, setNavigatingViewId] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     expenseId: string | null;
@@ -140,21 +163,43 @@ export default function ExpensesPage() {
   const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
   const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
+  // Current page lives in the URL (?page=), so "back" from an expense returns
+  // to the same page.
+  const pageQuery = searchParams.get("page");
+  const currentPage = Math.max(1, parseInt(pageQuery || "1", 10) || 1);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE));
+
+  const goToFirstPage = () => {
+    if (!searchParams.get("page")) return;
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("page");
+    nextParams.delete("expID");
+    router.replace(`/org/${slug}/expenses?${nextParams.toString()}`);
+  };
+
+  // Every filter change made through the UI goes back to page 1.
+  const setFilters: typeof setFiltersState = (value) => {
+    setFiltersState(value);
+    goToFirstPage();
+  };
+
   // so they are not lost when navigating back from an expense view
   const isMounted = useRef(false);
+  // v2: "Created By" / "Approver" are stored as user ids now (they were names).
+  const FILTERS_STORAGE_KEY = "expenses-filters-v2";
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const saved = sessionStorage.getItem("expenses-filters");
-      if (saved) {
-        try {
+      try {
+        const saved = sessionStorage.getItem(FILTERS_STORAGE_KEY);
+        if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed.filters) setFilters(parsed.filters);
+          if (parsed.filters) setFiltersState(parsed.filters);
           if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
           if (parsed.showFilters !== undefined) setShowFilters(parsed.showFilters);
-        } catch (e) {
-          console.error("Failed to parse saved filters", e);
         }
+      } catch (e) {
+        console.error("Failed to parse saved filters", e);
       }
     }
     setTimeout(() => {
@@ -165,111 +210,23 @@ export default function ExpensesPage() {
   // so they are not lost when navigating back from an expense view
   useEffect(() => {
     if (isMounted.current && typeof window !== "undefined") {
-      sessionStorage.setItem(
-        "expenses-filters",
-        JSON.stringify({ filters, searchQuery, showFilters })
-      );
+      try {
+        sessionStorage.setItem(
+          FILTERS_STORAGE_KEY,
+          JSON.stringify({ filters, searchQuery, showFilters })
+        );
+      } catch {
+        // storage unavailable (private mode etc.) — filters just won't persist
+      }
     }
   }, [filters, searchQuery, showFilters]);
 
-  const OPTION_ALL = "ALL";
-  const OPTION_NO_DATES = "NO_DATES";
-
-  const getExpenseDateKey = (dateValue: any) => {
-    if (!dateValue) return "";
-    const raw = String(dateValue);
-    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-    const parsed = new Date(raw);
-    if (Number.isNaN(parsed.getTime())) return "";
-    const year = parsed.getFullYear();
-    const month = String(parsed.getMonth() + 1).padStart(2, "0");
-    const day = String(parsed.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const allDataCombined = useMemo(() => {
-    return [...expensesData, ...pendingApprovals, ...allExpenses];
-  }, [expensesData, pendingApprovals, allExpenses]);
-
-  const unique = (values: any[]) =>
-    Array.from(
-      new Set(
-        values.filter(
-          (v) => v !== undefined && v !== null && String(v).trim() !== ""
-        )
-      )
-    );
-
-  const expenseTypeOptions = useMemo(
-    () =>
-      unique(
-        allDataCombined.map(
-          (e: any) => e.expense_type || e.category || e.custom_fields?.category
-        )
-      ),
-    [allDataCombined]
-  );
-
-  const eventNameOptions = useMemo(
-    () => unique(allDataCombined.map((e: any) => e.event_title)),
-    [allDataCombined]
-  );
-
-  const locationOptions = useMemo(
-    () => unique(allDataCombined.map((e: any) => e.location || e.custom_fields?.location)),
-    [allDataCombined]
-  );
-
-  const creatorOptions = useMemo(
-    () =>
-      unique(
-        allDataCombined.map((e: any) => e.creator?.full_name || e.creator_name)
-      ),
-    [allDataCombined]
-  );
-
-  const approverOptions = useMemo(
-    () => unique(allDataCombined.map((e: any) => e.approver?.full_name)),
-    [allDataCombined]
-  );
-
-  const statusOptions = useMemo(
-    () => unique(allDataCombined.map((e: any) => e.status)),
-    [allDataCombined]
-  );
-
-  const uniqueIdOptions = useMemo(
-    () => unique(allDataCombined.map((e: any) => e.unique_id)),
-    [allDataCombined]
-  );
-
-  // Amount slider from available data
-  const amountBounds = useMemo(() => {
-    const amounts = allDataCombined
-      .map((e: any) => Number(e.amount))
-      .filter((n) => !Number.isNaN(n));
-    if (amounts.length === 0) return { min: 0, max: 50000 };
-    const min = Math.floor(Math.min(...amounts));
-    const max = Math.ceil(Math.max(...amounts));
-    return { min: Math.max(0, min), max: Math.max(1, max) };
-  }, [allDataCombined]);
-
-  const amountStep = useMemo(() => {
-    const range = amountBounds.max - amountBounds.min;
-    if (range <= 1000) return 10;
-    if (range <= 10000) return 100;
-    if (range <= 100000) return 500;
-    return 1000;
-  }, [amountBounds]);
-
-  const currentMinAmount = useMemo(
-    () => (filters.amountMin ? Number(filters.amountMin) : amountBounds.min),
-    [filters.amountMin, amountBounds]
-  );
-  const currentMaxAmount = useMemo(
-    () => (filters.amountMax ? Number(filters.amountMax) : amountBounds.max),
-    [filters.amountMax, amountBounds]
-  );
+  // Typing in Amount / Unique ID shouldn't fire a request per keystroke.
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedFilters(filters), 350);
+    return () => window.clearTimeout(timer);
+  }, [filters]);
 
   // Local input states so we can show bounds while allowing typing
   const [amountMinInput, setAmountMinInput] = useState<string>(
@@ -287,6 +244,42 @@ export default function ExpensesPage() {
   useEffect(() => {
     setAmountMaxInput(filters.amountMax || "");
   }, [filters.amountMax]);
+
+  const OPTION_ALL = "ALL";
+  const OPTION_NO_DATES = "NO_DATES";
+
+  const getExpenseDateKey = (dateValue: any) => {
+    if (!dateValue) return "";
+    const raw = String(dateValue);
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const expenseTypeOptions = filterOptions.expenseTypes;
+  const locationOptions = filterOptions.locations;
+  const statusOptions = filterOptions.statuses;
+  const creatorOptions = filterOptions.creators;
+  const approverOptions = filterOptions.approvers;
+
+  // Which expenses each tab shows. Same rules as before, per role:
+  //   member  -> only their own
+  //   manager -> "All" = expenses where they are the approver
+  //   admin/owner -> "All" = the whole org
+  const scopeForTab = (tab: "my" | "pending" | "all"): ExpenseListScope => {
+    if (tab === "my") return "my";
+    if (tab === "pending") return "pending";
+    if (userRole === "member") return "my";
+    if (userRole === "manager") return "approver";
+    return "org";
+  };
+  const statsScope: ExpenseListScope =
+    userRole === "member" ? "my" : userRole === "manager" ? "approver" : "org";
+  const currentScope = scopeForTab(activeTab);
 
   // Determine tabs based on role
   const tabs =
@@ -317,12 +310,11 @@ export default function ExpensesPage() {
     router.replace(`/org/${slug}/expenses?${nextParams.toString()}`);
   };
 
+  // 1) Column settings — once per org.
   useEffect(() => {
-    async function fetchData() {
+    async function loadColumns() {
       if (!orgId) return;
-      setLoading(true);
 
-      // 1) load org settings (columns)
       const { data: s, error: se } = await orgSettings.getByOrgId(orgId);
       if (se) {
         toast.error("Failed to load settings", { description: se.message });
@@ -394,309 +386,172 @@ export default function ExpensesPage() {
 
         setColumns(expenseColumns);
       }
+    }
+    loadColumns();
+  }, [orgId]);
 
-      // 2) load expenses per role
-      let my: any[] = [],
-        pending: any[] = [],
-        all: any[] = [];
+  // 2) The current page of rows + total count. Re-runs on tab, page or
+  //    filter change. Stale responses are ignored.
+  const requestSeq = useRef(0);
+  useEffect(() => {
+    if (!orgId || !userId || !userRole) return;
+    const seq = ++requestSeq.current;
+    setLoading(true);
 
-      if (userRole === "member") {
-        // Members can only see their own expenses
-        const { data, error } = await expenses.getByOrgAndUser(
-          orgId,
-          user?.id!
-        );
-        if (error)
-          toast.error("Failed to load expenses", {
-            description: error.message,
+    const processExpenseData = async (expensesList: any[]) => {
+      if (!expensesList || expensesList.length === 0) return [];
+      const processedExpenses = [...expensesList];
+      try {
+        const expenseIds = processedExpenses.map((exp) => exp.id);
+        const eventIds = [
+          ...new Set(
+            processedExpenses
+              .map((exp) => exp.event_id)
+              .filter((id) => typeof id === "string" && id.length > 0)
+          ),
+        ];
+
+        // Fetch vouchers
+        const { data: allVouchers, error: voucherError } = await supabase
+          .from("vouchers")
+          .select("*")
+          .in("expense_id", expenseIds);
+        if (voucherError) console.error("Error fetching vouchers:", voucherError);
+
+        const voucherMap: Record<string, any> = {};
+        if (allVouchers && allVouchers.length > 0) {
+          allVouchers.forEach((voucher: any) => {
+            voucherMap[voucher.expense_id] = voucher;
           });
-        my = data ?? [];
-        all = data ?? [];
-      } else if (userRole === "manager") {
-        // Managers see their own expenses, pending approvals, and expenses where they are assigned as approver
-        const [
-          { data: myData, error: myErr },
-          { data: pendingData, error: pendingErr },
-          { data: allData, error: allErr },
-        ] = await Promise.all([
-          expenses.getByOrgAndUser(orgId, user?.id!),
-          expenses.getPendingApprovals(orgId, user?.id!),
-          expenses.getByApprover(orgId, user?.id!),
-        ]);
-
-        if (myErr)
-          toast.error("Failed to load your expenses", {
-            description: myErr.message,
-          });
-        if (pendingErr)
-          toast.error("Failed to load pending approvals", {
-            description: pendingErr.message,
-          });
-        if (allErr)
-          toast.error("Failed to load expenses where you are approver", {
-            description: allErr.message,
-          });
-
-        my = myData ?? [];
-        pending = pendingData ?? [];
-        all = allData ?? [];
-      } else {
-        // Admins and owners can see all views
-        const [
-          { data: myData, error: myErr },
-          { data: pendingData, error: pendingErr },
-          { data: allData, error: allErr },
-        ] = await Promise.all([
-          expenses.getByOrgAndUser(orgId, user?.id!),
-          expenses.getPendingApprovals(orgId, user?.id!),
-          expenses.getByOrg(orgId),
-        ]);
-
-        if (myErr)
-          toast.error("Failed to load your expenses", {
-            description: myErr.message,
-          });
-        if (pendingErr)
-          toast.error("Failed to load pending approvals", {
-            description: pendingErr.message,
-          });
-        if (allErr)
-          toast.error("Failed to load all expenses", {
-            description: allErr.message,
-          });
-
-        my = myData ?? [];
-        pending = pendingData ?? [];
-        all = allData ?? [];
-      }
-
-      // 3) Check for vouchers for each expense
-      if (my.length > 0 || all.length > 0 || pending.length > 0) {
-        const processExpenseData = async (expensesList: any[]) => {
-          if (!expensesList || expensesList.length === 0) {
-            return [];
-          }
-
-          const processedExpenses = [...expensesList];
-
-          try {
-            // Get expense IDs
-            const expenseIds = processedExpenses.map((exp) => exp.id);
-
-            // Collect unique event ids
-            const eventIds = [
-              ...new Set(
-                processedExpenses
-                  .map((exp) => exp.event_id)
-                  .filter((id) => typeof id === "string" && id.length > 0)
-              ),
-            ];
-
-            // Fetch vouchers
-            const { data: allVouchers, error: voucherError } = await supabase
-              .from("vouchers")
-              .select("*")
-              .in("expense_id", expenseIds);
-
-            if (voucherError) {
-              console.error("Error fetching vouchers:", voucherError);
-            }
-
-            // Create voucher lookup map
-            const voucherMap: Record<string, any> = {};
-            if (allVouchers && allVouchers.length > 0) {
-              allVouchers.forEach((voucher) => {
-                voucherMap[voucher.expense_id] = voucher;
-              });
-            }
-
-            // Get all approver names at once using our new function
-            // const approverNamesMap = await expenses.getApproverNames(
-            //   expenseIds
-            // );
-
-            // Fetch event titles in bulk
-            const eventTitleMap: Record<string, string> = {};
-            if (eventIds.length > 0) {
-              const { data: eventsData, error: eventsErr } = await supabase
-                .from("expense_events")
-                .select("id,title")
-                .in("id", eventIds);
-              if (!eventsErr && eventsData) {
-                eventsData.forEach((ev: { id: string; title: string }) => {
-                  eventTitleMap[ev.id] = ev.title;
-                });
-              }
-            }
-
-            // Process each expense
-            for (const expense of processedExpenses) {
-              try {
-                // Check for voucher
-                const voucher = voucherMap[expense.id];
-                if (voucher) {
-                  expense.hasVoucher = true;
-                  expense.voucherId = voucher.id;
-                }
-
-                // Get approver name from our map
-                const approverName = expense.custom_fields?.approver_name || expense.approver?.full_name || "—";
-                // approverNamesMap[expense.id] || "Unknown Approver";
-
-                // Set approver info on the expense
-                expense.approver = {
-                  full_name: approverName,
-                  user_id: expense.approver_id || voucher?.approver_id,
-                };
-
-                // Set event title if available
-                if (expense.event_id) {
-                  expense.event_title =
-                    eventTitleMap[expense.event_id] || "N/A";
-                } else {
-                  expense.event_title = "N/A";
-                }
-              } catch (error) {
-                console.error(`Error processing expense ${expense.id}:`, error);
-              }
-            }
-
-            return processedExpenses;
-          } catch (error) {
-            console.error("Error in processExpenseData:", error);
-            return processedExpenses;
-          }
-        };
-
-        // Then use this function to process your expense lists
-        my = await processExpenseData(my);
-        if (userRole !== "member") {
-          pending = await processExpenseData(pending);
-          all = await processExpenseData(all);
         }
-      }
-      setExpensesData(my);
-      setPendingApprovals(pending);
 
-      setAllExpenses(all);
-      // compute stats on "all"
-      setStats({
-        total: all.length,
-        approved: all.filter((e) => e.status === "approved").length,
-        finance_approved: all.filter((e) => e.status === "finance_approved")
-          .length,
-        pending: all.filter((e) => e.status === "submitted").length,
-        rejected: all.filter((e) => e.status === "rejected").length,
-        finance_rejected: all.filter((e) => e.status === "finance_rejected")
-          .length,
+        // Fetch event titles in bulk
+        const eventTitleMap: Record<string, string> = {};
+        if (eventIds.length > 0) {
+          const { data: eventsData, error: eventsErr } = await supabase
+            .from("expense_events")
+            .select("id,title")
+            .in("id", eventIds);
+          if (!eventsErr && eventsData) {
+            eventsData.forEach((ev: { id: string; title: string }) => {
+              eventTitleMap[ev.id] = ev.title;
+            });
+          }
+        }
+
+        for (const expense of processedExpenses) {
+          try {
+            const voucher = voucherMap[expense.id];
+            if (voucher) {
+              expense.hasVoucher = true;
+              expense.voucherId = voucher.id;
+            }
+            const approverName =
+              expense.custom_fields?.approver_name ||
+              expense.approver?.full_name ||
+              "—";
+            expense.approver = {
+              full_name: approverName,
+              user_id: expense.approver_id || voucher?.approver_id,
+            };
+            expense.event_title = expense.event_id
+              ? eventTitleMap[expense.event_id] || "N/A"
+              : "N/A";
+          } catch (err) {
+            console.error(`Error processing expense ${expense.id}:`, err);
+          }
+        }
+        return processedExpenses;
+      } catch (err) {
+        console.error("Error in processExpenseData:", err);
+        return processedExpenses;
+      }
+    };
+
+    const run = async () => {
+      const { data, count, error } = await fetchExpensePage({
+        orgId,
+        userId,
+        scope: currentScope,
+        filters: debouncedFilters,
+        page: currentPage,
+        pageSize: PER_PAGE,
       });
 
+      if (seq !== requestSeq.current) return;
+
+      if (error) {
+        toast.error("Failed to load expenses", { description: error.message });
+        setRows([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
+
+      // Enrich with voucher + event data
+      const enriched = await processExpenseData(data ?? []);
+      setRows(enriched);
+      setTotalCount(count ?? 0);
       setLoading(false);
-    }
-    fetchData();
-  }, [orgId, userRole, user?.id]);
+    };
 
-  const getCurrent = () => {
-    if (activeTab === "my") return expensesData;
-    if (activeTab === "pending") return pendingApprovals;
-    return allExpenses;
-  };
+    run();
+  }, [orgId, userId, userRole, currentScope, debouncedFilters, currentPage, reloadKey]);
 
-  const singleDateOptions = useMemo(() => {
-    const dates = unique(getCurrent().map((e: any) => getExpenseDateKey(e.date)));
-    return dates.sort(
-      (a, b) => new Date(b).getTime() - new Date(a).getTime()
-    );
-  }, [expensesData, pendingApprovals, allExpenses, activeTab]);
-
-  const toNumber = (val: string) => {
-    const n = parseFloat(val);
-    return isNaN(n) ? undefined : n;
-  };
-
-  const filteredCurrent = () => {
-    const data = getCurrent();
-    if (!data || data.length === 0) return [] as any[];
-
-    const minAmt = toNumber(filters.amountMin);
-    const maxAmt = toNumber(filters.amountMax);
-    let fromDate: Date | undefined;
-    let toDate: Date | undefined;
-
-    if (filters.dateMode === "CUSTOM") {
-      fromDate = filters.dateFrom ? new Date(filters.dateFrom) : undefined;
-      toDate = filters.dateTo ? new Date(filters.dateTo) : undefined;
-    } else if (filters.dateMode === "SINGLE") {
-      if (filters.dateFrom) {
-        const day = new Date(filters.dateFrom);
-        fromDate = new Date(day);
-        toDate = new Date(day);
+  // 3) Stat cards — counted by the database, independent of tab and filters
+  //    (same as before: they always describe the role's "All" view).
+  useEffect(() => {
+    if (!orgId || !userId || !userRole) return;
+    let cancelled = false;
+    fetchExpenseStatusCounts(orgId, userId, statsScope).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to load expense counts:", error);
+        return;
       }
-    }
-
-    const ciIncludes = (a?: string, b?: string) =>
-      (a || "")
-        .toString()
-        .toLowerCase()
-        .includes((b || "").toString().toLowerCase());
-
-    return data.filter((e: any) => {
-      const expenseType =
-        e.expense_type || e.category || e.custom_fields?.category;
-      if (filters.expenseType && expenseType !== filters.expenseType)
-        return false;
-
-      if (filters.eventName && e.event_title !== filters.eventName)
-        return false;
-
-      const location = e.location || e.custom_fields?.location;
-      if (filters.projectOfExpense && location !== filters.projectOfExpense)
-        return false;
-
-      if (minAmt !== undefined && Number(e.amount) < minAmt) return false;
-      if (maxAmt !== undefined && Number(e.amount) > maxAmt) return false;
-
-      if (filters.dateMode === "SINGLE" && filters.dateFrom) {
-        const expenseDateKey = getExpenseDateKey(e.date);
-        if (!expenseDateKey || expenseDateKey !== filters.dateFrom)
-          return false;
-      } else if (fromDate || toDate) {
-        const d = e.date ? new Date(e.date) : undefined;
-        if (!d) return false;
-        if (fromDate && d < fromDate) return false;
-        if (toDate) {
-          const end = new Date(toDate);
-          end.setHours(23, 59, 59, 999);
-          if (d > end) return false;
-        }
-      }
-
-      const creatorName = e.creator?.full_name || e.creator_name;
-      if (filters.createdBy && creatorName !== filters.createdBy) return false;
-
-      const approverName = e.approver?.full_name;
-      if (filters.approver && approverName !== filters.approver) return false;
-
-      if (filters.status && e.status !== filters.status) return false;
-
-      // Filter by Unique ID (exact match via dropdown)
-      if (filters.uniqueId && String(e.unique_id) !== filters.uniqueId)
-        return false;
-
-      return true;
+      if (data) setStats(data);
     });
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, userId, userRole, statsScope, reloadKey]);
 
-  const filteredData = useMemo(
-    () => filteredCurrent(),
-    [filters, expensesData, pendingApprovals, allExpenses, activeTab]
+  // 4) Dropdown values — only fetched once the Filters panel is open, cached
+  //    per tab scope.
+  useEffect(() => {
+    if (!showFilters || !orgId || !userId || !userRole) return;
+    const cached = filterOptionsCache.current[currentScope];
+    if (cached) {
+      setFilterOptions(cached);
+      return;
+    }
+    let cancelled = false;
+    fetchExpenseFilterOptions(orgId, userId, currentScope)
+      .then((options) => {
+        filterOptionsCache.current[currentScope] = options;
+        if (!cancelled) setFilterOptions(options);
+      })
+      .catch((e) => console.error("Failed to load filter options:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [showFilters, orgId, userId, userRole, currentScope]);
+
+  const hasActiveFilters = Boolean(
+    filters.expenseType ||
+    filters.projectOfExpense ||
+    filters.status ||
+    filters.amountMin ||
+    filters.amountMax ||
+    filters.createdBy ||
+    filters.approver ||
+    filters.uniqueId ||
+    (filters.dateMode !== OPTION_ALL && (filters.dateFrom || filters.dateTo))
   );
 
-  // Use pagination hook
-  const pagination = usePagination(filteredData);
+  const getItemNumber = (index: number) => (currentPage - 1) * PER_PAGE + index + 1;
 
   const highlightQuery = searchParams.get("expID");
-  const pageQuery = searchParams.get("page");
 
   useEffect(() => {
     setHighlightId(highlightQuery);
@@ -709,41 +564,15 @@ export default function ExpensesPage() {
     return () => window.clearTimeout(timer);
   }, [highlightId]);
 
+  // If the URL points past the last page (e.g. rows were deleted), clamp it.
   useEffect(() => {
-    if (!filteredData.length) return;
-
-    if (pageQuery) {
-      const parsed = parseInt(pageQuery, 10);
-      if (!Number.isNaN(parsed)) {
-        const clamped = Math.min(Math.max(parsed, 1), pagination.totalPages);
-        if (clamped !== pagination.currentPage) {
-          pagination.setCurrentPage(clamped);
-        }
-      }
-      return;
-    }
-
-    if (highlightQuery) {
-      const targetIndex = filteredData.findIndex((item) => item.id === highlightQuery);
-      if (targetIndex !== -1) {
-        const targetPage = Math.floor(targetIndex / PER_PAGE) + 1;
-        if (targetPage !== pagination.currentPage) {
-          pagination.setCurrentPage(targetPage);
-        }
-      }
-    }
-  }, [
-    filteredData,
-    highlightQuery,
-    pageQuery,
-    pagination.setCurrentPage,
-    pagination.totalPages,
-  ]);
+    if (loading || totalCount === 0) return;
+    if (currentPage > totalPages) handlePageChange(totalPages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, totalCount, totalPages, currentPage]);
 
   const handlePageChange = (nextPage: number) => {
-    if (nextPage === pagination.currentPage) return;
-
-    pagination.setCurrentPage(nextPage);
+    if (nextPage === currentPage) return;
 
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set("tab", activeTab);
@@ -756,7 +585,7 @@ export default function ExpensesPage() {
   useEffect(() => {
     if (!highlightId || hasAppliedHighlight) return;
 
-    const isVisible = pagination.paginatedData.some((item) => item.id === highlightId);
+    const isVisible = rows.some((item) => item.id === highlightId);
     if (!isVisible) return;
 
     const timer = window.setTimeout(() => {
@@ -768,12 +597,7 @@ export default function ExpensesPage() {
     }, 200);
 
     return () => window.clearTimeout(timer);
-  }, [highlightId, hasAppliedHighlight, pagination.paginatedData]);
-
-  // Reset to page 1 when filters or tab changes
-  useEffect(() => {
-    pagination.resetPage();
-  }, [filters, activeTab]);
+  }, [highlightId, hasAppliedHighlight, rows]);
 
   const handleNew = () => {
     router.push(`/org/${slug}/expenses/new`);
@@ -786,20 +610,8 @@ export default function ExpensesPage() {
       const { error } = await expenses.delete(deleteConfirmation.expenseId);
       if (error) throw error;
       toast.success("Expense deleted successfully");
-      // Update the local state to reflect the deletion
-      if (activeTab === "my") {
-        setExpensesData((prev) =>
-          prev.filter((expense) => expense.id !== deleteConfirmation.expenseId)
-        );
-      } else if (activeTab === "pending") {
-        setPendingApprovals((prev) =>
-          prev.filter((expense) => expense.id !== deleteConfirmation.expenseId)
-        );
-      } else {
-        setAllExpenses((prev) =>
-          prev.filter((expense) => expense.id !== deleteConfirmation.expenseId)
-        );
-      }
+      // Re-fetch the current page and the counts.
+      setReloadKey((k) => k + 1);
       setDeleteConfirmation({ isOpen: false, expenseId: null });
     } catch (error: any) {
       toast.error("Failed to delete expense", {
@@ -813,8 +625,34 @@ export default function ExpensesPage() {
     setDeleteConfirmation({ isOpen: true, expenseId: id });
   };
 
-  const handleExport = (format: "csv" | "excel") => {
-    const exportData = filteredData.map((exp, index) => {
+  // Export fetches everything matching the current tab + filters on demand,
+  // so the full dataset is only downloaded when someone actually exports.
+  const handleExport = async (format: "csv" | "excel") => {
+    if (!orgId || !userId || exporting) return;
+    setExporting(true);
+    const toastId = toast.loading("Preparing export…");
+    let allRows: any[] = [];
+    try {
+      const { data, error } = await fetchAllExpensesForExport({
+        orgId,
+        userId,
+        scope: currentScope,
+        filters,
+      });
+      if (error) throw error;
+      allRows = data ?? [];
+    } catch (error: any) {
+      toast.error("Failed to export expenses", {
+        id: toastId,
+        description: error?.message,
+      });
+      setExporting(false);
+      return;
+    }
+    toast.dismiss(toastId);
+    setExporting(false);
+
+    const exportData = allRows.map((exp, index) => {
       const getVal = (key: string) => {
         if (exp[key] !== undefined && exp[key] !== null) return exp[key];
         if (exp.custom_fields && exp.custom_fields[key] !== undefined) return exp.custom_fields[key];
@@ -1061,10 +899,11 @@ export default function ExpensesPage() {
                   <Button
                     variant="outline"
                     className="cursor-pointer"
+                    disabled={exporting}
                     onClick={() => setExportModalOpen(true)}
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    Export
+                    {exporting ? "Exporting…" : "Export"}
                   </Button>
                 )}
               </div>
@@ -1202,7 +1041,7 @@ export default function ExpensesPage() {
                           <Label className="text-sm">Amount Min</Label>
                           <Input
                             type="number"
-                            placeholder={String(amountBounds.min)}
+                            placeholder="Min"
                             value={filters.amountMin}
                             onChange={(e) => {
                               const v = e.target.value;
@@ -1221,7 +1060,7 @@ export default function ExpensesPage() {
                           <Label className="text-sm">Amount Max</Label>
                           <Input
                             type="number"
-                            placeholder={String(amountBounds.max)}
+                            placeholder="Max"
                             value={filters.amountMax}
                             onChange={(e) => {
                               const v = e.target.value;
@@ -1273,40 +1112,16 @@ export default function ExpensesPage() {
                               : "From Date"}
                           </Label>
                           {filters.dateMode === "SINGLE" ? (
-                            <Select
-                              value={filters.dateFrom || OPTION_ALL}
-                              onValueChange={(v) => {
-                                if (v === OPTION_NO_DATES) return;
-                                setFilters({
-                                  ...filters,
-                                  dateFrom: v === OPTION_ALL ? "" : v,
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select Date" />
-                              </SelectTrigger>
-                              <SelectContent
-                                searchPlaceholder="Search date..."
-                                searchValue={searchQuery.dateFrom}
-                                onSearchChange={(v) => setSearchQuery({ ...searchQuery, dateFrom: v })}
-                              >
-                                <SelectItem value={OPTION_ALL}>All Dates</SelectItem>
-                                {singleDateOptions.length > 0 ? (
-                                  singleDateOptions
-                                    .filter((dateKey: string) => formatDate(dateKey).toLowerCase().includes(searchQuery.dateFrom.toLowerCase()))
-                                    .map((dateKey: string) => (
-                                      <SelectItem key={dateKey} value={dateKey}>
-                                        {formatDate(dateKey)}
-                                      </SelectItem>
-                                    ))
-                                ) : (
-                                  <SelectItem value={OPTION_NO_DATES} disabled>
-                                    No expense dates
-                                  </SelectItem>
-                                )}
-                              </SelectContent>
-                            </Select>
+                            <Input
+                              type="date"
+                              value={filters.dateFrom}
+                              onChange={(e) =>
+                                setFilters((prev) => ({
+                                  ...prev,
+                                  dateFrom: e.target.value,
+                                }))
+                              }
+                            />
                           ) : (
                             <Input
                               type="date"
@@ -1363,10 +1178,10 @@ export default function ExpensesPage() {
                             All Created By
                           </SelectItem>
                           {creatorOptions
-                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
-                            .map((opt: string) => (
-                              <SelectItem key={opt} value={opt}>
-                                {opt}
+                            .filter((opt) => opt.name.toLowerCase().includes(searchQuery.createdBy.toLowerCase()))
+                            .map((opt) => (
+                              <SelectItem key={opt.id} value={opt.id}>
+                                {opt.name}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -1374,33 +1189,16 @@ export default function ExpensesPage() {
                     </div>
                     <div className="space-y-1">
                       <Label>Unique ID</Label>
-                      <Select
-                        value={filters.uniqueId || OPTION_ALL}
-                        onValueChange={(v) =>
-                          setFilters({
-                            ...filters,
-                            uniqueId: v === OPTION_ALL ? "" : v,
-                          })
+                      <Input
+                        placeholder="Search unique ID..."
+                        value={filters.uniqueId}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            uniqueId: e.target.value,
+                          }))
                         }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Unique ID" />
-                        </SelectTrigger>
-                        <SelectContent
-                          searchPlaceholder="Search unique ID..."
-                          searchValue={searchQuery.uniqueId}
-                          onSearchChange={(v) => setSearchQuery({ ...searchQuery, uniqueId: v })}
-                        >
-                          <SelectItem value={OPTION_ALL}>All Unique IDs</SelectItem>
-                          {uniqueIdOptions
-                            .filter((opt: string) => String(opt).toLowerCase().includes(searchQuery.uniqueId.toLowerCase()))
-                            .map((opt: string) => (
-                              <SelectItem key={opt} value={opt}>
-                                {opt}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label>Approver</Label>
@@ -1425,10 +1223,10 @@ export default function ExpensesPage() {
                             All Approvers
                           </SelectItem>
                           {approverOptions
-                            .filter((opt: string) => opt.toLowerCase().includes(searchQuery.approver.toLowerCase()))
-                            .map((opt: string) => (
-                              <SelectItem key={opt} value={opt}>
-                                {opt}
+                            .filter((opt) => opt.name.toLowerCase().includes(searchQuery.approver.toLowerCase()))
+                            .map((opt) => (
+                              <SelectItem key={opt.id} value={opt.id}>
+                                {opt.name}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -1464,9 +1262,11 @@ export default function ExpensesPage() {
                         });
                       }}
                     >
-                      Clear
+                      Clear Filters
                     </Button>
-                    <Button onClick={() => setShowFilters(false)}>Apply</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFilters(false)}>Close</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1496,7 +1296,7 @@ export default function ExpensesPage() {
                         colSpan={columns.filter((c) => c.visible).length + 5}
                         rows={5}
                       />
-                    ) : getCurrent().length === 0 ? (
+                    ) : totalCount === 0 && !hasActiveFilters ? (
                       <TableRow>
                         <TableCell
                           colSpan={columns.filter((c) => c.visible).length + 5}
@@ -1505,7 +1305,7 @@ export default function ExpensesPage() {
                           No expenses.
                         </TableCell>
                       </TableRow>
-                    ) : filteredData.length === 0 ? (
+                    ) : totalCount === 0 ? (
                       <TableRow>
                         <TableCell
                           colSpan={columns.filter((c) => c.visible).length + 5}
@@ -1517,7 +1317,7 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      pagination.paginatedData.map((exp, index) => {
+                      rows.map((exp, index) => {
                         const isHighlighted = highlightId === exp.id;
                         return (
                           <TableRow
@@ -1527,7 +1327,7 @@ export default function ExpensesPage() {
                             className={isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""}
                           >
                             <TableCell className="w-12 text-center">
-                              {pagination.getItemNumber(index)}
+                              {getItemNumber(index)}
                             </TableCell>
                             <TableCell className="whitespace-nowrap">
                               {formatDateTime(exp.created_at)}
@@ -1618,24 +1418,20 @@ export default function ExpensesPage() {
                                       <div
                                         className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
                                         onClick={() => {
+                                          setNavigatingViewId(exp.id);
                                           // For pending tab, add nextId to enable sequential approval flow
-                                          const baseUrl = `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}&page=${pagination.currentPage}`;
-                                          const globalIndex = pagination.getItemNumber(index) - 1;
-                                          if (
-                                            activeTab === "pending" &&
-                                            filteredData[globalIndex + 1]
-                                          ) {
-                                            const nextId =
-                                              filteredData[globalIndex + 1].id;
-                                            router.push(
-                                              `${baseUrl}&nextId=${nextId}`
-                                            );
-                                          } else {
-                                            router.push(baseUrl);
-                                          }
+                                          // The detail page works out the next pending
+                                          // expense itself, so no nextId is needed.
+                                          router.push(
+                                            `/org/${slug}/expenses/${exp.id}?fromTab=${activeTab}&page=${currentPage}`
+                                          );
                                         }}
                                       >
-                                        <Eye className="w-4 h-4 text-gray-600 hover:text-black" />
+                                        {navigatingViewId === exp.id ? (
+                                          <Spinner className="w-4 h-4" />
+                                        ) : (
+                                          <Eye className="w-4 h-4 text-gray-600 hover:text-black" />
+                                        )}
                                       </div>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -1650,13 +1446,18 @@ export default function ExpensesPage() {
                                         <TooltipTrigger asChild>
                                           <div
                                             className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
-                                            onClick={() =>
+                                            onClick={() => {
+                                              setNavigatingEditId(exp.id);
                                               router.push(
                                                 `/org/${slug}/expenses/${exp.id}/edit`
-                                              )
-                                            }
+                                              );
+                                            }}
                                           >
-                                            <Pencil className="w-4 h-4 text-gray-600 hover:text-black" />
+                                            {navigatingEditId === exp.id ? (
+                                              <Spinner className="w-4 h-4" />
+                                            ) : (
+                                              <Pencil className="w-4 h-4 text-gray-600 hover:text-black" />
+                                            )}
                                           </div>
                                         </TooltipTrigger>
                                         <TooltipContent>
@@ -1691,20 +1492,20 @@ export default function ExpensesPage() {
                     )}
                   </TableBody>
                 </Table>
-                {filteredData.length > 0 && (
-                  <div className="px-6">
-                    <Pagination
-                      currentPage={pagination.currentPage}
-                      totalPages={pagination.totalPages}
-                      totalItems={pagination.totalItems}
-                      onPageChange={handlePageChange}
-                      isLoading={loading}
-                      itemLabel="Expenses"
-                    />
-                  </div>
-                )}
               </CardContent>
             </Card>
+            {totalCount > 0 && (
+              <div className="px-2">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalCount}
+                  onPageChange={handlePageChange}
+                  isLoading={loading}
+                  itemLabel="Expenses"
+                />
+              </div>
+            )}
           </TabsContent>
         ))}
       </Tabs>

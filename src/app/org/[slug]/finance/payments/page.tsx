@@ -585,8 +585,15 @@ export default function PaymentProcessingOnly() {
       try {
         setLoading(true);
 
+        // Only finance-approved, not-yet-paid expenses are shown here, so ask
+        // the database for just those instead of downloading the whole org.
+        // The client-side filter below stays as a second check.
         const { data: expenseData, error: expenseError } =
-          await expenses.getByOrg(orgId);
+          await expenses.getByOrg(orgId, (q) =>
+            q
+              .eq("status", "finance_approved")
+              .or("payment_status.is.null,payment_status.eq.pending")
+          );
         if (expenseError) throw expenseError;
 
         let filteredExpenses = (expenseData || [])
@@ -1635,17 +1642,17 @@ export default function PaymentProcessingOnly() {
           </div>
 
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setFilterOpen(false)}>
-              Close
-            </Button>
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
+            </Button>
+            <Button variant="outline" onClick={() => setFilterOpen(false)}>
+              Close
             </Button>
           </div>
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible mb-0">
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>

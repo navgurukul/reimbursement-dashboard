@@ -2684,8 +2684,8 @@ export default function NewExpensePage() {
               : expense_signature_url ?? undefined,
             receipt: null,
             creator_email: user.email,
-            approver_email: itemApproverEmail,
-            location: item.location || null,
+            approver_email: approverEmail || itemApproverEmail,
+            location: (item.location as string) || null,
           };
 
           const { data: itemData, error: itemError } = await expenses.create(

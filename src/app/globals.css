@@ -123,8 +123,72 @@
 
 .toaster .toast [data-description],
 .toaster [data-sonner-toast] [data-description] {
-  color: var(--foreground) !important;
-  opacity: 1 !important;
+  color: var(--foreground);
+  opacity: 1;
+}
+
+/* Success toast - green background and dark green text */
+.toaster [data-sonner-toast][data-type="success"] {
+  background-color: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+  color: #166534 !important;
+}
+
+.toaster [data-sonner-toast][data-type="success"] [data-title],
+.toaster [data-sonner-toast][data-type="success"] [data-description] {
+  color: #166534 !important;
+}
+
+.toaster [data-sonner-toast][data-type="success"] [data-icon] {
+  color: #16a34a !important;
+}
+
+/* Error toast - red background and dark red text */
+.toaster [data-sonner-toast][data-type="error"] {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #991b1b !important;
+}
+
+.toaster [data-sonner-toast][data-type="error"] [data-title],
+.toaster [data-sonner-toast][data-type="error"] [data-description] {
+  color: #991b1b !important;
+}
+
+.toaster [data-sonner-toast][data-type="error"] [data-icon] {
+  color: #dc2626 !important;
+}
+
+/* Warning toast - amber background and dark amber text */
+.toaster [data-sonner-toast][data-type="warning"] {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #92400e !important;
+}
+
+.toaster [data-sonner-toast][data-type="warning"] [data-title],
+.toaster [data-sonner-toast][data-type="warning"] [data-description] {
+  color: #92400e !important;
+}
+
+.toaster [data-sonner-toast][data-type="warning"] [data-icon] {
+  color: #d97706 !important;
+}
+
+/* Info toast - blue background and dark blue text */
+.toaster [data-sonner-toast][data-type="info"] {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1e40af !important;
+}
+
+.toaster [data-sonner-toast][data-type="info"] [data-title],
+.toaster [data-sonner-toast][data-type="info"] [data-description] {
+  color: #1e40af !important;
+}
+
+.toaster [data-sonner-toast][data-type="info"] [data-icon] {
+  color: #2563eb !important;
 }
 
 /* Typography System - Consistent heading and text styles */

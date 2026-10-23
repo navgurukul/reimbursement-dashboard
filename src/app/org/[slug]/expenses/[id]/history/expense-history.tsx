@@ -22,7 +22,41 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
           return;
         }
 
-        setHistory(data || []);
+        // Filter out redundant Location, approver fields, and unchanged entries
+        const filteredHistory = (data || []).filter((item: any) => {
+          if (item.action_type === "updated" && item.old_value && item.new_value) {
+            const oldMatch = typeof item.old_value === "string" ? item.old_value.match(/^([^:]+):\s*(.*)$/) : null;
+            const newMatch = typeof item.new_value === "string" ? item.new_value.match(/^([^:]+):\s*(.*)$/) : null;
+            if (oldMatch) {
+              const fieldName = oldMatch[1].trim().toLowerCase();
+              if (
+                fieldName === "location" ||
+                fieldName === "location of expense" ||
+                fieldName === "second approver name" ||
+                fieldName === "second approver id" ||
+                fieldName === "second_approver_name" ||
+                fieldName === "second_approver_id" ||
+                fieldName === "approver" ||
+                fieldName === "approver name" ||
+                fieldName === "approver_name"
+              ) {
+                return false;
+              }
+
+              // If field name matches and values are identical (e.g. from "" to "")
+              if (newMatch && oldMatch[1] === newMatch[1]) {
+                const oldVal = (oldMatch[2] || "").trim();
+                const newVal = (newMatch[2] || "").trim();
+                if (oldVal === newVal) {
+                  return false;
+                }
+              }
+            }
+          }
+          return true;
+        });
+
+        setHistory(filteredHistory);
       } catch (error) {
         console.error("Failed to load expense history:", error);
       } finally {
@@ -44,11 +78,74 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
         return `Expense created with amount ${newValue || "0"}`;
       case "updated":
         if (oldValue && newValue) {
+          // Check if the value starts with a field name, e.g. "Amount: 50"
+          const oldMatch = typeof oldValue === "string" ? oldValue.match(/^([^:]+):\s*(.*)$/) : null;
+          const newMatch = typeof newValue === "string" ? newValue.match(/^([^:]+):\s*(.*)$/) : null;
+          
+          if (oldMatch && newMatch && oldMatch[1] === newMatch[1]) {
+            const fieldName = oldMatch[1].trim().toLowerCase();
+            const oldVal = (oldMatch[2] || "").trim();
+            const newVal = (newMatch[2] || "").trim();
+
+            // Skip if value didn't change (e.g. from "" to "")
+            if (oldVal === newVal) {
+              return null;
+            }
+
+            // Skip internal approver fields
+            if (
+              fieldName === "second approver name" ||
+              fieldName === "second approver id" ||
+              fieldName === "second_approver_name" ||
+              fieldName === "second_approver_id" ||
+              fieldName === "approver" ||
+              fieldName === "approver name" ||
+              fieldName === "approver_name"
+            ) {
+              return null;
+            }
+
+            return (
+              <>
+                Changed <span className="font-semibold">{oldMatch[1]}</span> from "{oldMatch[2]}" to "{newMatch[2]}"
+              </>
+            );
+          }
+
+          const knownStatuses = [
+            "submitted",
+            "approved",
+            "rejected",
+            "finance_approved",
+            "finance_rejected",
+          ];
+          if (
+            knownStatuses.includes(String(oldValue).trim().toLowerCase()) ||
+            knownStatuses.includes(String(newValue).trim().toLowerCase())
+          ) {
+            return (
+              <>
+                Changed <span className="font-semibold">Expense Status</span> from "{oldValue}" to "{newValue}"
+              </>
+            );
+          }
+          
           // If it looks like an amount (numeric)
           if (!isNaN(parseFloat(oldValue)) && !isNaN(parseFloat(newValue))) {
-            return `Amount changed from ${oldValue} to ${newValue}`;
+            return (
+               <>Changed <span className="font-semibold">Amount</span> from {oldValue} to {newValue}</>
+            );
           }
-          return `Changed from "${oldValue}" to "${newValue}"`;
+
+          const oldTrim = String(oldValue).trim();
+          const newTrim = String(newValue).trim();
+          if (oldTrim === newTrim) {
+            return null;
+          }
+
+          return (
+             <>Changed from "{oldValue}" to "{newValue}"</>
+          );
         }
         return `Value updated to "${newValue}"`;
       case "approved":
@@ -57,7 +154,7 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
         return "Expense rejected";
       case "finance_approved":
         return "Approved by Finance";
-      case "finance_rejected":
+      case "financerejected":
         return "Rejected by Finance";
       default:
         return `Action: ${actionType}`;
@@ -75,6 +172,11 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
     if (item.action_type === "updated") {
       const msg = getActivityMessage(item);
       
+      // Hide if message is null or empty
+      if (!msg) {
+        return false;
+      }
+
       // Hide if the message is exactly "Value updated to """
       if (msg === 'Value updated to ""') {
         return false;
@@ -86,7 +188,7 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
       }
       
       // Hide if it's updating to a UUID
-      if (msg.match(/^Value updated to "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"$/i)) {
+      if (typeof msg === "string" && msg.match(/^Value updated to "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"$/i)) {
         return false;
       }
     }
@@ -126,7 +228,7 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
               <div className="flex items-center gap-2 mb-1">
                 <ExpenseStatusBadge status={item.action_type} />
                 <span className="text-sm font-medium text-gray-800">
-                  {item.user_name}
+                  {item.profile?.full_name || item.user_name}
                 </span>
               </div>
               <p className="text-xs text-gray-500 mb-1">

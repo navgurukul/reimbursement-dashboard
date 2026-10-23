@@ -327,7 +327,11 @@ export default function FinanceReview() {
 
       try {
         setLoading(true);
-        const { data, error } = await expenses.getByOrg(orgId);
+        // Only manager-approved expenses are shown here, so ask the database
+        // for just those instead of downloading the whole org (~20k rows).
+        const { data, error } = await expenses.getByOrg(orgId, (q) =>
+          q.eq("status", "approved")
+        );
         if (error) throw error;
 
         let managerApprovedExpenses = (data || [])
@@ -931,17 +935,17 @@ export default function FinanceReview() {
           </div>
 
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setFilterOpen(false)}>
-              Close
-            </Button>
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
+            </Button>
+            <Button variant="outline" onClick={() => setFilterOpen(false)}>
+              Close
             </Button>
           </div>
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible">
+      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible mb-0">
         <Table className="w-full text-sm">
           <TableHeader className="bg-gray-300 sticky top-0 z-10">
             <TableRow>
@@ -1137,7 +1141,7 @@ export default function FinanceReview() {
             <DialogTitle>Confirm Bulk Approval</DialogTitle>
           </DialogHeader>
           <p>Are you sure you want to approve all listed expenses?</p>
-          <DialogFooter className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="flex justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => setConfirmApproveAllOpen(false)}

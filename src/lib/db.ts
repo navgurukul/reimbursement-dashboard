@@ -240,6 +240,7 @@ export interface Expense {
   receipt: ReceiptInfo | null;
   unique_id?: string | null;
   expense_credit_person?: string | null;
+  location?: string | null;
   custom_fields: Record<string, any> & {
     isVoucher?: boolean;
     yourName?: string;
@@ -1604,12 +1605,18 @@ export const expenses = {
   /**
    * Get all expenses for an organization (admin only)
    */
-  getByOrg: async (orgId: string) => {
+  getByOrg: async (
+    orgId: string,
+    // Optional extra WHERE clauses (e.g. `q => q.eq("status", "approved")`).
+    // Queue pages pass one so the database returns only the rows they show
+    // instead of the browser downloading the whole org and filtering it.
+    applyFilter?: (query: any) => any
+  ) => {
     // Get expenses with creator. Paged: a single response is capped at 10,000
     // rows server-side, which silently truncated this list once the legacy
     // import landed. `id` is a tie-breaker so page boundaries stay stable.
-    const { data: expenses, error } = await fetchAllPagedRows<any>((from, to) =>
-      supabase
+    const { data: expenses, error } = await fetchAllPagedRows<any>((from, to) => {
+      let query: any = supabase
         .from("expense_new")
         .select(
           `
@@ -1620,11 +1627,13 @@ export const expenses = {
       )
     `
         )
-        .eq("org_id", orgId)
+        .eq("org_id", orgId);
+      if (applyFilter) query = applyFilter(query);
+      return query
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
-        .range(from, to)
-    );
+        .range(from, to);
+    });
 
     if (error) {
       return { data: null, error: error as DatabaseError };
@@ -2568,6 +2577,29 @@ export const expenseHistory = {
         };
       }
 
+      // Fetch user profiles for all unique user_ids
+      const userIds = [...new Set((data || []).map((item: any) => item.user_id).filter((id: any) => id))];
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", userIds);
+
+        if (profilesData && profilesData.length > 0) {
+          const profileMap: Record<string, string> = {};
+          profilesData.forEach((p: any) => {
+            profileMap[p.user_id] = p.full_name;
+          });
+
+          // Attach profile full_name to history items
+          data.forEach((item: any) => {
+            if (profileMap[item.user_id]) {
+              item.profile = { full_name: profileMap[item.user_id] };
+            }
+          });
+        }
+      }
+
       return {
         data: data as ExpenseHistoryEntry[],
         error: null,
@@ -2612,6 +2644,29 @@ export const expenseHistory = {
           data: [],
           error: error as DatabaseError,
         };
+      }
+
+      // Fetch user profiles for all unique user_ids
+      const userIds = [...new Set((data || []).map((item: any) => item.user_id).filter((id: any) => id))];
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", userIds);
+
+        if (profilesData && profilesData.length > 0) {
+          const profileMap: Record<string, string> = {};
+          profilesData.forEach((p: any) => {
+            profileMap[p.user_id] = p.full_name;
+          });
+
+          // Attach profile full_name to history items
+          data.forEach((item: any) => {
+            if (profileMap[item.user_id]) {
+              item.profile = { full_name: profileMap[item.user_id] };
+            }
+          });
+        }
       }
 
       return {

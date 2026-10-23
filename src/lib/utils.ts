@@ -16,6 +16,18 @@ export function formatDate(date: string | Date): string {
   });
 }
 
+/**
+ * Automatically rounds off any decimal numbers found within a text string.
+ * e.g., "Rent CP Pune-SoSC expense Rs. 201.5" -> "Rent CP Pune-SoSC expense Rs. 202"
+ */
+export function roundOffTextNumbers(text?: string | null): string {
+  if (!text || typeof text !== "string") return text || "";
+  return text.replace(/(?<![\d.])\d+\.\d+(?![\d.])/g, (match) => {
+    const num = parseFloat(match);
+    return isNaN(num) ? match : Math.round(num).toString();
+  });
+}
+
 export function formatDateTime(date: string | Date | undefined | null): string {
   if (!date) return "—";
   try {
