@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings, expenses } from "@/lib/db";
+import supabase from "@/lib/supabase";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -227,7 +228,37 @@ export default function ExpensesPage() {
     return () => window.clearTimeout(timer);
   }, [filters]);
 
+  // Local input states so we can show bounds while allowing typing
+  const [amountMinInput, setAmountMinInput] = useState<string>(
+    filters.amountMin || ""
+  );
+  const [amountMaxInput, setAmountMaxInput] = useState<string>(
+    filters.amountMax || ""
+  );
+
+  useEffect(() => {
+    // keep inputs in sync when bounds or filters change
+    setAmountMinInput(filters.amountMin || "");
+  }, [filters.amountMin]);
+
+  useEffect(() => {
+    setAmountMaxInput(filters.amountMax || "");
+  }, [filters.amountMax]);
+
   const OPTION_ALL = "ALL";
+  const OPTION_NO_DATES = "NO_DATES";
+
+  const getExpenseDateKey = (dateValue: any) => {
+    if (!dateValue) return "";
+    const raw = String(dateValue);
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   const expenseTypeOptions = filterOptions.expenseTypes;
   const locationOptions = filterOptions.locations;
@@ -367,25 +398,104 @@ export default function ExpensesPage() {
     const seq = ++requestSeq.current;
     setLoading(true);
 
-    fetchExpensePage({
-      orgId,
-      userId,
-      scope: currentScope,
-      filters: debouncedFilters,
-      page: currentPage,
-      pageSize: PER_PAGE,
-    }).then(({ data, count, error }) => {
+    const processExpenseData = async (expensesList: any[]) => {
+      if (!expensesList || expensesList.length === 0) return [];
+      const processedExpenses = [...expensesList];
+      try {
+        const expenseIds = processedExpenses.map((exp) => exp.id);
+        const eventIds = [
+          ...new Set(
+            processedExpenses
+              .map((exp) => exp.event_id)
+              .filter((id) => typeof id === "string" && id.length > 0)
+          ),
+        ];
+
+        // Fetch vouchers
+        const { data: allVouchers, error: voucherError } = await supabase
+          .from("vouchers")
+          .select("*")
+          .in("expense_id", expenseIds);
+        if (voucherError) console.error("Error fetching vouchers:", voucherError);
+
+        const voucherMap: Record<string, any> = {};
+        if (allVouchers && allVouchers.length > 0) {
+          allVouchers.forEach((voucher: any) => {
+            voucherMap[voucher.expense_id] = voucher;
+          });
+        }
+
+        // Fetch event titles in bulk
+        const eventTitleMap: Record<string, string> = {};
+        if (eventIds.length > 0) {
+          const { data: eventsData, error: eventsErr } = await supabase
+            .from("expense_events")
+            .select("id,title")
+            .in("id", eventIds);
+          if (!eventsErr && eventsData) {
+            eventsData.forEach((ev: { id: string; title: string }) => {
+              eventTitleMap[ev.id] = ev.title;
+            });
+          }
+        }
+
+        for (const expense of processedExpenses) {
+          try {
+            const voucher = voucherMap[expense.id];
+            if (voucher) {
+              expense.hasVoucher = true;
+              expense.voucherId = voucher.id;
+            }
+            const approverName =
+              expense.custom_fields?.approver_name ||
+              expense.approver?.full_name ||
+              "—";
+            expense.approver = {
+              full_name: approverName,
+              user_id: expense.approver_id || voucher?.approver_id,
+            };
+            expense.event_title = expense.event_id
+              ? eventTitleMap[expense.event_id] || "N/A"
+              : "N/A";
+          } catch (err) {
+            console.error(`Error processing expense ${expense.id}:`, err);
+          }
+        }
+        return processedExpenses;
+      } catch (err) {
+        console.error("Error in processExpenseData:", err);
+        return processedExpenses;
+      }
+    };
+
+    const run = async () => {
+      const { data, count, error } = await fetchExpensePage({
+        orgId,
+        userId,
+        scope: currentScope,
+        filters: debouncedFilters,
+        page: currentPage,
+        pageSize: PER_PAGE,
+      });
+
       if (seq !== requestSeq.current) return;
+
       if (error) {
         toast.error("Failed to load expenses", { description: error.message });
         setRows([]);
         setTotalCount(0);
-      } else {
-        setRows(data);
-        setTotalCount(count);
+        setLoading(false);
+        return;
       }
+
+      // Enrich with voucher + event data
+      const enriched = await processExpenseData(data ?? []);
+      setRows(enriched);
+      setTotalCount(count ?? 0);
       setLoading(false);
-    });
+    };
+
+    run();
   }, [orgId, userId, userRole, currentScope, debouncedFilters, currentPage, reloadKey]);
 
   // 3) Stat cards — counted by the database, independent of tab and filters
@@ -934,7 +1044,15 @@ export default function ExpensesPage() {
                             placeholder="Min"
                             value={filters.amountMin}
                             onChange={(e) => {
-                              setFilters((prev) => ({ ...prev, amountMin: e.target.value }));
+                              const v = e.target.value;
+                              setAmountMinInput(v);
+                              setFilters({ ...filters, amountMin: v });
+                            }}
+                            onBlur={() => {
+                              if (!amountMinInput || amountMinInput.trim() === "") {
+                                setAmountMinInput("");
+                                setFilters({ ...filters, amountMin: "" });
+                              }
                             }}
                           />
                         </div>
@@ -945,7 +1063,15 @@ export default function ExpensesPage() {
                             placeholder="Max"
                             value={filters.amountMax}
                             onChange={(e) => {
-                              setFilters((prev) => ({ ...prev, amountMax: e.target.value }));
+                              const v = e.target.value;
+                              setAmountMaxInput(v);
+                              setFilters({ ...filters, amountMax: v });
+                            }}
+                            onBlur={() => {
+                              if (!amountMaxInput || amountMaxInput.trim() === "") {
+                                setAmountMaxInput("");
+                                setFilters({ ...filters, amountMax: "" });
+                              }
                             }}
                           />
                         </div>
@@ -1268,7 +1394,7 @@ export default function ExpensesPage() {
                                       "No receipt or voucher"
                                     )
                                   ) : c.key === "approver" ? (
-                                    exp.approver?.full_name || "—"
+                                    exp.custom_fields?.approver_name || exp.approver?.full_name || "—"
                                   ) : c.key === "category" ? (
                                     getExpenseValue(exp, "category")
                                   ) : c.key === "event_title" ? (

@@ -372,8 +372,12 @@ export default function VoucherPreview({
                   )}
                 </div>
                 <div>
-                  <Label className="text-sm text-muted-foreground">Approver</Label>
-                  <p className="font-medium">{expense?.approver?.full_name || "N/A"}</p>
+                  <p className="text-sm text-muted-foreground">Approver</p>
+                  <p className="font-medium">{expense?.custom_fields?.approver_name || expense?.approver?.full_name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Second Approver</p>
+                  <p className="font-medium">{expense?.custom_fields?.second_approver_name || "N/A"}</p>
                 </div>
                 <div className="md:col-span-2">
                   <Label className="text-sm text-muted-foreground">Purpose</Label>

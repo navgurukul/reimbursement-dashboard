@@ -293,6 +293,7 @@ export default function VoucherForm({
                         : "")
                 }
                 onChange={(e) => onInputChange("voucherAmount", e.target.value === "" ? "" : parseFloat(e.target.value))}
+
                 ref={amountInputRef}
                 readOnly={!isEditingAmount}
                 aria-invalid={getError("voucherAmount") ? "true" : "false"}
@@ -328,6 +329,7 @@ export default function VoucherForm({
                   {getError("voucherAmount")}
                 </p>
               )}
+
             </div>
           </div>
 
@@ -349,7 +351,7 @@ export default function VoucherForm({
                 {getError("purpose")}
               </p>
             )}
-            <p className="text-sm text-gray-500">Brief reason for the expense (what the expense was for)</p>
+            <p className="text-xs text-gray-600">Brief reason for the expense (what the expense was for)</p>
           </div>
         </div>
 
@@ -405,7 +407,7 @@ export default function VoucherForm({
               {getError("voucherCreditPerson")}
             </p>
           )}
-          <p className="text-sm text-gray-500">
+          <p className="text-xs text-gray-600">
             Credit Person name description should be Name of the person or vendor who will receive the payment from NavGurukul.<br />
             Voucher Credit Person will be prefilled with the logged-in user's account holder name.
           </p>
@@ -423,7 +425,7 @@ export default function VoucherForm({
             accept="image/*,application/pdf"
             onChange={(e) => onInputChange("attachment", e.target.files?.[0] || null)}
           />
-          <p className="text-sm text-gray-500">
+          <p className="text-xs text-gray-600">
             Upload proof of payment (JPG, PNG, or PDF)
           </p>
           {formData.attachment && (
