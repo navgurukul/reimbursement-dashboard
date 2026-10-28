@@ -900,7 +900,8 @@ export default function NewExpensePage() {
     if (!alerted && checkAndAlert(formData.approver as string, prevApproversRef.current.main)) {
       alerted = true;
     }
-    if (!alerted && checkAndAlert(formData.second_approver_id as string, prevApproversRef.current.mainSecond)) {
+    const hasVisibleSecondApprover = columns.some(c => c.key === "second_approver_id" && c.visible);
+    if (hasVisibleSecondApprover && !alerted && checkAndAlert(formData.second_approver_id as string, prevApproversRef.current.mainSecond)) {
       alerted = true;
     }
 
@@ -913,7 +914,7 @@ export default function NewExpensePage() {
             alerted = true;
             break;
           }
-          if (checkAndAlert(item.second_approver_id as string, prevItem.second)) {
+          if (hasVisibleSecondApprover && checkAndAlert(item.second_approver_id as string, prevItem.second)) {
             alerted = true;
             break;
           }
@@ -1257,21 +1258,31 @@ export default function NewExpensePage() {
         : undefined;
     const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
 
+    const firstApproverIds = normalizeIds(activeEntry?.approver_id).length
+      ? normalizeIds(activeEntry?.approver_id)
+      : resolveIdsFromNames(activeEntry?.approver_name);
+
+    const secondApproverIds = normalizeIds(activeEntry?.second_approver_id).length
+      ? normalizeIds(activeEntry?.second_approver_id)
+      : resolveIdsFromNames(activeEntry?.second_approver_name);
+
+    // Check if any first approver is currently on leave (display_name === 'OOO')
+    const isFirstApproverOnLeave = firstApproverIds.some((id) => {
+      const opt = (allOptions as any[]).find((o) =>
+        typeof o === "string" ? o === id : o?.value === id
+      );
+      return opt && typeof opt === "object" && opt.display_name === "OOO";
+    });
+
+    // In approver dropdown, only show second approver if first approver is on leave
     const mappedIds =
       fieldKey === "second_approver_id"
-        ? normalizeIds(activeEntry?.second_approver_id).length
-          ? normalizeIds(activeEntry?.second_approver_id)
-          : resolveIdsFromNames(activeEntry?.second_approver_name)
-        : Array.from(
-          new Set([
-            ...(normalizeIds(activeEntry?.approver_id).length
-              ? normalizeIds(activeEntry?.approver_id)
-              : resolveIdsFromNames(activeEntry?.approver_name)),
-            ...(normalizeIds(activeEntry?.second_approver_id).length
-              ? normalizeIds(activeEntry?.second_approver_id)
-              : resolveIdsFromNames(activeEntry?.second_approver_name)),
-          ])
-        );
+        ? secondApproverIds
+        : isFirstApproverOnLeave
+          ? Array.from(new Set([...firstApproverIds, ...secondApproverIds]))
+          : firstApproverIds.length
+            ? firstApproverIds
+            : secondApproverIds;
 
     if (!mappedIds.length) {
       return [];
@@ -1281,7 +1292,11 @@ export default function NewExpensePage() {
       allOptions.map((option) => {
         const value = typeof option === "string" ? option : option.value;
         const label = typeof option === "string" ? option : option.label;
-        return [value, { value, label }];
+        const display_name =
+          typeof option === "string" ? undefined : (option as any).display_name;
+        const leave_duration =
+          typeof option === "string" ? undefined : (option as any).leave_duration;
+        return [value, { value, label, display_name, leave_duration }];
       })
     );
 
@@ -2314,6 +2329,7 @@ export default function NewExpensePage() {
         setSaving(false);
         return;
       }
+
 
       const duplicateCandidates = buildDuplicateCandidates();
       const uniqueDuplicateMatches = await runDuplicateCheck(duplicateCandidates);
