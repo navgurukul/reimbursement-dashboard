@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { createClient } from "@supabase/supabase-js";
+import supabase from "@/lib/supabase";
 import {
   User,
   Upload,
@@ -32,6 +32,8 @@ import SignaturePad from "@/components/SignatureCanvas";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { StatusDurationSelector } from "@/components/StatusDurationSelector";
+import { parseLeaveDuration } from "@/lib/leave-status";
 
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -61,21 +63,21 @@ export default function ProfilePage() {
   const [isDocumentPaneOpen, setIsDocumentPaneOpen] = useState(true);
   const [bankDetails, setBankDetails] = useState<any>(null);
   const [isDocumentValid, setIsDocumentValid] = useState<boolean | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const isEditingRef = useRef(false);
   const [userProfile, setUserProfile] = useState<{
+    id?: string;
+    user_id?: string;
     full_name: string;
     email: string;
     avatar_url?: string;
     display_name?: string;
+    leave_duration?: string;
   } | null>(null);
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   // Fetch profile info from `profiles` table
   useEffect(() => {
-    async function fetchUserProfile() {
+    async function fetchUserProfile(isPeriodic = false) {
       if (!user?.id) return;
 
       try {
@@ -83,13 +85,39 @@ export default function ProfilePage() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("full_name, email, display_name")
+          .select("id, user_id, full_name, email, display_name, leave_duration, updated_at")
           .eq("user_id", user.id)
           .single();
 
         if (!error && data) {
+          let currentDisplayName = data.display_name;
+          let currentLeaveDuration = data.leave_duration;
+
+          const parsed = parseLeaveDuration(data.leave_duration, data.updated_at);
+          // If expired or missing duration, automatically remove from DB and state
+          if ((parsed.isExpired || (data.display_name && !data.leave_duration)) && (data.display_name || data.leave_duration)) {
+            await supabase
+              .from("profiles")
+              .update({
+                display_name: null,
+                leave_duration: null,
+                updated_at: new Date().toISOString()
+              })
+              .eq("user_id", user.id);
+
+            currentDisplayName = null;
+            currentLeaveDuration = null;
+          }
+
+          // If background periodic check and user is currently typing/selecting, don't overwrite form
+          if (isPeriodic && isEditingRef.current) {
+            return;
+          }
+
           setUserProfile({
             ...data,
+            display_name: currentDisplayName || undefined,
+            leave_duration: currentLeaveDuration || undefined,
             avatar_url: avatar_url || undefined,
           });
         } else {
@@ -101,6 +129,12 @@ export default function ProfilePage() {
     }
 
     fetchUserProfile();
+
+    // Re-check periodically so expired leave status auto-clears
+    const interval = setInterval(() => {
+      fetchUserProfile(true);
+    }, 10000);
+    return () => clearInterval(interval);
   }, [user?.id]);
 
   // Fetch bank details for the logged-in user
@@ -408,16 +442,19 @@ export default function ProfilePage() {
                 </span>
                 <input
                   className="w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  placeholder="Enter your display name"
+                  placeholder="e.g. OOO"
                   value={userProfile?.display_name || ""}
+                  maxLength={3}
                   onChange={(e) => {
+                    isEditingRef.current = true;
                     const val = e.target.value.toUpperCase();
+                    if (val.length > 3) return;
                     if (/^[O]*$/.test(val)) {
                       setUserProfile((prev) =>
                         prev ? { ...prev, display_name: val } : null
                       );
                     } else {
-                      toast.warning("Only 'OOO' characters are allowed", { 
+                      toast.warning("Only 'OOO' characters are allowed", {
                         id: "display-name-error",
                         style: {
                           backgroundColor: "#f9f6eaff", // amber-100
@@ -430,6 +467,21 @@ export default function ProfilePage() {
                 />
               </div>
               <p className="text-sm text-gray-500 mt-2">When on leave, please set your status to OOO (Out of Office)</p>
+            </div>
+            <div>
+              <label className="block text-base font-semibold mb-2 text-[#111827]">
+                Duration
+              </label>
+              <StatusDurationSelector
+                value={userProfile?.leave_duration || ""}
+                onChange={(duration) => {
+                  isEditingRef.current = true;
+                  setUserProfile((prev) =>
+                    prev ? { ...prev, leave_duration: duration } : null
+                  );
+                }}
+              />
+              <p className="text-sm text-gray-500 mt-2">Specify how long you will be on leave</p>
             </div>
             <div>
               <label className="block text-base font-semibold mb-2 text-[#111827]">
@@ -452,29 +504,82 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          
+
           <div className="flex justify-end mt-2">
             <Button
+              disabled={savingProfile}
               onClick={async () => {
                 if (!user?.id) return;
-                const { error } = await supabase
-                  .from("profiles")
-                  .update({ display_name: userProfile?.display_name || null })
-                  .eq("user_id", user.id);
-                if (error) {
-                  toast.error("Failed to update display name");
-                } else {
-                  toast.success("Display name updated successfully", {
+
+                if (userProfile?.display_name && userProfile.display_name !== "OOO") {
+                  toast.error("Display name must be 'OOO'", {
                     style: {
-                      backgroundColor: "#f3f8f6ff",
-                      borderColor: "#10B981",
-                      color: "#047857"
+                      backgroundColor: "#fef2f2",
+                      borderColor: "#ef4444",
+                      color: "#991b1b"
                     }
                   });
+                  return;
+                }
+
+                if (userProfile?.display_name === "OOO" && !userProfile?.leave_duration) {
+                  toast.error("Please select a duration for OOO status", {
+                    style: {
+                      backgroundColor: "#fef2f2",
+                      borderColor: "#ef4444",
+                      color: "#991b1b"
+                    }
+                  });
+                  return;
+                }
+
+                setSavingProfile(true);
+                try {
+                  const updatePayload = {
+                    display_name: userProfile?.display_name || null,
+                    leave_duration: userProfile?.display_name ? (userProfile?.leave_duration || null) : null,
+                    updated_at: new Date().toISOString(),
+                  };
+
+                  let error = null;
+                  if (userProfile?.id) {
+                    const res = await supabase
+                      .from("profiles")
+                      .update(updatePayload)
+                      .eq("id", userProfile.id);
+                    error = res.error;
+                  }
+
+                  if (!userProfile?.id || error) {
+                    const res = await supabase
+                      .from("profiles")
+                      .update(updatePayload)
+                      .eq("user_id", user.id);
+                    error = res.error;
+                  }
+
+                  if (error) {
+                    console.error("Error updating profile display name:", error);
+                    toast.error("Failed to update display name: " + error.message);
+                  } else {
+                    isEditingRef.current = false;
+                    toast.success("Display name and duration updated successfully", {
+                      style: {
+                        backgroundColor: "#f3f8f6ff",
+                        borderColor: "#10B981",
+                        color: "#047857"
+                      }
+                    });
+                  }
+                } catch (err: any) {
+                  console.error("Save error:", err);
+                  toast.error("An error occurred while saving: " + err.message);
+                } finally {
+                  setSavingProfile(false);
                 }
               }}
             >
-              Save
+              {savingProfile ? "Saving..." : "Save"}
             </Button>
           </div>
         </div>

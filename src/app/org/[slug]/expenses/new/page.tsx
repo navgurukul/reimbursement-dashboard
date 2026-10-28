@@ -54,6 +54,7 @@ import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
 import SignaturePad from "@/components/SignatureCanvas";
 import supabase from "@/lib/supabase";
+import { parseLeaveDuration, cleanExpiredLeaveProfiles } from "@/lib/leave-status";
 import {
   getUserSignatureUrl,
   saveUserSignature,
@@ -66,7 +67,7 @@ interface Column {
   type: string;
   required?: boolean;
   visible?: boolean;
-  options?: Array<string | { value: string; label: string; display_name?: string }>;
+  options?: Array<string | { value: string; label: string; display_name?: string; leave_duration?: string }>;
 }
 
 interface ExpenseData {
@@ -168,6 +169,7 @@ export default function NewExpensePage() {
 
   const [oooModalOpen, setOooModalOpen] = useState(false);
   const [oooApproverName, setOooApproverName] = useState("");
+  const [oooLeaveDuration, setOooLeaveDuration] = useState("");
 
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({
@@ -610,6 +612,9 @@ export default function NewExpensePage() {
             approvers.map((approver) => approver.user_id)
           );
 
+          // Auto-clean expired leave in DB
+          const expiredIds = await cleanExpiredLeaveProfiles(profilesData || []);
+
           // Create a map of user_id to full_name or email
           const approverNames = new Map(
             profilesData?.map((profile) => [
@@ -619,10 +624,27 @@ export default function NewExpensePage() {
           );
 
           const approverDisplayNames = new Map(
-            profilesData?.map((profile) => [
-              profile.user_id,
-              profile.display_name,
-            ]) || []
+            profilesData?.map((profile) => {
+              const isExpired = expiredIds.includes(profile.id) || expiredIds.includes(profile.user_id);
+              const parsed = parseLeaveDuration(profile.leave_duration, profile.updated_at);
+              const isActive = !isExpired && parsed.isActive && !parsed.isExpired;
+              return [
+                profile.user_id,
+                isActive ? profile.display_name : undefined,
+              ];
+            }) || []
+          );
+
+          const approverLeaveDurations = new Map(
+            profilesData?.map((profile) => {
+              const isExpired = expiredIds.includes(profile.id) || expiredIds.includes(profile.user_id);
+              const parsed = parseLeaveDuration(profile.leave_duration, profile.updated_at);
+              const isActive = !isExpired && parsed.isActive && !parsed.isExpired;
+              return [
+                profile.user_id,
+                isActive ? parsed.label : undefined,
+              ];
+            }) || []
           );
 
           // Create approver options
@@ -630,6 +652,7 @@ export default function NewExpensePage() {
             value: approver.user_id,
             label: approverNames.get(approver.user_id) || approver.user_id,
             display_name: approverDisplayNames.get(approver.user_id),
+            leave_duration: approverLeaveDurations.get(approver.user_id) || undefined,
           }));
         }
 
@@ -864,6 +887,7 @@ export default function NewExpensePage() {
         const opt = (approverCol.options as any[]).find((o) => o.value === currentId);
         if (opt && opt.display_name === "OOO") {
           setOooApproverName(opt.label || currentId);
+          setOooLeaveDuration(opt.leave_duration || "");
           setOooModalOpen(true);
           return true;
         }
@@ -3246,7 +3270,7 @@ export default function NewExpensePage() {
                 <DialogHeader>
                   <DialogTitle>Approver On Leave</DialogTitle>
                   <DialogDescription>
-                    <strong className="text-black">{oooApproverName}</strong> is on leave. Please select another approver name on the Approver dropdown.
+                    <strong className="text-black">{oooApproverName}</strong> is on leave<strong className="text-black">{oooLeaveDuration ? ` (${oooLeaveDuration})` : ""}</strong>. Please select another approver name on the Approver dropdown.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

@@ -63,7 +63,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { PlusCircle, Settings2, Trash2, Plus, X, Edit, CalendarOff } from "lucide-react";
+import { PlusCircle, Settings2, Trash2, Plus, X, Edit, CalendarOff, Clock, Calendar } from "lucide-react";
+import { format } from "date-fns";
+import { StatusDurationSelector } from "@/components/StatusDurationSelector";
+import { parseLeaveDuration, cleanExpiredLeaveProfiles } from "@/lib/leave-status";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -286,6 +289,7 @@ function UserDisplayNamesSection() {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [displayName, setDisplayName] = useState("");
+  const [leaveDuration, setLeaveDuration] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [open, setOpen] = useState(false);
@@ -301,25 +305,37 @@ function UserDisplayNamesSection() {
         .from("organization_users")
         .select("user_id")
         .eq("org_id", orgId);
-        
+
       if (orgError) throw orgError;
-      
+
       if (!orgUsers || orgUsers.length === 0) {
         setOooUsers([]);
         return;
       }
-      
+
       const userIds = orgUsers.map(u => u.user_id);
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, display_name, user_id")
+        .select("id, full_name, email, display_name, leave_duration, updated_at, user_id")
         .in("user_id", userIds)
         .not("display_name", "is", null);
-        
+
       if (error) throw error;
-      const filtered = (data || []).filter(u => u.display_name?.trim() !== "");
-      setOooUsers(filtered);
+
+      // Auto-clean any expired leave profiles from database
+      const expiredIds = await cleanExpiredLeaveProfiles(data || []);
+
+      // Only show users whose leave is currently active and within duration (start <= now <= end)
+      const active = (data || []).filter(u => {
+        if (expiredIds.includes(u.id) || expiredIds.includes(u.user_id)) return false;
+        if (!u.display_name?.trim()) return false;
+        if (!u.leave_duration?.trim()) return false;
+        const parsed = parseLeaveDuration(u.leave_duration, u.updated_at);
+        return !parsed.isExpired && parsed.isActive;
+      });
+
+      setOooUsers(active);
     } catch (err) {
       console.error(err);
     } finally {
@@ -329,6 +345,11 @@ function UserDisplayNamesSection() {
 
   useEffect(() => {
     fetchOooUsers();
+    // Periodically re-check so expired leave auto-removes in real-time
+    const interval = setInterval(() => {
+      fetchOooUsers();
+    }, 10000);
+    return () => clearInterval(interval);
   }, [orgId]);
 
   // Search effect
@@ -346,9 +367,9 @@ function UserDisplayNamesSection() {
           .select("user_id, role")
           .eq("org_id", orgId)
           .neq("role", "member");
-          
+
         if (orgError) throw orgError;
-        
+
         if (!orgUsers || orgUsers.length === 0) {
           setUsers([]);
           return;
@@ -358,18 +379,18 @@ function UserDisplayNamesSection() {
 
         let query = supabase
           .from("profiles")
-          .select("id, user_id, full_name, email, display_name")
+          .select("id, user_id, full_name, email, display_name, leave_duration")
           .in("user_id", userIds)
-          // .limit(10);
-          
+        // .limit(10);
+
         if (searchTerm.trim().length > 0) {
-           query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+          query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
         }
 
         const { data: profilesData, error: profileError } = await query;
-          
+
         if (profileError) throw profileError;
-        
+
         const finalUsers = (profilesData || []).map(p => {
           const orgUser = orgUsers.find(u => u.user_id === p.user_id || u.user_id === p.id);
           return {
@@ -377,7 +398,7 @@ function UserDisplayNamesSection() {
             role: orgUser?.role
           };
         });
-        
+
         setUsers(finalUsers);
       } catch (err) {
         console.error(err);
@@ -391,16 +412,32 @@ function UserDisplayNamesSection() {
 
   const handleUpdateDisplayName = async () => {
     if (!selectedUser) return;
+
+    if (displayName === "OOO" && !leaveDuration) {
+      toast.error("Please select a duration for OOO status", {
+        style: {
+          backgroundColor: "#fef2f2",
+          borderColor: "#ef4444",
+          color: "#991b1b"
+        }
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ display_name: displayName || null })
+        .update({
+          display_name: displayName || null,
+          leave_duration: displayName ? (leaveDuration || null) : null,
+          updated_at: new Date().toISOString()
+        })
         .eq("id", selectedUser.id);
       if (error) {
         toast.error("Failed to update display name");
       } else {
-        toast.success("Display name updated successfully", {
+        toast.success("Display name and duration updated successfully", {
           style: {
             backgroundColor: "#f3f8f6ff",
             borderColor: "#10B981",
@@ -409,6 +446,7 @@ function UserDisplayNamesSection() {
         });
         setSelectedUser(null);
         setDisplayName("");
+        setLeaveDuration("");
         setSearchTerm("");
         fetchOooUsers();
       }
@@ -423,14 +461,27 @@ function UserDisplayNamesSection() {
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ display_name: null })
+        .update({
+          display_name: null,
+          leave_duration: null,
+          updated_at: new Date().toISOString()
+        })
         .eq("id", id);
       if (error) throw error;
+
+      // Also trigger server-side clean
+      fetch("/api/clean-expired-leaves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id] }),
+      }).catch(() => { });
+
       toast.success("Display name removed");
       setOooUsers((prev: any[]) => prev.filter(u => u.id !== id));
       if (selectedUser?.id === id) {
         setDisplayName("");
-        setSelectedUser((prev: any) => prev ? { ...prev, display_name: null } : null);
+        setLeaveDuration("");
+        setSelectedUser((prev: any) => prev ? { ...prev, display_name: null, leave_duration: null } : null);
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to remove display name");
@@ -446,7 +497,7 @@ function UserDisplayNamesSection() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
+        <div className="flex flex-col md:flex-row gap-4 items-start">
           <div className="space-y-2 flex-1">
             <Label>Select User</Label>
             <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -483,6 +534,7 @@ function UserDisplayNamesSection() {
                           e.preventDefault();
                           setSelectedUser(user);
                           setDisplayName(user.display_name || "");
+                          setLeaveDuration(user.leave_duration || "");
                           setOpen(false);
                           setSearchTerm("");
                         }}
@@ -534,15 +586,24 @@ function UserDisplayNamesSection() {
             />
           </div>
 
-          <div className="flex gap-2 w-full md:w-auto">
+          <div className="space-y-2 flex-1">
+            <Label>Duration</Label>
+            <StatusDurationSelector
+              value={leaveDuration}
+              onChange={setLeaveDuration}
+            />
+          </div>
+
+          <div className="flex gap-2 w-full md:w-auto md:mt-8">
             <Button
               variant="outline"
               onClick={() => {
                 setSelectedUser(null);
                 setDisplayName("");
+                setLeaveDuration("");
                 setSearchTerm("");
               }}
-              disabled={!selectedUser && !displayName && !searchTerm}
+              disabled={!selectedUser && !displayName && !leaveDuration && !searchTerm}
               className="flex-1 md:flex-none"
             >
               Clear
@@ -565,6 +626,7 @@ function UserDisplayNamesSection() {
                   <TableHead>User Name</TableHead>
                   <TableHead>User Email</TableHead>
                   <TableHead>Display Name</TableHead>
+                  <TableHead>Duration</TableHead>
                   <TableHead className="w-[100px]">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -578,28 +640,92 @@ function UserDisplayNamesSection() {
                       {user.email}
                     </TableCell>
                     <TableCell>
-                      {user.display_name === 'OOO' ? (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge 
-                                variant="outline" 
-                                className="px-2 py-2 h-5 text-[10px] bg-orange-100 text-orange-800 border-orange-200 cursor-help flex items-center gap-1 w-fit"
-                              >
-                                <CalendarOff className="w-3 h-3 text-red-600" />
-                                {user.display_name}
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent className="flex items-center gap-2">
-                              <p>This approver on leave (out of office)</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : (
-                        <Badge variant="outline">
-                          {user.display_name}
-                        </Badge>
-                      )}
+                      {(() => {
+                        const parsed = parseLeaveDuration(user.leave_duration, user.updated_at);
+                        const appliedTime = parsed.start || user.updated_at;
+                        let formattedApplied = "";
+                        let formattedUntil = "";
+                        if (appliedTime) {
+                          try {
+                            formattedApplied = format(new Date(appliedTime), "dd MMM yyyy, hh:mm a");
+                          } catch {}
+                        }
+                        if (parsed.end) {
+                          try {
+                            formattedUntil = format(new Date(parsed.end), "dd MMM yyyy, hh:mm a");
+                          } catch {}
+                        }
+
+                        return user.display_name === 'OOO' ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge
+                                  variant="outline"
+                                  className="px-2 py-2 h-5 text-[10px] bg-orange-100 text-orange-800 border-orange-200 cursor-help flex items-center gap-1 w-fit"
+                                >
+                                  <CalendarOff className="w-3 h-3 text-red-600" />
+                                  {user.display_name}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="flex items-center gap-2">
+                                <p>
+                                  This approver on leave (out of office)
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Badge variant="outline">
+                            {user.display_name}
+                          </Badge>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const parsed = parseLeaveDuration(user.leave_duration, user.updated_at);
+                        const appliedTime = parsed.start || user.updated_at;
+                        let formattedApplied = "";
+                        let formattedUntil = "";
+                        if (appliedTime) {
+                          try {
+                            formattedApplied = format(new Date(appliedTime), "dd MMM yyyy, hh:mm a");
+                          } catch {}
+                        }
+                        if (parsed.end) {
+                          try {
+                            formattedUntil = format(new Date(parsed.end), "dd MMM yyyy, hh:mm a");
+                          } catch {}
+                        }
+
+                        return parsed.label ? (
+                          <div className="flex flex-col gap-1.5 py-1">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 w-fit">
+                              <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span>{parsed.label}</span>
+                            </div>
+                            <div className="flex flex-col gap-0.5 text-[11px] text-slate-600 pl-0.5">
+                              {formattedApplied && (
+                                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                  <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="text-slate-500 font-medium">Applied:</span>
+                                  <span className="font-semibold text-slate-700">{formattedApplied}</span>
+                                </div>
+                              )}
+                              {formattedUntil && (
+                                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                  <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="text-slate-500 font-medium">Until:</span>
+                                  <span className="font-semibold text-slate-800">{formattedUntil}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <AlertDialog>
@@ -622,7 +748,7 @@ function UserDisplayNamesSection() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel className="cursor-pointer border border-gray-200">Cancel</AlertDialogCancel>
-                            <AlertDialogAction 
+                            <AlertDialogAction
                               onClick={() => handleRemoveDisplayName(user.id)}
                               className="bg-transparent border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 cursor-pointer"
                             >

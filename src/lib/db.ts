@@ -62,6 +62,8 @@ export interface Profile {
   created_at: string;
   updated_at: string;
   signature_url?: string;
+  display_name?: string | null;
+  leave_duration?: string | null;
 }
 
 export interface InviteRow {
