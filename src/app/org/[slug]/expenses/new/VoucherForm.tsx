@@ -3,7 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Info, Edit3, Check } from "lucide-react";
+import { Info, Edit3, Check, FileText, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import SignaturePad from "@/components/SignatureCanvas";
@@ -14,6 +14,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
 import { getUserSignatureUrl, saveUserSignature } from "@/lib/utils";
 import supabase from "@/lib/supabase";
+import { mergeReceiptsToPdf } from "@/lib/receipt-pdf-utils";
 
 type Role = "admin" | "member" | "owner" | "manager" | null;
 
@@ -25,6 +26,8 @@ interface VoucherFormProps {
   selectedEvent?: { start_date: string; end_date: string };
   errors?: Record<string, string>;
   expenseAmount?: number;
+  onPreviewPdf?: (params: { url: string; title: string; pageImages?: string[] }) => void;
+  itemId?: number | string;
 }
 
 export default function VoucherForm({
@@ -35,6 +38,8 @@ export default function VoucherForm({
   savedUserSignature,
   selectedEvent,
   expenseAmount,
+  onPreviewPdf,
+  itemId,
 }: VoucherFormProps) {
   const getError = (field: string) => errors?.[field] || "";
 
@@ -42,6 +47,17 @@ export default function VoucherForm({
   const [voucherSignature, setVoucherSignature] = useState<string | undefined>(
     formData.voucher_signature_data_url || undefined
   );
+
+  const [isAttachmentProcessing, setIsAttachmentProcessing] = useState(false);
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(
+    formData.attachmentPreview || null
+  );
+  const [attachmentPageImages, setAttachmentPageImages] = useState<string[]>(
+    formData.attachmentPageImages || []
+  );
+
+  const attachmentFile = (formData.attachment as File | null) || null;
+  const attachmentInputId = itemId ? `attachment-${itemId}` : "attachment";
 
   const [loadingSignature, setLoadingSignature] = useState(false);
 
@@ -413,25 +429,126 @@ export default function VoucherForm({
           </p>
         </div>
 
-        {/* Payment Screenshot Upload */}
+        {/* Payment Screenshot / Voucher Attachment Upload */}
         <div className="mt-4">
-          <Label htmlFor="attachment" className="text-sm font-medium">
+          <Label htmlFor={attachmentInputId} className="text-sm font-medium text-gray-700">
             Attachment (Optional)
           </Label>
-          <Input
-            id="attachment"
-            name="attachment"
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={(e) => onInputChange("attachment", e.target.files?.[0] || null)}
-          />
-          <p className="text-xs text-gray-600">
-            Upload proof of payment (JPG, PNG, or PDF)
-          </p>
-          {formData.attachment && (
-            <p className="text-xs text-gray-500 mt-1">
-              Selected: {formData.attachment.name}
+          <div className="mt-2">
+            <Input
+              id={attachmentInputId}
+              name={attachmentInputId}
+              type="file"
+              multiple
+              accept="image/*,application/pdf"
+              onChange={async (e) => {
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+
+                setIsAttachmentProcessing(true);
+                try {
+                  const result = await mergeReceiptsToPdf(files, {
+                    label: "voucher_attachments",
+                  });
+                  onInputChange("attachment", result.file);
+                  onInputChange("attachmentPreview", result.previewUrl);
+                  onInputChange("attachmentPageImages", result.pageImages || []);
+                  setAttachmentPreview(result.previewUrl);
+                  setAttachmentPageImages(result.pageImages || []);
+
+                  if (files.length > 1) {
+                    toast.success(
+                      `Merged ${files.length} voucher attachments into a single PDF (${result.pageCount} pages)`
+                    );
+                  } else if (!files[0].name.toLowerCase().endsWith(".pdf")) {
+                    toast.success("Voucher attachment converted to PDF");
+                  }
+                } catch (err: any) {
+                  console.error("Voucher attachment processing error:", err);
+                  toast.error(err?.message || "Failed to process attachment into PDF");
+                } finally {
+                  setIsAttachmentProcessing(false);
+                }
+              }}
+              disabled={isAttachmentProcessing}
+            />
+            <p className="text-xs text-gray-600 mt-1">
+              Upload proof of payment (JPG, PNG, or PDF). Multiple files will be merged into a single PDF.
             </p>
+
+            <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
+              <span>{attachmentFile ? attachmentFile.name : "No file chosen"}</span>
+              {isAttachmentProcessing ? (
+                <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Merging into PDF...
+                </span>
+              ) : attachmentFile ? (
+                <span className="text-xs text-emerald-600 font-medium">
+                  PDF Ready
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          {attachmentPreview && (
+            <div className="mt-2.5">
+              <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                  <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                  <p className="text-sm text-gray-700 font-medium truncate">
+                    {attachmentFile?.name || "Merged Voucher Attachment PDF"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (onPreviewPdf) {
+                        onPreviewPdf({
+                          url: attachmentPreview,
+                          title:
+                            attachmentFile?.name || "Voucher Attachment PDF Preview",
+                          pageImages: attachmentPageImages,
+                        });
+                      } else {
+                        window.open(attachmentPreview, "_blank");
+                      }
+                    }}
+                    className="text-xs h-7 px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                  >
+                    Preview & Verify PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (attachmentPreview) {
+                        try {
+                          URL.revokeObjectURL(attachmentPreview);
+                        } catch {}
+                      }
+                      onInputChange("attachment", null);
+                      onInputChange("attachmentPreview", null);
+                      onInputChange("attachmentPageImages", []);
+                      setAttachmentPreview(null);
+                      setAttachmentPageImages([]);
+                      const input = document.getElementById(
+                        attachmentInputId
+                      ) as HTMLInputElement | null;
+                      if (input) {
+                        input.value = "";
+                      }
+                    }}
+                    className="text-xs h-7 px-2 text-red-600 border border-red-300"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 

@@ -3368,7 +3368,7 @@ export default function NewExpensePage() {
                         rel="noopener noreferrer"
                         className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium inline-flex items-center gap-1 border border-blue-700 rounded-md px-1 py-1"
                       >
-                        Open in new window
+                        Open in new tab
                       </a>
                     )}
                   </div>
@@ -4184,7 +4184,7 @@ export default function NewExpensePage() {
                     </svg>
                     <Label
                       htmlFor="voucher-switch"
-                      className="text-sm font-medium text-gray-900"
+                      className="text-sm font-medium text-gray-900 cursor-pointer"
                     >
                       No receipt? Create a voucher instead
                     </Label>
@@ -4224,6 +4224,9 @@ export default function NewExpensePage() {
                             : ""
                         }
                       />
+                      <p className="text-xs text-gray-600 mt-1">
+                        Upload receipts. Multiple files will be merged into a single PDF.
+                      </p>
                       {errors["receipt"] && (
                         <p
                           id="receipt-error"
@@ -4308,6 +4311,14 @@ export default function NewExpensePage() {
                       : undefined
                   }
                   errors={errors}
+                  onPreviewPdf={(params) =>
+                    setPreviewPdfModal({
+                      open: true,
+                      url: params.url,
+                      title: params.title,
+                      pageImages: params.pageImages,
+                    })
+                  }
                 />
               )}
             </div>
@@ -5160,8 +5171,8 @@ export default function NewExpensePage() {
                               />
                             </svg>
                             <Label
-                              htmlFor="voucher-switch"
-                              className="text-sm font-medium text-gray-900"
+                              htmlFor={`voucher-switch-${id}`}
+                              className="text-sm font-medium text-gray-900 cursor-pointer"
                             >
                               No receipt? Create a voucher instead
                             </Label>
@@ -5177,7 +5188,7 @@ export default function NewExpensePage() {
                         {!voucherModalOpenMap[id] && (
                           <div className="mt-4">
                             <Label
-                              htmlFor="receipt"
+                              htmlFor={`receipt-${id}`}
                               className="text-sm font-medium text-gray-700"
                             >
                               Receipt{" "}
@@ -5185,7 +5196,7 @@ export default function NewExpensePage() {
                             </Label>
                             <div className="mt-2">
                               <Input
-                                id="receipt"
+                                id={`receipt-${id}`}
                                 name="receipt"
                                 type="file"
                                 multiple
@@ -5206,6 +5217,9 @@ export default function NewExpensePage() {
                                     : ""
                                 }
                               />
+                              <p className="text-xs text-gray-600 mt-1">
+                                Upload receipts. Multiple files will be merged into a single PDF.
+                              </p>
                               {errors[`receipt-${id}`] && (
                                 <p
                                   id={`receipt-${id}-error`}
@@ -5227,7 +5241,7 @@ export default function NewExpensePage() {
                                     <Spinner className="w-3 h-3 animate-spin" /> Merging into PDF...
                                   </span>
                                 ) : receiptFiles[id] ? (
-                                  <span className="text-xs text-emerald-600 font-medium">
+                                  <span className="text-xs text-emerald-600 font-medium flex items-end">
                                     PDF Ready
                                   </span>
                                 ) : null}
@@ -5324,6 +5338,15 @@ export default function NewExpensePage() {
                           }
                           errors={errors}
                           expenseAmount={expenseItemsData[id]?.amount}
+                          itemId={id}
+                          onPreviewPdf={(params) =>
+                            setPreviewPdfModal({
+                              open: true,
+                              url: params.url,
+                              title: params.title,
+                              pageImages: params.pageImages,
+                            })
+                          }
                         />
                       )}
                     </div>

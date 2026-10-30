@@ -134,12 +134,18 @@ async function imageToJpegBytes(
   };
 }
 
+export interface MergePdfOptions {
+  label?: string; // e.g. "receipts" (default) or "voucher_attachments"
+  customFileName?: string;
+}
+
 /**
  * Converts single or multiple receipt files (images or PDFs) into a single merged PDF.
  * Existing PDFs are included page-by-page preserving their native vector/content quality.
  */
 export async function mergeReceiptsToPdf(
-  files: File[]
+  files: File[],
+  options?: MergePdfOptions
 ): Promise<ProcessedReceiptResult> {
   if (!files || files.length === 0) {
     throw new Error("No files provided for receipt conversion");
@@ -247,12 +253,17 @@ export async function mergeReceiptsToPdf(
   const blob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
 
   let fileName: string;
-  if (files.length === 1) {
+  const label = options?.label || "receipts";
+  if (options?.customFileName) {
+    fileName = options.customFileName.endsWith(".pdf")
+      ? options.customFileName
+      : `${options.customFileName}.pdf`;
+  } else if (files.length === 1) {
     const baseName = files[0].name.replace(/\.[^/.]+$/, "");
     fileName = `${baseName}.pdf`;
   } else {
     const baseName = files[0].name.replace(/\.[^/.]+$/, "");
-    fileName = `${baseName}_merged_${files.length}_receipts.pdf`;
+    fileName = `${baseName}_merged_${files.length}_${label}.pdf`;
   }
 
   const mergedFile = new File([blob], fileName, {
