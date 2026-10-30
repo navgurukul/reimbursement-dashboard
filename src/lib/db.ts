@@ -395,7 +395,7 @@ export const organizations = {
   },
 
   getUserOrganizations: async (userId: string) => {
-    return await supabase
+    const { data, error } = await supabase
       .from("organization_users")
       .select(
         `
@@ -405,8 +405,12 @@ export const organizations = {
       `
       )
       .eq("user_id", userId)
-      .maybeSingle()
-      .returns<OrganizationMembership>();
+      .limit(1);
+
+    return {
+      data: (data && data.length > 0 ? data[0] : null) as OrganizationMembership | null,
+      error,
+    };
   },
 
   addUser: async (orgId: string, userId: string, role: string) => {
@@ -425,11 +429,16 @@ export const organizations = {
   },
 
   checkMembership: async (userId: string) => {
-    return await supabase
+    const { data, error } = await supabase
       .from("organization_users")
       .select("org_id")
       .eq("user_id", userId)
-      .maybeSingle();
+      .limit(1);
+
+    return {
+      data: (data && data.length > 0 ? data[0] : null) as { org_id: string } | null,
+      error,
+    };
   },
 
   getOrganizationMembers: async (orgId: string) => {
@@ -788,7 +797,7 @@ export const profiles = {
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
-      .single()
+      .maybeSingle()
       .returns<Profile>();
   },
   getByIds: async (userIds: string[]) => {

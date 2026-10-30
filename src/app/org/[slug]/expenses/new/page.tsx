@@ -44,6 +44,7 @@ import {
   Upload,
   Trash2,
   Info,
+  FileText,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +53,7 @@ import { organizations, expenseHistory, voucherAttachments } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
 import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
+import { mergeReceiptsToPdf } from "@/lib/receipt-pdf-utils";
 import SignaturePad from "@/components/SignatureCanvas";
 import supabase from "@/lib/supabase";
 import { parseLeaveDuration, cleanExpiredLeaveProfiles } from "@/lib/leave-status";
@@ -187,6 +189,25 @@ export default function NewExpensePage() {
   const [receiptPreviews, setReceiptPreviews] = useState<
     Record<number, string | null>
   >({});
+  const [isReceiptProcessing, setIsReceiptProcessing] = useState(false);
+  const [receiptProcessingMap, setReceiptProcessingMap] = useState<
+    Record<number, boolean>
+  >({});
+  const [receiptPageImages, setReceiptPageImages] = useState<string[]>([]);
+  const [receiptPageImagesMap, setReceiptPageImagesMap] = useState<
+    Record<number, string[]>
+  >({});
+  const [previewPdfModal, setPreviewPdfModal] = useState<{
+    open: boolean;
+    url: string;
+    title: string;
+    pageImages?: string[];
+  }>({
+    open: false,
+    url: "",
+    title: "",
+    pageImages: [],
+  });
 
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
   const [voucherModalOpenMap, setVoucherModalOpenMap] = useState<
@@ -937,9 +958,9 @@ export default function NewExpensePage() {
   }, [formData.approver, formData.second_approver_id, expenseItemsData, expenseItems, columns]);
 
   // Handle single receipt files
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setErrors((prevErrors) => {
       const updatedErrors = { ...prevErrors };
@@ -947,21 +968,32 @@ export default function NewExpensePage() {
       return updatedErrors;
     });
 
-    setReceiptFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setReceiptPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setIsReceiptProcessing(true);
+    try {
+      const result = await mergeReceiptsToPdf(files);
+      setReceiptFile(result.file);
+      setReceiptPreview(result.previewUrl);
+      setReceiptPageImages(result.pageImages || []);
+      if (files.length > 1) {
+        toast.success(`Merged ${files.length} receipts into a single PDF (${result.pageCount} pages)`);
+      } else if (!files[0].name.toLowerCase().endsWith(".pdf")) {
+        toast.success("Receipt image converted to PDF");
+      }
+    } catch (err: any) {
+      console.error("Receipt processing error:", err);
+      toast.error(err?.message || "Failed to process receipt into PDF");
+    } finally {
+      setIsReceiptProcessing(false);
+    }
   };
 
   // Handle multiple receipt files
-  const handleFileChanges = (
+  const handleFileChanges = async (
     e: React.ChangeEvent<HTMLInputElement>,
     itemId: number
   ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setErrors((prevErrors) => {
       const updatedErrors = { ...prevErrors };
@@ -969,15 +1001,29 @@ export default function NewExpensePage() {
       return updatedErrors;
     });
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setReceiptFiles((prev) => ({ ...prev, [itemId]: file }));
+    setReceiptProcessingMap((prev) => ({ ...prev, [itemId]: true }));
+    try {
+      const result = await mergeReceiptsToPdf(files);
+      setReceiptFiles((prev) => ({ ...prev, [itemId]: result.file }));
       setReceiptPreviews((prev) => ({
         ...prev,
-        [itemId]: reader.result as string,
+        [itemId]: result.previewUrl,
       }));
-    };
-    reader.readAsDataURL(file);
+      setReceiptPageImagesMap((prev) => ({
+        ...prev,
+        [itemId]: result.pageImages || [],
+      }));
+      if (files.length > 1) {
+        toast.success(`Merged ${files.length} receipts into a single PDF (${result.pageCount} pages)`);
+      } else if (!files[0].name.toLowerCase().endsWith(".pdf")) {
+        toast.success("Receipt image converted to PDF");
+      }
+    } catch (err: any) {
+      console.error("Receipt processing error:", err);
+      toast.error(err?.message || "Failed to process receipt into PDF");
+    } finally {
+      setReceiptProcessingMap((prev) => ({ ...prev, [itemId]: false }));
+    }
   };
 
   const toggleVoucherModal = (index: number) => {
@@ -1229,9 +1275,9 @@ export default function NewExpensePage() {
           locationEntry = candidates.find(
             (m) =>
               (typeof m.expense_type === "string" &&
-              m.expense_type === selectedExpenseType) ||
+                m.expense_type === selectedExpenseType) ||
               (Array.isArray(m.expense_type) &&
-              m.expense_type.includes(selectedExpenseType))
+                m.expense_type.includes(selectedExpenseType))
           );
         }
 
@@ -3295,6 +3341,68 @@ export default function NewExpensePage() {
               </DialogContent>
             </Dialog>
 
+            {/* Merged Receipt PDF Preview & Verification Modal */}
+            <Dialog
+              open={previewPdfModal.open}
+              onOpenChange={(open) =>
+                setPreviewPdfModal((prev) => ({ ...prev, open }))
+              }
+            >
+              <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+                <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
+                  <DialogTitle className="text-base font-semibold text-gray-900 truncate">
+                    {previewPdfModal.title}
+                  </DialogTitle>
+                  <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+                    <DialogDescription asChild>
+                      <span>
+                        {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0
+                          ? `${previewPdfModal.pageImages.length} page${previewPdfModal.pageImages.length > 1 ? "s" : ""} in merged PDF`
+                          : "Verify all pages of your merged receipt PDF before submitting."}
+                      </span>
+                    </DialogDescription>
+                    {previewPdfModal.url && (
+                      <a
+                        href={previewPdfModal.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium inline-flex items-center gap-1 border border-blue-700 rounded-md px-1 py-1"
+                      >
+                        Open in new window
+                      </a>
+                    )}
+                  </div>
+                </DialogHeader>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100/70 max-h-[calc(90vh-80px)]">
+                  {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0 ? (
+                    previewPdfModal.pageImages.map((imgSrc, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col items-center p-3"
+                      >
+                        <div className="w-full flex items-center justify-between pb-2 mb-2 border-b text-xs text-gray-500 font-medium">
+                          <span>Page {idx + 1} of {previewPdfModal.pageImages?.length}</span>
+                        </div>
+                        <img
+                          src={imgSrc}
+                          alt={`Receipt page ${idx + 1}`}
+                          className="max-w-full h-auto object-contain rounded"
+                        />
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-full h-[60vh] bg-white rounded border overflow-hidden">
+                      <iframe
+                        src={`${previewPdfModal.url}#toolbar=0&navpanes=0&scrollbar=1`}
+                        className="w-full h-full border-0"
+                        title="Receipt PDF Preview"
+                      />
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
 
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
@@ -3371,8 +3479,8 @@ export default function NewExpensePage() {
                         <SelectTrigger
                           id={col.key}
                           className={`w-full ${errors[col.key]
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                              : ""
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
                             }`}
                         >
                           <SelectValue placeholder="Please Select" />
@@ -3415,8 +3523,8 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`w-full ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder={`Enter ${col.label}`}
                       />
@@ -3515,8 +3623,8 @@ export default function NewExpensePage() {
                                 <SelectTrigger
                                   id={col.key}
                                   className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
                                     }`}
                                 >
                                   <SelectValue
@@ -4102,6 +4210,8 @@ export default function NewExpensePage() {
                         id="receipt"
                         name="receipt"
                         type="file"
+                        multiple
+                        accept="image/*,application/pdf"
                         onChange={(e) => handleFileChange(e)}
                         required={!voucherModalOpen}
                         aria-invalid={errors["receipt"] ? "true" : "false"}
@@ -4124,25 +4234,59 @@ export default function NewExpensePage() {
                         </p>
                       )}
 
-                      <div className="text-sm text-gray-500 mt-1">
-                        {receiptFile ? receiptFile.name : "No file chosen"}
+                      <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
+                        <span>{receiptFile ? receiptFile.name : "No file chosen"}</span>
+                        {isReceiptProcessing ? (
+                          <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                            <Spinner className="w-3 h-3 animate-spin" /> Merging into PDF...
+                          </span>
+                        ) : receiptFile ? (
+                          <span className="text-xs text-emerald-600 font-medium">
+                            PDF Ready
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     {receiptPreview && (
-                      <div className="mt-2">
-                        {receiptPreview.startsWith("data:image") ? (
-                          <img
-                            src={receiptPreview}
-                            alt="Receipt preview"
-                            className="max-h-40 rounded-md border"
-                          />
-                        ) : (
-                          <div className="p-3 bg-gray-50 rounded-md border">
-                            <p className="text-sm text-gray-600">
-                              PDF receipt selected
+                      <div className="mt-2.5">
+                        <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                          <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                            <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                            <p className="text-sm text-gray-700 font-medium truncate">
+                              {receiptFile?.name || "Merged Receipt PDF"}
                             </p>
                           </div>
-                        )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setPreviewPdfModal({
+                                  open: true,
+                                  url: receiptPreview,
+                                  title: receiptFile?.name || "Receipt PDF Preview",
+                                  pageImages: receiptPageImages,
+                                })
+                              }
+                              className="text-xs h-7 px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              Preview & Verify PDF
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setReceiptFile(null);
+                                setReceiptPreview(null);
+                              }}
+                              className="text-xs h-7 px-2 text-red-600 border border-red-300"
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -4222,8 +4366,8 @@ export default function NewExpensePage() {
                               <SelectTrigger
                                 id={`${col.key}-${id}`}
                                 className={`w-full ${errors[col.key]
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                    : ""
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
                                   }`}
                               >
                                 <SelectValue placeholder="Please Select" />
@@ -4276,8 +4420,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder={`Enter ${col.label}`}
                             />
@@ -4376,8 +4520,8 @@ export default function NewExpensePage() {
                                       <SelectTrigger
                                         id={col.key}
                                         className={`w-full ${errors[col.key]
-                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                            : ""
+                                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                          : ""
                                           }`}
                                       >
                                         <SelectValue
@@ -4601,8 +4745,8 @@ export default function NewExpensePage() {
                               )
                             }
                             className={`w-full min-h-[75px] ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
                               }`}
                             placeholder="Brief description of this expense report..."
                           />
@@ -5044,55 +5188,102 @@ export default function NewExpensePage() {
                                 id="receipt"
                                 name="receipt"
                                 type="file"
+                                multiple
+                                accept="image/*,application/pdf"
                                 onChange={(e) => handleFileChanges(e, id)}
-                                required={!voucherModalOpenMap[index]}
+                                required={!voucherModalOpenMap[id]}
                                 aria-invalid={
-                                  errors["receipt"] ? "true" : "false"
+                                  errors[`receipt-${id}`] ? "true" : "false"
                                 }
                                 aria-describedby={
-                                  errors["receipt"]
-                                    ? "receipt-error"
+                                  errors[`receipt-${id}`]
+                                    ? `receipt-${id}-error`
                                     : undefined
                                 }
                                 className={
-                                  errors["receipt"]
+                                  errors[`receipt-${id}`]
                                     ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                     : ""
                                 }
                               />
-                              {errors["receipt"] && (
+                              {errors[`receipt-${id}`] && (
                                 <p
-                                  id="receipt-error"
+                                  id={`receipt-${id}-error`}
                                   className="text-red-500 text-sm mt-1"
                                   role="alert"
                                 >
-                                  {errors["receipt"]}
+                                  {errors[`receipt-${id}`]}
                                 </p>
                               )}
 
-                              <div className="text-sm text-gray-500 mt-1">
-                                {receiptFiles[id] && receiptFiles[id].name
-                                  ? receiptFiles[id].name
-                                  : "No file chosen"}
+                              <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
+                                <span>
+                                  {receiptFiles[id] && receiptFiles[id]!.name
+                                    ? receiptFiles[id]!.name
+                                    : "No file chosen"}
+                                </span>
+                                {receiptProcessingMap[id] ? (
+                                  <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                                    <Spinner className="w-3 h-3 animate-spin" /> Merging into PDF...
+                                  </span>
+                                ) : receiptFiles[id] ? (
+                                  <span className="text-xs text-emerald-600 font-medium">
+                                    PDF Ready
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                             {receiptPreviews[id] && (
-                              <div className="mt-2">
-                                {receiptPreviews[id].startsWith(
-                                  "data:image"
-                                ) ? (
-                                  <img
-                                    src={receiptPreviews[id]}
-                                    alt="Receipt preview"
-                                    className="max-h-40 rounded-md border"
-                                  />
-                                ) : (
-                                  <div className="p-3 bg-gray-50 rounded-md border">
-                                    <p className="text-sm text-gray-600">
-                                      PDF receipt selected
+                              <div className="mt-2.5">
+                                <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                                  <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                                    <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                                    <p className="text-sm text-gray-700 font-medium truncate">
+                                      {receiptFiles[id]?.name || "Merged Receipt PDF"}
                                     </p>
                                   </div>
-                                )}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        setPreviewPdfModal({
+                                          open: true,
+                                          url: receiptPreviews[id]!,
+                                          title:
+                                            receiptFiles[id]?.name ||
+                                            "Receipt PDF Preview",
+                                          pageImages:
+                                            receiptPageImagesMap[id] || [],
+                                        })
+                                      }
+                                      className="text-xs h-7 px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                    >
+                                      Preview & Verify PDF
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setReceiptFiles((prev) => {
+                                          const updated = { ...prev };
+                                          delete updated[id];
+                                          return updated;
+                                        });
+                                        setReceiptPreviews((prev) => {
+                                          const updated = { ...prev };
+                                          delete updated[id];
+                                          return updated;
+                                        });
+                                      }}
+                                      className="text-xs h-7 px-2 text-red-600 border border-red-300"
+                                    >
+                                      Clear
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
