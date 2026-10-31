@@ -24,11 +24,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Save, Upload, X } from "lucide-react";
+import { ArrowLeft, Save, Upload, X, FileText, Loader2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import supabase from "@/lib/supabase";
 import ReceiptPreview from "@/components/ReceiptPreview";
 import VoucherPreview from "@/components/VoucherPreview";
+import { mergeReceiptsToPdf } from "@/lib/receipt-pdf-utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 function SearchableDropdown({
   options,
@@ -114,6 +122,19 @@ export default function EditExpensePage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [isReceiptProcessing, setIsReceiptProcessing] = useState(false);
+  const [receiptPageImages, setReceiptPageImages] = useState<string[]>([]);
+  const [previewPdfModal, setPreviewPdfModal] = useState<{
+    open: boolean;
+    url: string;
+    title: string;
+    pageImages?: string[];
+  }>({
+    open: false,
+    url: "",
+    title: "",
+    pageImages: [],
+  });
   const [columns, setColumns] = useState<any[]>([]);
   const [expenseTypeOptions, setExpenseTypeOptions] = useState<string[]>([]);
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
@@ -306,18 +327,42 @@ export default function EditExpensePage() {
     fetchData();
   }, [expenseId, router, slug, orgId]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    setReceiptFile(file);
+    setIsReceiptProcessing(true);
+    try {
+      const result = await mergeReceiptsToPdf(files, { label: "receipts" });
+      setReceiptFile(result.file);
+      setReceiptPreview(result.previewUrl);
+      setReceiptPageImages(result.pageImages || []);
+      if (files.length > 1) {
+        toast.success(
+          `Merged ${files.length} receipts into a single PDF (${result.pageCount} pages)`
+        );
+      } else if (!files[0].name.toLowerCase().endsWith(".pdf")) {
+        toast.success("Receipt image converted to PDF");
+      }
+    } catch (err: any) {
+      console.error("Receipt processing error:", err);
+      toast.error(err?.message || "Failed to process receipt into PDF");
+    } finally {
+      setIsReceiptProcessing(false);
+    }
+  };
 
-    // Create preview URL
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setReceiptPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+  const handleClearReceipt = () => {
+    if (receiptPreview && receiptPreview.startsWith("blob:")) {
+      try {
+        URL.revokeObjectURL(receiptPreview);
+      } catch {}
+    }
+    setReceiptFile(null);
+    setReceiptPreview(null);
+    setReceiptPageImages([]);
+    const input = document.getElementById("receipt") as HTMLInputElement | null;
+    if (input) input.value = "";
   };
 
   const getApproverOptionLabel = useCallback(
@@ -697,6 +742,11 @@ export default function EditExpensePage() {
       return;
     }
 
+    if (isReceiptProcessing) {
+      toast.error("Please wait, receipt is being processed into PDF.");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -1023,11 +1073,16 @@ export default function EditExpensePage() {
           Back to Expense
         </Button>
         <div className="flex gap-2">
-          <Button onClick={(e) => handleSubmit(e, false)} disabled={saving} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
+          <Button onClick={(e) => handleSubmit(e, false)} disabled={saving || isReceiptProcessing} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
             {saving ? (
               <>
                 <Spinner className="h-4 w-4" />
                 Saving...
+              </>
+            ) : isReceiptProcessing ? (
+              <>
+                <Spinner className="h-4 w-4" />
+                Merging Receipt...
               </>
             ) : (
               <>
@@ -1430,32 +1485,75 @@ export default function EditExpensePage() {
             {!hasVoucher && (
               <div className="space-y-2">
                 <Label htmlFor="receipt">Receipt</Label>
-                <div className="flex items-center space-x-2">
+                <div>
                   <Input
                     id="receipt"
                     type="file"
+                    multiple
+                    accept="image/*,application/pdf"
                     onChange={handleFileChange}
-                    accept="image/*,.pdf"
+                    disabled={isReceiptProcessing}
                   />
-                  {receiptFile && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setReceiptFile(null);
-                        setReceiptPreview(null);
-                      }}
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Clear
-                    </Button>
-                  )}
+                  <p className="text-xs text-gray-600 mt-1">
+                    Upload receipts. Multiple files will be merged into a single PDF.
+                  </p>
+                  <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
+                    <span>
+                      {receiptFile
+                        ? receiptFile.name
+                        : expense.receipt
+                        ? `Current receipt: ${expense.receipt.filename}`
+                        : "No file chosen"}
+                    </span>
+                    {isReceiptProcessing ? (
+                      <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Merging into PDF...
+                      </span>
+                    ) : receiptFile ? (
+                      <span className="text-xs text-emerald-600 font-medium">
+                        PDF Ready
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                {expense.receipt && !receiptPreview && (
-                  <div className="mt-2">
-                    <p className="text-sm text-muted-foreground">
-                      Current receipt: {expense.receipt.filename}
-                    </p>
+
+                {receiptFile && receiptPreview && (
+                  <div className="mt-2.5">
+                    <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                      <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                        <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                        <p className="text-sm text-gray-700 font-medium truncate">
+                          {receiptFile.name}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setPreviewPdfModal({
+                              open: true,
+                              url: receiptPreview,
+                              title: receiptFile.name || "Receipt PDF Preview",
+                              pageImages: receiptPageImages,
+                            })
+                          }
+                          className="text-xs h-7 px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                        >
+                          Preview & Verify PDF
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleClearReceipt}
+                          className="text-xs h-7 px-2 text-red-600 border border-red-300"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1484,6 +1582,68 @@ export default function EditExpensePage() {
           onEditingChange={setIsVoucherEditing}
         />
       )}
+
+      {/* Merged Receipt PDF Preview & Verification Modal */}
+      <Dialog
+        open={previewPdfModal.open}
+        onOpenChange={(open) =>
+          setPreviewPdfModal((prev) => ({ ...prev, open }))
+        }
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
+            <DialogTitle className="text-base font-semibold text-gray-900 truncate">
+              {previewPdfModal.title}
+            </DialogTitle>
+            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+              <DialogDescription asChild>
+                <span>
+                  {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0
+                    ? `${previewPdfModal.pageImages.length} page${previewPdfModal.pageImages.length > 1 ? "s" : ""} in merged PDF`
+                    : "Verify all pages of your merged receipt PDF before saving."}
+                </span>
+              </DialogDescription>
+              {previewPdfModal.url && (
+                <a
+                  href={previewPdfModal.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium inline-flex items-center gap-1 border border-blue-700 rounded-md px-1 py-1"
+                >
+                  Open in new tab
+                </a>
+              )}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100/70 max-h-[calc(90vh-80px)]">
+            {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0 ? (
+              previewPdfModal.pageImages.map((imgSrc, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col items-center p-3"
+                >
+                  <div className="w-full flex items-center justify-between pb-2 mb-2 border-b text-xs text-gray-500 font-medium">
+                    <span>Page {idx + 1} of {previewPdfModal.pageImages?.length}</span>
+                  </div>
+                  <img
+                    src={imgSrc}
+                    alt={`Receipt page ${idx + 1}`}
+                    className="max-w-full h-auto object-contain rounded"
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="w-full h-[60vh] bg-white rounded border overflow-hidden">
+                <iframe
+                  src={`${previewPdfModal.url}#toolbar=0&navpanes=0&scrollbar=1`}
+                  className="w-full h-full border-0"
+                  title="Receipt PDF Preview"
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
