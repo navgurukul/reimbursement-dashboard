@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { orgSettings, expenses, expenseHistory, vouchers, profiles, expenseEvents } from "@/lib/db";
+import { orgSettings, expenses, expenseHistory, vouchers, profiles, expenseEvents, organizations, } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,12 +16,97 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Save, Upload, X } from "lucide-react";
+import { ArrowLeft, Save, Upload, X, FileText, Loader2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import supabase from "@/lib/supabase";
 import ReceiptPreview from "@/components/ReceiptPreview";
 import VoucherPreview from "@/components/VoucherPreview";
+import { mergeReceiptsToPdf } from "@/lib/receipt-pdf-utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+
+function SearchableDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchPlaceholder,
+}: {
+  options: string[];
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const filtered = options.filter((opt) =>
+    opt.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  return (
+    <div className="space-y-2">
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-9 w-full justify-between font-normal text-left px-3">
+            <span className="truncate">
+              {value || placeholder}
+            </span>
+            <span className="text-muted-foreground opacity-50">▾</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="p-2"
+          align="start"
+          style={{ width: "var(--radix-dropdown-menu-trigger-width)" }}
+        >
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder={searchPlaceholder}
+            className="h-9 mb-2"
+          />
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                No options found
+              </p>
+            ) : (
+              filtered.map((opt) => (
+                <DropdownMenuItem
+                  key={opt}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onChange(opt);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <span>{opt}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
 
 export default function EditExpensePage() {
   const router = useRouter();
@@ -37,11 +122,27 @@ export default function EditExpensePage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [isReceiptProcessing, setIsReceiptProcessing] = useState(false);
+  const [receiptPageImages, setReceiptPageImages] = useState<string[]>([]);
+  const [previewPdfModal, setPreviewPdfModal] = useState<{
+    open: boolean;
+    url: string;
+    title: string;
+    pageImages?: string[];
+  }>({
+    open: false,
+    url: "",
+    title: "",
+    pageImages: [],
+  });
   const [columns, setColumns] = useState<any[]>([]);
   const [expenseTypeOptions, setExpenseTypeOptions] = useState<string[]>([]);
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [expenseCreditPersonOptions, setExpenseCreditPersonOptions] = useState<string[]>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
+  const [locationApproverMapping, setLocationApproverMapping] = useState<any[]>([]);
+  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<any[]>([]);
+  const [approverOptions, setApproverOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [isVoucherEditing, setIsVoucherEditing] = useState(false);
   const [voucherData, setVoucherData] = useState<any>(null);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
@@ -93,6 +194,11 @@ export default function EditExpensePage() {
           amount: data.amount,
           date: new Date(data.date).toISOString().split("T")[0],
           ...data.custom_fields,
+          approver: data.approver_id || data.custom_fields?.approver || "",
+          approver_name:
+            data.custom_fields?.approver_name ||
+            data.approver?.full_name ||
+            "",
           project_of_expense: initialProjectOfExpense,
           ...(initialExpenseCreditPerson ? { expense_credit_person: initialExpenseCreditPerson } : {}),
         });
@@ -139,6 +245,35 @@ export default function EditExpensePage() {
                 setExpenseTypeOptions(options as string[]);
               }
             }
+          }
+
+          if (settings.expense_type_approver_mapping && Array.isArray(settings.expense_type_approver_mapping)) {
+            setExpenseTypeApproverMapping(settings.expense_type_approver_mapping);
+          }
+          if (settings.location_approver_mapping && Array.isArray(settings.location_approver_mapping)) {
+            setLocationApproverMapping(settings.location_approver_mapping);
+          }
+
+          // Fetch organization members to populate approver names
+          const { data: membersData } = await organizations.getOrganizationMembers(orgId);
+          if (membersData) {
+            const approvers = membersData.filter((member) =>
+              ["owner", "admin", "manager"].includes(member.role)
+            );
+            const { data: profilesData } = await profiles.getByIds(
+              approvers.map((a) => a.user_id)
+            );
+            const approverNamesMap = new Map(
+              profilesData?.map((p) => [
+                p.user_id,
+                p.full_name || p.email,
+              ]) || []
+            );
+            const mappedOptions = approvers.map((a) => ({
+              value: a.user_id,
+              label: approverNamesMap.get(a.user_id) || a.user_id,
+            }));
+            setApproverOptions(mappedOptions);
           }
 
           // Extract location options
@@ -192,19 +327,239 @@ export default function EditExpensePage() {
     fetchData();
   }, [expenseId, router, slug, orgId]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    setReceiptFile(file);
-
-    // Create preview URL
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setReceiptPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setIsReceiptProcessing(true);
+    try {
+      const result = await mergeReceiptsToPdf(files, { label: "receipts" });
+      setReceiptFile(result.file);
+      setReceiptPreview(result.previewUrl);
+      setReceiptPageImages(result.pageImages || []);
+      if (files.length > 1) {
+        toast.success(
+          `Merged ${files.length} receipts into a single PDF (${result.pageCount} pages)`
+        );
+      } else if (!files[0].name.toLowerCase().endsWith(".pdf")) {
+        toast.success("Receipt image converted to PDF");
+      }
+    } catch (err: any) {
+      console.error("Receipt processing error:", err);
+      toast.error(err?.message || "Failed to process receipt into PDF");
+    } finally {
+      setIsReceiptProcessing(false);
+    }
   };
+
+  const handleClearReceipt = () => {
+    if (receiptPreview && receiptPreview.startsWith("blob:")) {
+      try {
+        URL.revokeObjectURL(receiptPreview);
+      } catch {}
+    }
+    setReceiptFile(null);
+    setReceiptPreview(null);
+    setReceiptPageImages([]);
+    const input = document.getElementById("receipt") as HTMLInputElement | null;
+    if (input) input.value = "";
+  };
+
+  const getApproverOptionLabel = useCallback(
+    (value?: string) => {
+      if (!value) return "";
+      const option = approverOptions.find((opt) => opt.value === value);
+      if (option) return option.label;
+      const approverCol = columns.find((c) => c.key === "approver");
+      const opts = (approverCol?.options || []) as Array<
+        string | { value: string; label: string }
+      >;
+      const opt = opts.find((o) =>
+        (typeof o === "string" ? o : o.value) === value
+      );
+      if (!opt) return "";
+      return typeof opt === "string" ? opt : opt.label || opt.value;
+    },
+    [approverOptions, columns]
+  );
+
+  const getApproverDropdownOptions = useCallback(() => {
+    const locationFieldKeyMatch = Object.keys(expense?.custom_fields || {}).find((key) => {
+      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+      return (
+        normalizedKey === "location" ||
+        normalizedKey === "location of expense" ||
+        normalizedKey === "location_of_expense" ||
+        normalizedKey === "project of expense" ||
+        normalizedKey === "project_of_expense"
+      );
+    });
+
+    const selectedLocation = locationFieldKeyMatch
+      ? typeof formData[locationFieldKeyMatch] === "string"
+        ? formData[locationFieldKeyMatch]
+        : ""
+      : "";
+    const selectedExpenseType =
+      typeof formData.expense_type === "string" ? formData.expense_type : "";
+
+    const approverCol = columns.find((c) => c.key === "approver");
+    const allOptions = (approverCol?.options || approverOptions) as Array<
+      string | { value: string; label: string }
+    >;
+
+    const normalizeIds = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      return Array.isArray(value)
+        ? value.filter((v) => v && v.trim())
+        : value.trim()
+          ? [value]
+          : [];
+    };
+
+    const normalizeNames = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+      return value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    };
+
+    const resolveIdsFromNames = (value?: string | string[]) => {
+      const names = normalizeNames(value);
+      if (!names.length) return [] as string[];
+
+      const mapByLabel = new Map<string, string>();
+      allOptions.forEach((option) => {
+        const optValue = typeof option === "string" ? option : option.value;
+        const optLabel = typeof option === "string" ? option : option.label;
+        mapByLabel.set(optLabel.toLowerCase(), optValue);
+      });
+      approverOptions.forEach((option) => {
+        mapByLabel.set(option.label.toLowerCase(), option.value);
+      });
+
+      return names
+        .map((name) => mapByLabel.get(name.toLowerCase()))
+        .filter((v): v is string => Boolean(v));
+    };
+
+    const expenseTypeEntry =
+      selectedExpenseType && expenseTypeApproverMapping?.length
+        ? expenseTypeApproverMapping.find(
+          (m) => {
+            if (Array.isArray(m.expense_type)) {
+              return m.expense_type.includes(selectedExpenseType);
+            }
+            return m.expense_type === selectedExpenseType;
+          }
+        )
+        : undefined;
+
+    let locationEntry: any = undefined;
+    if (selectedLocation && locationApproverMapping?.length) {
+      const candidates = locationApproverMapping.filter((m) =>
+        Array.isArray(m.location)
+          ? m.location.includes(selectedLocation)
+          : m.location === selectedLocation
+      );
+
+      if (candidates.length) {
+        if (selectedExpenseType) {
+          locationEntry = candidates.find(
+            (m) =>
+              (typeof m.expense_type === "string" &&
+              m.expense_type === selectedExpenseType) ||
+              (Array.isArray(m.expense_type) &&
+              m.expense_type.includes(selectedExpenseType))
+          );
+        }
+
+        if (!locationEntry) {
+          locationEntry = candidates.find(
+            (m) =>
+              m.expense_type === undefined ||
+              (typeof m.expense_type === "string" &&
+                m.expense_type.trim() === "") ||
+              (Array.isArray(m.expense_type) &&
+                m.expense_type.length === 0)
+          );
+        }
+      }
+    }
+
+    const effectiveExpenseTypeEntry =
+      expenseTypeEntry && expenseTypeEntry.enabled !== false
+        ? expenseTypeEntry
+        : undefined;
+    const effectiveLocationEntry =
+      locationEntry && locationEntry.enabled !== false
+        ? locationEntry
+        : undefined;
+
+    const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
+
+    const mappedIds = activeEntry
+      ? Array.from(
+        new Set([
+          ...(normalizeIds(activeEntry.approver_id).length
+            ? normalizeIds(activeEntry.approver_id)
+            : resolveIdsFromNames(activeEntry.approver_name)),
+          ...(normalizeIds(activeEntry.second_approver_id).length
+            ? normalizeIds(activeEntry.second_approver_id)
+            : resolveIdsFromNames(activeEntry.second_approver_name)),
+        ])
+      )
+      : [];
+
+    const optionLookup = new Map<string, { value: string; label: string }>();
+    allOptions.forEach((option) => {
+      const value = typeof option === "string" ? option : option.value;
+      const label = typeof option === "string" ? option : option.label;
+      optionLookup.set(value, { value, label });
+    });
+    approverOptions.forEach((option) => {
+      optionLookup.set(option.value, option);
+    });
+
+    const options = mappedIds.map((id) => {
+      const mapped = optionLookup.get(id);
+      if (mapped) return mapped;
+      return { value: id, label: getApproverOptionLabel(id) || id };
+    });
+
+    const addFallbackOption = (id?: string, name?: string) => {
+      if (!id || options.some((opt) => opt.value === id)) return;
+      options.push({
+        value: id,
+        label: name || getApproverOptionLabel(id) || id,
+      });
+    };
+
+    addFallbackOption(
+      typeof formData.approver === "string" ? formData.approver : "",
+      typeof formData.approver_name === "string" ? formData.approver_name : ""
+    );
+    addFallbackOption(
+      typeof formData.second_approver_id === "string"
+        ? formData.second_approver_id
+        : "",
+      typeof formData.second_approver_name === "string"
+        ? formData.second_approver_name
+        : ""
+    );
+
+    return options;
+  }, [
+    expense,
+    formData,
+    columns,
+    approverOptions,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    getApproverOptionLabel,
+  ]);
 
   const handleInputChange = (
     key: string,
@@ -225,6 +580,12 @@ export default function EditExpensePage() {
         [key]: value,
       };
 
+      if (key === "approver" && typeof value === "string") {
+        next.approver_name = getApproverOptionLabel(value);
+      }
+
+
+
       if (isProjectOrLocation && typeof value === "string") {
         next.project_of_expense = value;
         if ("Project of Expense" in next) next["Project of Expense"] = value;
@@ -239,11 +600,150 @@ export default function EditExpensePage() {
     });
   };
 
+  useEffect(() => {
+    if (!expense) return;
+    const locationFieldKeyMatch = Object.keys(expense.custom_fields || {}).find((key) => {
+      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+      return (
+        normalizedKey === "location" ||
+        normalizedKey === "location of expense" ||
+        normalizedKey === "location_of_expense" ||
+        normalizedKey === "project of expense" ||
+        normalizedKey === "project_of_expense"
+      );
+    });
+
+    const selectedLocation = locationFieldKeyMatch ? (typeof formData[locationFieldKeyMatch] === "string" ? formData[locationFieldKeyMatch] : "") : "";
+    const selectedExpenseType = typeof formData.expense_type === "string" ? formData.expense_type : "";
+
+    if (!selectedLocation && !selectedExpenseType) return;
+
+    // 1) Try expense-type specific mapping first (global, not tied to location)
+    const expenseTypeEntry =
+      selectedExpenseType && expenseTypeApproverMapping?.length
+        ? expenseTypeApproverMapping.find(
+          (m) => {
+            if (Array.isArray(m.expense_type)) {
+              return m.expense_type.includes(selectedExpenseType);
+            }
+            return m.expense_type === selectedExpenseType;
+          }
+        )
+        : undefined;
+
+    // 2) Then look for location-based mappings.
+    let locationEntry: any = undefined;
+    if (selectedLocation && locationApproverMapping?.length) {
+      const candidates = locationApproverMapping.filter(
+        (m) => m.location === selectedLocation
+      );
+
+      if (candidates.length) {
+        if (selectedExpenseType) {
+          locationEntry = candidates.find(
+            (m) =>
+              (typeof m.expense_type === "string" &&
+              m.expense_type === selectedExpenseType) ||
+              (Array.isArray(m.expense_type) &&
+              m.expense_type.includes(selectedExpenseType))
+          );
+        }
+
+        if (!locationEntry) {
+          locationEntry = candidates.find(
+            (m) =>
+              m.expense_type === undefined ||
+              (typeof m.expense_type === "string" &&
+                m.expense_type.trim() === "") ||
+              (Array.isArray(m.expense_type) &&
+                m.expense_type.length === 0)
+          );
+        }
+      }
+    }
+
+    const effectiveExpenseTypeEntry =
+      expenseTypeEntry && expenseTypeEntry.enabled !== false
+        ? expenseTypeEntry
+        : undefined;
+    const effectiveLocationEntry =
+      locationEntry && locationEntry.enabled !== false
+        ? locationEntry
+        : undefined;
+
+    // Make Location mapping take precedence over Expense Type mapping
+    const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
+
+    const getFirst = (val: string | string[] | undefined) => {
+      if (!val) return "";
+      if (Array.isArray(val)) return val[0] || "";
+      const parts = val.split(",").map(v => v.trim()).filter(Boolean);
+      return parts[0] || "";
+    };
+
+    const getApproverName = (id: string) => {
+      if (!id) return "";
+      const option = approverOptions.find(opt => opt.value === id);
+      return option ? option.label : id;
+    };
+
+    const nextApproverId = getFirst(activeEntry?.approver_id);
+    const nextSecondId = getFirst(activeEntry?.second_approver_id);
+    const nextApproverName = getApproverName(nextApproverId);
+    const nextSecondName = getApproverName(nextSecondId);
+
+    setFormData((prev) => {
+      if (prev.approver) {
+        if (
+          prev.second_approver_name === nextSecondName &&
+          prev.second_approver_id === nextSecondId
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          second_approver_id: nextSecondId,
+          second_approver_name: nextSecondName,
+        };
+      }
+
+      if (
+        prev.approver_name === nextApproverName &&
+        prev.second_approver_name === nextSecondName &&
+        prev.approver === nextApproverId &&
+        prev.second_approver_id === nextSecondId
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        approver: nextApproverId,
+        approver_name: nextApproverName,
+        second_approver_id: nextSecondId,
+        second_approver_name: nextSecondName,
+      };
+    });
+
+  }, [
+    formData.expense_type,
+    expense,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    approverOptions,
+    // Using stringified formData custom fields would be safer, but relying on expense_type and location value is enough:
+    Object.keys(expense?.custom_fields || {}).map(k => formData[k]).join('|'),
+  ]);
+
   const handleSubmit = async (e: React.FormEvent, isResubmit: boolean = false) => {
     e.preventDefault();
 
     if (hasVoucher && isVoucherEditing) {
       toast.error("Please save Voucher Preview before saving changes.");
+      return;
+    }
+
+    if (isReceiptProcessing) {
+      toast.error("Please wait, receipt is being processed into PDF.");
       return;
     }
 
@@ -257,6 +757,15 @@ export default function EditExpensePage() {
       }
 
       let userName = "Unknown User";
+      const approverRelatedKeys = [
+        "approver",
+        "approver name",
+        "approver_name",
+        "second approver id",
+        "second_approver_id",
+        "second approver name",
+        "second_approver_name",
+      ];
 
       // Get username for history entries using improved extraction
       try {
@@ -304,14 +813,17 @@ export default function EditExpensePage() {
 
         // Add custom fields
         let projectOfExpenseLogged = false;
+
         Object.entries(formData).forEach(([key, value]) => {
           if (key !== "expense_type" && key !== "amount" && key !== "date") {
             const normalizedKey = key.replace(/_/g, " ").toLowerCase();
-            // Skip redundant location keys so only Project of Expense is logged
+            // Skip redundant location keys and internal approver keys
             if (
               normalizedKey === "location" ||
               normalizedKey === "location of expense" ||
-              normalizedKey === "location_of_expense"
+              normalizedKey === "location_of_expense" ||
+              approverRelatedKeys.includes(normalizedKey) ||
+              approverRelatedKeys.includes(key.toLowerCase())
             ) {
               return;
             }
@@ -320,34 +832,40 @@ export default function EditExpensePage() {
               if (projectOfExpenseLogged) return;
               projectOfExpenseLogged = true;
 
-              const oldVal =
+              const oldVal = (
                 expense.custom_fields?.project_of_expense ||
                 expense.custom_fields?.["Project of Expense"] ||
                 (expense as any).location ||
-                "";
-              if (oldVal !== value) {
+                ""
+              ).toString().trim();
+              const newVal = (value?.toString() || "").trim();
+
+              if (oldVal !== newVal && (oldVal || newVal)) {
                 expenseHistory.addEntry(
                   expenseId,
                   session.user.id,
                   userName,
                   'updated',
-                  `Project Of Expense: ${oldVal || ''}`,
-                  `Project Of Expense: ${value?.toString() || ''}`
+                  `Project Of Expense: ${oldVal}`,
+                  `Project Of Expense: ${newVal}`
                 ).catch(err => console.error("Error logging field update:", err));
               }
               return;
             }
 
-            // Log changes to custom fields if they're different
-            if (expense.custom_fields[key] !== value) {
+            // Log changes to custom fields only if they're actually different and not both empty
+            const oldVal = (expense.custom_fields?.[key]?.toString() || "").trim();
+            const newVal = (value?.toString() || "").trim();
+
+            if (oldVal !== newVal && (oldVal || newVal)) {
               const fieldLabel = key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
               expenseHistory.addEntry(
                 expenseId,
                 session.user.id,
                 userName,
                 'updated',
-                `${fieldLabel}: ${expense.custom_fields[key]?.toString() || ''}`,
-                `${fieldLabel}: ${value?.toString() || ''}`
+                `${fieldLabel}: ${oldVal}`,
+                `${fieldLabel}: ${newVal}`
               ).catch(err => console.error("Error logging field update:", err));
             }
           }
@@ -422,19 +940,26 @@ export default function EditExpensePage() {
         updates.approved_amount = null;
       }
 
-      // Add custom fields (excluding redundant location keys)
+      // Add custom fields (excluding redundant location keys and approver keys)
       Object.entries(formData).forEach(([key, value]) => {
         if (key !== "expense_type" && key !== "amount" && key !== "date") {
           const normalizedKey = key.replace(/_/g, " ").toLowerCase();
           if (
             normalizedKey !== "location" &&
             normalizedKey !== "location of expense" &&
-            normalizedKey !== "location_of_expense"
+            normalizedKey !== "location_of_expense" &&
+            !approverRelatedKeys.includes(normalizedKey) &&
+            !approverRelatedKeys.includes(key.toLowerCase())
           ) {
             updates.custom_fields[key] = value;
           }
         }
       });
+
+      // Preserve existing approver_name in custom_fields if already present
+      if (expense.custom_fields?.approver_name) {
+        updates.custom_fields.approver_name = expense.custom_fields.approver_name;
+      }
 
       // Synchronize custom_fields with database columns
       if (updatedProjectOfExpense !== null) {
@@ -510,6 +1035,17 @@ export default function EditExpensePage() {
     return null;
   }
 
+  const locationFieldKey = Object.keys(expense.custom_fields || {}).find((key) => {
+    const normalizedKey = key.replace(/_/g, " ").toLowerCase();
+    return (
+      normalizedKey === "location" ||
+      normalizedKey === "location of expense" ||
+      normalizedKey === "location_of_expense" ||
+      normalizedKey === "project of expense" ||
+      normalizedKey === "project_of_expense"
+    );
+  });
+
   const hasDirectPaymentUniqueId = String(expense?.unique_id || "")
     .trim()
     .toLowerCase()
@@ -518,6 +1054,8 @@ export default function EditExpensePage() {
       .trim()
       .toLowerCase()
       .includes("direct payment");
+
+  const approverDropdownOptions = getApproverDropdownOptions();
 
   return (
     <div className="space-y-6">
@@ -535,11 +1073,16 @@ export default function EditExpensePage() {
           Back to Expense
         </Button>
         <div className="flex gap-2">
-          <Button onClick={(e) => handleSubmit(e, false)} disabled={saving} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
+          <Button onClick={(e) => handleSubmit(e, false)} disabled={saving || isReceiptProcessing} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
             {saving ? (
               <>
                 <Spinner className="h-4 w-4" />
                 Saving...
+              </>
+            ) : isReceiptProcessing ? (
+              <>
+                <Spinner className="h-4 w-4" />
+                Merging Receipt...
               </>
             ) : (
               <>
@@ -572,6 +1115,102 @@ export default function EditExpensePage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* <div className="grid grid-cols-2 gap-4">
+              {locationFieldKey && (
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor={locationFieldKey}>Project of Expense</Label>
+                  {locationOptions.length > 0 ? (
+                    <SearchableDropdown
+                      options={locationOptions}
+                      value={formData[locationFieldKey] || ""}
+                      onChange={(value) => handleInputChange(locationFieldKey, value)}
+                      placeholder="Select location"
+                      searchPlaceholder="Search project..."
+                    />
+                  ) : (
+                    <Input
+                      id={locationFieldKey}
+                      value={formData[locationFieldKey] || ""}
+                      onChange={(e) =>
+                        handleInputChange(locationFieldKey, e.target.value)
+                      }
+                    />
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="expense_type">Expense Type</Label>
+                {expenseTypeOptions.length > 0 ? (
+                  <SearchableDropdown
+                    options={expenseTypeOptions}
+                    value={formData.expense_type || ""}
+                    onChange={(value) => handleInputChange("expense_type", value)}
+                    placeholder="Select expense type"
+                    searchPlaceholder="Search expense type..."
+                  />
+                ) : (
+                  <Input
+                    id="expense_type"
+                    value={formData.expense_type || ""}
+                    onChange={(e) =>
+                      handleInputChange("expense_type", e.target.value)
+                    }
+                    required
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  value={formData.amount || ""}
+                  onChange={(e) =>
+                    handleInputChange("amount", parseFloat(e.target.value))
+                  }
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="date">Date</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={formData.date || ""}
+                  className="relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  onChange={(e) => handleInputChange("date", e.target.value)}
+                  required
+                />
+              </div>
+
+              {approverDropdownOptions.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="approver">Approver</Label>
+                  <Select
+                    value={formData.approver || ""}
+                    onValueChange={(value: string) =>
+                      handleInputChange("approver", value)
+                    }
+                  >
+                    <SelectTrigger id="approver" className="w-full">
+                      <SelectValue placeholder="Select approver" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {approverDropdownOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div> */}
+
+            {/* Custom fields + info fields */}
             {(() => {
               // Find the key for Project of Expense
               const projectOfExpenseEntry = expense?.custom_fields ? Object.entries(expense.custom_fields).find(([key, value]) => {
@@ -846,32 +1485,75 @@ export default function EditExpensePage() {
             {!hasVoucher && (
               <div className="space-y-2">
                 <Label htmlFor="receipt">Receipt</Label>
-                <div className="flex items-center space-x-2">
+                <div>
                   <Input
                     id="receipt"
                     type="file"
+                    multiple
+                    accept="image/*,application/pdf"
                     onChange={handleFileChange}
-                    accept="image/*,.pdf"
+                    disabled={isReceiptProcessing}
                   />
-                  {receiptFile && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setReceiptFile(null);
-                        setReceiptPreview(null);
-                      }}
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Clear
-                    </Button>
-                  )}
+                  <p className="text-xs text-gray-600 mt-1">
+                    Upload receipts. Multiple files will be merged into a single PDF.
+                  </p>
+                  <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
+                    <span>
+                      {receiptFile
+                        ? receiptFile.name
+                        : expense.receipt
+                        ? `Current receipt: ${expense.receipt.filename}`
+                        : "No file chosen"}
+                    </span>
+                    {isReceiptProcessing ? (
+                      <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Merging into PDF...
+                      </span>
+                    ) : receiptFile ? (
+                      <span className="text-xs text-emerald-600 font-medium">
+                        PDF Ready
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                {expense.receipt && !receiptPreview && (
-                  <div className="mt-2">
-                    <p className="text-sm text-muted-foreground">
-                      Current receipt: {expense.receipt.filename}
-                    </p>
+
+                {receiptFile && receiptPreview && (
+                  <div className="mt-2.5">
+                    <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                      <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                        <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                        <p className="text-sm text-gray-700 font-medium truncate">
+                          {receiptFile.name}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setPreviewPdfModal({
+                              open: true,
+                              url: receiptPreview,
+                              title: receiptFile.name || "Receipt PDF Preview",
+                              pageImages: receiptPageImages,
+                            })
+                          }
+                          className="text-xs h-7 px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                        >
+                          Preview & Verify PDF
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleClearReceipt}
+                          className="text-xs h-7 px-2 text-red-600 border border-red-300"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -900,6 +1582,68 @@ export default function EditExpensePage() {
           onEditingChange={setIsVoucherEditing}
         />
       )}
+
+      {/* Merged Receipt PDF Preview & Verification Modal */}
+      <Dialog
+        open={previewPdfModal.open}
+        onOpenChange={(open) =>
+          setPreviewPdfModal((prev) => ({ ...prev, open }))
+        }
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
+            <DialogTitle className="text-base font-semibold text-gray-900 truncate">
+              {previewPdfModal.title}
+            </DialogTitle>
+            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+              <DialogDescription asChild>
+                <span>
+                  {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0
+                    ? `${previewPdfModal.pageImages.length} page${previewPdfModal.pageImages.length > 1 ? "s" : ""} in merged PDF`
+                    : "Verify all pages of your merged receipt PDF before saving."}
+                </span>
+              </DialogDescription>
+              {previewPdfModal.url && (
+                <a
+                  href={previewPdfModal.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium inline-flex items-center gap-1 border border-blue-700 rounded-md px-1 py-1"
+                >
+                  Open in new tab
+                </a>
+              )}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100/70 max-h-[calc(90vh-80px)]">
+            {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0 ? (
+              previewPdfModal.pageImages.map((imgSrc, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col items-center p-3"
+                >
+                  <div className="w-full flex items-center justify-between pb-2 mb-2 border-b text-xs text-gray-500 font-medium">
+                    <span>Page {idx + 1} of {previewPdfModal.pageImages?.length}</span>
+                  </div>
+                  <img
+                    src={imgSrc}
+                    alt={`Receipt page ${idx + 1}`}
+                    className="max-w-full h-auto object-contain rounded"
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="w-full h-[60vh] bg-white rounded border overflow-hidden">
+                <iframe
+                  src={`${previewPdfModal.url}#toolbar=0&navpanes=0&scrollbar=1`}
+                  className="w-full h-full border-0"
+                  title="Receipt PDF Preview"
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

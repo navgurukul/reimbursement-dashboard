@@ -13,6 +13,8 @@ import type {
   ColumnConfig as DbColumnConfig,
   ExpenseTypeDetail,
   ProjectOfExpenseDetail,
+  ExpenseTypeApproverMappingEntry,
+  LocationApproverMappingEntry,
 } from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -27,6 +29,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -37,6 +41,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -51,7 +56,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Edit, PlusCircle, Settings2, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { PlusCircle, Settings2, Trash2, Plus, X, Edit, CalendarOff, Clock, Calendar } from "lucide-react";
+import { format } from "date-fns";
+import { StatusDurationSelector } from "@/components/StatusDurationSelector";
+import { parseLeaveDuration, cleanExpiredLeaveProfiles } from "@/lib/leave-status";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -70,17 +85,188 @@ interface ColumnConfig {
   key: string;
   label: string;
   type:
-    | "text"
-    | "number"
-    | "date"
-    | "dropdown"
-    | "radio"
-    | "checkbox"
-    | "textarea"
-    | "file";
+  | "text"
+  | "number"
+  | "date"
+  | "dropdown"
+  | "radio"
+  | "checkbox"
+  | "textarea"
+  | "file";
   visible: boolean;
   options?: string[] | { value: string; label: string }[]; // For dropdown, radio, checkbox
   required?: boolean;
+}
+
+type ApproverOption = { value: string; label: string };
+
+function SearchableDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchPlaceholder,
+}: {
+  options: string[];
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const filtered = options.filter((opt) =>
+    opt.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  return (
+    <div className="space-y-2">
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-9 w-full justify-between font-normal text-left">
+            <span className="truncate">
+              {value || placeholder}
+            </span>
+            <span className="text-muted-foreground">▾</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-[280px] p-2" align="start">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder={searchPlaceholder}
+            className="h-9"
+          />
+          <DropdownMenuSeparator className="my-2" />
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                No options found
+              </p>
+            ) : (
+              filtered.map((opt) => (
+                <DropdownMenuItem
+                  key={opt}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onChange(opt);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className="cursor-pointer"
+                >
+                  <span>{opt}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function MultiSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchPlaceholder,
+  maxBadges = 3,
+  hideBadges = false,
+}: {
+  options: ApproverOption[];
+  value: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+  maxBadges?: number;
+  hideBadges?: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const selected = new Set(value);
+  const filtered = options.filter((opt) =>
+    opt.label.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  const toggleValue = (id: string) => {
+    const next = selected.has(id)
+      ? value.filter((v) => v !== id)
+      : [...value, id];
+    onChange(next);
+  };
+
+  const getLabel = (id: string) =>
+    options.find((opt) => opt.value === id)?.label || id;
+
+  return (
+    <div className="space-y-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-9 w-full justify-between">
+            <span className="truncate text-sm">
+              {value.length > 0
+                ? `${value.length} selected`
+                : "Select users"}
+            </span>
+            <span className="text-muted-foreground">▾</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-[280px] p-2">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder={searchPlaceholder}
+            className="h-9"
+          />
+          <DropdownMenuSeparator className="my-2" />
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                No matching users
+              </p>
+            ) : (
+              filtered.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onSelect={(e: Event) => e.preventDefault()}
+                  className="cursor-pointer"
+                  onClick={() => toggleValue(opt.value)}
+                >
+                  <Checkbox checked={selected.has(opt.value)} />
+                  <span>{opt.label}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {!hideBadges && value.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {value.slice(0, maxBadges).map((id) => (
+            <Badge key={id} variant="secondary" className="gap-1">
+              {getLabel(id)}
+              <X
+                className="h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground"
+                onClick={() => toggleValue(id)}
+              />
+            </Badge>
+          ))}
+          {value.length > maxBadges && (
+            <Badge variant="secondary" className="gap-1">
+              +{value.length - maxBadges} more
+            </Badge>
+          )}
+        </div>
+      ) : !hideBadges ? (
+        <div className="text-xs text-muted-foreground">
+          {/* Empty state can optionally render placeholder */}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 interface ExpenseTypeDetailsForm {
@@ -93,6 +279,494 @@ interface ExpenseTypeDetailsForm {
 interface ProjectOfExpenseDetailsForm {
   project_of_expense: string;
   project_description: string;
+}
+
+function UserDisplayNamesSection() {
+  const { organization } = useOrgStore();
+  const orgId = organization?.id;
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [leaveDuration, setLeaveDuration] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const [oooUsers, setOooUsers] = useState<any[]>([]);
+  const [isLoadingOoo, setIsLoadingOoo] = useState(true);
+
+  const fetchOooUsers = async () => {
+    if (!orgId) return;
+    setIsLoadingOoo(true);
+    try {
+      const { data: orgUsers, error: orgError } = await supabase
+        .from("organization_users")
+        .select("user_id")
+        .eq("org_id", orgId);
+
+      if (orgError) throw orgError;
+
+      if (!orgUsers || orgUsers.length === 0) {
+        setOooUsers([]);
+        return;
+      }
+
+      const userIds = orgUsers.map(u => u.user_id);
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, display_name, leave_duration, updated_at, user_id")
+        .in("user_id", userIds)
+        .not("display_name", "is", null);
+
+      if (error) throw error;
+
+      // Auto-clean any expired leave profiles from database
+      const expiredIds = await cleanExpiredLeaveProfiles(data || []);
+
+      // Only show users whose leave is currently active and within duration (start <= now <= end)
+      const active = (data || []).filter(u => {
+        if (expiredIds.includes(u.id) || expiredIds.includes(u.user_id)) return false;
+        if (!u.display_name?.trim()) return false;
+        if (!u.leave_duration?.trim()) return false;
+        const parsed = parseLeaveDuration(u.leave_duration, u.updated_at);
+        return !parsed.isExpired && parsed.isActive;
+      });
+
+      setOooUsers(active);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingOoo(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOooUsers();
+    // Periodically re-check so expired leave auto-removes in real-time
+    const interval = setInterval(() => {
+      fetchOooUsers();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [orgId]);
+
+  // Search effect
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (!orgId) {
+        setUsers([]);
+        return;
+      }
+      setIsSearching(true);
+      try {
+        // Fetch users in this org excluding members
+        const { data: orgUsers, error: orgError } = await supabase
+          .from("organization_users")
+          .select("user_id, role")
+          .eq("org_id", orgId)
+          .neq("role", "member");
+
+        if (orgError) throw orgError;
+
+        if (!orgUsers || orgUsers.length === 0) {
+          setUsers([]);
+          return;
+        }
+
+        const userIds = orgUsers.map(u => u.user_id);
+
+        let query = supabase
+          .from("profiles")
+          .select("id, user_id, full_name, email, display_name, leave_duration")
+          .in("user_id", userIds)
+        // .limit(10);
+
+        if (searchTerm.trim().length > 0) {
+          query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        }
+
+        const { data: profilesData, error: profileError } = await query;
+
+        if (profileError) throw profileError;
+
+        const finalUsers = (profilesData || []).map(p => {
+          const orgUser = orgUsers.find(u => u.user_id === p.user_id || u.user_id === p.id);
+          return {
+            ...p,
+            role: orgUser?.role
+          };
+        });
+
+        setUsers(finalUsers);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, orgId]);
+
+  const handleUpdateDisplayName = async () => {
+    if (!selectedUser) return;
+
+    if (displayName === "OOO" && !leaveDuration) {
+      toast.error("Please select a duration for OOO status", {
+        style: {
+          backgroundColor: "#fef2f2",
+          borderColor: "#ef4444",
+          color: "#991b1b"
+        }
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          display_name: displayName || null,
+          leave_duration: displayName ? (leaveDuration || null) : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", selectedUser.id);
+      if (error) {
+        toast.error("Failed to update display name");
+      } else {
+        toast.success("Display name and duration updated successfully", {
+          style: {
+            backgroundColor: "#f3f8f6ff",
+            borderColor: "#10B981",
+            color: "#047857"
+          }
+        });
+        setSelectedUser(null);
+        setDisplayName("");
+        setLeaveDuration("");
+        setSearchTerm("");
+        fetchOooUsers();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update display name");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRemoveDisplayName = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          display_name: null,
+          leave_duration: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id);
+      if (error) throw error;
+
+      // Also trigger server-side clean
+      fetch("/api/clean-expired-leaves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id] }),
+      }).catch(() => { });
+
+      toast.success("Display name removed");
+      setOooUsers((prev: any[]) => prev.filter(u => u.id !== id));
+      if (selectedUser?.id === id) {
+        setDisplayName("");
+        setLeaveDuration("");
+        setSelectedUser((prev: any) => prev ? { ...prev, display_name: null, leave_duration: null } : null);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove display name");
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>User Display Names</CardTitle>
+        <CardDescription>
+          Search for users and update their display names, such as adding OOO (Out of Office) when they are on leave.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex flex-col md:flex-row gap-4 items-start">
+          <div className="space-y-2 flex-1">
+            <Label>Select User</Label>
+            <DropdownMenu open={open} onOpenChange={setOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between font-normal text-left">
+                  <span className="truncate">
+                    {selectedUser ? `${selectedUser.full_name} (${selectedUser.email})${selectedUser.role ? ` • ${selectedUser.role}` : ""}` : "Search user by name or email..."}
+                  </span>
+                  <span className="text-muted-foreground">▾</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-[300px] md:w-[400px] p-2" align="start">
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  placeholder="Search user by name or email..."
+                  className="h-9"
+                  autoFocus
+                />
+                <DropdownMenuSeparator className="my-2" />
+                <div className="max-h-48 overflow-y-auto">
+                  {isSearching ? (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">Searching...</p>
+                  ) : users.length === 0 ? (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">
+                      No users found
+                    </p>
+                  ) : (
+                    users.map((user) => (
+                      <DropdownMenuItem
+                        key={user.id}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setSelectedUser(user);
+                          setDisplayName(user.display_name || "");
+                          setLeaveDuration(user.leave_duration || "");
+                          setOpen(false);
+                          setSearchTerm("");
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-medium">{user.full_name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {user.email}{user.role ? ` • ${user.role}` : ""}
+                          </span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="space-y-2 flex-1">
+            <Label>Display Name</Label>
+            <Input
+              placeholder="e.g. OOO"
+              value={displayName}
+              maxLength={3}
+              className="border-gray-200"
+              onChange={(e) => {
+                const val = e.target.value.toUpperCase();
+                if (val.length > 3) return;
+                if (/^[O]*$/.test(val)) {
+                  setDisplayName(val);
+                } else {
+                  toast.warning("Only 'OOO' characters are allowed", {
+                    id: "display-name-error",
+                    style: {
+                      backgroundColor: "#f9f6eaff",
+                      borderColor: "#F59E0B",
+                      color: "#92400E"
+                    }
+                  });
+                }
+              }}
+              // disabled={!selectedUser}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && selectedUser) {
+                  handleUpdateDisplayName();
+                }
+              }}
+            />
+          </div>
+
+          <div className="space-y-2 flex-1">
+            <Label>Duration</Label>
+            <StatusDurationSelector
+              value={leaveDuration}
+              onChange={setLeaveDuration}
+            />
+          </div>
+
+          <div className="flex gap-2 w-full md:w-auto md:mt-8">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedUser(null);
+                setDisplayName("");
+                setLeaveDuration("");
+                setSearchTerm("");
+              }}
+              disabled={!selectedUser && !displayName && !leaveDuration && !searchTerm}
+              className="flex-1 md:flex-none"
+            >
+              Clear
+            </Button>
+            <Button
+              onClick={handleUpdateDisplayName}
+              disabled={!selectedUser || isSaving}
+              className="flex-1 md:flex-none"
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </div>
+
+        {oooUsers.length > 0 && (
+          <div className="mt-6 border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User Name</TableHead>
+                  <TableHead>User Email</TableHead>
+                  <TableHead>Display Name</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead className="w-[100px]">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {oooUsers.map(user => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      {user.full_name}
+                    </TableCell>
+                    <TableCell>
+                      {user.email}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const parsed = parseLeaveDuration(user.leave_duration, user.updated_at);
+                        const appliedTime = parsed.start || user.updated_at;
+                        let formattedApplied = "";
+                        let formattedUntil = "";
+                        if (appliedTime) {
+                          try {
+                            formattedApplied = format(new Date(appliedTime), "dd MMM yyyy, hh:mm a");
+                          } catch {}
+                        }
+                        if (parsed.end) {
+                          try {
+                            formattedUntil = format(new Date(parsed.end), "dd MMM yyyy, hh:mm a");
+                          } catch {}
+                        }
+
+                        return user.display_name === 'OOO' ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge
+                                  variant="outline"
+                                  className="px-2 py-2 h-5 text-[10px] bg-orange-100 text-orange-800 border-orange-200 cursor-help flex items-center gap-1 w-fit"
+                                >
+                                  <CalendarOff className="w-3 h-3 text-red-600" />
+                                  {user.display_name}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="flex items-center gap-2">
+                                <p>
+                                  This approver on leave (out of office)
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Badge variant="outline">
+                            {user.display_name}
+                          </Badge>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const parsed = parseLeaveDuration(user.leave_duration, user.updated_at);
+                        const appliedTime = parsed.start || user.updated_at;
+                        let formattedApplied = "";
+                        let formattedUntil = "";
+                        if (appliedTime) {
+                          try {
+                            formattedApplied = format(new Date(appliedTime), "dd MMM yyyy, hh:mm a");
+                          } catch {}
+                        }
+                        if (parsed.end) {
+                          try {
+                            formattedUntil = format(new Date(parsed.end), "dd MMM yyyy, hh:mm a");
+                          } catch {}
+                        }
+
+                        return parsed.label ? (
+                          <div className="flex flex-col gap-1.5 py-1">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 w-fit">
+                              <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span>{parsed.label}</span>
+                            </div>
+                            <div className="flex flex-col gap-0.5 text-[11px] text-slate-600 pl-0.5">
+                              {formattedApplied && (
+                                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                  <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="text-slate-500 font-medium">Applied:</span>
+                                  <span className="font-semibold text-slate-700">{formattedApplied}</span>
+                                </div>
+                              )}
+                              {formattedUntil && (
+                                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                  <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="text-slate-500 font-medium">Until:</span>
+                                  <span className="font-semibold text-slate-800">{formattedUntil}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-500 border-red-200 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Remove
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove Display Name</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to remove the display name for this user?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="cursor-pointer border border-gray-200">Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleRemoveDisplayName(user.id)}
+                              className="bg-transparent border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                            >
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function SettingsPage() {
@@ -277,6 +951,20 @@ export default function SettingsPage() {
     projectOfExpenseTotalPages,
     setProjectOfExpenseCurrentPage,
   ]);
+  const [approverOptions, setApproverOptions] = useState<ApproverOption[]>([]);
+
+  // Expense type → approver mapping (approver + second approver per expense type)
+  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
+    ExpenseTypeApproverMappingEntry[]
+  >([]);
+  const [savingExpenseTypeMapping, setSavingExpenseTypeMapping] =
+    useState(false);
+
+  // Location of expense → approver mapping (approver + second approver per location)
+  const [locationApproverMapping, setLocationApproverMapping] = useState<
+    LocationApproverMappingEntry[]
+  >([]);
+  const [savingLocationMapping, setSavingLocationMapping] = useState(false);
 
   // Preview uploaded logo
   useEffect(() => {
@@ -304,6 +992,26 @@ export default function SettingsPage() {
         }
 
         if (settingsData) {
+          // Set expense type → approver mapping
+          if (
+            settingsData.expense_type_approver_mapping &&
+            Array.isArray(settingsData.expense_type_approver_mapping)
+          ) {
+            setExpenseTypeApproverMapping(
+              settingsData.expense_type_approver_mapping
+            );
+          }
+
+          // Set location → approver mapping
+          if (
+            settingsData.location_approver_mapping &&
+            Array.isArray(settingsData.location_approver_mapping)
+          ) {
+            setLocationApproverMapping(
+              settingsData.location_approver_mapping
+            );
+          }
+
           // Set branding settings
           if (settingsData.branding) {
             setPrimaryColor(settingsData.branding.primaryColor || "#2563eb");
@@ -334,7 +1042,7 @@ export default function SettingsPage() {
             const hasLocationColumn = processedColumns.some(
               (col) => col.key === "location"
             );
-            
+
             // Remove duplicate "Project of Expense" entries (keep only the one with key "location")
             const locationColumnIndex = processedColumns.findIndex(
               (col) => col.key === "location"
@@ -342,7 +1050,7 @@ export default function SettingsPage() {
             const projectExpenseIndex = processedColumns.findIndex(
               (col) => col.label === "Project of Expense" && col.key !== "location"
             );
-            
+
             if (projectExpenseIndex !== -1 && locationColumnIndex !== -1) {
               // Remove the duplicate if both exist
               processedColumns.splice(projectExpenseIndex, 1);
@@ -418,17 +1126,20 @@ export default function SettingsPage() {
             ]) || []
           );
 
+          const nextApproverOptions = approvers.map((approver) => ({
+            value: approver.user_id,
+            label: approverNames.get(approver.user_id) || approver.user_id,
+          }));
+
+          setApproverOptions(nextApproverOptions);
+
           // Update the approver column options
           setColumns((prevColumns) => {
             return prevColumns.map((col) => {
               if (col.key === "approver") {
                 return {
                   ...col,
-                  options: approvers.map((approver) => ({
-                    value: approver.user_id,
-                    label:
-                      approverNames.get(approver.user_id) || approver.user_id,
-                  })),
+                  options: nextApproverOptions,
                 };
               }
               return col;
@@ -535,11 +1246,11 @@ export default function SettingsPage() {
         (col: DbColumnConfig) => col.key === "location"
       );
       const duplicateProjectExpenseIndices = columnsToSave
-        .map((col: DbColumnConfig, idx: number) => 
+        .map((col: DbColumnConfig, idx: number) =>
           col.label === "Project of Expense" && col.key !== "location" ? idx : -1
         )
         .filter((idx: number) => idx !== -1);
-      
+
       // Remove duplicates in reverse order to avoid index shifting
       for (let i = duplicateProjectExpenseIndices.length - 1; i >= 0; i--) {
         columnsToSave.splice(duplicateProjectExpenseIndices[i], 1);
@@ -602,6 +1313,199 @@ export default function SettingsPage() {
       toast.error("Failed to save columns", { description: e.message });
       console.error("Error saving columns:", e);
     }
+  };
+
+  const getApproverLabel = (id: string) =>
+    approverOptions.find((opt) => opt.value === id)?.label || id;
+
+  const normalizeIds = (value?: string | string[]) => {
+    if (!value) return [] as string[];
+    return Array.isArray(value)
+      ? value.filter((v) => v && v.trim())
+      : value.trim()
+        ? [value]
+        : [];
+  };
+
+  const normalizeNames = (value?: string | string[]) => {
+    if (!value) return [] as string[];
+    if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+    return value
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  };
+
+  const resolveIdsFromNames = (names?: string | string[]) => {
+    const nameList = normalizeNames(names);
+    if (!nameList.length) return [] as string[];
+    const mapByLabel = new Map(
+      approverOptions.map((opt) => [opt.label.toLowerCase(), opt.value])
+    );
+    return nameList
+      .map((name) => mapByLabel.get(name.toLowerCase()))
+      .filter((v): v is string => Boolean(v));
+  };
+
+  const handleSaveLocationApproverMapping = async () => {
+    setSavingLocationMapping(true);
+    try {
+      const toSave = locationApproverMapping.filter((m) => {
+        if (!m.location) return false;
+        if (Array.isArray(m.location)) {
+          return m.location.some((l) => l && l !== "__new__");
+        }
+        return m.location.trim() !== "" && m.location !== "__new__";
+      });
+
+      // Validation 1: Approver and Second Approver cannot be the same
+      for (let i = 0; i < toSave.length; i++) {
+        const approvers = normalizeIds(toSave[i].approver_id);
+        const secondApprovers = normalizeIds(toSave[i].second_approver_id);
+        const overlap = approvers.filter((id) => secondApprovers.includes(id));
+        if (overlap.length > 0) {
+          const names = overlap.map(getApproverLabel).join(", ");
+          toast.warning(
+            `"${names}" cannot be assigned as both Approver and Second Approver for the same location mapping.`
+          );
+          setSavingLocationMapping(false);
+          return;
+        }
+      }
+
+      // Validation 2: Check conflicting location + expense type across rows
+      for (let i = 0; i < toSave.length; i++) {
+        const locsA = normalizeIds(toSave[i].location).filter((l) => l !== "__new__");
+        const typesA = normalizeIds(toSave[i].expense_type);
+        for (let j = i + 1; j < toSave.length; j++) {
+          const locsB = normalizeIds(toSave[j].location).filter((l) => l !== "__new__");
+          const typesB = normalizeIds(toSave[j].expense_type);
+          const commonLocs = locsA.filter((la) =>
+            locsB.some((lb) => lb.trim().toLowerCase() === la.trim().toLowerCase())
+          );
+          for (const loc of commonLocs) {
+            const commonTypes = typesA.filter((ta) =>
+              typesB.some((tb) => tb.trim().toLowerCase() === ta.trim().toLowerCase())
+            );
+            if (commonTypes.length > 0) {
+              toast.warning(
+                `Location "${loc}" with expense type "${commonTypes[0]}" is mapped more than once. Please remove duplicate assignments.`
+              );
+              setSavingLocationMapping(false);
+              return;
+            }
+            if (typesA.length === 0 && typesB.length === 0) {
+              toast.warning(
+                `Location "${loc}" without expense type is mapped more than once. Please remove duplicate assignments.`
+              );
+              setSavingLocationMapping(false);
+              return;
+            }
+          }
+        }
+      }
+
+      const { error } = await orgSettings.updateLocationApproverMapping(
+        orgId,
+        toSave
+      );
+      if (error) throw error;
+      toast.success("Location → approver mapping saved!");
+    } catch (e: any) {
+      toast.error("Failed to save mapping", { description: e.message });
+    } finally {
+      setSavingLocationMapping(false);
+    }
+  };
+
+  const handleSaveExpenseTypeApproverMapping = async () => {
+    setSavingExpenseTypeMapping(true);
+    try {
+      const toSave = expenseTypeApproverMapping.filter((m) => {
+        if (!m.expense_type) return false;
+        if (Array.isArray(m.expense_type)) {
+          return m.expense_type.length > 0 && !m.expense_type.includes("__new__");
+        }
+        return m.expense_type.trim() !== "" && m.expense_type !== "__new__";
+      });
+
+      // Validation: Check duplicate expense types across rows
+      const seenTypes = new Map<string, number>();
+      for (let i = 0; i < toSave.length; i++) {
+        const types = normalizeIds(toSave[i].expense_type);
+        for (const t of types) {
+          const lower = t.trim().toLowerCase();
+          if (seenTypes.has(lower)) {
+            toast.warning(
+              `Expense type "${t}" is mapped more than once. Please remove duplicate assignments.`
+            );
+            setSavingExpenseTypeMapping(false);
+            return;
+          }
+          seenTypes.set(lower, i);
+        }
+
+        // Validation: Approver and Second Approver cannot be the same
+        const approvers = normalizeIds(toSave[i].approver_id);
+        const secondApprovers = normalizeIds(toSave[i].second_approver_id);
+        const overlap = approvers.filter((id) => secondApprovers.includes(id));
+        if (overlap.length > 0) {
+          const names = overlap.map(getApproverLabel).join(", ");
+          toast.warning(
+            `"${names}" cannot be both Approver and Second Approver for the same expense type.`
+          );
+          setSavingExpenseTypeMapping(false);
+          return;
+        }
+      }
+
+      const { error } = await orgSettings.updateExpenseTypeApproverMapping(
+        orgId,
+        toSave
+      );
+      if (error) throw error;
+      toast.success("Expense type → approver mapping saved!");
+    } catch (e: any) {
+      toast.error("Failed to save mapping", { description: e.message });
+    } finally {
+      setSavingExpenseTypeMapping(false);
+    }
+  };
+
+  const handleAddExpenseTypeApproverMappingRow = () => {
+    setExpenseTypeApproverMapping((prev) => [
+      ...prev,
+      {
+        expense_type: ["__new__"],
+        approver_id: [],
+        second_approver_id: [],
+        enabled: true,
+      },
+    ]);
+  };
+
+  const handleRemoveExpenseTypeApproverMappingRow = (index: number) => {
+    setExpenseTypeApproverMapping((prev) =>
+      prev.filter((_, i) => i !== index)
+    );
+  };
+
+  const handleAddLocationApproverMappingRow = () => {
+    setLocationApproverMapping((prev) => [
+      ...prev,
+      {
+        location: "__new__",
+        approver_id: [],
+        second_approver_id: [],
+        enabled: true,
+      },
+    ]);
+  };
+
+  const handleRemoveLocationApproverMappingRow = (index: number) => {
+    setLocationApproverMapping((prev) =>
+      prev.filter((_, i) => i !== index)
+    );
   };
 
   const handleAddColumn = () => {
@@ -751,17 +1655,17 @@ export default function SettingsPage() {
     try {
       const { data, error } = isEditingExpenseType
         ? await expenseTypeDetails.update(editingExpenseTypeId!, {
-            group: expenseTypeForm.group,
-            sub_group: expenseTypeForm.sub_group,
-            expense_ledger: expenseTypeForm.expense_ledger,
-            description: expenseTypeForm.description,
-          })
+          group: expenseTypeForm.group,
+          sub_group: expenseTypeForm.sub_group,
+          expense_ledger: expenseTypeForm.expense_ledger,
+          description: expenseTypeForm.description,
+        })
         : await expenseTypeDetails.create({
-            group: expenseTypeForm.group,
-            sub_group: expenseTypeForm.sub_group,
-            expense_ledger: expenseTypeForm.expense_ledger,
-            description: expenseTypeForm.description,
-          });
+          group: expenseTypeForm.group,
+          sub_group: expenseTypeForm.sub_group,
+          expense_ledger: expenseTypeForm.expense_ledger,
+          description: expenseTypeForm.description,
+        });
 
       if (error) throw error;
 
@@ -884,13 +1788,13 @@ export default function SettingsPage() {
     try {
       const { data, error } = isEditingProjectOfExpense
         ? await projectOfExpenseDetails.update(editingProjectOfExpenseId!, {
-            project_of_expense: projectOfExpenseForm.project_of_expense,
-            project_description: projectOfExpenseForm.project_description,
-          })
+          project_of_expense: projectOfExpenseForm.project_of_expense,
+          project_description: projectOfExpenseForm.project_description,
+        })
         : await projectOfExpenseDetails.create({
-            project_of_expense: projectOfExpenseForm.project_of_expense,
-            project_description: projectOfExpenseForm.project_description,
-          });
+          project_of_expense: projectOfExpenseForm.project_of_expense,
+          project_description: projectOfExpenseForm.project_description,
+        });
 
       if (error) throw error;
 
@@ -981,6 +1885,8 @@ export default function SettingsPage() {
     }
   };
 
+
+
   return (
     <div className="space-y-6">
       <h1 className="page-title">Organisation Settings</h1>
@@ -1052,8 +1958,8 @@ export default function SettingsPage() {
                 Configure columns and field types for the expense form
               </CardDescription>
             </div>
-            <Button onClick={handleAddColumn} variant="outline">
-              <PlusCircle className="w-4 h-4 mr-2" />
+            <Button onClick={handleAddColumn}>
+              <PlusCircle className="w-4 h-4" />
               Add Column
             </Button>
           </div>
@@ -1113,129 +2019,919 @@ export default function SettingsPage() {
           <div className="flex justify-end">
             <Button onClick={handleSaveColumns}>Save Columns</Button>
           </div>
+        </CardContent>
+      </Card>
 
-          <Dialog open={showColumnDialog} onOpenChange={setShowColumnDialog}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {editingColumn?.key?.startsWith("custom_field_")
-                    ? "Add Column"
-                    : "Edit Column"}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-                <div className="space-y-2">
-                  <Label>Column Label</Label>
-                  <Input
-                    value={editingColumn?.label || ""}
-                    onChange={(e) =>
-                      setEditingColumn((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              label: e.target.value,
-                              key: prev.key.startsWith("custom_field_")
-                                ? prev.key
-                                : e.target.value
-                                    .toLowerCase()
-                                    .replace(/\s+/g, "_"),
+      {/* Expense Type → Approver Mapping */}
+      {(() => {
+        const expenseTypeCol = (columns as any[]).find(
+          (c: any) =>
+            c.key === "expense_type" ||
+            String(c.label || "").trim().toLowerCase() === "expense type"
+        );
+        const expenseTypeOptions: string[] = expenseTypeCol?.options
+          ? Array.isArray(expenseTypeCol.options)
+            ? (expenseTypeCol.options as any[]).map((o: any) =>
+              typeof o === "object" ? o.value ?? o.label : String(o)
+            )
+            : []
+          : [];
+
+        const expenseTypeOptionsForSelect: ApproverOption[] = expenseTypeOptions.map((o) => ({
+          value: o,
+          label: o,
+        }));
+
+        const displayRows = expenseTypeApproverMapping.map((_, index) => index);
+
+        const updateMappingEntry = (
+          index: number,
+          updates: Partial<ExpenseTypeApproverMappingEntry>
+        ) => {
+          setExpenseTypeApproverMapping((prev) => {
+            const next = [...prev];
+            const base = next[index] || {
+              expense_type: [],
+              approver_id: [],
+              second_approver_id: [],
+              enabled: true,
+            };
+            next[index] = {
+              ...base,
+              ...updates,
+            };
+            return next;
+          });
+        };
+
+        const renderRow = (index: number) => {
+          const entry = expenseTypeApproverMapping[index];
+          if (!entry) return null;
+          const resolvedApproverIds = normalizeIds(entry?.approver_id);
+          const resolvedApproverNames = normalizeNames(entry?.approver_name);
+          const selectedApproverIds =
+            resolvedApproverIds.length > 0
+              ? resolvedApproverIds
+              : resolveIdsFromNames(resolvedApproverNames);
+
+          const resolvedSecondApproverIds = normalizeIds(
+            entry?.second_approver_id
+          );
+          const resolvedSecondApproverNames = normalizeNames(
+            entry?.second_approver_name
+          );
+          const selectedSecondApproverIds =
+            resolvedSecondApproverIds.length > 0
+              ? resolvedSecondApproverIds
+              : resolveIdsFromNames(resolvedSecondApproverNames);
+
+          const selectedExpenseTypes = normalizeIds(entry?.expense_type).filter(
+            (t) => t !== "__new__"
+          );
+
+          return (
+            <div
+              key={index}
+              className="flex flex-col gap-4 p-4 border border-black shadow-sm rounded-lg"
+            >
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="space-y-1 min-w-[200px] flex-1 max-w-[300px]">
+                  <Label className="text-xs">Expense Type</Label>
+                  <MultiSelect
+                    options={expenseTypeOptionsForSelect}
+                    value={selectedExpenseTypes}
+                    onChange={(nextIds) => {
+                      const newlyAdded = nextIds.filter(
+                        (t) => !selectedExpenseTypes.includes(t) && t !== "__new__"
+                      );
+                      const validIds: string[] = [];
+                      for (const t of nextIds) {
+                        if (newlyAdded.includes(t)) {
+                          const conflictRow = expenseTypeApproverMapping.find(
+                            (m, i) =>
+                              i !== index &&
+                              normalizeIds(m.expense_type).some(
+                                (et) => et.trim().toLowerCase() === t.trim().toLowerCase()
+                              )
+                          );
+                          if (conflictRow) {
+                            const approverNames = [
+                              ...normalizeIds(conflictRow.approver_id).map(getApproverLabel),
+                              ...normalizeIds(conflictRow.second_approver_id).map(getApproverLabel),
+                            ].filter(Boolean);
+                            if (approverNames.length > 0) {
+                              toast.warning(
+                                `Approver (${approverNames.join(", ")}) is already assigned for expense type "${t}".`
+                              );
+                            } else {
+                              toast.warning(
+                                `Expense type "${t}" is already assigned in another mapping.`
+                              );
                             }
-                          : null
-                      )
-                    }
-                    disabled={
-                      !editingColumn?.key?.startsWith("custom_field_") &&
-                      defaultColumns.some((c) => c.key === editingColumn?.key)
-                    }
+                            continue;
+                          }
+                        }
+                        validIds.push(t);
+                      }
+                      updateMappingEntry(index, {
+                        expense_type: validIds,
+                      });
+                    }}
+                    placeholder="Select expense types"
+                    searchPlaceholder="Search expense type..."
+                    hideBadges
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Field Type</Label>
-                  <Select
-                    value={editingColumn?.type}
-                    onValueChange={(value: ColumnConfig["type"]) =>
-                      setEditingColumn((prev) =>
-                        prev ? { ...prev, type: value } : null
-                      )
-                    }
-                    disabled={defaultColumns.some(
-                      (c) => c.key === editingColumn?.key
-                    )}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="number">Number</SelectItem>
-                      <SelectItem value="date">Date</SelectItem>
-                      <SelectItem value="textarea">Text Area</SelectItem>
-                      <SelectItem value="dropdown">Dropdown</SelectItem>
-                      <SelectItem value="radio">Radio</SelectItem>
-                      <SelectItem value="checkbox">Checkbox</SelectItem>
-                      {/* <SelectItem value="file">File Upload</SelectItem> */}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {["dropdown", "radio", "checkbox"].includes(
-                  editingColumn?.type || ""
-                ) &&
-                  editingColumn?.key !== "approver" && (
-                    <div className="space-y-2">
-                      <Label>Options (one per line)</Label>
-                      <Textarea
-                        value={newOptions}
-                        onChange={(e) => setNewOptions(e.target.value)}
-                        placeholder="Enter options..."
-                        rows={5}
-                        className="max-h-48 overflow-y-auto"
+                <div className="flex-1 flex flex-wrap gap-4">
+                  <div className="space-y-1 min-w-[240px]">
+                    <Label className="text-xs">Approver</Label>
+                    <MultiSelect
+                      options={approverOptions}
+                      value={selectedApproverIds}
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((id) => !selectedApproverIds.includes(id));
+                        const validIds: string[] = [];
+                        for (const id of nextIds) {
+                          if (newlyAdded.includes(id) && selectedSecondApproverIds.includes(id)) {
+                            const name = getApproverLabel(id);
+                            toast.warning(
+                              `"${name}" is already assigned as Second Approver for this expense type.`
+                            );
+                            continue;
+                          }
+                          validIds.push(id);
+                        }
+                        updateMappingEntry(index, {
+                          approver_id: validIds,
+                          approver_name: validIds.length
+                            ? validIds.map(getApproverLabel).join(", ")
+                            : undefined,
+                        });
+                      }}
+                      placeholder="Select one or more approvers"
+                      searchPlaceholder="Search approver"
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[240px]">
+                    <Label className="text-xs">Second Approver</Label>
+                    <MultiSelect
+                      options={approverOptions}
+                      value={selectedSecondApproverIds}
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((id) => !selectedSecondApproverIds.includes(id));
+                        const validIds: string[] = [];
+                        for (const id of nextIds) {
+                          if (newlyAdded.includes(id) && selectedApproverIds.includes(id)) {
+                            const name = getApproverLabel(id);
+                            toast.warning(
+                              `"${name}" is already assigned as Approver for this expense type.`
+                            );
+                            continue;
+                          }
+                          validIds.push(id);
+                        }
+                        updateMappingEntry(index, {
+                          second_approver_id: validIds,
+                          second_approver_name: validIds.length
+                            ? validIds.map(getApproverLabel).join(", ")
+                            : undefined,
+                        });
+                      }}
+                      placeholder="Select one or more approvers"
+                      searchPlaceholder="Search second approver"
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[140px]">
+                    <Label className="block text-center text-xs">Enable on expense form</Label>
+                    <div className="flex h-9 items-center justify-center">
+                      <Checkbox
+                        checked={entry?.enabled !== false}
+                        onCheckedChange={(checked) =>
+                          updateMappingEntry(index, {
+                            enabled: checked === true,
+                          })
+                        }
                       />
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive mt-6"
+                  onClick={() =>
+                    handleRemoveExpenseTypeApproverMappingRow(index)
+                  }
+                  title="Remove mapping"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {(selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
+                <div className="w-full pt-4 border-t border-border/110 flex flex-col gap-6">
+                  {selectedExpenseTypes.length > 0 && (
+                    <div className="w-full">
+                      <p className="text-sm font-medium mb-2 text-foreground/80">
+                        Expense Types ({selectedExpenseTypes.length}) :
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedExpenseTypes.map((type) => (
+                          <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
+                            {type}
+                            <X
+                              className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                updateMappingEntry(index, {
+                                  expense_type: selectedExpenseTypes.filter((t) => t !== type),
+                                });
+                              }}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                {editingColumn?.key === "approver" && (
-                  <div className="text-sm text-muted-foreground p-2 bg-muted rounded-md">
-                    Options for this field are automatically populated with
-                    organization members who can approve expenses (owners,
-                    admins, and managers).
-                  </div>
-                )}
+                  {(selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
+                    <div className="flex flex-wrap gap-x-12 gap-y-6">
+                      {selectedApproverIds.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Approvers ({selectedApproverIds.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedApproverIds.map((id) => (
+                              <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {getApproverLabel(id)}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const nextIds = selectedApproverIds.filter((t) => t !== id);
+                                    updateMappingEntry(index, {
+                                      approver_id: nextIds,
+                                      approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    checked={editingColumn?.required}
-                    onCheckedChange={(v) =>
-                      setEditingColumn((prev) =>
-                        prev ? { ...prev, required: v as boolean } : null
-                      )
-                    }
-                  />
-                  <Label>Required field</Label>
+                      {selectedSecondApproverIds.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Second Approvers ({selectedSecondApproverIds.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSecondApproverIds.map((id) => (
+                              <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {getApproverLabel(id)}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const nextIds = selectedSecondApproverIds.filter((t) => t !== id);
+                                    updateMappingEntry(index, {
+                                      second_approver_id: nextIds,
+                                      second_approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+              )}
+            </div>
+          );
+        };
 
-                <Button onClick={handleSaveColumn} className="w-full">
-                  Save Column
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Expense Type → Approver Mapping ( Without Campus Wise )</CardTitle>
+                  <CardDescription>
+                    Set approver and second approver for each expense type.
+                    These will auto-fill on the new expense form when a user
+                    selects an expense type.
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleAddExpenseTypeApproverMappingRow}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Mapping
                 </Button>
               </div>
-            </DialogContent>
-          </Dialog>
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {displayRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No mappings added yet. Click &quot;Add Mapping&quot; to create a new expense type → approver mapping.
+                  </p>
+                ) : (
+                  displayRows.map((index) => renderRow(index))
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  // type="button"
+                  // variant="outline"
+                  // size="sm"
+                  onClick={handleAddExpenseTypeApproverMappingRow}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Mapping
+                </Button>
+                <Button
+                  onClick={handleSaveExpenseTypeApproverMapping}
+                  disabled={savingExpenseTypeMapping}
+                >
+                  {savingExpenseTypeMapping ? "Saving…" : "Save Mapping"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Location → Approver Mapping */}
+      {(() => {
+        const locationCol = columns.find((c) => c.key === "location");
+        const locationOptions: string[] = locationCol?.options
+          ? Array.isArray(locationCol.options)
+            ? (locationCol.options as any[]).map((o: any) =>
+              typeof o === "object" ? o.value ?? o.label : String(o)
+            )
+            : []
+          : [];
+
+        const locationOptionsForSelect: ApproverOption[] = locationOptions.map((o) => ({
+          value: o,
+          label: o,
+        }));
+
+        const expenseTypeCol = (columns as any[]).find(
+          (c: any) =>
+            c.key === "expense_type" ||
+            String(c.label || "")
+              .trim()
+              .toLowerCase() === "expense type"
+        );
+        const expenseTypeOptions: string[] = expenseTypeCol?.options
+          ? Array.isArray(expenseTypeCol.options)
+            ? (expenseTypeCol.options as any[]).map((o: any) =>
+              typeof o === "object" ? o.value ?? o.label : String(o)
+            )
+            : []
+          : [];
+
+        const expenseTypeOptionsForSelect: ApproverOption[] = expenseTypeOptions.map((o) => ({
+          value: o,
+          label: o,
+        }));
+
+        const displayRows = locationApproverMapping.map((_, index) => index);
+
+        const updateMappingEntry = (
+          index: number,
+          updates: Partial<LocationApproverMappingEntry>
+        ) => {
+          setLocationApproverMapping((prev) => {
+            const next = [...prev];
+            const base = next[index] || {
+              location: "",
+              expense_type: [],
+              approver_id: [],
+              second_approver_id: [],
+              enabled: true,
+            };
+            next[index] = {
+              ...base,
+              ...updates,
+            };
+            return next;
+          });
+        };
+
+        const renderRow = (index: number) => {
+          const entry = locationApproverMapping[index];
+          if (!entry) return null;
+          const location = entry.location;
+          const resolvedApproverIds = normalizeIds(entry?.approver_id);
+          const resolvedApproverNames = normalizeNames(entry?.approver_name);
+          const selectedApproverIds =
+            resolvedApproverIds.length > 0
+              ? resolvedApproverIds
+              : resolveIdsFromNames(resolvedApproverNames);
+
+          const resolvedSecondApproverIds = normalizeIds(
+            entry?.second_approver_id
+          );
+          const resolvedSecondApproverNames = normalizeNames(
+            entry?.second_approver_name
+          );
+          const selectedSecondApproverIds =
+            resolvedSecondApproverIds.length > 0
+              ? resolvedSecondApproverIds
+              : resolveIdsFromNames(resolvedSecondApproverNames);
+
+          const selectedLocations = normalizeIds(entry?.location).filter((t) => t !== "__new__");
+          const selectedExpenseTypes = normalizeIds(entry?.expense_type);
+
+          return (
+            <div
+              key={index}
+              className="flex flex-col gap-4 p-4 border border-black rounded-lg"
+            >
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="space-y-3 min-w-[200px] flex-1 max-w-[300px]">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Location</Label>
+                    <MultiSelect
+                      options={locationOptionsForSelect}
+                      value={selectedLocations}
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter(
+                          (l) => !selectedLocations.includes(l) && l !== "__new__"
+                        );
+                        const validIds: string[] = [];
+                        for (const loc of nextIds) {
+                          if (newlyAdded.includes(loc)) {
+                            // Only check conflict if expense_type is already selected in this row
+                            if (selectedExpenseTypes.length > 0) {
+                              let hasConflict = false;
+                              for (let i = 0; i < locationApproverMapping.length; i++) {
+                                if (i === index) continue;
+                                const otherRow = locationApproverMapping[i];
+                                const otherLocs = normalizeIds(otherRow.location).filter((l) => l !== "__new__");
+                                if (otherLocs.some((l) => l.trim().toLowerCase() === loc.trim().toLowerCase())) {
+                                  const otherTypes = normalizeIds(otherRow.expense_type);
+                                  const matchingTypes = selectedExpenseTypes.filter((ct) =>
+                                    otherTypes.some((ot) => ot.trim().toLowerCase() === ct.trim().toLowerCase())
+                                  );
+
+                                  if (matchingTypes.length > 0) {
+                                    hasConflict = true;
+                                    const approverNames = [
+                                      ...normalizeIds(otherRow.approver_id).map(getApproverLabel),
+                                      ...normalizeIds(otherRow.second_approver_id).map(getApproverLabel),
+                                    ].filter(Boolean);
+                                    const approverPart = approverNames.length > 0
+                                      ? `Approver (${approverNames.join(", ")}) is already assigned`
+                                      : `Mapping already exists`;
+                                    toast.warning(
+                                      `${approverPart} for location "${loc}" with expense type "${matchingTypes.join(", ")}".`
+                                    );
+                                    break;
+                                  }
+                                }
+                              }
+                              if (hasConflict) continue;
+                            }
+                          }
+                          validIds.push(loc);
+                        }
+                        updateMappingEntry(index, { location: validIds });
+                      }}
+                      placeholder="Select locations"
+                      searchPlaceholder="Search location..."
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      Expense Type (optional)
+                    </Label>
+                    <MultiSelect
+                      options={expenseTypeOptionsForSelect}
+                      value={selectedExpenseTypes}
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((t) => !selectedExpenseTypes.includes(t));
+                        const validIds: string[] = [];
+                        for (const type of nextIds) {
+                          if (newlyAdded.includes(type)) {
+                            // Only check conflict if location is already selected in this row
+                            if (selectedLocations.length > 0) {
+                              let hasConflict = false;
+                              for (const loc of selectedLocations) {
+                                for (let i = 0; i < locationApproverMapping.length; i++) {
+                                  if (i === index) continue;
+                                  const otherRow = locationApproverMapping[i];
+                                  const otherLocs = normalizeIds(otherRow.location).filter((l) => l !== "__new__");
+                                  if (otherLocs.some((l) => l.trim().toLowerCase() === loc.trim().toLowerCase())) {
+                                    const otherTypes = normalizeIds(otherRow.expense_type);
+                                    if (otherTypes.some((ot) => ot.trim().toLowerCase() === type.trim().toLowerCase())) {
+                                      hasConflict = true;
+                                      const approverNames = [
+                                        ...normalizeIds(otherRow.approver_id).map(getApproverLabel),
+                                        ...normalizeIds(otherRow.second_approver_id).map(getApproverLabel),
+                                      ].filter(Boolean);
+                                      const approverPart = approverNames.length > 0
+                                        ? `Approver (${approverNames.join(", ")}) is already assigned`
+                                        : `Mapping already exists`;
+                                      toast.warning(
+                                        `${approverPart} for location "${loc}" with expense type "${type}".`
+                                      );
+                                      break;
+                                    }
+                                  }
+                                }
+                                if (hasConflict) break;
+                              }
+                              if (hasConflict) continue;
+                            }
+                          }
+                          validIds.push(type);
+                        }
+                        updateMappingEntry(index, {
+                          expense_type: validIds,
+                        });
+                      }}
+                      placeholder="Select expense types"
+                      searchPlaceholder="Search expense type..."
+                      hideBadges
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-wrap gap-4">
+                  <div className="space-y-1 min-w-[240px]">
+                    <Label className="text-xs">Approver</Label>
+                    <MultiSelect
+                      options={approverOptions}
+                      value={selectedApproverIds}
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((id) => !selectedApproverIds.includes(id));
+                        const validIds: string[] = [];
+                        for (const id of nextIds) {
+                          if (newlyAdded.includes(id) && selectedSecondApproverIds.includes(id)) {
+                            const name = getApproverLabel(id);
+                            toast.warning(
+                              `"${name}" is already assigned as Second Approver for this location mapping.`
+                            );
+                            continue;
+                          }
+                          validIds.push(id);
+                        }
+                        updateMappingEntry(index, {
+                          approver_id: validIds,
+                          approver_name: validIds.length
+                            ? validIds.map(getApproverLabel).join(", ")
+                            : undefined,
+                        });
+                      }}
+                      placeholder="Select one or more approvers"
+                      searchPlaceholder="Search approver"
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[240px]">
+                    <Label className="text-xs">Second Approver</Label>
+                    <MultiSelect
+                      options={approverOptions}
+                      value={selectedSecondApproverIds}
+                      onChange={(nextIds) => {
+                        const newlyAdded = nextIds.filter((id) => !selectedSecondApproverIds.includes(id));
+                        const validIds: string[] = [];
+                        for (const id of nextIds) {
+                          if (newlyAdded.includes(id) && selectedApproverIds.includes(id)) {
+                            const name = getApproverLabel(id);
+                            toast.warning(
+                              `"${name}" is already assigned as Approver for this location mapping.`
+                            );
+                            continue;
+                          }
+                          validIds.push(id);
+                        }
+                        updateMappingEntry(index, {
+                          second_approver_id: validIds,
+                          second_approver_name: validIds.length
+                            ? validIds.map(getApproverLabel).join(", ")
+                            : undefined,
+                        });
+                      }}
+                      placeholder="Select one or more approvers"
+                      searchPlaceholder="Search second approver"
+                      hideBadges
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[140px]">
+                    <Label className="block text-center text-xs">Enable on expense form</Label>
+                    <div className="flex h-9 items-center justify-center">
+                      <Checkbox
+                        checked={entry?.enabled !== false}
+                        onCheckedChange={(checked) =>
+                          updateMappingEntry(index, {
+                            enabled: checked === true,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive mt-6"
+                  onClick={() => handleRemoveLocationApproverMappingRow(index)}
+                  title="Remove mapping"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {(selectedLocations.length > 0 || selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
+                <div className="w-full pt-4 border-t border-border/110 flex-col gap-6">
+                  {(selectedLocations.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
+                    <div className="flex flex-wrap gap-x-12 gap-y-6">
+                      {selectedLocations.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Locations ({selectedLocations.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedLocations.map((loc) => (
+                              <Badge key={loc} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {locationOptionsForSelect.find((o) => o.value === loc)?.label || loc}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    updateMappingEntry(index, {
+                                      location: selectedLocations.filter((t) => t !== loc),
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedApproverIds.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Approvers ({selectedApproverIds.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedApproverIds.map((id) => (
+                              <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {getApproverLabel(id)}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const nextIds = selectedApproverIds.filter((t) => t !== id);
+                                    updateMappingEntry(index, {
+                                      approver_id: nextIds,
+                                      approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedSecondApproverIds.length > 0 && (
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium mb-2 text-foreground/80">
+                            Second Approvers ({selectedSecondApproverIds.length}) :
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSecondApproverIds.map((id) => (
+                              <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
+                                {getApproverLabel(id)}
+                                <X
+                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const nextIds = selectedSecondApproverIds.filter((t) => t !== id);
+                                    updateMappingEntry(index, {
+                                      second_approver_id: nextIds,
+                                      second_approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
+                                    });
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedExpenseTypes.length > 0 && (
+                    <div className="w-full">
+                      <p className="text-sm font-medium mb-2 mt-2 text-foreground/80">
+                        Expense Types ({selectedExpenseTypes.length}) :
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedExpenseTypes.map((type) => (
+                          <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
+                            {type}
+                            <X
+                              className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                updateMappingEntry(index, {
+                                  expense_type: selectedExpenseTypes.filter((t) => t !== type),
+                                });
+                              }}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Project of Expenses → Approver Mapping (Campus Wise)</CardTitle>
+                  <CardDescription>
+                    Set approver and second approver for each project of
+                    expense. These will auto-fill on the new expense form
+                    when a user selects a project.
+                  </CardDescription>
+                </div>
+                <Button
+                  // type="button"
+                  // variant="outline"
+                  // size="sm"
+                  onClick={handleAddLocationApproverMappingRow}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Mapping
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {displayRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No mappings added yet. Click &quot;Add Mapping&quot; to create a new location → approver mapping.
+                  </p>
+                ) : (
+                  displayRows.map((index) => renderRow(index))
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={handleAddLocationApproverMappingRow}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Mapping
+                </Button>
+                <Button
+                  onClick={handleSaveLocationApproverMapping}
+                  disabled={savingLocationMapping}
+                >
+                  {savingLocationMapping ? "Saving…" : "Save Mapping"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      <Dialog open={showColumnDialog} onOpenChange={setShowColumnDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingColumn?.key?.startsWith("custom_field_")
+                ? "Add Column"
+                : "Edit Column"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="space-y-2">
+              <Label>Column Label</Label>
+              <Input
+                value={editingColumn?.label || ""}
+                onChange={(e) =>
+                  setEditingColumn((prev) =>
+                    prev
+                      ? {
+                        ...prev,
+                        label: e.target.value,
+                        key: prev.key.startsWith("custom_field_")
+                          ? prev.key
+                          : e.target.value
+                            .toLowerCase()
+                            .replace(/\s+/g, "_"),
+                      }
+                      : null
+                  )
+                }
+                disabled={
+                  !editingColumn?.key?.startsWith("custom_field_") &&
+                  defaultColumns.some((c) => c.key === editingColumn?.key)
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Field Type</Label>
+              <Select
+                value={editingColumn?.type}
+                onValueChange={(value: ColumnConfig["type"]) =>
+                  setEditingColumn((prev) =>
+                    prev ? { ...prev, type: value } : null
+                  )
+                }
+                disabled={defaultColumns.some(
+                  (c) => c.key === editingColumn?.key
+                )}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Text</SelectItem>
+                  <SelectItem value="number">Number</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="textarea">Text Area</SelectItem>
+                  <SelectItem value="dropdown">Dropdown</SelectItem>
+                  <SelectItem value="radio">Radio</SelectItem>
+                  <SelectItem value="checkbox">Checkbox</SelectItem>
+                  {/* <SelectItem value="file">File Upload</SelectItem> */}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {["dropdown", "radio", "checkbox"].includes(
+              editingColumn?.type || ""
+            ) &&
+              editingColumn?.key !== "approver" && (
+                <div className="space-y-2">
+                  <Label>Options (one per line)</Label>
+                  <Textarea
+                    value={newOptions}
+                    onChange={(e) => setNewOptions(e.target.value)}
+                    placeholder="Enter options..."
+                    rows={5}
+                    className="max-h-48 overflow-y-auto"
+                  />
+                </div>
+              )}
+
+            {editingColumn?.key === "approver" && (
+              <div className="text-sm text-muted-foreground p-2 bg-muted rounded-md">
+                Options for this field are automatically populated with
+                organization members who can approve expenses (owners,
+                admins, and managers).
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                checked={editingColumn?.required}
+                onCheckedChange={(v) =>
+                  setEditingColumn((prev) =>
+                    prev ? { ...prev, required: v as boolean } : null
+                  )
+                }
+              />
+              <Label>Required field</Label>
+            </div>
+
+            <Button onClick={handleSaveColumn} className="w-full">
+              Save Column
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle className="mb-2">Expense Type Details</CardTitle>
+              <CardTitle className="mb-2">Expense Type Abbreviations Details</CardTitle>
               <CardDescription>
                 Add and edit Group, Sub-Group, Expense Ledger, and Description
                 entries.
               </CardDescription>
             </div>
-            <Button onClick={openAddExpenseTypeDialog} variant="outline">
-              <PlusCircle className="w-4 h-4 mr-2" />
+            <Button onClick={openAddExpenseTypeDialog}>
+              <PlusCircle className="w-4 h-4" />
               Add
             </Button>
           </div>
@@ -1408,8 +3104,8 @@ export default function SettingsPage() {
                       ? "Updating..."
                       : "Adding..."
                     : isEditingExpenseType
-                    ? "Update Expense Type Details"
-                    : "Add Expense Type Details"}
+                      ? "Update Expense Type Details"
+                      : "Add Expense Type Details"}
                 </Button>
               </div>
             </DialogContent>
@@ -1455,13 +3151,13 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle className="mb-1">Project of Expense Details</CardTitle>
+              <CardTitle className="mb-1">Project of Expense Abbreviations Details</CardTitle>
               <CardDescription>
                 Add and edit Project of Expense and Description entries.
               </CardDescription>
             </div>
-            <Button onClick={openAddProjectOfExpenseDialog} variant="outline">
-              <PlusCircle className="w-4 h-4 mr-2" />
+            <Button onClick={openAddProjectOfExpenseDialog}>
+              <PlusCircle className="w-4 h-4" />
               Add
             </Button>
           </div>
@@ -1601,8 +3297,8 @@ export default function SettingsPage() {
                       ? "Updating..."
                       : "Adding..."
                     : isEditingProjectOfExpense
-                    ? "Update Project of Expense Details"
-                    : "Add Project of Expense Details"}
+                      ? "Update Project of Expense Details"
+                      : "Add Project of Expense Details"}
                 </Button>
               </div>
             </DialogContent>
@@ -1648,6 +3344,8 @@ export default function SettingsPage() {
           </AlertDialog>
         </CardContent>
       </Card>
+
+      <UserDisplayNamesSection />
       {/* </TabsContent> */}
       {/* </Tabs> */}
     </div>

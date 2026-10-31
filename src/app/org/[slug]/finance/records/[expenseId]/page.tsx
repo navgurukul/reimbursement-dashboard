@@ -280,12 +280,20 @@ export default function RecordsDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Invoice Amount</TableHead>
                     <TableCell>₹{expense.amount}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>Approved Amount</TableHead>
                     <TableCell>₹{expense.approved_amount}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>TDS Applicable Amount</TableHead>
+                    <TableCell>
+                      {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
+                        ? `₹${expense.approved_amount}`
+                        : "N/A"}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableHead>TDS Deduction</TableHead>
@@ -316,7 +324,7 @@ export default function RecordsDetails() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableHead>Actual Amount</TableHead>
+                    <TableHead>Net Payable Amount</TableHead>
                     <TableCell>
                       {actualAmount !== null && actualAmount !== undefined
                         ? formatCurrency(Number(actualAmount))

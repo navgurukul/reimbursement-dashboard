@@ -44,6 +44,7 @@ import {
   Upload,
   Trash2,
   Info,
+  FileText,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,8 +53,10 @@ import { organizations, expenseHistory, voucherAttachments } from "@/lib/db";
 import { defaultExpenseColumns } from "@/lib/defaults";
 import { Switch } from "@/components/ui/switch";
 import VoucherForm from "./VoucherForm";
+import { mergeReceiptsToPdf } from "@/lib/receipt-pdf-utils";
 import SignaturePad from "@/components/SignatureCanvas";
 import supabase from "@/lib/supabase";
+import { parseLeaveDuration, cleanExpiredLeaveProfiles } from "@/lib/leave-status";
 import {
   getUserSignatureUrl,
   saveUserSignature,
@@ -66,7 +69,7 @@ interface Column {
   type: string;
   required?: boolean;
   visible?: boolean;
-  options?: Array<string | { value: string; label: string }>;
+  options?: Array<string | { value: string; label: string; display_name?: string; leave_duration?: string }>;
 }
 
 interface ExpenseData {
@@ -166,6 +169,10 @@ export default function NewExpensePage() {
     }
   };
 
+  const [oooModalOpen, setOooModalOpen] = useState(false);
+  const [oooApproverName, setOooApproverName] = useState("");
+  const [oooLeaveDuration, setOooLeaveDuration] = useState("");
+
   const [columns, setColumns] = useState<Column[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({
     event_id: eventIdFromQuery || "",
@@ -182,6 +189,25 @@ export default function NewExpensePage() {
   const [receiptPreviews, setReceiptPreviews] = useState<
     Record<number, string | null>
   >({});
+  const [isReceiptProcessing, setIsReceiptProcessing] = useState(false);
+  const [receiptProcessingMap, setReceiptProcessingMap] = useState<
+    Record<number, boolean>
+  >({});
+  const [receiptPageImages, setReceiptPageImages] = useState<string[]>([]);
+  const [receiptPageImagesMap, setReceiptPageImagesMap] = useState<
+    Record<number, string[]>
+  >({});
+  const [previewPdfModal, setPreviewPdfModal] = useState<{
+    open: boolean;
+    url: string;
+    title: string;
+    pageImages?: string[];
+  }>({
+    open: false,
+    url: "",
+    title: "",
+    pageImages: [],
+  });
 
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
   const [voucherModalOpenMap, setVoucherModalOpenMap] = useState<
@@ -249,6 +275,31 @@ export default function NewExpensePage() {
 
   // Location options from settings
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
+
+  // Location of expense → approver mapping (from org settings); used to auto-fill approver and second approver
+  const [locationApproverMapping, setLocationApproverMapping] = useState<
+    {
+      location: string | string[];
+      expense_type?: string | string[];
+      approver_name?: string | string[];
+      second_approver_name?: string | string[];
+      approver_id?: string | string[];
+      second_approver_id?: string | string[];
+      enabled?: boolean;
+    }[]
+  >([]);
+
+  // Expense type → approver mapping (from org settings); used to auto-fill approver and second approver
+  const [expenseTypeApproverMapping, setExpenseTypeApproverMapping] = useState<
+    {
+      expense_type: string | string[];
+      approver_name?: string | string[];
+      second_approver_name?: string | string[];
+      approver_id?: string | string[];
+      second_approver_id?: string | string[];
+      enabled?: boolean;
+    }[]
+  >([]);
 
   // Payment Unique ID helpers
   const [uniqueIdModalOpen, setUniqueIdModalOpen] = useState(false);
@@ -356,6 +407,8 @@ export default function NewExpensePage() {
     key: keyof ExpenseItemData,
     value: string | number | string[]
   ) => {
+    const shouldResetApprovers = key === "location" || key === "expense_type";
+
     // Clear item-level "required" error when user fills the field
     if (key === "expense_credit_person") {
       const stringValue = String(value ?? "").trim();
@@ -376,6 +429,9 @@ export default function NewExpensePage() {
       [itemId]: {
         ...prev[itemId],
         [key]: value,
+        ...(shouldResetApprovers
+          ? { approver: "", second_approver_id: "" }
+          : {}),
       },
     }));
 
@@ -564,7 +620,7 @@ export default function NewExpensePage() {
         const { data: membersData } =
           await organizations.getOrganizationMembers(orgId);
 
-        let approverOptions: Array<{ value: string; label: string }> = [];
+        let approverOptions: Array<{ value: string; label: string; display_name?: string }> = [];
 
         if (membersData) {
           // Filter to get only approvers (owners, admins, managers)
@@ -577,6 +633,9 @@ export default function NewExpensePage() {
             approvers.map((approver) => approver.user_id)
           );
 
+          // Auto-clean expired leave in DB
+          const expiredIds = await cleanExpiredLeaveProfiles(profilesData || []);
+
           // Create a map of user_id to full_name or email
           const approverNames = new Map(
             profilesData?.map((profile) => [
@@ -585,14 +644,54 @@ export default function NewExpensePage() {
             ]) || []
           );
 
+          const approverDisplayNames = new Map(
+            profilesData?.map((profile) => {
+              const isExpired = expiredIds.includes(profile.id) || expiredIds.includes(profile.user_id);
+              const parsed = parseLeaveDuration(profile.leave_duration, profile.updated_at);
+              const isActive = !isExpired && parsed.isActive && !parsed.isExpired;
+              return [
+                profile.user_id,
+                isActive ? profile.display_name : undefined,
+              ];
+            }) || []
+          );
+
+          const approverLeaveDurations = new Map(
+            profilesData?.map((profile) => {
+              const isExpired = expiredIds.includes(profile.id) || expiredIds.includes(profile.user_id);
+              const parsed = parseLeaveDuration(profile.leave_duration, profile.updated_at);
+              const isActive = !isExpired && parsed.isActive && !parsed.isExpired;
+              return [
+                profile.user_id,
+                isActive ? parsed.label : undefined,
+              ];
+            }) || []
+          );
+
           // Create approver options
           approverOptions = approvers.map((approver) => ({
             value: approver.user_id,
             label: approverNames.get(approver.user_id) || approver.user_id,
+            display_name: approverDisplayNames.get(approver.user_id),
+            leave_duration: approverLeaveDurations.get(approver.user_id) || undefined,
           }));
         }
 
         if (settings) {
+          if (
+            settings.expense_type_approver_mapping &&
+            Array.isArray(settings.expense_type_approver_mapping)
+          ) {
+            setExpenseTypeApproverMapping(settings.expense_type_approver_mapping);
+          }
+          if (
+            settings.location_approver_mapping &&
+            Array.isArray(settings.location_approver_mapping)
+          ) {
+            setLocationApproverMapping(
+              settings.location_approver_mapping
+            );
+          }
           const columnsToUse =
             settings.expense_columns && settings.expense_columns.length > 0
               ? settings.expense_columns
@@ -644,6 +743,9 @@ export default function NewExpensePage() {
           initialData.date = new Date().toISOString().split("T")[0];
           initialData.event_id = eventIdFromQuery || "";
           initialData.unique_id = "";
+          initialData.approver_name = "";
+          initialData.second_approver_id = "";
+          initialData.second_approver_name = "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         } else {
           // Process default columns with approver options
@@ -670,6 +772,9 @@ export default function NewExpensePage() {
           initialData.date = new Date().toISOString().split("T")[0];
           initialData.event_id = eventIdFromQuery || "";
           initialData.unique_id = "";
+          initialData.approver_name = "";
+          initialData.second_approver_id = "";
+          initialData.second_approver_name = "";
           setFormData((prev) => ({ ...initialData, ...prev }));
         }
       } catch (error) {
@@ -683,10 +788,179 @@ export default function NewExpensePage() {
     fetchData();
   }, [orgId, eventIdFromQuery, user]);
 
+  // Auto-fill approver fields when expense type/location mapping changes
+  useEffect(() => {
+    const selectedLocation =
+      typeof formData.location === "string" ? formData.location : "";
+    const selectedExpenseType =
+      typeof formData.expense_type === "string" ? formData.expense_type : "";
+
+    if (!selectedLocation && !selectedExpenseType) return;
+
+    const mappedApprovers = getLocationSpecificApproverOptions(
+      "approver",
+      selectedLocation,
+      selectedExpenseType
+    );
+    const mappedSecondApprovers = getLocationSpecificApproverOptions(
+      "second_approver_id",
+      selectedLocation,
+      selectedExpenseType
+    );
+
+    const nextApprover = mappedApprovers[0]?.value || "";
+    const nextApproverName = mappedApprovers[0]?.label || "";
+    const nextSecondId = mappedSecondApprovers[0]?.value || "";
+    const nextSecondName = mappedSecondApprovers[0]?.label || "";
+
+    setFormData((prev) => {
+      if (
+        prev.approver === nextApprover &&
+        prev.approver_name === nextApproverName &&
+        prev.second_approver_id === nextSecondId &&
+        prev.second_approver_name === nextSecondName
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        approver: nextApprover,
+        approver_name: nextApproverName,
+        second_approver_id: nextSecondId,
+        second_approver_name: nextSecondName,
+      };
+    });
+  }, [
+    formData.location,
+    formData.expense_type,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    columns,
+  ]);
+
+  useEffect(() => {
+    if (!expenseItems.length) return;
+
+    setExpenseItemsData((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      expenseItems.forEach((itemId) => {
+        const item = prev[itemId];
+        if (!item) return;
+
+        const itemLocation =
+          typeof item.location === "string" ? item.location : "";
+        const itemExpenseType =
+          typeof item.expense_type === "string" ? item.expense_type : "";
+
+        if (!itemLocation && !itemExpenseType) return;
+
+        const mappedApprovers = getLocationSpecificApproverOptions(
+          "approver",
+          itemLocation,
+          itemExpenseType
+        );
+        const mappedSecondApprovers = getLocationSpecificApproverOptions(
+          "second_approver_id",
+          itemLocation,
+          itemExpenseType
+        );
+
+        const nextApprover = mappedApprovers[0]?.value || "";
+        const nextSecond = mappedSecondApprovers[0]?.value || "";
+
+        if (
+          item.approver !== nextApprover ||
+          item.second_approver_id !== nextSecond
+        ) {
+          changed = true;
+          next[itemId] = {
+            ...item,
+            approver: nextApprover,
+            second_approver_id: nextSecond,
+          };
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [
+    expenseItems,
+    expenseItemsData,
+    locationApproverMapping,
+    expenseTypeApproverMapping,
+    columns,
+  ]);
+
+  const prevApproversRef = useRef<{
+    main: string;
+    mainSecond: string;
+    items: Record<number, { approver: string; second: string }>;
+  }>({ main: "", mainSecond: "", items: {} });
+
+  useEffect(() => {
+    const approverCol = columns.find(c => c.key === "approver");
+    if (!approverCol || !approverCol.options) return;
+
+    const checkAndAlert = (currentId: string, prevId: string) => {
+      if (currentId && currentId !== prevId) {
+        const opt = (approverCol.options as any[]).find((o) => o.value === currentId);
+        if (opt && opt.display_name === "OOO") {
+          setOooApproverName(opt.label || currentId);
+          setOooLeaveDuration(opt.leave_duration || "");
+          setOooModalOpen(true);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    let alerted = false;
+
+    if (!alerted && checkAndAlert(formData.approver as string, prevApproversRef.current.main)) {
+      alerted = true;
+    }
+    const hasVisibleSecondApprover = columns.some(c => c.key === "second_approver_id" && c.visible);
+    if (hasVisibleSecondApprover && !alerted && checkAndAlert(formData.second_approver_id as string, prevApproversRef.current.mainSecond)) {
+      alerted = true;
+    }
+
+    if (!alerted) {
+      for (const id of expenseItems) {
+        const item = expenseItemsData[id];
+        const prevItem = prevApproversRef.current.items[id] || { approver: "", second: "" };
+        if (item) {
+          if (checkAndAlert(item.approver as string, prevItem.approver)) {
+            alerted = true;
+            break;
+          }
+          if (hasVisibleSecondApprover && checkAndAlert(item.second_approver_id as string, prevItem.second)) {
+            alerted = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // Update refs
+    prevApproversRef.current.main = formData.approver || "";
+    prevApproversRef.current.mainSecond = formData.second_approver_id || "";
+    const newItemsRef: Record<number, { approver: string; second: string }> = {};
+    for (const id of expenseItems) {
+      newItemsRef[id] = {
+        approver: (expenseItemsData[id]?.approver as string) || "",
+        second: (expenseItemsData[id]?.second_approver_id as string) || "",
+      };
+    }
+    prevApproversRef.current.items = newItemsRef;
+
+  }, [formData.approver, formData.second_approver_id, expenseItemsData, expenseItems, columns]);
+
   // Handle single receipt files
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setErrors((prevErrors) => {
       const updatedErrors = { ...prevErrors };
@@ -694,21 +968,32 @@ export default function NewExpensePage() {
       return updatedErrors;
     });
 
-    setReceiptFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setReceiptPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setIsReceiptProcessing(true);
+    try {
+      const result = await mergeReceiptsToPdf(files);
+      setReceiptFile(result.file);
+      setReceiptPreview(result.previewUrl);
+      setReceiptPageImages(result.pageImages || []);
+      if (files.length > 1) {
+        toast.success(`Merged ${files.length} receipts into a single PDF (${result.pageCount} pages)`);
+      } else if (!files[0].name.toLowerCase().endsWith(".pdf")) {
+        toast.success("Receipt image converted to PDF");
+      }
+    } catch (err: any) {
+      console.error("Receipt processing error:", err);
+      toast.error(err?.message || "Failed to process receipt into PDF");
+    } finally {
+      setIsReceiptProcessing(false);
+    }
   };
 
   // Handle multiple receipt files
-  const handleFileChanges = (
+  const handleFileChanges = async (
     e: React.ChangeEvent<HTMLInputElement>,
     itemId: number
   ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setErrors((prevErrors) => {
       const updatedErrors = { ...prevErrors };
@@ -716,15 +1001,29 @@ export default function NewExpensePage() {
       return updatedErrors;
     });
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setReceiptFiles((prev) => ({ ...prev, [itemId]: file }));
+    setReceiptProcessingMap((prev) => ({ ...prev, [itemId]: true }));
+    try {
+      const result = await mergeReceiptsToPdf(files);
+      setReceiptFiles((prev) => ({ ...prev, [itemId]: result.file }));
       setReceiptPreviews((prev) => ({
         ...prev,
-        [itemId]: reader.result as string,
+        [itemId]: result.previewUrl,
       }));
-    };
-    reader.readAsDataURL(file);
+      setReceiptPageImagesMap((prev) => ({
+        ...prev,
+        [itemId]: result.pageImages || [],
+      }));
+      if (files.length > 1) {
+        toast.success(`Merged ${files.length} receipts into a single PDF (${result.pageCount} pages)`);
+      } else if (!files[0].name.toLowerCase().endsWith(".pdf")) {
+        toast.success("Receipt image converted to PDF");
+      }
+    } catch (err: any) {
+      console.error("Receipt processing error:", err);
+      toast.error(err?.message || "Failed to process receipt into PDF");
+    } finally {
+      setReceiptProcessingMap((prev) => ({ ...prev, [itemId]: false }));
+    }
   };
 
   const toggleVoucherModal = (index: number) => {
@@ -792,10 +1091,26 @@ export default function NewExpensePage() {
         return updatedErrors;
       });
     }
-    setFormData((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setFormData((prev) => {
+      const next = { ...prev, [key]: value };
+
+      if (key === "approver" && typeof value === "string") {
+        next.approver_name = getApproverOptionLabel(value);
+      }
+
+      if (key === "second_approver_id" && typeof value === "string") {
+        next.second_approver_name = getApproverOptionLabel(value);
+      }
+
+      // Clear approver fields on location/expense type change so mapping can repopulate
+      if (key === "location" || key === "expense_type") {
+        next.approver = "";
+        next.approver_name = "";
+        next.second_approver_id = "";
+        next.second_approver_name = "";
+      }
+      return next;
+    });
 
     // If top-level amount is changed and top-level voucher mode is enabled, sync to voucherAmount
     if (key === "amount") {
@@ -852,6 +1167,219 @@ export default function NewExpensePage() {
       const event = events.find((e) => e.id === value);
       setSelectedEvent(event || null);
     }
+  };
+
+  function getApproverOptionLabel(value?: string) {
+    if (!value) return "";
+    const approverCol = columns.find((c) => c.key === "approver");
+    const opts = (approverCol?.options || []) as Array<
+      string | { value: string; label: string }
+    >;
+    const opt = opts.find((o) =>
+      (typeof o === "string" ? o : o.value) === value
+    );
+    if (!opt) return "";
+    return typeof opt === "string" ? opt : opt.label || opt.value;
+  }
+
+  function getApproverDisplayName(
+    approverId?: string,
+    approverName?: string
+  ) {
+    const name = (approverName || "").trim();
+    if (name) return name;
+    const label = getApproverOptionLabel(approverId);
+    return label || approverId || "";
+  }
+
+  const getLocationSpecificApproverOptions = (
+    fieldKey: "approver" | "second_approver_id" = "approver",
+    locationValue?: string,
+    expenseTypeValue?: string
+  ) => {
+    const approverCol = columns.find((c) => c.key === "approver");
+    const allOptions = (approverCol?.options || []) as Array<
+      string | { value: string; label: string }
+    >;
+
+    const normalizeIds = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      return Array.isArray(value)
+        ? value.filter((v) => v && v.trim())
+        : value.trim()
+          ? [value]
+          : [];
+    };
+
+    const normalizeNames = (value?: string | string[]) => {
+      if (!value) return [] as string[];
+      if (Array.isArray(value)) return value.filter((v) => v && v.trim());
+      return value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    };
+
+    const resolveIdsFromNames = (value?: string | string[]) => {
+      const names = normalizeNames(value);
+      if (!names.length) return [] as string[];
+      const mapByLabel = new Map(
+        allOptions.map((option) => {
+          const optValue = typeof option === "string" ? option : option.value;
+          const optLabel = typeof option === "string" ? option : option.label;
+          return [optLabel.toLowerCase(), optValue];
+        })
+      );
+      return names
+        .map((name) => mapByLabel.get(name.toLowerCase()))
+        .filter((v): v is string => Boolean(v));
+    };
+
+    const selectedLocation =
+      typeof locationValue === "string"
+        ? locationValue
+        : typeof formData.location === "string"
+          ? formData.location
+          : "";
+    const selectedExpenseType =
+      typeof expenseTypeValue === "string"
+        ? expenseTypeValue
+        : typeof formData.expense_type === "string"
+          ? formData.expense_type
+          : "";
+
+    // 1) Try expense-type specific mapping first (global, not tied to location)
+    const expenseTypeEntry =
+      selectedExpenseType && expenseTypeApproverMapping?.length
+        ? expenseTypeApproverMapping.find(
+          (m) => {
+            if (Array.isArray(m.expense_type)) {
+              return m.expense_type.includes(selectedExpenseType);
+            }
+            return m.expense_type === selectedExpenseType;
+          }
+        )
+        : undefined;
+
+    // 2) Then look for location-based mappings.
+    let locationEntry: (typeof locationApproverMapping)[number] | undefined;
+    if (selectedLocation && locationApproverMapping?.length) {
+      const candidates = locationApproverMapping.filter((m) =>
+        Array.isArray(m.location)
+          ? m.location.includes(selectedLocation)
+          : m.location === selectedLocation
+      );
+
+      if (candidates.length) {
+        if (selectedExpenseType) {
+          locationEntry = candidates.find(
+            (m) =>
+              (typeof m.expense_type === "string" &&
+                m.expense_type === selectedExpenseType) ||
+              (Array.isArray(m.expense_type) &&
+                m.expense_type.includes(selectedExpenseType))
+          );
+        }
+
+        if (!locationEntry) {
+          locationEntry = candidates.find(
+            (m) =>
+              m.expense_type === undefined ||
+              (typeof m.expense_type === "string" &&
+                m.expense_type.trim() === "") ||
+              (Array.isArray(m.expense_type) &&
+                m.expense_type.length === 0)
+          );
+        }
+      }
+    }
+    // Only use mappings that are enabled (true); ignore when enabled === false
+    const effectiveExpenseTypeEntry =
+      expenseTypeEntry && expenseTypeEntry.enabled !== false
+        ? expenseTypeEntry
+        : undefined;
+    const effectiveLocationEntry =
+      locationEntry && locationEntry.enabled !== false
+        ? locationEntry
+        : undefined;
+    const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
+
+    const firstApproverIds = normalizeIds(activeEntry?.approver_id).length
+      ? normalizeIds(activeEntry?.approver_id)
+      : resolveIdsFromNames(activeEntry?.approver_name);
+
+    const secondApproverIds = normalizeIds(activeEntry?.second_approver_id).length
+      ? normalizeIds(activeEntry?.second_approver_id)
+      : resolveIdsFromNames(activeEntry?.second_approver_name);
+
+    // Check if any first approver is currently on leave (display_name === 'OOO')
+    const isFirstApproverOnLeave = firstApproverIds.some((id) => {
+      const opt = (allOptions as any[]).find((o) =>
+        typeof o === "string" ? o === id : o?.value === id
+      );
+      return opt && typeof opt === "object" && opt.display_name === "OOO";
+    });
+
+    // In approver dropdown, only show second approver if first approver is on leave
+    const mappedIds =
+      fieldKey === "second_approver_id"
+        ? secondApproverIds
+        : isFirstApproverOnLeave
+          ? Array.from(new Set([...firstApproverIds, ...secondApproverIds]))
+          : firstApproverIds.length
+            ? firstApproverIds
+            : secondApproverIds;
+
+    if (!mappedIds.length) {
+      return [];
+    }
+
+    const optionLookup = new Map(
+      allOptions.map((option) => {
+        const value = typeof option === "string" ? option : option.value;
+        const label = typeof option === "string" ? option : option.label;
+        const display_name =
+          typeof option === "string" ? undefined : (option as any).display_name;
+        const leave_duration =
+          typeof option === "string" ? undefined : (option as any).leave_duration;
+        return [value, { value, label, display_name, leave_duration }];
+      })
+    );
+
+    return mappedIds.map((id) => {
+      const mapped = optionLookup.get(id);
+      if (mapped) return mapped;
+      return { value: id, label: getApproverOptionLabel(id) || id };
+    });
+  };
+
+  const isLocationApproverUnavailable = (
+    fieldKey: "approver" | "second_approver_id" = "approver",
+    locationValue?: string,
+    expenseTypeValue?: string
+  ) => {
+    const selectedLocation =
+      typeof locationValue === "string"
+        ? locationValue
+        : typeof formData.location === "string"
+          ? formData.location
+          : "";
+    const selectedExpenseType =
+      typeof expenseTypeValue === "string"
+        ? expenseTypeValue
+        : typeof formData.expense_type === "string"
+          ? formData.expense_type
+          : "";
+
+    if (!selectedLocation && !selectedExpenseType) return false;
+
+    const mappedIds = getLocationSpecificApproverOptions(
+      fieldKey,
+      selectedLocation,
+      selectedExpenseType
+    ).map((opt) => opt.value);
+
+    return mappedIds.length === 0;
   };
 
   // Prefill Payment Unique ID using the logged-in user's bank details
@@ -1718,7 +2246,7 @@ export default function NewExpensePage() {
     if (isDirectPaymentSelected) {
       if (!String(topLevelExpenseCreditPerson || "").trim()) {
         newErrors["expense_credit_person"] =
-          "Expense credit person is required";
+          "Expense Credit Person is required";
       }
     }
 
@@ -1841,12 +2369,13 @@ export default function NewExpensePage() {
         throw new Error("Missing required data");
       }
 
-      // Validate that user is not approving their own expense
-      if (formData.approver === user.id) {
+      // Validate that user is not approving their own expense (if approver ID is set)
+      if (formData.approver && formData.approver === user.id) {
         toast.error("You cannot approve your own expenses");
         setSaving(false);
         return;
       }
+
 
       const duplicateCandidates = buildDuplicateCandidates();
       const uniqueDuplicateMatches = await runDuplicateCheck(duplicateCandidates);
@@ -1996,14 +2525,29 @@ export default function NewExpensePage() {
           }
         }
       });
+      // Always save approver_name and second_approver_name
+      if (formData.approver_name) {
+        custom_fields["approver_name"] = formData.approver_name;
+      }
+      if (formData.second_approver_id) {
+        custom_fields["second_approver_id"] = formData.second_approver_id;
+      }
+      if (formData.second_approver_name) {
+        custom_fields["second_approver_name"] = formData.second_approver_name;
+      }
 
       if (voucherModalOpen) {
         custom_fields["description"] = formData.description || "Cash Voucher";
       }
 
-      const approverProfile = await profiles.getById(formData.approver);
+      const approverProfile = formData.approver
+        ? await profiles.getById(formData.approver)
+        : null;
       const approverEmail = approverProfile?.data?.email || "";
-      const approverName = approverProfile?.data?.full_name || "";
+      const approverName =
+        approverProfile?.data?.full_name ||
+        formData.approver_name ||
+        "";
 
       // Create the base expense
       const baseExpenseData = {
@@ -2152,11 +2696,39 @@ export default function NewExpensePage() {
           const itemIsDirectPayment = isDirectPaymentValue(
             item?.unique_id || formData.unique_id || ""
           );
+          const itemApproverId =
+            typeof item?.approver === "string" && item.approver.trim()
+              ? item.approver
+              : formData.approver || null;
+
+          const itemApproverProfile = itemApproverId
+            ? await profiles.getById(itemApproverId)
+            : null;
+          const itemApproverEmail = itemApproverProfile?.data?.email || "";
+          const itemApproverName =
+            itemApproverProfile?.data?.full_name ||
+            getApproverDisplayName(itemApproverId || undefined);
 
           // Prepare custom fields for the item
           const itemCustomFields: Record<string, any> = {
             description: item.description || "",
           };
+
+          if (itemApproverName) {
+            itemCustomFields["approver_name"] = itemApproverName;
+          }
+
+          const itemSecondApproverId = Array.isArray(item.second_approver_id)
+            ? item.second_approver_id[0]
+            : typeof item.second_approver_id === "string"
+              ? item.second_approver_id
+              : "";
+          if (itemSecondApproverId) {
+            itemCustomFields["second_approver_id"] = itemSecondApproverId;
+            itemCustomFields["second_approver_name"] = getApproverDisplayName(
+              itemSecondApproverId
+            );
+          }
 
           // Add custom fields from expenseItemsData
           customFields.forEach((col) => {
@@ -2187,7 +2759,7 @@ export default function NewExpensePage() {
             date: new Date(item.date).toISOString(),
             custom_fields: itemCustomFields,
             event_id: formData.event_id || null,
-            approver_id: formData.approver || null,
+            approver_id: itemApproverId,
             // Use per-item unique_id if present, otherwise fall back to top-level Payment Unique ID
             unique_id: item.unique_id || formData.unique_id || undefined,
             expense_credit_person: itemIsDirectPayment
@@ -2198,7 +2770,7 @@ export default function NewExpensePage() {
               : expense_signature_url ?? undefined,
             receipt: null,
             creator_email: user.email,
-            approver_email: approverEmail,
+            approver_email: approverEmail || itemApproverEmail,
             location: (item.location as string) || null,
           };
 
@@ -2216,8 +2788,8 @@ export default function NewExpensePage() {
             expenseId: itemData.id,
             amount: individualExpenseData.amount,
             expenseType: individualExpenseData.expense_type,
-            approverEmail,
-            approverName,
+            approverEmail: itemApproverEmail,
+            approverName: itemApproverName,
           });
 
           let attachmentData = null;
@@ -2264,7 +2836,7 @@ export default function NewExpensePage() {
                 null,
               created_by: user.id,
               org_id: organization.id,
-              approver_id: formData.approver || null,
+              approver_id: itemApproverId,
               attachment: attachmentData,
             };
 
@@ -2474,8 +3046,8 @@ export default function NewExpensePage() {
                       : "Enter payment unique ID"
                   }
                   className={`w-full border ${errors["unique_id"]
-                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                      : "border-gray-300"
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                    : "border-gray-300"
                     } disabled:bg-gray-50 disabled:text-gray-700 disabled:border-gray-300 disabled:opacity-100`}
                   disabled={
                     !!prefilledUniqueId ||
@@ -2755,6 +3327,83 @@ export default function NewExpensePage() {
               </DialogContent>
             </Dialog>
 
+            <Dialog open={oooModalOpen} onOpenChange={setOooModalOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Approver On Leave</DialogTitle>
+                  <DialogDescription>
+                    <strong className="text-black">{oooApproverName}</strong> is on leave<strong className="text-black">{oooLeaveDuration ? ` (${oooLeaveDuration})` : ""}</strong>. Please select another approver name on the Approver dropdown.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button onClick={() => setOooModalOpen(false)}>OK</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Merged Receipt PDF Preview & Verification Modal */}
+            <Dialog
+              open={previewPdfModal.open}
+              onOpenChange={(open) =>
+                setPreviewPdfModal((prev) => ({ ...prev, open }))
+              }
+            >
+              <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+                <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
+                  <DialogTitle className="text-base font-semibold text-gray-900 truncate">
+                    {previewPdfModal.title}
+                  </DialogTitle>
+                  <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+                    <DialogDescription asChild>
+                      <span>
+                        {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0
+                          ? `${previewPdfModal.pageImages.length} page${previewPdfModal.pageImages.length > 1 ? "s" : ""} in merged PDF`
+                          : "Verify all pages of your merged receipt PDF before submitting."}
+                      </span>
+                    </DialogDescription>
+                    {previewPdfModal.url && (
+                      <a
+                        href={previewPdfModal.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium inline-flex items-center gap-1 border border-blue-700 rounded-md px-1 py-1"
+                      >
+                        Open in new tab
+                      </a>
+                    )}
+                  </div>
+                </DialogHeader>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100/70 max-h-[calc(90vh-80px)]">
+                  {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0 ? (
+                    previewPdfModal.pageImages.map((imgSrc, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col items-center p-3"
+                      >
+                        <div className="w-full flex items-center justify-between pb-2 mb-2 border-b text-xs text-gray-500 font-medium">
+                          <span>Page {idx + 1} of {previewPdfModal.pageImages?.length}</span>
+                        </div>
+                        <img
+                          src={imgSrc}
+                          alt={`Receipt page ${idx + 1}`}
+                          className="max-w-full h-auto object-contain rounded"
+                        />
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-full h-[60vh] bg-white rounded border overflow-hidden">
+                      <iframe
+                        src={`${previewPdfModal.url}#toolbar=0&navpanes=0&scrollbar=1`}
+                        className="w-full h-full border-0"
+                        title="Receipt PDF Preview"
+                      />
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+
             {/* Event Selection */}
             <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 mb-6">
               <div className="flex items-center space-x-3 mb-2">
@@ -2784,15 +3433,15 @@ export default function NewExpensePage() {
                   {events
                     .filter((event) => event.title.toLowerCase().includes((searchQueries["event_id"] || "").toLowerCase()))
                     .map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.title} (
-                      {new Date(event.start_date).toLocaleDateString()} -{" "}
-                      {new Date(event.end_date).toLocaleDateString()})
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.title} (
+                        {new Date(event.start_date).toLocaleDateString()} -{" "}
+                        {new Date(event.end_date).toLocaleDateString()})
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-600 mt-2">
                 {selectedEvent ? (
                   <span>
                     This expense will be added to the event:{" "}
@@ -2803,6 +3452,96 @@ export default function NewExpensePage() {
                 )}
               </p>
             </div>
+
+            {/* Location of Expense */}
+            {columns.map((col) => {
+              if (!col.visible || col.key !== "location") return null;
+
+              return (
+                <div key={col.key} className="mb-6">
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor={col.key}
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      {col.label}
+                      {col.required && (
+                        <span className="text-red-500 ml-1 text-sm">*</span>
+                      )}
+                    </Label>
+                    {col.type === "dropdown" && col.options && (
+                      <Select
+                        value={formData[col.key] || ""}
+                        onValueChange={(value: string) =>
+                          handleInputChange(col.key, value)
+                        }
+                      >
+                        <SelectTrigger
+                          id={col.key}
+                          className={`w-full ${errors[col.key]
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                            }`}
+                        >
+                          <SelectValue placeholder="Please Select" />
+                        </SelectTrigger>
+                        <SelectContent
+                          searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                          searchValue={searchQueries[col.key] || ""}
+                          onSearchChange={(v) => handleSearchChange(col.key, v)}
+                        >
+                          {col.options
+                            .filter((option: any) => {
+                              const label = typeof option === "string" ? option : option.label;
+                              return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                            })
+                            .map((option: any) => {
+                              const value =
+                                typeof option === "string"
+                                  ? option
+                                  : option.value;
+                              const label =
+                                typeof option === "string"
+                                  ? option
+                                  : option.label;
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              );
+                            })}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {col.type === "text" && (
+                      <Input
+                        id={col.key}
+                        name={col.key}
+                        type="text"
+                        value={formData[col.key] || ""}
+                        onChange={(e) =>
+                          handleInputChange(col.key, e.target.value)
+                        }
+                        className={`w-full ${errors[col.key]
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
+                          }`}
+                        placeholder={`Enter ${col.label}`}
+                      />
+                    )}
+                    {errors[col.key] && (
+                      <p
+                        className="text-red-500 text-sm mt-1"
+                        role="alert"
+                        id={`${col.key}-error`}
+                      >
+                        {errors[col.key]}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
             {/* Expense Type, Amount, Date, Approver, Description */}
             <div className="space-y-6">
@@ -2844,8 +3583,8 @@ export default function NewExpensePage() {
                               handleInputChange(col.key, e.target.value)
                             }
                             className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
                               }`}
                             min={dateBounds.min}
                             max={dateBounds.max}
@@ -2865,8 +3604,76 @@ export default function NewExpensePage() {
                         </>
                       )}
 
-                      {/* Dropdown Input (Approver) */}
-                      {col.type === "dropdown" && col.options && (
+                      {/* Approver Input */}
+                      {col.type === "dropdown" && col.key === "approver" && (
+                        <>
+                          {(() => {
+                            const approverOptions =
+                              getLocationSpecificApproverOptions("approver");
+                            const approverUnavailable =
+                              isLocationApproverUnavailable("approver");
+
+                            return (
+                              <Select
+                                value={formData.approver || ""}
+                                onValueChange={(value: string) =>
+                                  handleInputChange(col.key, value)
+                                }
+                              >
+                                <SelectTrigger
+                                  id={col.key}
+                                  className={`w-full ${errors[col.key]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                    }`}
+                                >
+                                  <SelectValue
+                                    placeholder={
+                                      approverUnavailable
+                                        ? "Not Availble"
+                                        : "Select approver"
+                                    }
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {approverOptions.map(
+                                    (option: any) => {
+                                      const value =
+                                        typeof option === "string"
+                                          ? option
+                                          : option.value;
+                                      const label =
+                                        typeof option === "string"
+                                          ? option
+                                          : option.label;
+                                      return (
+                                        <SelectItem key={value} value={value}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    }
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            );
+                          })()}
+                          {errors[col.key] && (
+                            <p
+                              className="text-red-500 text-sm mt-1"
+                              role="alert"
+                              id={`${col.key}-error`}
+                            >
+                              {errors[col.key]}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-600">
+                            Approver is auto-filled based on the selected Project of Expense and Expense Type
+                          </p>
+                        </>
+                      )}
+
+                      {/* Dropdown Input (non-approver) */}
+                      {col.type === "dropdown" && col.key !== "approver" && col.options && (
                         <>
                           <Select
                             value={formData[col.key] || ""}
@@ -2877,8 +3684,8 @@ export default function NewExpensePage() {
                             <SelectTrigger
                               id={col.key}
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             >
                               <SelectValue placeholder="Please Select" />
@@ -2894,20 +3701,20 @@ export default function NewExpensePage() {
                                   return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
                                 })
                                 .map((option: any) => {
-                                const value =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.value;
-                                const label =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.label;
-                                return (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                );
-                              })}
+                                  const value =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.value;
+                                  const label =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.label;
+                                  return (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                })}
                             </SelectContent>
                           </Select>
                           {errors[col.key] && (
@@ -2941,8 +3748,8 @@ export default function NewExpensePage() {
                             <SelectTrigger
                               id={col.key}
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             >
                               <SelectValue placeholder="Select expense type" />
@@ -2958,20 +3765,20 @@ export default function NewExpensePage() {
                                   return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
                                 })
                                 .map((option: any) => {
-                                const value =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.value;
-                                const label =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.label;
-                                return (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                );
-                              })}
+                                  const value =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.value;
+                                  const label =
+                                    typeof option === "string"
+                                      ? option
+                                      : option.label;
+                                  return (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                })}
                             </SelectContent>
                           </Select>
                           {errors[col.key] && (
@@ -3000,9 +3807,10 @@ export default function NewExpensePage() {
                                 e.target.value === "" ? "" : Math.round(parseFloat(e.target.value))
                               )
                             }
+
                             className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
                               }`}
                             placeholder="Enter amount"
                           />
@@ -3020,6 +3828,7 @@ export default function NewExpensePage() {
                               {errors[col.key]}
                             </p>
                           )}
+
                         </>
                       )}
                     </div>
@@ -3050,8 +3859,8 @@ export default function NewExpensePage() {
                         handleInputChange(col.key, e.target.value)
                       }
                       className={`w-full min-h-[75px] ${errors[col.key]
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                          : ""
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                        : ""
                         }`}
                       placeholder="Brief description of this expense report..."
                     />
@@ -3074,6 +3883,7 @@ export default function NewExpensePage() {
               {customFields.map((col) => {
                 if (
                   !col.visible ||
+                  col.key === "location" ||
                   ![
                     "text",
                     "number",
@@ -3124,8 +3934,8 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`w-full ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder={`Enter ${col.label}`}
                       />
@@ -3145,8 +3955,8 @@ export default function NewExpensePage() {
                           )
                         }
                         className={`w-full ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder={`Enter ${col.label}`}
                       />
@@ -3161,8 +3971,8 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         min={dateBounds.min}
                         max={dateBounds.max}
@@ -3177,56 +3987,79 @@ export default function NewExpensePage() {
                           handleInputChange(col.key, e.target.value)
                         }
                         className={`w-full min-h-[75px] ${errors[col.key]
-                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                            : ""
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
                           }`}
                         placeholder="Brief description of this expense report..."
                       />
                     )}
                     {col.type === "dropdown" && col.options && (
                       <>
-                        <Select
-                          value={formData[col.key] || ""}
-                          onValueChange={(value: string) =>
-                            handleInputChange(col.key, value)
-                          }
-                        >
-                          <SelectTrigger
-                            id={col.key}
-                            className={`w-full ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
-                              }`}
-                          >
-                            <SelectValue placeholder="Please Select" />
-                          </SelectTrigger>
-                          <SelectContent
-                            searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
-                            searchValue={searchQueries[col.key] || ""}
-                            onSearchChange={(v) => handleSearchChange(col.key, v)}
-                          >
-                            {col.options
-                              .filter((option: any) => {
-                                const label = typeof option === "string" ? option : option.label;
-                                return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
-                              })
-                              .map((option: any) => {
-                              const value =
-                                typeof option === "string"
-                                  ? option
-                                  : option.value;
-                              const label =
-                                typeof option === "string"
-                                  ? option
-                                  : option.label;
-                              return (
-                                <SelectItem key={value} value={value}>
-                                  {label}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
+                        {(() => {
+                          const isSecondApproverField =
+                            col.key === "second_approver_id";
+                          const optionsToRender = isSecondApproverField
+                            ? getLocationSpecificApproverOptions(
+                              "second_approver_id"
+                            )
+                            : col.options;
+                          const secondApproverUnavailable =
+                            isSecondApproverField &&
+                            isLocationApproverUnavailable(
+                              "second_approver_id"
+                            );
+
+                          return (
+                            <Select
+                              value={formData[col.key] || ""}
+                              onValueChange={(value: string) =>
+                                handleInputChange(col.key, value)
+                              }
+                            >
+                              <SelectTrigger
+                                id={col.key}
+                                className={`w-full ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                  }`}
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    secondApproverUnavailable
+                                      ? "Not Availble"
+                                      : "Please Select"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent
+                                searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                searchValue={searchQueries[col.key] || ""}
+                                onSearchChange={(v) => handleSearchChange(col.key, v)}
+                              >
+                                {col.options
+                                  .filter((option: any) => {
+                                    const label = typeof option === "string" ? option : option.label;
+                                    return String(label).toLowerCase().includes((searchQueries[col.key] || "").toLowerCase());
+                                  })
+                                  .map((option: any) => {
+                                    const value =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.value;
+                                    const label =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.label;
+                                    return (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    );
+                                  })}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()}
                       </>
                     )}
                     {col.type === "radio" && col.options && (
@@ -3351,7 +4184,7 @@ export default function NewExpensePage() {
                     </svg>
                     <Label
                       htmlFor="voucher-switch"
-                      className="text-sm font-medium text-gray-900"
+                      className="text-sm font-medium text-gray-900 cursor-pointer"
                     >
                       No receipt? Create a voucher instead
                     </Label>
@@ -3377,6 +4210,8 @@ export default function NewExpensePage() {
                         id="receipt"
                         name="receipt"
                         type="file"
+                        multiple
+                        accept="image/*,application/pdf"
                         onChange={(e) => handleFileChange(e)}
                         required={!voucherModalOpen}
                         aria-invalid={errors["receipt"] ? "true" : "false"}
@@ -3389,6 +4224,9 @@ export default function NewExpensePage() {
                             : ""
                         }
                       />
+                      <p className="text-xs text-gray-600 mt-1">
+                        Upload receipts. Multiple files will be merged into a single PDF.
+                      </p>
                       {errors["receipt"] && (
                         <p
                           id="receipt-error"
@@ -3399,25 +4237,59 @@ export default function NewExpensePage() {
                         </p>
                       )}
 
-                      <div className="text-sm text-gray-500 mt-1">
-                        {receiptFile ? receiptFile.name : "No file chosen"}
+                      <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
+                        <span>{receiptFile ? receiptFile.name : "No file chosen"}</span>
+                        {isReceiptProcessing ? (
+                          <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                            <Spinner className="w-3 h-3 animate-spin" /> Merging into PDF...
+                          </span>
+                        ) : receiptFile ? (
+                          <span className="text-xs text-emerald-600 font-medium">
+                            PDF Ready
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     {receiptPreview && (
-                      <div className="mt-2">
-                        {receiptPreview.startsWith("data:image") ? (
-                          <img
-                            src={receiptPreview}
-                            alt="Receipt preview"
-                            className="max-h-40 rounded-md border"
-                          />
-                        ) : (
-                          <div className="p-3 bg-gray-50 rounded-md border">
-                            <p className="text-sm text-gray-600">
-                              PDF receipt selected
+                      <div className="mt-2.5">
+                        <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                          <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                            <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                            <p className="text-sm text-gray-700 font-medium truncate">
+                              {receiptFile?.name || "Merged Receipt PDF"}
                             </p>
                           </div>
-                        )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setPreviewPdfModal({
+                                  open: true,
+                                  url: receiptPreview,
+                                  title: receiptFile?.name || "Receipt PDF Preview",
+                                  pageImages: receiptPageImages,
+                                })
+                              }
+                              className="text-xs h-7 px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              Preview & Verify PDF
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setReceiptFile(null);
+                                setReceiptPreview(null);
+                              }}
+                              className="text-xs h-7 px-2 text-red-600 border border-red-300"
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -3439,6 +4311,14 @@ export default function NewExpensePage() {
                       : undefined
                   }
                   errors={errors}
+                  onPreviewPdf={(params) =>
+                    setPreviewPdfModal({
+                      open: true,
+                      url: params.url,
+                      title: params.title,
+                      pageImages: params.pageImages,
+                    })
+                  }
                 />
               )}
             </div>
@@ -3463,6 +4343,109 @@ export default function NewExpensePage() {
                       </Button>
                     </div>
 
+                    {/* Location of Expense */}
+                    {customFields
+                      .filter((col) => col.visible && col.key === "location")
+                      .map((col) => (
+                        <div key={col.key} className="space-y-2 mb-5">
+                          <Label
+                            htmlFor={`${col.key}-${id}`}
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            {col.label}
+                            {col.required && (
+                              <span className="text-red-500 ml-1 text-sm">*</span>
+                            )}
+                          </Label>
+
+                          {col.type === "dropdown" && col.options && (
+                            <Select
+                              value={String(
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              )}
+                              onValueChange={(value: string) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  value
+                                )
+                              }
+                            >
+                              <SelectTrigger
+                                id={`${col.key}-${id}`}
+                                className={`w-full ${errors[col.key]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                                  }`}
+                              >
+                                <SelectValue placeholder="Please Select" />
+                              </SelectTrigger>
+                              <SelectContent
+                                searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
+                                searchValue={searchQueries[`${col.key}-${id}`] || ""}
+                                onSearchChange={(v) => handleSearchChange(`${col.key}-${id}`, v)}
+                              >
+                                {col.options
+                                  .filter((option: any) => {
+                                    const label = typeof option === "string" ? option : option.label;
+                                    return String(label).toLowerCase().includes((searchQueries[`${col.key}-${id}`] || "").toLowerCase());
+                                  })
+                                  .map((option: any) => {
+                                    const value =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.value;
+                                    const label =
+                                      typeof option === "string"
+                                        ? option
+                                        : option.label;
+                                    return (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    );
+                                  })}
+                              </SelectContent>
+                            </Select>
+                          )}
+
+                          {col.type === "text" && (
+                            <Input
+                              id={`${col.key}-${id}`}
+                              name={`${col.key}-${id}`}
+                              type="text"
+                              value={String(
+                                getExpenseItemValue(
+                                  id,
+                                  col.key as keyof ExpenseItemData
+                                ) || ""
+                              )}
+                              onChange={(e) =>
+                                handleExpenseItemChange(
+                                  id,
+                                  col.key as keyof ExpenseItemData,
+                                  e.target.value
+                                )
+                              }
+                              className={`w-full ${errors[col.key]
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
+                                }`}
+                              placeholder={`Enter ${col.label}`}
+                            />
+                          )}
+
+                          {errors[col.key] && (
+                            <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
+                              {errors[col.key]}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+
                     {/* Expense Type, Amount, Date */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {columns
@@ -3470,7 +4453,6 @@ export default function NewExpensePage() {
                           (col) =>
                             col.visible &&
                             ["dropdown", "date", "number"].includes(col.type) &&
-                            col.key !== "approver" &&
                             defaultSystemFields.includes(col.key)
                         )
                         .sort((a, b) => {
@@ -3478,6 +4460,7 @@ export default function NewExpensePage() {
                             expense_type: 0,
                             amount: 1,
                             date: 2,
+                            approver: 3,
                           };
                           const aOrder = order[a.key] ?? 99;
                           const bOrder = order[b.key] ?? 99;
@@ -3486,8 +4469,7 @@ export default function NewExpensePage() {
                         .map((col) => (
                           <div
                             key={col.key}
-                            className={`space-y-2 ${col.key === "date" ? "md:col-span-2" : ""
-                              }`}
+                            className="space-y-2"
                           >
                             <Label
                               htmlFor={col.key}
@@ -3502,7 +4484,97 @@ export default function NewExpensePage() {
                             </Label>
 
                             {/* Dropdown */}
-                            {col.type === "dropdown" && col.options && (
+                            {col.type === "dropdown" && col.key === "approver" && (
+                              <>
+                                {(() => {
+                                  const selectedItemLocation = String(
+                                    getExpenseItemValue(
+                                      id,
+                                      "location" as keyof ExpenseItemData
+                                    ) || ""
+                                  );
+                                  const selectedItemExpenseType = String(
+                                    getExpenseItemValue(
+                                      id,
+                                      "expense_type" as keyof ExpenseItemData
+                                    ) || ""
+                                  );
+                                  const approverOptions =
+                                    getLocationSpecificApproverOptions(
+                                      "approver",
+                                      selectedItemLocation,
+                                      selectedItemExpenseType
+                                    );
+                                  const approverUnavailable =
+                                    isLocationApproverUnavailable(
+                                      "approver",
+                                      selectedItemLocation,
+                                      selectedItemExpenseType
+                                    );
+
+                                  return (
+                                    <Select
+                                      value={String(
+                                        getExpenseItemValue(
+                                          id,
+                                          "approver" as keyof ExpenseItemData
+                                        ) || ""
+                                      )}
+                                      onValueChange={(value: string) =>
+                                        handleExpenseItemChange(
+                                          id,
+                                          "approver" as keyof ExpenseItemData,
+                                          value
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        id={col.key}
+                                        className={`w-full ${errors[col.key]
+                                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                          : ""
+                                          }`}
+                                      >
+                                        <SelectValue
+                                          placeholder={
+                                            approverUnavailable
+                                              ? "Not Availble"
+                                              : "Select approver"
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {approverOptions.map((option: any) => {
+                                          const value =
+                                            typeof option === "string"
+                                              ? option
+                                              : option.value;
+                                          const label =
+                                            typeof option === "string"
+                                              ? option
+                                              : option.label;
+                                          return (
+                                            <SelectItem key={value} value={value}>
+                                              {label}
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  );
+                                })()}
+                                {errors[col.key] && (
+                                  <p className="text-red-500 text-sm">
+                                    {errors[col.key]}
+                                  </p>
+                                )}
+                                <p className="text-xs text-gray-600">
+                                  Approver is auto-filled based on the selected Project of Expense and Expense Type
+                                </p>
+                              </>
+                            )}
+
+                            {col.type === "dropdown" && col.key !== "approver" && col.options && (
                               <>
                                 <Select
                                   value={
@@ -3529,8 +4601,8 @@ export default function NewExpensePage() {
                                   <SelectTrigger
                                     id={col.key}
                                     className={`w-full ${errors[col.key]
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                      : ""
                                       }`}
                                   >
                                     <SelectValue placeholder={`Select ${col.label?.toLowerCase() || "option"}`} />
@@ -3546,20 +4618,20 @@ export default function NewExpensePage() {
                                         return String(label).toLowerCase().includes((searchQueries[`${id}-${col.key}`] || "").toLowerCase());
                                       })
                                       .map((option: any) => {
-                                      const value =
-                                        typeof option === "string"
-                                          ? option
-                                          : option.value;
-                                      const label =
-                                        typeof option === "string"
-                                          ? option
-                                          : option.label;
-                                      return (
-                                        <SelectItem key={value} value={value}>
-                                          {label}
-                                        </SelectItem>
-                                      );
-                                    })}
+                                        const value =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.value;
+                                        const label =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.label;
+                                        return (
+                                          <SelectItem key={value} value={value}>
+                                            {label}
+                                          </SelectItem>
+                                        );
+                                      })}
                                   </SelectContent>
                                 </Select>
                                 {errors[col.key] && (
@@ -3593,8 +4665,8 @@ export default function NewExpensePage() {
                                     )
                                   }
                                   className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
                                     }`}
                                   min={dateBounds.min}
                                   max={dateBounds.max}
@@ -3604,9 +4676,8 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
-                                <p className="text-xs text-gray-500 mb-5">
-                                  Reimbursement bill uploading date / vendor
-                                  invoice date
+                                <p className="text-xs text-gray-600">
+                                  Reimbursement bill uploading date / vendor invoice date
                                 </p>
                               </>
                             )}
@@ -3627,9 +4698,10 @@ export default function NewExpensePage() {
                                       e.target.value === "" ? "" : Math.round(parseFloat(e.target.value))
                                     )
                                   }
+
                                   className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
                                     }`}
                                 />
                                 {col.key === "amount" && (
@@ -3642,6 +4714,7 @@ export default function NewExpensePage() {
                                     {errors[col.key]}
                                   </p>
                                 )}
+
                               </>
                             )}
                           </div>
@@ -3682,15 +4755,14 @@ export default function NewExpensePage() {
                                 e.target.value
                               )
                             }
-                            className={`w-full min-h-[50px] ${errors[col.key]
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : ""
+                            className={`w-full min-h-[75px] ${errors[col.key]
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : ""
                               }`}
                             placeholder="Brief description of this expense report..."
                           />
-                          <p className="text-xs text-gray-500">
-                            Purpose of the expense, related activity/program,
-                            amount spent, number of people involved etc...
+                          <p className="text-xs text-gray-600">
+                            Purpose of the expense, related activity/program, amount spent, number of people involved etc...
                           </p>
                           {errors[col.key] && (
                             <p className="text-red-500 text-sm">
@@ -3704,6 +4776,7 @@ export default function NewExpensePage() {
                     {customFields.map((col) => {
                       if (
                         !col.visible ||
+                        col.key === "location" ||
                         ![
                           "text",
                           "number",
@@ -3766,8 +4839,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder={`Enter ${col.label}`}
                             />
@@ -3793,8 +4866,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder={`Enter ${col.label}`}
                             />
@@ -3818,8 +4891,8 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                             />
                           )}
@@ -3841,65 +4914,95 @@ export default function NewExpensePage() {
                                 )
                               }
                               className={`w-full min-h-[75px] ${errors[col.key]
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                  : ""
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : ""
                                 }`}
                               placeholder="Brief description of this expense report..."
                             />
                           )}
                           {col.type === "dropdown" && col.options && (
                             <>
-                              <Select
-                                value={String(
+                              {(() => {
+                                const isSecondApproverField =
+                                  col.key === "second_approver_id";
+                                const selectedItemLocation = String(
                                   getExpenseItemValue(
                                     id,
-                                    col.key as keyof ExpenseItemData
+                                    "location" as keyof ExpenseItemData
                                   ) || ""
-                                )}
-                                onValueChange={(value: string) =>
-                                  handleExpenseItemChange(
+                                );
+                                const selectedItemExpenseType = String(
+                                  getExpenseItemValue(
                                     id,
-                                    col.key as keyof ExpenseItemData,
-                                    value
+                                    "expense_type" as keyof ExpenseItemData
+                                  ) || ""
+                                );
+                                const optionsToRender = isSecondApproverField
+                                  ? getLocationSpecificApproverOptions(
+                                    "second_approver_id",
+                                    selectedItemLocation,
+                                    selectedItemExpenseType
                                   )
-                                }
-                              >
-                                <SelectTrigger
-                                  id={col.key}
-                                  className={`w-full ${errors[col.key]
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                      : ""
-                                    }`}
-                                >
-                                  <SelectValue placeholder="Please Select" />
-                                </SelectTrigger>
-                                <SelectContent
-                                  searchPlaceholder={`Search ${col.label?.toLowerCase() || "option"}...`}
-                                  searchValue={searchQueries[`${id}-${col.key}`] || ""}
-                                  onSearchChange={(v) => handleSearchChange(`${id}-${col.key}`, v)}
-                                >
-                                  {col.options
-                                    .filter((option: any) => {
-                                      const label = typeof option === "string" ? option : option.label;
-                                      return String(label).toLowerCase().includes((searchQueries[`${id}-${col.key}`] || "").toLowerCase());
-                                    })
-                                    .map((option: any) => {
-                                    const value =
-                                      typeof option === "string"
-                                        ? option
-                                        : option.value;
-                                    const label =
-                                      typeof option === "string"
-                                        ? option
-                                        : option.label;
-                                    return (
-                                      <SelectItem key={value} value={value}>
-                                        {label}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
+                                  : col.options;
+                                const secondApproverUnavailable =
+                                  isSecondApproverField &&
+                                  isLocationApproverUnavailable(
+                                    "second_approver_id",
+                                    selectedItemLocation,
+                                    selectedItemExpenseType
+                                  );
+
+                                return (
+                                  <Select
+                                    value={String(
+                                      getExpenseItemValue(
+                                        id,
+                                        col.key as keyof ExpenseItemData
+                                      ) || ""
+                                    )}
+                                    onValueChange={(value: string) =>
+                                      handleExpenseItemChange(
+                                        id,
+                                        col.key as keyof ExpenseItemData,
+                                        value
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      id={col.key}
+                                      className={`w-full ${errors[col.key]
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                        }`}
+                                    >
+                                      <SelectValue
+                                        placeholder={
+                                          secondApproverUnavailable
+                                            ? "Not Availble"
+                                            : "Please Select"
+                                        }
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {col.options.map((option: any) => {
+                                        const value =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.value;
+                                        const label =
+                                          typeof option === "string"
+                                            ? option
+                                            : option.label;
+                                        return (
+                                          <SelectItem key={value} value={value}>
+                                            {label}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                );
+                              })()}
                             </>
                           )}
 
@@ -4068,8 +5171,8 @@ export default function NewExpensePage() {
                               />
                             </svg>
                             <Label
-                              htmlFor="voucher-switch"
-                              className="text-sm font-medium text-gray-900"
+                              htmlFor={`voucher-switch-${id}`}
+                              className="text-sm font-medium text-gray-900 cursor-pointer"
                             >
                               No receipt? Create a voucher instead
                             </Label>
@@ -4085,7 +5188,7 @@ export default function NewExpensePage() {
                         {!voucherModalOpenMap[id] && (
                           <div className="mt-4">
                             <Label
-                              htmlFor="receipt"
+                              htmlFor={`receipt-${id}`}
                               className="text-sm font-medium text-gray-700"
                             >
                               Receipt{" "}
@@ -4093,58 +5196,108 @@ export default function NewExpensePage() {
                             </Label>
                             <div className="mt-2">
                               <Input
-                                id="receipt"
+                                id={`receipt-${id}`}
                                 name="receipt"
                                 type="file"
+                                multiple
+                                accept="image/*,application/pdf"
                                 onChange={(e) => handleFileChanges(e, id)}
-                                required={!voucherModalOpenMap[index]}
+                                required={!voucherModalOpenMap[id]}
                                 aria-invalid={
-                                  errors["receipt"] ? "true" : "false"
+                                  errors[`receipt-${id}`] ? "true" : "false"
                                 }
                                 aria-describedby={
-                                  errors["receipt"]
-                                    ? "receipt-error"
+                                  errors[`receipt-${id}`]
+                                    ? `receipt-${id}-error`
                                     : undefined
                                 }
                                 className={
-                                  errors["receipt"]
+                                  errors[`receipt-${id}`]
                                     ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                     : ""
                                 }
                               />
-                              {errors["receipt"] && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                Upload receipts. Multiple files will be merged into a single PDF.
+                              </p>
+                              {errors[`receipt-${id}`] && (
                                 <p
-                                  id="receipt-error"
+                                  id={`receipt-${id}-error`}
                                   className="text-red-500 text-sm mt-1"
                                   role="alert"
                                 >
-                                  {errors["receipt"]}
+                                  {errors[`receipt-${id}`]}
                                 </p>
                               )}
 
-                              <div className="text-sm text-gray-500 mt-1">
-                                {receiptFiles[id] && receiptFiles[id].name
-                                  ? receiptFiles[id].name
-                                  : "No file chosen"}
+                              <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
+                                <span>
+                                  {receiptFiles[id] && receiptFiles[id]!.name
+                                    ? receiptFiles[id]!.name
+                                    : "No file chosen"}
+                                </span>
+                                {receiptProcessingMap[id] ? (
+                                  <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                                    <Spinner className="w-3 h-3 animate-spin" /> Merging into PDF...
+                                  </span>
+                                ) : receiptFiles[id] ? (
+                                  <span className="text-xs text-emerald-600 font-medium flex items-end">
+                                    PDF Ready
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                             {receiptPreviews[id] && (
-                              <div className="mt-2">
-                                {receiptPreviews[id].startsWith(
-                                  "data:image"
-                                ) ? (
-                                  <img
-                                    src={receiptPreviews[id]}
-                                    alt="Receipt preview"
-                                    className="max-h-40 rounded-md border"
-                                  />
-                                ) : (
-                                  <div className="p-3 bg-gray-50 rounded-md border">
-                                    <p className="text-sm text-gray-600">
-                                      PDF receipt selected
+                              <div className="mt-2.5">
+                                <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                                  <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                                    <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                                    <p className="text-sm text-gray-700 font-medium truncate">
+                                      {receiptFiles[id]?.name || "Merged Receipt PDF"}
                                     </p>
                                   </div>
-                                )}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        setPreviewPdfModal({
+                                          open: true,
+                                          url: receiptPreviews[id]!,
+                                          title:
+                                            receiptFiles[id]?.name ||
+                                            "Receipt PDF Preview",
+                                          pageImages:
+                                            receiptPageImagesMap[id] || [],
+                                        })
+                                      }
+                                      className="text-xs h-7 px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                    >
+                                      Preview & Verify PDF
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setReceiptFiles((prev) => {
+                                          const updated = { ...prev };
+                                          delete updated[id];
+                                          return updated;
+                                        });
+                                        setReceiptPreviews((prev) => {
+                                          const updated = { ...prev };
+                                          delete updated[id];
+                                          return updated;
+                                        });
+                                      }}
+                                      className="text-xs h-7 px-2 text-red-600 border border-red-300"
+                                    >
+                                      Clear
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -4185,6 +5338,15 @@ export default function NewExpensePage() {
                           }
                           errors={errors}
                           expenseAmount={expenseItemsData[id]?.amount}
+                          itemId={id}
+                          onPreviewPdf={(params) =>
+                            setPreviewPdfModal({
+                              open: true,
+                              url: params.url,
+                              title: params.title,
+                              pageImages: params.pageImages,
+                            })
+                          }
                         />
                       )}
                     </div>
