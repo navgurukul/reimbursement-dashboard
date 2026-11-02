@@ -110,7 +110,7 @@ export function LoginForm({
               .from("profiles")
               .select("email")
               .eq("email", email.toLowerCase())
-              .single();
+              .maybeSingle();
 
             if (profileData && !profileError) {
               // User exists in profiles table, now check if they signed up with OAuth only

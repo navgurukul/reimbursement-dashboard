@@ -26,6 +26,7 @@ import {
   Wallet,
   Tags,
   MapPin,
+  UserCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -191,6 +192,11 @@ export function AppSidebar() {
       title: "Abbreviations",
       href: `/org/${organization?.slug}/abbreviations`,
       icon: Tags,
+    },
+    {
+      title: "Approver Info",
+      href: `/org/${organization?.slug}/approver-info`,
+      icon: UserCheck,
     },
     // Show CP Pune-SoSC ONLY to allowed users based on email
     ...(PUNE_SOSC_ALLOWED_EMAILS.includes(userEmail)

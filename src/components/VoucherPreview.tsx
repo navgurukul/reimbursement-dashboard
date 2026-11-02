@@ -1,9 +1,17 @@
 "use client";
 
 import React from "react";
-import { FileText, Eye, EyeOff, Edit2, Save, X } from "lucide-react";
+import { FileText, Eye, EyeOff, Edit2, Save, X, Loader2 } from "lucide-react";
 import { vouchers, voucherAttachments, expenses, expenseHistory } from "@/lib/db";
 import supabase from "@/lib/supabase";
+import { mergeReceiptsToPdf } from "@/lib/receipt-pdf-utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -46,6 +54,20 @@ export default function VoucherPreview({
   const [isSaving, setIsSaving] = React.useState(false);
   const [editForm, setEditForm] = React.useState<any>({});
   const [newAttachment, setNewAttachment] = React.useState<File | null>(null);
+  const [isAttachmentProcessing, setIsAttachmentProcessing] = React.useState(false);
+  const [attachmentPreviewUrl, setAttachmentPreviewUrl] = React.useState<string | null>(null);
+  const [attachmentPageImages, setAttachmentPageImages] = React.useState<string[]>([]);
+  const [previewPdfModal, setPreviewPdfModal] = React.useState<{
+    open: boolean;
+    url: string;
+    title: string;
+    pageImages?: string[];
+  }>({
+    open: false,
+    url: "",
+    title: "",
+    pageImages: [],
+  });
 
   React.useEffect(() => {
     if (voucherDetails) {
@@ -177,7 +199,17 @@ export default function VoucherPreview({
                     size="sm"
                     variant="outline"
                     className="cursor-pointer"
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => {
+                      if (attachmentPreviewUrl) {
+                        try {
+                          URL.revokeObjectURL(attachmentPreviewUrl);
+                        } catch {}
+                      }
+                      setNewAttachment(null);
+                      setAttachmentPreviewUrl(null);
+                      setAttachmentPageImages([]);
+                      setIsEditing(false);
+                    }}
                     disabled={isSaving}
                   >
                     <X className="h-4 w-4 mr-1" /> Cancel
@@ -264,6 +296,13 @@ export default function VoucherPreview({
                           purpose: editForm.purpose,
                           ...(newAttachment && { attachment: attachmentValue })
                         });
+                        if (newAttachment && attachmentPreviewUrl) {
+                          setVoucherAttachmentFilename(newAttachment.name);
+                          setVoucherAttachmentUrl(attachmentPreviewUrl);
+                        }
+                        setNewAttachment(null);
+                        setAttachmentPreviewUrl(null);
+                        setAttachmentPageImages([]);
                         setIsEditing(false);
                         toast.success("Voucher updated successfully");
                       } catch (err) {
@@ -272,9 +311,14 @@ export default function VoucherPreview({
                         setIsSaving(false);
                       }
                     }}
-                    disabled={isSaving}
+                    disabled={isSaving || isAttachmentProcessing}
                   >
-                    {isSaving ? <Spinner className="h-4 w-4 mr-1" /> : <Save className="h-4 w-4 mr-1" />} Save
+                    {isSaving || isAttachmentProcessing ? (
+                      <Spinner className="h-4 w-4 mr-1" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-1" />
+                    )}{" "}
+                    Save
                   </Button>
                 </>
               )}
@@ -372,8 +416,12 @@ export default function VoucherPreview({
                   )}
                 </div>
                 <div>
-                  <Label className="text-sm text-muted-foreground">Approver</Label>
-                  <p className="font-medium">{expense?.approver?.full_name || "N/A"}</p>
+                  <p className="text-sm text-muted-foreground">Approver</p>
+                  <p className="font-medium">{expense?.custom_fields?.approver_name || expense?.approver?.full_name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Second Approver</p>
+                  <p className="font-medium">{expense?.custom_fields?.second_approver_name || "N/A"}</p>
                 </div>
                 <div className="md:col-span-2">
                   <Label className="text-sm text-muted-foreground">Purpose</Label>
@@ -402,14 +450,126 @@ export default function VoucherPreview({
 
               {isEditing && (
                 <div className="space-y-2 border-t pt-4 mt-4 mb-4">
-                  <Label className="text-sm text-muted-foreground">Update Attachment</Label>
-                  <Input type="file" onChange={(e) => setNewAttachment(e.target.files?.[0] || null)} className="mt-1" />
-                  {newAttachment && <p className="text-sm text-blue-600 mt-1">New file selected: {newAttachment.name}</p>}
+                  <Label htmlFor="voucher-attachment-edit" className="text-sm font-medium text-gray-700">
+                    Update Attachment
+                  </Label>
+                  <Input
+                    id="voucher-attachment-edit"
+                    type="file"
+                    multiple
+                    accept="image/*,application/pdf"
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+
+                      setIsAttachmentProcessing(true);
+                      try {
+                        const result = await mergeReceiptsToPdf(files, {
+                          label: "voucher_attachments",
+                        });
+                        setNewAttachment(result.file);
+                        setAttachmentPreviewUrl(result.previewUrl);
+                        setAttachmentPageImages(result.pageImages || []);
+
+                        if (files.length > 1) {
+                          toast.success(
+                            `Merged ${files.length} voucher attachments into a single PDF (${result.pageCount} pages)`
+                          );
+                        } else if (!files[0].name.toLowerCase().endsWith(".pdf")) {
+                          toast.success("Voucher attachment converted to PDF");
+                        }
+                      } catch (err: any) {
+                        console.error("Voucher attachment processing error:", err);
+                        toast.error(err?.message || "Failed to process attachment into PDF");
+                      } finally {
+                        setIsAttachmentProcessing(false);
+                      }
+                    }}
+                    disabled={isAttachmentProcessing}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Upload proof of payment (JPG, PNG, or PDF). Multiple files will be merged into a single PDF.
+                  </p>
+
+                  <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
+                    <span>
+                      {newAttachment
+                        ? newAttachment.name
+                        : voucherAttachmentFilename
+                        ? `Current: ${voucherAttachmentFilename}`
+                        : "No file chosen"}
+                    </span>
+                    {isAttachmentProcessing ? (
+                      <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Merging into PDF...
+                      </span>
+                    ) : newAttachment ? (
+                      <span className="text-xs text-emerald-600 font-medium">
+                        PDF Ready
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {newAttachment && attachmentPreviewUrl && (
+                    <div className="mt-2.5">
+                      <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                        <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                          <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                          <p className="text-sm text-gray-700 font-medium truncate">
+                            {newAttachment.name}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setPreviewPdfModal({
+                                open: true,
+                                url: attachmentPreviewUrl,
+                                title:
+                                  newAttachment.name ||
+                                  "Voucher Attachment PDF Preview",
+                                pageImages: attachmentPageImages,
+                              })
+                            }
+                            className="text-xs h-7 px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                          >
+                            Preview & Verify PDF
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (attachmentPreviewUrl) {
+                                try {
+                                  URL.revokeObjectURL(attachmentPreviewUrl);
+                                } catch {}
+                              }
+                              setNewAttachment(null);
+                              setAttachmentPreviewUrl(null);
+                              setAttachmentPageImages([]);
+                              const input = document.getElementById(
+                                "voucher-attachment-edit"
+                              ) as HTMLInputElement | null;
+                              if (input) input.value = "";
+                            }}
+                            className="text-xs h-7 px-2 text-red-600 border border-red-300"
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               {(() => {
-                const previewUrl = newAttachment ? URL.createObjectURL(newAttachment) : voucherAttachmentUrl;
+                const previewUrl = attachmentPreviewUrl || voucherAttachmentUrl;
                 const previewFilename = newAttachment ? newAttachment.name : voucherAttachmentFilename;
 
                 return previewUrl ? (
@@ -438,6 +598,68 @@ export default function VoucherPreview({
           )}
         </div>
       )}
+
+      {/* Merged Voucher Attachment PDF Preview & Verification Modal */}
+      <Dialog
+        open={previewPdfModal.open}
+        onOpenChange={(open) =>
+          setPreviewPdfModal((prev) => ({ ...prev, open }))
+        }
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
+            <DialogTitle className="text-base font-semibold text-gray-900 truncate">
+              {previewPdfModal.title}
+            </DialogTitle>
+            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+              <DialogDescription asChild>
+                <span>
+                  {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0
+                    ? `${previewPdfModal.pageImages.length} page${previewPdfModal.pageImages.length > 1 ? "s" : ""} in merged PDF`
+                    : "Verify all pages of your merged voucher attachment PDF."}
+                </span>
+              </DialogDescription>
+              {previewPdfModal.url && (
+                <a
+                  href={previewPdfModal.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium inline-flex items-center gap-1 border border-blue-700 rounded-md px-1 py-1"
+                >
+                  Open in new tab
+                </a>
+              )}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100/70 max-h-[calc(90vh-80px)]">
+            {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0 ? (
+              previewPdfModal.pageImages.map((imgSrc, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col items-center p-3"
+                >
+                  <div className="w-full flex items-center justify-between pb-2 mb-2 border-b text-xs text-gray-500 font-medium">
+                    <span>Page {idx + 1} of {previewPdfModal.pageImages?.length}</span>
+                  </div>
+                  <img
+                    src={imgSrc}
+                    alt={`Attachment page ${idx + 1}`}
+                    className="max-w-full h-auto object-contain rounded"
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="w-full h-[60vh] bg-white rounded border overflow-hidden">
+                <iframe
+                  src={`${previewPdfModal.url}#toolbar=0&navpanes=0&scrollbar=1`}
+                  className="w-full h-full border-0"
+                  title="Attachment PDF Preview"
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

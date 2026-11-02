@@ -62,6 +62,8 @@ export interface Profile {
   created_at: string;
   updated_at: string;
   signature_url?: string;
+  display_name?: string | null;
+  leave_duration?: string | null;
 }
 
 export interface InviteRow {
@@ -118,11 +120,37 @@ export interface DatabaseError {
   code: string;
 }
 
+/** Mapping: expense type → primary approver and optional second approver */
+export interface ExpenseTypeApproverMappingEntry {
+  expense_type: string | string[];
+  approver_id: string | string[];
+  approver_name?: string | string[]; // custom name when person is not in org dropdown
+  second_approver_id?: string | string[];
+  second_approver_name?: string | string[]; // custom name for second approver
+  /** If true, this mapping is used on new expense form; if false, ignored. Default true when missing. */
+  enabled?: boolean;
+}
+
+/** Mapping: location of expense (optionally narrowed by expense type) → primary approver and optional second approver */
+export interface LocationApproverMappingEntry {
+  location: string | string[];
+  expense_type?: string | string[];
+  approver_name?: string | string[];
+  second_approver_name?: string | string[];
+  // Optional IDs for future use (stored as JSON, safe to include)
+  approver_id?: string | string[];
+  second_approver_id?: string | string[];
+  /** If true, this mapping is used on new expense form; if false, ignored. Default true when missing. */
+  enabled?: boolean;
+}
+
 export interface OrganizationSettings {
   id: string;
   org_id: string;
   expense_columns: ColumnConfig[];
   branding: BrandingConfig;
+  expense_type_approver_mapping?: ExpenseTypeApproverMappingEntry[];
+  location_approver_mapping?: LocationApproverMappingEntry[];
   created_at: string;
   updated_at: string;
 }
@@ -367,7 +395,7 @@ export const organizations = {
   },
 
   getUserOrganizations: async (userId: string) => {
-    return await supabase
+    const { data, error } = await supabase
       .from("organization_users")
       .select(
         `
@@ -377,8 +405,12 @@ export const organizations = {
       `
       )
       .eq("user_id", userId)
-      .maybeSingle()
-      .returns<OrganizationMembership>();
+      .limit(1);
+
+    return {
+      data: (data && data.length > 0 ? data[0] : null) as OrganizationMembership | null,
+      error,
+    };
   },
 
   addUser: async (orgId: string, userId: string, role: string) => {
@@ -397,11 +429,16 @@ export const organizations = {
   },
 
   checkMembership: async (userId: string) => {
-    return await supabase
+    const { data, error } = await supabase
       .from("organization_users")
       .select("org_id")
       .eq("user_id", userId)
-      .maybeSingle();
+      .limit(1);
+
+    return {
+      data: (data && data.length > 0 ? data[0] : null) as { org_id: string } | null,
+      error,
+    };
   },
 
   getOrganizationMembers: async (orgId: string) => {
@@ -760,7 +797,7 @@ export const profiles = {
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
-      .single()
+      .maybeSingle()
       .returns<Profile>();
   },
   getByIds: async (userIds: string[]) => {
@@ -1149,6 +1186,56 @@ export const orgSettings = {
       data: data as OrganizationSettings,
       error: null,
     };
+  },
+
+  /**
+   * Update expense type → approver mapping (approver + optional second approver per expense type)
+   */
+  updateExpenseTypeApproverMapping: async (
+    orgId: string,
+    mapping: ExpenseTypeApproverMappingEntry[]
+  ) => {
+    const { data, error } = await supabase
+      .from("org_settings")
+      .upsert(
+        {
+          org_id: orgId,
+          expense_type_approver_mapping: mapping,
+        },
+        { onConflict: "org_id", ignoreDuplicates: false }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+    return { data: data as OrganizationSettings, error: null };
+  },
+
+  /**
+   * Update location of expense → approver mapping (approver + optional second approver per location)
+   */
+  updateLocationApproverMapping: async (
+    orgId: string,
+    mapping: LocationApproverMappingEntry[]
+  ) => {
+    const { data, error } = await supabase
+      .from("org_settings")
+      .upsert(
+        {
+          org_id: orgId,
+          location_approver_mapping: mapping,
+        },
+        { onConflict: "org_id", ignoreDuplicates: false }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error as DatabaseError };
+    }
+    return { data: data as OrganizationSettings, error: null };
   },
 };
 
@@ -2911,4 +2998,4 @@ export const authUsers = {
       };
     }
   },
-};
+};

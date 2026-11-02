@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import supabase from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
@@ -32,9 +32,10 @@ import { isExportEnabled } from "@/lib/features";
 import { toast } from "sonner";
 import { useOrgStore } from "@/store/useOrgStore";
 import { notFound, useRouter } from "next/navigation";
-import { Download, Pencil, Plus, Upload } from "lucide-react";
+import { Download, Pencil, Plus, Upload, AlertTriangle } from "lucide-react";
 import { bankDocumentFiles } from "@/lib/db";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 function DocumentLink({ url }: { url: string }) {
   const [isValid, setIsValid] = useState<boolean | null>(null);
@@ -91,6 +92,7 @@ export default function BankDetailsPage() {
     notFound();
   }
   const [data, setData] = useState<BankDetail[]>([]);
+  const [allBankDetails, setAllBankDetails] = useState<BankDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<BankDetail | null>(null);
@@ -136,9 +138,178 @@ export default function BankDetailsPage() {
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  async function fetchAllBankDetails() {
+    const { data: allData, error } = await supabase
+      .from("bank_details")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (!error && allData) {
+      setAllBankDetails(allData);
+    }
+  }
+
+  useEffect(() => {
+    fetchAllBankDetails();
+  }, []);
+
   useEffect(() => {
     fetchBankDetails();
   }, [search]);
+
+  // Compute matching warnings:
+  // - Account Number & IFSC Code are checked together to see if both already exist for an existing record
+  // - Account Name, Bank Name, Email, Unique ID are checked for duplicate matches
+  const { matchingWarnings, warningsByField } = useMemo(() => {
+    if (!dialogOpen) return { matchingWarnings: [], warningsByField: {} };
+
+    const warnings: {
+      field: string;
+      label: string;
+      message: string;
+      matchedWith?: string;
+    }[] = [];
+    const fieldMap: Record<string, string> = {};
+
+    const accNum = (form.account_number || "").trim().toLowerCase();
+    const ifsc = (form.ifsc_code || "").trim().toLowerCase();
+    const bankName = (form.bank_name || "").trim().toLowerCase();
+
+    // 1. Check Account Number, IFSC Code, and Bank Name together
+    if (accNum && ifsc) {
+      const bothMatches = allBankDetails.filter((b) => {
+        if (editing && b.id === editing.id) return false;
+        const bAcc = (b.account_number || "").trim().toLowerCase();
+        const bIfsc = (b.ifsc_code || "").trim().toLowerCase();
+        const bBank = (b.bank_name || "").trim().toLowerCase();
+
+        if (bAcc !== accNum || bIfsc !== ifsc) return false;
+        if (bankName && bBank && bBank !== bankName) return false;
+        return true;
+      });
+
+      if (bothMatches.length > 0) {
+        const holders = Array.from(
+          new Set(bothMatches.map((m) => m.account_holder?.trim()).filter(Boolean))
+        );
+        const matchedWith =
+          holders[0] || bothMatches[0].email || bothMatches[0].unique_id || "another record";
+        const msg = `Already exists in record for ${matchedWith}`;
+
+        warnings.push({
+          field: "account_number_ifsc_bank",
+          label: "Account Number, IFSC Code, Bank Name",
+          message: msg,
+          matchedWith,
+        });
+        fieldMap["account_number"] = msg;
+        fieldMap["ifsc_code"] = msg;
+        if (bankName) {
+          fieldMap["bank_name"] = msg;
+        }
+      } else {
+        // Combination doesn't match; check if Account Number alone matches another record
+        const accMatches = allBankDetails.filter((b) => {
+          if (editing && b.id === editing.id) return false;
+          return (b.account_number || "").trim().toLowerCase() === accNum;
+        });
+
+        if (accMatches.length > 0) {
+          const holders = Array.from(
+            new Set(accMatches.map((m) => m.account_holder?.trim()).filter(Boolean))
+          );
+          const matchedWith = holders[0] || accMatches[0].email || "another record";
+          const msg = `Already exists in record for ${matchedWith}`;
+
+          warnings.push({
+            field: "account_number",
+            label: "Account Number",
+            message: msg,
+            matchedWith,
+          });
+          fieldMap["account_number"] = msg;
+        }
+      }
+    } else if (accNum) {
+      // Only Account Number is entered
+      const accMatches = allBankDetails.filter((b) => {
+        if (editing && b.id === editing.id) return false;
+        return (b.account_number || "").trim().toLowerCase() === accNum;
+      });
+
+      if (accMatches.length > 0) {
+        const holders = Array.from(
+          new Set(accMatches.map((m) => m.account_holder?.trim()).filter(Boolean))
+        );
+        const matchedWith = holders[0] || accMatches[0].email || "another record";
+        const msg = `Already exists in record for ${matchedWith}`;
+
+        warnings.push({
+          field: "account_number",
+          label: "Account Number",
+          message: msg,
+          matchedWith,
+        });
+        fieldMap["account_number"] = msg;
+      }
+    }
+    // If only IFSC or Bank Name is entered without Account Number, do NOT warn alone
+
+    // 2. Check other fields: Account Holder, Email, Unique ID, Advance Unique ID
+    const singleChecks: {
+      key: keyof Omit<BankDetail, "id">;
+      label: string;
+      value: string;
+    }[] = [
+      { key: "account_holder", label: "Account Name", value: form.account_holder },
+      { key: "email", label: "Email", value: form.email },
+      { key: "unique_id", label: "Unique ID", value: form.unique_id },
+      { key: "advance_unique_id", label: "Advance Unique ID", value: form.advance_unique_id },
+    ];
+
+    for (const check of singleChecks) {
+      const val = (check.value || "").trim().toLowerCase();
+      if (!val) continue;
+      if (check.key === "advance_unique_id" && (val === "not available" || val === "n/a")) continue;
+
+      const matches = allBankDetails.filter((b) => {
+        if (editing && b.id === editing.id) return false;
+        const targetVal = ((b as any)[check.key] || "").toString().trim().toLowerCase();
+        if (check.key === "advance_unique_id" && (targetVal === "not available" || targetVal === "n/a")) return false;
+        return targetVal === val;
+      });
+
+      if (matches.length > 0) {
+        const holders = Array.from(
+          new Set(matches.map((m) => m.account_holder?.trim()).filter(Boolean))
+        );
+
+        let message = "";
+        if (check.key === "account_holder") {
+          message = `Already matches an existing account name (${matches.length} record${matches.length > 1 ? "s" : ""})`;
+        } else if (check.key === "bank_name") {
+          message = `Already matches ${matches.length} existing record${matches.length > 1 ? "s" : ""}`;
+        } else {
+          const matchedWith =
+            holders[0] || matches[0].email || matches[0].unique_id || "another record";
+          message = `Already exists in record for ${matchedWith}`;
+        }
+
+        warnings.push({
+          field: check.key,
+          label: check.label,
+          message,
+          matchedWith:
+            check.key === "bank_name" || check.key === "account_holder"
+              ? undefined
+              : holders[0] || matches[0].email || matches[0].unique_id,
+        });
+        fieldMap[check.key] = message;
+      }
+    }
+
+    return { matchingWarnings: warnings, warningsByField: fieldMap };
+  }, [dialogOpen, form, allBankDetails, editing]);
 
   async function fetchBankDetails() {
     setLoading(true);
@@ -325,6 +496,7 @@ export default function BankDetailsPage() {
     setDocumentFileName("");
     setErrors({});
     fetchBankDetails();
+    fetchAllBankDetails();
     setDialogOpen(false);
     setIsSubmitting(false);
   };
@@ -443,6 +615,7 @@ export default function BankDetailsPage() {
         <h1 className="page-title">Bank Details</h1>
         <Button
           onClick={() => {
+            fetchAllBankDetails();
             setEditing(null);
             setForm({
               account_holder: "",
@@ -473,6 +646,36 @@ export default function BankDetailsPage() {
             <DialogTitle className="subsection-heading">
               {editing ? "Edit Bank Detail" : "Add New Bank Detail"}
             </DialogTitle>
+
+            {/* Warning banner when any of Account Name, Account Number, IFSC Code, Bank Name, Email, Unique ID matches */}
+            {matchingWarnings.length > 0 && (
+              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-sm space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-amber-800">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>
+                    Warning: {matchingWarnings.length} matching detail{matchingWarnings.length > 1 ? "s" : ""} found with existing bank records
+                  </span>
+                </div>
+                <ul className="list-disc list-inside text-xs space-y-1 text-amber-800/90 pl-1">
+                  {matchingWarnings.map((warn, i) => (
+                    <li key={i}>
+                      <span className="font-semibold">{warn.label}:</span>{" "}
+                      {warn.matchedWith ? (
+                        <>
+                          Already exists in record for{" "}
+                          <strong className="font-bold text-amber-950">
+                            &quot;{warn.matchedWith}&quot;
+                          </strong>
+                        </>
+                      ) : (
+                        warn.message
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 { name: "account_holder", label: "Account Holder" },
@@ -491,6 +694,13 @@ export default function BankDetailsPage() {
                     name={name}
                     value={(form as any)[name]}
                     onChange={handleInputChange}
+                    className={cn(
+                      errors[name]
+                        ? "border-red-500 focus-visible:ring-red-500/30 focus-visible:border-red-500"
+                        : warningsByField[name]
+                        ? "border-amber-400 focus-visible:ring-amber-400/30 focus-visible:border-amber-400"
+                        : ""
+                    )}
                   />
                   {errors[name] && (
                     <p className="text-red-500 text-xs mt-1">{errors[name]}</p>
@@ -777,6 +987,7 @@ export default function BankDetailsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => {
+                        fetchAllBankDetails();
                         setEditing(row);
                         setForm({
                           account_holder: row.account_holder || "",
