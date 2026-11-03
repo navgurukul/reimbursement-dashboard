@@ -3758,22 +3758,46 @@ export default function PaymentRecords() {
               Finance-only changes here will not alter the creator&apos;s submitted expense fields.
             </p>
           </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setEditModal({ open: false, record: null })}
-              className="cursor-pointer"
-              disabled={savingEdit}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveEdit}
-              className="cursor-pointer"
-              disabled={savingEdit}
-            >
-              {savingEdit ? "Saving..." : "Save"}
-            </Button>
+          <DialogFooter className="mt-4 flex flex-col sm:flex-row sm:justify-between items-stretch sm:items-center gap-2">
+            {editModal.record && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  params.set("activeTab", activeTab);
+                  params.set("page", String(pagination.currentPage));
+                  const sNo = displaySerialNumber(editModal.record);
+                  params.set("sNo", String(sNo));
+                  const targetRecordId = editModal.record.id;
+                  setEditModal({ open: false, record: null });
+                  router.push(
+                    `/org/${slug}/finance/records/${targetRecordId}/edit?${params.toString()}`
+                  );
+                }}
+                className="flex items-center gap-2 cursor-pointer border-blue-500 text-blue-600 hover:bg-blue-50"
+              >
+                <Pencil className="w-4 h-4" />
+                Edit Full Expense & Replace Bills
+              </Button>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setEditModal({ open: false, record: null })}
+                className="cursor-pointer"
+                disabled={savingEdit}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                className="cursor-pointer"
+                disabled={savingEdit}
+              >
+                {savingEdit ? "Saving..." : "Save"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
