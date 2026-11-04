@@ -237,14 +237,14 @@ export function LoginForm({
       {...props}
     >
       {isLoading && (
-        <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-center justify-center rounded-lg">
-          <div className="flex items-center gap-2 text-gray-700">
+        <div className="absolute inset-0 z-10 bg-background/60 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Spinner className="w-5 h-5" />
             <span className="text-sm">Signing you in…</span>
           </div>
         </div>
       )}
-      <Card className="shadow-md border">
+      <Card>
         <CardContent className="p-6 space-y-6">
           <div className="text-center space-y-1">
             <h1 className="section-heading">Welcome back</h1>
@@ -270,7 +270,7 @@ export function LoginForm({
                 <Label htmlFor="password">Password</Label>
                 <Link
                   href="/auth/forgot-password"
-                  className="text-sm text-muted-foreground hover:underline"
+                  className="rounded-sm text-sm text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 >
                   Forgot password?
                 </Link>
@@ -287,7 +287,9 @@ export function LoginForm({
             </div>
 
             {(error || authError) && (
-              <p className="text-sm text-red-500">{error || authError}</p>
+              <p role="alert" className="text-sm text-destructive">
+                {error || authError}
+              </p>
             )}
 
             <Button
@@ -306,9 +308,9 @@ export function LoginForm({
             </Button>
 
             <div className="my-4 flex items-center gap-2">
-              <div className="h-px bg-black flex-1" />
+              <div className="h-px bg-border flex-1" />
               <span className="text-xs text-muted-foreground">OR</span>
-              <div className="h-px bg-black flex-1" />
+              <div className="h-px bg-border flex-1" />
             </div>
 
             <Button
@@ -353,11 +355,11 @@ export function LoginForm({
               )}
             </Button>
           </form>
-          <p className="text-center text-sm">
+          <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
             <Link
               href="/auth/signup"
-              className="text-slate-500 hover:underline"
+              className="rounded-sm font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               Sign up
             </Link>

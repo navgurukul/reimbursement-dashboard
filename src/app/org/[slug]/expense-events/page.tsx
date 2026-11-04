@@ -9,8 +9,9 @@ import { expenseEvents, expenses } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { PlusCircle, Search } from "lucide-react";
+import { CalendarDays, PlusCircle, Search } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { Spinner } from "@/components/ui/spinner";
 import { PageLoader } from "@/components/ui/page-loader";
 import {
@@ -125,31 +126,34 @@ export default function ExpenseEventsPage() {
   };
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="page-title">Expense Events</h1>
-          <p className="descriptive-text">
-            Group your expenses by events for better organization
-          </p>
-        </div>
-        {(userRole === "admin" || userRole === "owner") && (
-          <Button
-            onClick={() => router.push(`/org/${slug}/expense-events/new`)}
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            New Event
-          </Button>
-        )}
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Expense Events"
+        description="Group your expenses by events for better organization"
+        actions={
+          (userRole === "admin" || userRole === "owner") && (
+            <Button
+              onClick={() => router.push(`/org/${slug}/expense-events/new`)}
+            >
+              <PlusCircle />
+              New Event
+            </Button>
+          )
+        }
+      />
 
-      <div className="flex w-full max-w-sm items-center space-x-2 mb-4">
+      <div className="relative w-full sm:w-72">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
         <Input
           type="search"
           placeholder="Search events..."
+          aria-label="Search events"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-lg"
+          className="pl-8"
         />
         {/* <Button type="submit" size="icon" variant="ghost">
           <Search className="h-4 w-4" />
@@ -159,27 +163,31 @@ export default function ExpenseEventsPage() {
       {loading ? (
         <PageLoader />
       ) : filteredEvents.length === 0 ? (
-        <Card className="border-2 border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="mb-4 text-gray-500">No expense events found</p>
-            {userRole === "admin" || userRole === "owner" ? (
-              <Button
-                onClick={() => router.push(`/org/${slug}/expense-events/new`)}
-                variant="outline"
-              >
-                Create your first event
-              </Button>
-            ) : (
-              <p className="text-sm text-gray-500">
-                Events will appear here when created by your manager or admin
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-dashed bg-card">
+          <EmptyState
+            icon={CalendarDays}
+            title="No expense events found"
+            description={
+              userRole === "admin" || userRole === "owner"
+                ? undefined
+                : "Events will appear here when created by your manager or admin"
+            }
+            action={
+              userRole === "admin" || userRole === "owner" ? (
+                <Button
+                  onClick={() => router.push(`/org/${slug}/expense-events/new`)}
+                  variant="outline"
+                >
+                  Create your first event
+                </Button>
+              ) : undefined
+            }
+          />
+        </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="data-table-wrap max-h-[70vh]">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10">
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Dates</TableHead>
@@ -192,7 +200,7 @@ export default function ExpenseEventsPage() {
               {filteredEvents.map((event) => (
                 <TableRow
                   key={event.id}
-                  className="cursor-pointer hover:bg-gray-50"
+                  className="cursor-pointer"
                   onClick={() =>
                     router.push(`/org/${slug}/expense-events/${event.id}`)
                   }

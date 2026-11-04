@@ -9,16 +9,20 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   ArrowLeft,
   Pencil,
   PlusCircle,
+  Receipt,
   Save,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
@@ -84,19 +88,36 @@ const ConfirmModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full">
-        <div className="flex justify-between items-start mb-4">
-          <h3 className="card-title">{title}</h3>
-          <button
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-modal-title"
+        aria-describedby="confirm-modal-description"
+        className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl border bg-background p-5 shadow-lg sm:p-6"
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <h3 id="confirm-modal-title" className="card-title">
+            {title}
+          </h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="-mr-2 -mt-2 size-8 text-muted-foreground"
+            aria-label="Close"
             onClick={onClose}
-            className="rounded-full p-1 hover:bg-gray-100"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
-        <p className="text-gray-600 mb-6">{description}</p>
-        <div className="flex justify-end space-x-2">
+        <p
+          id="confirm-modal-description"
+          className="mb-6 text-sm text-muted-foreground"
+        >
+          {description}
+        </p>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
@@ -341,7 +362,7 @@ export default function ExpenseEventDetailPage() {
     return (
       <div className="text-center py-12">
         <h2 className="subsection-heading mb-2">Event not found</h2>
-        <p className="text-gray-500 mb-4">
+        <p className="text-muted-foreground mb-4">
           The expense event you're looking for doesn't exist.
         </p>
         <Button
@@ -355,7 +376,7 @@ export default function ExpenseEventDetailPage() {
   }
 
   return (
-    <div className="max-w-[1000px] mx-auto py-6 space-y-6">
+    <div className="max-w-[1000px] mx-auto space-y-6">
       {/* Custom Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={showDeleteModal}
@@ -365,25 +386,28 @@ export default function ExpenseEventDetailPage() {
         description="This will remove the event and unlink all associated expenses. The expenses themselves will not be deleted."
       />
 
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => router.push(`/org/${slug}/expense-events`)}
-          className="text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Events
-        </Button>
-
-        <div className="flex items-center space-x-2">
-          {event.status === "draft" && (
+      <PageHeader
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/org/${slug}/expense-events`)}
+            className="-ml-2 w-fit text-muted-foreground"
+          >
+            <ArrowLeft />
+            Back to Events
+          </Button>
+        }
+        title={event.title}
+        actions={
+          event.status === "draft" && (
             <>
               <Button
                 variant="outline"
-                className="text-red-600"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
                 onClick={() => setShowDeleteModal(true)}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
+                <Trash2 />
                 Delete
               </Button>
 
@@ -391,19 +415,19 @@ export default function ExpenseEventDetailPage() {
                 <Button disabled={saving} onClick={handleSaveEvent}>
                   {saving ? (
                     <>
-                      <Spinner className="mr-2 h-4 w-4" />
+                      <Spinner className="h-4 w-4" />
                       Saving...
                     </>
                   ) : (
                     <>
-                      <Save className="mr-2 h-4 w-4" />
+                      <Save />
                       Save Changes
                     </>
                   )}
                 </Button>
               ) : (
                 <Button variant="outline" onClick={() => setEditing(true)}>
-                  <Pencil className="mr-2 h-4 w-4" />
+                  <Pencil />
                   Edit
                 </Button>
               )}
@@ -416,114 +440,130 @@ export default function ExpenseEventDetailPage() {
                 Submit Event
               </Button>
             </>
-          )}
+          )
+        }
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-sm text-muted-foreground">
+          <EventStatusBadge
+            startDate={event.start_date}
+            endDate={event.end_date}
+          />
+          <span>
+            {formatDate(event.start_date)} - {formatDate(event.end_date)}
+          </span>
         </div>
-      </div>
+      </PageHeader>
 
       <Card>
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-start">
-            <div>
-              {editing ? (
+        <CardContent className="space-y-6">
+          {editing && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="event-title">Event Title</Label>
                 <Input
+                  id="event-title"
                   value={editedEvent.title || ""}
                   onChange={(e) => handleInputChange("title", e.target.value)}
-                  className="text-xl font-bold mb-1"
                   placeholder="Event Title"
                 />
-              ) : (
-                <CardTitle className="text-xl">{event.title}</CardTitle>
-              )}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4">
-                <EventStatusBadge
-                  startDate={event.start_date}
-                  endDate={event.end_date}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="event-start-date">Start Date</Label>
+                <Input
+                  id="event-start-date"
+                  type="date"
+                  value={editedEvent.start_date || ""}
+                  onChange={(e) =>
+                    handleInputChange("start_date", e.target.value)
+                  }
                 />
-                <p className="text-sm text-gray-500 mt-1 sm:mt-0 sm:ml-2">
-                  {editing ? (
-                    <div className="flex flex-col sm:flex-row sm:space-x-2">
-                      <Input
-                        type="date"
-                        value={editedEvent.start_date || ""}
-                        onChange={(e) =>
-                          handleInputChange("start_date", e.target.value)
-                        }
-                        className="w-full sm:w-32"
-                      />
-                      <span className="hidden sm:inline">to</span>
-                      <Input
-                        type="date"
-                        value={editedEvent.end_date || ""}
-                        onChange={(e) =>
-                          handleInputChange("end_date", e.target.value)
-                        }
-                        className="w-full sm:w-32"
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      {formatDate(event.start_date)} -{" "}
-                      {formatDate(event.end_date)}
-                    </>
-                  )}
-                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="event-end-date">End Date</Label>
+                <Input
+                  id="event-end-date"
+                  type="date"
+                  value={editedEvent.end_date || ""}
+                  onChange={(e) =>
+                    handleInputChange("end_date", e.target.value)
+                  }
+                />
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-xl font-medium">Total Amount</p>
-              <p className="text-xl font-bold">
+          )}
+
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:max-w-md">
+            <div className="min-w-0">
+              <dt className="text-xs font-medium text-muted-foreground">
+                Total Amount
+              </dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums text-foreground break-words">
                 {formatCurrency(createdTotal)}
-              </p>
-              <p className="text-xl font-medium text-green-600 mt-2">
-                Approved Amount
-              </p>
-              <p className="text-xl font-bold text-green-600">
-                {formatCurrency(approvedTotal)}
-              </p>
+              </dd>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mt-4">
-            <h3 className="text-sm font-medium mb-2">Description</h3>
+            <div className="min-w-0">
+              <dt className="text-xs font-medium text-muted-foreground">
+                Approved Amount
+              </dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums text-green-700 break-words">
+                {formatCurrency(approvedTotal)}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="space-y-1.5 border-t pt-4">
             {editing ? (
-              <Textarea
-                value={editedEvent.description || ""}
-                onChange={(e) =>
-                  handleInputChange("description", e.target.value)
-                }
-                placeholder="Event description"
-                className="min-h-[100px]"
-              />
+              <>
+                <Label htmlFor="event-description">Description</Label>
+                <Textarea
+                  id="event-description"
+                  value={editedEvent.description || ""}
+                  onChange={(e) =>
+                    handleInputChange("description", e.target.value)
+                  }
+                  placeholder="Event description"
+                  className="min-h-[100px]"
+                />
+              </>
             ) : (
-              <p className="text-gray-700 whitespace-pre-line break-words max-w-full overflow-auto">
-                {event.description || "No description provided."}
-              </p>
+              <>
+                <h2 className="text-xs font-medium text-muted-foreground">
+                  Description
+                </h2>
+                <p className="text-sm text-foreground whitespace-pre-line break-words max-w-full overflow-auto">
+                  {event.description || "No description provided."}
+                </p>
+              </>
             )}
           </div>
-          <div className="mt-6 pt-6 border-t">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="card-title">Expenses</h3>
-              {event.status === "draft" && (
-                <Button
-                  onClick={() =>
-                    router.push(`/org/${slug}/expenses/new?eventId=${event.id}`)
-                  }
-                  size="sm"
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Expense
-                </Button>
-              )}
-            </div>
+        </CardContent>
+      </Card>
 
-            {eventExpenses.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 border rounded-md">
-                <p>No expenses added to this event yet.</p>
-                {event.status === "draft" && (
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="subsection-heading">Expenses</h2>
+          {event.status === "draft" && (
+            <Button
+              onClick={() =>
+                router.push(`/org/${slug}/expenses/new?eventId=${event.id}`)
+              }
+              size="sm"
+            >
+              <PlusCircle />
+              Add Expense
+            </Button>
+          )}
+        </div>
+
+        {eventExpenses.length === 0 ? (
+          <div className="rounded-xl border border-dashed bg-card">
+            <EmptyState
+              icon={Receipt}
+              title="No expenses added to this event yet."
+              action={
+                event.status === "draft" ? (
                   <Button
                     variant="outline"
-                    className="mt-2"
                     onClick={() =>
                       router.push(
                         `/org/${slug}/expenses/new?eventId=${event.id}`
@@ -532,67 +572,72 @@ export default function ExpenseEventDetailPage() {
                   >
                     Add your first expense
                   </Button>
-                )}
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Approved Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {eventExpenses.map((expense) => (
-                    <TableRow key={expense.id}>
-                      <TableCell>{formatDate(expense.date)}</TableCell>
-                      <TableCell>{expense.expense_type}</TableCell>
-                      <TableCell>
-                        {expense.custom_fields?.description || "—"}
-                      </TableCell>
-                      <TableCell>{formatCurrency(expense.amount)}</TableCell>
-                      <TableCell>
-                        {formatCurrency(expense.approved_amount || 0)}
-                      </TableCell>
-                      <TableCell>
-                        <ExpenseStatusBadge status={expense.status} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
+                ) : undefined
+              }
+            />
+          </div>
+        ) : (
+          <div className="data-table-wrap max-h-[70vh]">
+            <Table>
+              <TableHeader className="sticky top-0 z-10">
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Approved Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {eventExpenses.map((expense) => (
+                  <TableRow key={expense.id}>
+                    <TableCell>{formatDate(expense.date)}</TableCell>
+                    <TableCell>{expense.expense_type}</TableCell>
+                    <TableCell
+                      className="max-w-[16rem] truncate"
+                      title={expense.custom_fields?.description || undefined}
+                    >
+                      {expense.custom_fields?.description || "—"}
+                    </TableCell>
+                    <TableCell>{formatCurrency(expense.amount)}</TableCell>
+                    <TableCell>
+                      {formatCurrency(expense.approved_amount || 0)}
+                    </TableCell>
+                    <TableCell>
+                      <ExpenseStatusBadge status={expense.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            router.push(`/org/${slug}/expenses/${expense.id}`)
+                          }
+                        >
+                          View
+                        </Button>
+                        {event.status === "draft" && (
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() =>
-                              router.push(`/org/${slug}/expenses/${expense.id}`)
-                            }
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleRemoveExpense(expense.id)}
                           >
-                            View
+                            Remove
                           </Button>
-                          {event.status === "draft" && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-red-600"
-                              onClick={() => handleRemoveExpense(expense.id)}
-                            >
-                              Remove
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </section>
     </div>
   );
 }

@@ -16,13 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { PageLoader } from "@/components/ui/page-loader";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { organizations } from "@/lib/db";
@@ -195,7 +189,7 @@ export default function CreateOrganizationPage() {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
         <PageLoader message="Please wait while we check your organization status." />
       </div>
     );
@@ -203,15 +197,15 @@ export default function CreateOrganizationPage() {
 
   // Show Create Organization form
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 ">
-      <Card className="w-full max-w-2xl">
-        <CardHeader className="text-center space-y-1">
-          <CardTitle>Create Organization</CardTitle>
-          <CardDescription>
-            Set up your organization's profile to get started.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
+      <Card className="w-full max-w-md">
+        <CardContent className="p-6 space-y-6">
+          <div className="text-center space-y-1">
+            <h1 className="section-heading">Create Organization</h1>
+            <p className="descriptive-text text-sm">
+              Set up your organization's profile to get started.
+            </p>
+          </div>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -240,18 +234,18 @@ export default function CreateOrganizationPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Subdomain</FormLabel>
-                    <FormControl>
-                      <div className="flex items-center">
+                    <div className="flex items-center gap-2">
+                      <FormControl>
                         <Input
                           placeholder="acme"
                           {...field}
                           disabled={isSubmitting}
                         />
-                        <span className="ml-2 text-muted-foreground">
-                          .yourdomain.com
-                        </span>
-                      </div>
-                    </FormControl>
+                      </FormControl>
+                      <span className="shrink-0 text-sm text-muted-foreground">
+                        .yourdomain.com
+                      </span>
+                    </div>
                     <FormDescription>
                       Your organization's unique URL.
                     </FormDescription>

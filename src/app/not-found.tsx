@@ -1,27 +1,19 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useOrgStore } from "@/store/useOrgStore";
 export default function NotFound() {
   // const { organization } = useOrgStore();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-4xl font-bold">404</CardTitle>
-          <CardDescription className="text-xl mt-2">
-            Page Not Found
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <p className="text-muted-foreground mb-6">
+    <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
+      <Card className="w-full max-w-sm">
+        <CardContent className="p-6 space-y-6 text-center">
+          <div className="space-y-1">
+            <p className="text-4xl font-bold tracking-tight">404</p>
+            <h1 className="section-heading">Page Not Found</h1>
+          </div>
+          <p className="text-sm text-muted-foreground">
             The page you're looking for doesn't exist or has been moved.
           </p>
           <div className="flex flex-col gap-4">

@@ -4,13 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
 import supabase from "@/lib/supabase";
@@ -204,7 +199,7 @@ export default function InvitePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
         <Spinner />
       </div>
     );
@@ -212,13 +207,15 @@ export default function InvitePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-red-600">Invalid Invite</CardTitle>
-            <CardDescription>{error}</CardDescription>
-          </CardHeader>
-          <CardContent>
+      <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
+        <Card className="w-full max-w-sm">
+          <CardContent className="p-6 space-y-6">
+            <div className="text-center space-y-1">
+              <h1 className="section-heading text-destructive">Invalid Invite</h1>
+              <p role="alert" className="descriptive-text text-sm">
+                {error}
+              </p>
+            </div>
             <Button
               onClick={() => router.push("/")}
               className="w-full"
@@ -234,35 +231,35 @@ export default function InvitePage() {
 
   if (!inviteLink) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle>Invite Not Found</CardTitle>
-            <CardDescription>
-              This invite link is no longer valid.
-            </CardDescription>
-          </CardHeader>
+      <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
+        <Card className="w-full max-w-sm">
+          <CardContent className="p-6">
+            <div className="text-center space-y-1">
+              <h1 className="section-heading">Invite Not Found</h1>
+              <p className="descriptive-text text-sm">
+                This invite link is no longer valid.
+              </p>
+            </div>
+          </CardContent>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle>You're Invited!</CardTitle>
-          <CardDescription>
-            Join <strong>{inviteLink.organization.name}</strong> as a{" "}
-            <span className="capitalize font-medium">{inviteLink.role}</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
+      <Card className="w-full max-w-sm">
+        <CardContent className="p-6 space-y-6">
+          <div className="text-center space-y-1">
+            <h1 className="section-heading">You're Invited!</h1>
+            <p className="descriptive-text text-sm break-words">
+              Join <strong>{inviteLink.organization.name}</strong> as a{" "}
+              <span className="capitalize font-medium">{inviteLink.role}</span>
+            </p>
+          </div>
           <form onSubmit={handleJoinOrganization} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2">
-                Email Address
-              </label>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
               <Input
                 id="email"
                 type="email"
@@ -273,7 +270,7 @@ export default function InvitePage() {
                 disabled={!!currentUser} // Disable if user is already logged in
               />
               {currentUser && (
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground">
                   Using your current account email
                 </p>
               )}
@@ -299,9 +296,9 @@ export default function InvitePage() {
             {!currentUser && (
               <>
                 <div className="my-4 flex items-center gap-2">
-                  <div className="h-px bg-black flex-1" />
+                  <div className="h-px bg-border flex-1" />
                   <span className="text-xs text-muted-foreground">OR</span>
-                  <div className="h-px bg-black flex-1" />
+                  <div className="h-px bg-border flex-1" />
                 </div>
 
                 <Button

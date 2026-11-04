@@ -99,8 +99,8 @@ export default function ResetPasswordPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="flex items-center gap-2 text-gray-700">
+      <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <Spinner className="w-5 h-5" />
           <span className="text-sm">Preparing reset…</span>
         </div>
@@ -109,8 +109,8 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div className="flex min-h-svh items-center justify-center bg-muted p-4 sm:p-6">
+      <Card className="w-full max-w-sm">
         <CardContent className="p-6 space-y-6">
           <div className="text-center space-y-1">
             <h1 className="section-heading">Create password</h1>
@@ -119,7 +119,10 @@ export default function ResetPasswordPage() {
             </p>
           </div>
           {linkError && (
-            <div className="text-sm p-3 rounded border border-red-200 bg-red-50 text-red-700">
+            <div
+              role="alert"
+              className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+            >
               {linkError}
             </div>
           )}
