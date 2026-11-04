@@ -1480,6 +1480,8 @@ export default function SettingsPage() {
         approver_id: [],
         second_approver_id: [],
         enabled: true,
+        approver_enabled: true,
+        second_approver_enabled: false,
       },
     ]);
   };
@@ -1498,6 +1500,8 @@ export default function SettingsPage() {
         approver_id: [],
         second_approver_id: [],
         enabled: true,
+        approver_enabled: true,
+        second_approver_enabled: false,
       },
     ]);
   };
@@ -2143,7 +2147,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="flex-1 flex flex-wrap gap-4">
-                  <div className="space-y-1 min-w-[240px]">
+                  <div className="space-y-1.5 min-w-[240px] flex-1">
                     <Label className="text-xs">Approver</Label>
                     <MultiSelect
                       options={approverOptions}
@@ -2172,8 +2176,25 @@ export default function SettingsPage() {
                       searchPlaceholder="Search approver"
                       hideBadges
                     />
+                    <div className="flex items-center gap-2 pt-1">
+                      <Checkbox
+                        id={`exp-approver-check-${index}`}
+                        checked={entry?.approver_enabled !== false && entry?.enabled !== false}
+                        onCheckedChange={(checked) => {
+                          const isApproverOn = checked === true;
+                          const isSecondOn = entry?.second_approver_enabled === true && entry?.enabled !== false;
+                          updateMappingEntry(index, {
+                            approver_enabled: isApproverOn,
+                            enabled: isApproverOn || isSecondOn,
+                          });
+                        }}
+                      />
+                      <label htmlFor={`exp-approver-check-${index}`} className="text-xs text-muted-foreground cursor-pointer select-none">
+                        Show 1st Approver on form
+                      </label>
+                    </div>
                   </div>
-                  <div className="space-y-1 min-w-[240px]">
+                  <div className="space-y-1.5 min-w-[240px] flex-1">
                     <Label className="text-xs">Second Approver</Label>
                     <MultiSelect
                       options={approverOptions}
@@ -2202,18 +2223,22 @@ export default function SettingsPage() {
                       searchPlaceholder="Search second approver"
                       hideBadges
                     />
-                  </div>
-                  <div className="space-y-1 min-w-[140px]">
-                    <Label className="block text-center text-xs">Enable on expense form</Label>
-                    <div className="flex h-9 items-center justify-center">
+                    <div className="flex items-center gap-2 pt-1">
                       <Checkbox
-                        checked={entry?.enabled !== false}
-                        onCheckedChange={(checked) =>
+                        id={`exp-second-approver-check-${index}`}
+                        checked={entry?.second_approver_enabled === true && entry?.enabled !== false}
+                        onCheckedChange={(checked) => {
+                          const isSecondOn = checked === true;
+                          const isApproverOn = entry?.approver_enabled !== false && entry?.enabled !== false;
                           updateMappingEntry(index, {
-                            enabled: checked === true,
-                          })
-                        }
+                            second_approver_enabled: isSecondOn,
+                            enabled: isApproverOn || isSecondOn,
+                          });
+                        }}
                       />
+                      <label htmlFor={`exp-second-approver-check-${index}`} className="text-xs text-muted-foreground cursor-pointer select-none">
+                        Show 2nd Approver on form
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -2567,7 +2592,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex-1 flex flex-wrap gap-4">
-                  <div className="space-y-1 min-w-[240px]">
+                  <div className="space-y-1.5 min-w-[240px] flex-1">
                     <Label className="text-xs">Approver</Label>
                     <MultiSelect
                       options={approverOptions}
@@ -2596,8 +2621,25 @@ export default function SettingsPage() {
                       searchPlaceholder="Search approver"
                       hideBadges
                     />
+                    <div className="flex items-center gap-2 pt-1">
+                      <Checkbox
+                        id={`loc-approver-check-${index}`}
+                        checked={entry?.approver_enabled !== false && entry?.enabled !== false}
+                        onCheckedChange={(checked) => {
+                          const isApproverOn = checked === true;
+                          const isSecondOn = entry?.second_approver_enabled === true && entry?.enabled !== false;
+                          updateMappingEntry(index, {
+                            approver_enabled: isApproverOn,
+                            enabled: isApproverOn || isSecondOn,
+                          });
+                        }}
+                      />
+                      <label htmlFor={`loc-approver-check-${index}`} className="text-xs text-muted-foreground cursor-pointer select-none">
+                        Show 1st Approver on form
+                      </label>
+                    </div>
                   </div>
-                  <div className="space-y-1 min-w-[240px]">
+                  <div className="space-y-1.5 min-w-[240px] flex-1">
                     <Label className="text-xs">Second Approver</Label>
                     <MultiSelect
                       options={approverOptions}
@@ -2626,18 +2668,22 @@ export default function SettingsPage() {
                       searchPlaceholder="Search second approver"
                       hideBadges
                     />
-                  </div>
-                  <div className="space-y-1 min-w-[140px]">
-                    <Label className="block text-center text-xs">Enable on expense form</Label>
-                    <div className="flex h-9 items-center justify-center">
+                    <div className="flex items-center gap-2 pt-1">
                       <Checkbox
-                        checked={entry?.enabled !== false}
-                        onCheckedChange={(checked) =>
+                        id={`loc-second-approver-check-${index}`}
+                        checked={entry?.second_approver_enabled === true && entry?.enabled !== false}
+                        onCheckedChange={(checked) => {
+                          const isSecondOn = checked === true;
+                          const isApproverOn = entry?.approver_enabled !== false && entry?.enabled !== false;
                           updateMappingEntry(index, {
-                            enabled: checked === true,
-                          })
-                        }
+                            second_approver_enabled: isSecondOn,
+                            enabled: isApproverOn || isSecondOn,
+                          });
+                        }}
                       />
+                      <label htmlFor={`loc-second-approver-check-${index}`} className="text-xs text-muted-foreground cursor-pointer select-none">
+                        Show 2nd Approver on form
+                      </label>
                     </div>
                   </div>
                 </div>

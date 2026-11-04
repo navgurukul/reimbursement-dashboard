@@ -286,6 +286,8 @@ export default function NewExpensePage() {
       approver_id?: string | string[];
       second_approver_id?: string | string[];
       enabled?: boolean;
+      approver_enabled?: boolean;
+      second_approver_enabled?: boolean;
     }[]
   >([]);
 
@@ -298,6 +300,8 @@ export default function NewExpensePage() {
       approver_id?: string | string[];
       second_approver_id?: string | string[];
       enabled?: boolean;
+      approver_enabled?: boolean;
+      second_approver_enabled?: boolean;
     }[]
   >([]);
 
@@ -808,10 +812,23 @@ export default function NewExpensePage() {
       selectedExpenseType
     );
 
-    const nextApprover = mappedApprovers[0]?.value || "";
-    const nextApproverName = mappedApprovers[0]?.label || "";
-    const nextSecondId = mappedSecondApprovers[0]?.value || "";
-    const nextSecondName = mappedSecondApprovers[0]?.label || "";
+    const currentApproverValid = mappedApprovers.some(
+      (opt) => opt.value === formData.approver
+    );
+    const nextApprover = currentApproverValid
+      ? formData.approver
+      : mappedApprovers[0]?.value || "";
+    const nextApproverName =
+      mappedApprovers.find((opt) => opt.value === nextApprover)?.label || "";
+
+    const currentSecondValid = mappedSecondApprovers.some(
+      (opt) => opt.value === formData.second_approver_id
+    );
+    const nextSecondId = currentSecondValid
+      ? formData.second_approver_id
+      : mappedSecondApprovers[0]?.value || "";
+    const nextSecondName =
+      mappedSecondApprovers.find((opt) => opt.value === nextSecondId)?.label || "";
 
     setFormData((prev) => {
       if (
@@ -867,8 +884,19 @@ export default function NewExpensePage() {
           itemExpenseType
         );
 
-        const nextApprover = mappedApprovers[0]?.value || "";
-        const nextSecond = mappedSecondApprovers[0]?.value || "";
+        const currentApproverValid = mappedApprovers.some(
+          (opt) => opt.value === item.approver
+        );
+        const nextApprover = currentApproverValid
+          ? item.approver
+          : mappedApprovers[0]?.value || "";
+
+        const currentSecondValid = mappedSecondApprovers.some(
+          (opt) => opt.value === item.second_approver_id
+        );
+        const nextSecond = currentSecondValid
+          ? item.second_approver_id
+          : mappedSecondApprovers[0]?.value || "";
 
         if (
           item.approver !== nextApprover ||
@@ -1304,11 +1332,23 @@ export default function NewExpensePage() {
         : undefined;
     const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
 
-    const firstApproverIds = normalizeIds(activeEntry?.approver_id).length
-      ? normalizeIds(activeEntry?.approver_id)
-      : resolveIdsFromNames(activeEntry?.approver_name);
+    const isFirstApproverEnabled =
+      activeEntry &&
+      activeEntry.enabled !== false &&
+      activeEntry.approver_enabled !== false;
 
-    const secondApproverIds = normalizeIds(activeEntry?.second_approver_id).length
+    const isSecondApproverEnabled =
+      activeEntry &&
+      activeEntry.enabled !== false &&
+      activeEntry.second_approver_enabled === true;
+
+    const firstApproverIds = isFirstApproverEnabled
+      ? (normalizeIds(activeEntry?.approver_id).length
+        ? normalizeIds(activeEntry?.approver_id)
+        : resolveIdsFromNames(activeEntry?.approver_name))
+      : [];
+
+    const allSecondApproverIds = normalizeIds(activeEntry?.second_approver_id).length
       ? normalizeIds(activeEntry?.second_approver_id)
       : resolveIdsFromNames(activeEntry?.second_approver_name);
 
@@ -1320,15 +1360,30 @@ export default function NewExpensePage() {
       return opt && typeof opt === "object" && opt.display_name === "OOO";
     });
 
-    // In approver dropdown, only show second approver if first approver is on leave
+    const secondApproverIds =
+      isSecondApproverEnabled || isFirstApproverOnLeave || (firstApproverIds.length === 0 && activeEntry?.enabled !== false)
+        ? allSecondApproverIds
+        : [];
+
+    // If the logged-in user is a mapped first approver (regardless of the
+    // "show on form" checkbox), their expense goes to the second approver instead.
+    const rawFirstApproverIds = activeEntry
+      ? normalizeIds(activeEntry.approver_id).length
+        ? normalizeIds(activeEntry.approver_id)
+        : resolveIdsFromNames(activeEntry.approver_name)
+      : [];
+    const isLoggedInUserFirstApprover =
+      !!user?.id &&
+      rawFirstApproverIds.includes(user.id) &&
+      allSecondApproverIds.length > 0;
+
+    // In approver dropdown, show both first and second approvers when enabled (or when first approver is OOO)
     const mappedIds =
       fieldKey === "second_approver_id"
-        ? secondApproverIds
-        : isFirstApproverOnLeave
-          ? Array.from(new Set([...firstApproverIds, ...secondApproverIds]))
-          : firstApproverIds.length
-            ? firstApproverIds
-            : secondApproverIds;
+        ? allSecondApproverIds
+        : isLoggedInUserFirstApprover
+          ? allSecondApproverIds.filter((id) => id !== user?.id)
+          : Array.from(new Set([...firstApproverIds, ...secondApproverIds]));
 
     if (!mappedIds.length) {
       return [];

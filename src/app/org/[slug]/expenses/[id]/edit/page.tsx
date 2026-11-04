@@ -539,17 +539,40 @@ export default function EditExpensePage() {
 
     const activeEntry = effectiveLocationEntry || effectiveExpenseTypeEntry;
 
+    const isFirstApproverEnabled =
+      activeEntry &&
+      activeEntry.enabled !== false &&
+      activeEntry.approver_enabled !== false;
+
+    const isSecondApproverEnabled =
+      activeEntry &&
+      activeEntry.enabled !== false &&
+      activeEntry.second_approver_enabled === true;
+
+    const firstApproverIds = isFirstApproverEnabled
+      ? (normalizeIds(activeEntry.approver_id).length
+        ? normalizeIds(activeEntry.approver_id)
+        : resolveIdsFromNames(activeEntry.approver_name))
+      : [];
+
+    const allSecondApproverIds = normalizeIds(activeEntry.second_approver_id).length
+      ? normalizeIds(activeEntry.second_approver_id)
+      : resolveIdsFromNames(activeEntry.second_approver_name);
+
+    const isFirstApproverOnLeave = firstApproverIds.some((id) => {
+      const opt = (allOptions as any[]).find((o) =>
+        typeof o === "string" ? o === id : o?.value === id
+      );
+      return opt && typeof opt === "object" && opt.display_name === "OOO";
+    });
+
+    const secondApproverIds =
+      isSecondApproverEnabled || isFirstApproverOnLeave || (firstApproverIds.length === 0 && activeEntry?.enabled !== false)
+        ? allSecondApproverIds
+        : [];
+
     const mappedIds = activeEntry
-      ? Array.from(
-        new Set([
-          ...(normalizeIds(activeEntry.approver_id).length
-            ? normalizeIds(activeEntry.approver_id)
-            : resolveIdsFromNames(activeEntry.approver_name)),
-          ...(normalizeIds(activeEntry.second_approver_id).length
-            ? normalizeIds(activeEntry.second_approver_id)
-            : resolveIdsFromNames(activeEntry.second_approver_name)),
-        ])
-      )
+      ? Array.from(new Set([...firstApproverIds, ...secondApproverIds]))
       : [];
 
     const optionLookup = new Map<string, { value: string; label: string }>();
