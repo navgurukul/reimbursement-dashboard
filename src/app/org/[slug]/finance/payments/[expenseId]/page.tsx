@@ -11,8 +11,9 @@ import {
   auth,
   profiles,
 } from "@/lib/db";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { cn, formatCurrency, formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Clock, ArrowLeft } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -33,15 +34,27 @@ import VoucherPreview from "@/components/VoucherPreview";
 
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useOrgStore } from "@/store/useOrgStore";
+
+/** One label/value pair in the expense details list. */
+function DetailItem({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("min-w-0 space-y-1", className)}>
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="text-sm text-foreground break-words">{children}</dd>
+    </div>
+  );
+}
 
 const normalizeCustomFieldKey = (key: string) =>
   key.toLowerCase().replace(/[\s_-]+/g, "");
@@ -332,7 +345,7 @@ export default function PaymentProcessingDetails() {
   };
 
   if (!loading && !expense) {
-    return <div className="p-6 text-red-600">Expense not found</div>;
+    return <div className="text-sm text-destructive">Expense not found</div>;
   }
 
   const tdsPercentage = expense?.tds_deduction_percentage ?? null;
@@ -366,216 +379,183 @@ export default function PaymentProcessingDetails() {
       : null);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center">
-        <Button
-          variant="link"
-          onClick={() =>
-            router.push(`/org/${slug}/finance?tab=payments&expID=${expenseId}`)
-          }
-        // className="text-sm cursor-pointer"
-        // disabled={loading}
-        >
-          <ArrowLeft />
-          Back to Payment Processing
-        </Button>
-        {!loading && (
-          <div className="flex gap-2 mt-2 md:mt-0">
-            <Button
-              // onClick={handleFinanceApprove}
-              // disabled={processing}
-              // className="cursor-pointer"
-              variant="success"
-              onClick={() => toast.warning("You can't approve expenses here. Back to Payment Processing tab and use Mark All as Paid or click the Mark as Paid in the Actions column.", { duration: 10000, style: { background: '#f7ea76ff', color: '#040404ff', border: 'none' } })}
-              className="opacity-50 !cursor-not-allowed"
-            >
-              Approve
-            </Button>
-            <Button
-              onClick={() => setShowCommentBox(true)}
-              disabled={processing}
-              variant="destructive"
-              className="cursor-pointer"
-            >
-              Reject
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 w-fit"
+            onClick={() =>
+              router.push(`/org/${slug}/finance?tab=payments&expID=${expenseId}`)
+            }
+          >
+            <ArrowLeft />
+            Back to Payment Processing
+          </Button>
+        }
+        title="Payment Details"
+        description="Review the expense and its payment breakdown."
+        actions={
+          !loading && (
+            <>
+              <Button
+                // onClick={handleFinanceApprove}
+                // disabled={processing}
+                // className="cursor-pointer"
+                variant="success"
+                onClick={() => toast.warning("You can't approve expenses here. Back to Payment Processing tab and use Mark All as Paid or click the Mark as Paid in the Actions column.", { duration: 10000, style: { background: '#f7ea76ff', color: '#040404ff', border: 'none' } })}
+                className="flex-1 opacity-50 !cursor-not-allowed sm:flex-none"
+              >
+                Approve
+              </Button>
+              <Button
+                onClick={() => setShowCommentBox(true)}
+                disabled={processing}
+                variant="destructive"
+                className="flex-1 sm:flex-none"
+              >
+                Reject
+              </Button>
+            </>
+          )
+        }
+      />
 
       {/* Show message if expense is created using Advance Unique ID */}
       {expense && expense.unique_id &&
         (expense.unique_id.toLowerCase().startsWith("advance_") ||
           expense.unique_id.startsWith("Advance_")) && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-sm text-black-800">
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+            <p className="text-sm text-yellow-900 break-words">
               ℹ️ This expense was created using Advance Unique ID: <span className="font-mono font-semibold">{expense.unique_id}</span>
             </p>
           </div>
         )}
 
       {/* Grid Layout */}
-      <div className="grid md:grid-cols-3 gap-8">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         {/* Expense Details */}
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded shadow border">
-            <h2 className="card-title mb-4">Expense Details</h2>
-            {loading ? (
-              <Table>
-                <TableBody>
-                  <DetailTableSkeleton rows={12} />
-                </TableBody>
-              </Table>
-            ) : (
-              <Table>
-                <TableBody>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableCell>{formatDateTime(expense.created_at)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Payment Unique ID</TableHead>
-                    <TableCell className="font-mono">
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader>
+              <h2 className="card-title">Expense Details</h2>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Table>
+                  <TableBody>
+                    <DetailTableSkeleton rows={12} />
+                  </TableBody>
+                </Table>
+              ) : (
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                  <DetailItem label="Timestamp">
+                    {formatDateTime(expense.created_at)}
+                  </DetailItem>
+                  <DetailItem label="Payment Unique ID">
+                    <span className="font-mono">
                       {expense.unique_id || expense.uniqueId || expense.id}
-                    </TableCell>
-                  </TableRow>
+                    </span>
+                  </DetailItem>
                   {isDirectPayment && (
-                    <TableRow>
-                      <TableHead>Expense Credit Person</TableHead>
-                      <TableCell>{expenseCreditPerson}</TableCell>
-                    </TableRow>
+                    <DetailItem label="Expense Credit Person">
+                      {expenseCreditPerson}
+                    </DetailItem>
                   )}
-                  <TableRow>
-                    <TableHead>Project of Expense</TableHead>
-                    <TableCell>{expense.location || "N/A"}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Event Name</TableHead>
-                    <TableCell>{eventTitle || "N/A"}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Expense Type</TableHead>
-                    <TableCell>
-                      {expense.expense_type || "Not Provided"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Invoice Amount</TableHead>
-                    <TableCell>₹{expense.amount}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approved Amount</TableHead>
-                    <TableCell>₹{expense.approved_amount}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>TDS Applicable Amount</TableHead>
-                    <TableCell>
-                      {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
-                        ? `₹${expense.approved_amount}`
+                  <DetailItem label="Project of Expense">
+                    {expense.location || "N/A"}
+                  </DetailItem>
+                  <DetailItem label="Event Name">
+                    {eventTitle || "N/A"}
+                  </DetailItem>
+                  <DetailItem label="Expense Type">
+                    {expense.expense_type || "Not Provided"}
+                  </DetailItem>
+                  <DetailItem label="Invoice Amount">
+                    ₹{expense.amount}
+                  </DetailItem>
+                  <DetailItem label="Approved Amount">
+                    ₹{expense.approved_amount}
+                  </DetailItem>
+                  <DetailItem label="TDS Applicable Amount">
+                    {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
+                      ? `₹${expense.approved_amount}`
+                      : "N/A"}
+                  </DetailItem>
+                  <DetailItem label="TDS Deduction">
+                    {tdsPercentage ? (
+                      <span className="text-amber-700 font-medium">
+                        {expense?.tds_round_off_amount != null
+                          ? `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)}) | Round off: ₹${expense.tds_round_off_amount}`
+                          : `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)})`}
+                      </span>
+                    ) : tdsAmount !== null && tdsAmount !== undefined ? (
+                      <span className="text-amber-700 font-medium">
+                        {expense?.tds_round_off_amount != null
+                          ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
+                          : `TDS amount: ${formatCurrency(tdsAmount)}`}
+                      </span>
+                    ) : (
+                      "N/A"
+                    )}
+                  </DetailItem>
+                  <DetailItem label="Security Deposit Deduction">
+                    {securityDepositAmount !== null
+                      ? formatCurrency(securityDepositAmount)
+                      : "N/A"}
+                  </DetailItem>
+                  <DetailItem label="Net Payable Amount">
+                    {actualAmount !== null && actualAmount !== undefined
+                      ? formatCurrency(Number(actualAmount))
+                      : "—"}
+                  </DetailItem>
+                  <DetailItem label="Date">
+                    {new Date(expense.date).toLocaleDateString("en-IN")}
+                  </DetailItem>
+                  <DetailItem label="Status">
+                    <ExpenseStatusBadge status={expense.status} />
+                  </DetailItem>
+                  <DetailItem label="Approver">
+                    {expense.approver?.full_name || "—"}
+                  </DetailItem>
+                  <DetailItem label="Receipt/Voucher">
+                    {hasVoucher
+                      ? "Voucher Preview Below"
+                      : expense?.receipt
+                        ? "Receipt Preview Below"
                         : "N/A"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>TDS Deduction</TableHead>
-                    <TableCell>
-                      {tdsPercentage ? (
-                        <span className="text-amber-600 font-medium whitespace-nowrap">
-                          {expense?.tds_round_off_amount != null
-                            ? `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)}) | Round off: ₹${expense.tds_round_off_amount}`
-                            : `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)})`}
-                        </span>
-                      ) : tdsAmount !== null && tdsAmount !== undefined ? (
-                        <span className="text-amber-600 font-medium whitespace-nowrap">
-                          {expense?.tds_round_off_amount != null
-                            ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
-                            : `TDS amount: ${formatCurrency(tdsAmount)}`}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Security Deposit Deduction</TableHead>
-                    <TableCell>
-                      {securityDepositAmount !== null
-                        ? formatCurrency(securityDepositAmount)
-                        : "N/A"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Net Payable Amount</TableHead>
-                    <TableCell>
-                      {actualAmount !== null && actualAmount !== undefined
-                        ? formatCurrency(Number(actualAmount))
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableCell>
-                      {new Date(expense.date).toLocaleDateString("en-IN")}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Status</TableHead>
-                    <TableCell>
-                      <ExpenseStatusBadge status={expense.status} />
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approver</TableHead>
-                    <TableCell>{expense.approver?.full_name || "—"}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Receipt/Voucher</TableHead>
-                    <TableCell>
-                      {hasVoucher
-                        ? "Voucher Preview Below"
-                        : expense?.receipt
-                          ? "Receipt Preview Below"
-                          : "N/A"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Description</TableHead>
-                    <TableCell>
-                      {expense.custom_fields?.description || "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Signature</TableHead>
-                    <TableCell>
-                      {expense.signature_url ? (
-                        <img
-                          src={expense.signature_url}
-                          alt="Signature"
-                          className="h-16 object-contain border"
-                        />
-                      ) : (
-                        "Not Available"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approver Signature</TableHead>
-                    <TableCell>
-                      {expense.approver_signature_url ? (
-                        <img
-                          src={expense.approver_signature_url}
-                          alt="Approver Signature"
-                          className="h-16 object-contain border"
-                        />
-                      ) : (
-                        "Not Available"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            )}
-          </div>
+                  </DetailItem>
+                  <DetailItem label="Description" className="sm:col-span-2">
+                    {expense.custom_fields?.description || "—"}
+                  </DetailItem>
+                  <DetailItem label="Signature">
+                    {expense.signature_url ? (
+                      <img
+                        src={expense.signature_url}
+                        alt="Signature"
+                        className="h-16 max-w-full rounded-md border bg-white object-contain"
+                      />
+                    ) : (
+                      "Not Available"
+                    )}
+                  </DetailItem>
+                  <DetailItem label="Approver Signature">
+                    {expense.approver_signature_url ? (
+                      <img
+                        src={expense.approver_signature_url}
+                        alt="Approver Signature"
+                        className="h-16 max-w-full rounded-md border bg-white object-contain"
+                      />
+                    ) : (
+                      "Not Available"
+                    )}
+                  </DetailItem>
+                </dl>
+              )}
+            </CardContent>
+          </Card>
           {/* Receipt Preview (component) */}
           {expense?.receipt && <ReceiptPreview expense={expense} />}
 
@@ -586,8 +566,8 @@ export default function PaymentProcessingDetails() {
         </div>
 
         {/* Activity History */}
-        <div className="space-y-4">
-          <div className="md:col-span-3">
+        <div className="grid min-w-0 content-start gap-6 md:grid-cols-2 xl:grid-cols-1">
+          <div className="min-w-0">
             <Card>
               <CardHeader className="flex flex-row items-center">
                 <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -612,8 +592,8 @@ export default function PaymentProcessingDetails() {
             </Card>
           </div>
 
-          <Card>
-            <CardContent className="p-6">
+          <Card className="min-w-0">
+            <CardContent>
               {loading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-6 w-32 mb-4" />
@@ -637,17 +617,18 @@ export default function PaymentProcessingDetails() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="mt-2 border border-red-300 rounded p-3 space-y-2">
+            <div className="space-y-2">
               <Textarea
                 id="comment"
                 rows={6}
+                aria-label="Reason for rejection"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Please write reason for rejection..."
               />
             </div>
 
-            <DialogFooter className="mt-4">
+            <DialogFooter>
               <Button
                 variant="outline"
                 className="cursor-pointer"

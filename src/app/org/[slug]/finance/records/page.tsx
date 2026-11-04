@@ -67,6 +67,12 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/empty-state";
+
+// Native <select>s in the export dialogs, styled to match the Input primitive.
+const nativeSelectClass =
+  "mt-2 block h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30";
 
 const normalizeCustomFieldKey = (key: string) =>
   key.toLowerCase().replace(/[\s_-]+/g, "");
@@ -2487,11 +2493,11 @@ export default function PaymentRecords() {
   return (
     <div className="space-y-4">
 
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-1">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Bank Tabs */}
-        <div className="w-full overflow-x-auto lg:w-auto">
+        <div className="min-w-0 max-w-full">
           <Tabs value={activeTab} onValueChange={(v) => handleBankTabChange(v as any)}>
-            <TabsList className="w-max min-w-max">
+            <TabsList>
               <TabsTrigger value="all" className="cursor-pointer">All Records</TabsTrigger>
               <TabsTrigger value="ngidfc" className="cursor-pointer">NG Records</TabsTrigger>
               <TabsTrigger value="fcidfc" className="cursor-pointer">FC Records</TabsTrigger>
@@ -2499,7 +2505,7 @@ export default function PaymentRecords() {
             </TabsList>
           </Tabs>
         </div>
-        <div className="flex w-full flex-wrap gap-2 lg:w-auto">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {isExportEnabled && (
             <>
               <Button
@@ -2516,7 +2522,7 @@ export default function PaymentRecords() {
 
                   setShowExportModal(true);
                 }}
-                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-sm"
+                className="flex-1 sm:flex-none"
                 variant="outline"
               >
                 <Download className="w-4 h-4" />
@@ -2530,7 +2536,7 @@ export default function PaymentRecords() {
                   setQuickExportDate("");
                   setShowQuickExportModal(true);
                 }}
-                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
+                className="flex-1 sm:flex-none"
                 variant="outline"
               >
                 <Download className="w-4 h-4" />
@@ -2538,15 +2544,15 @@ export default function PaymentRecords() {
               </Button>
             </>
           )}
-          <Button className="w-full sm:w-auto" variant="outline" onClick={() => setFilterOpen((s) => !s)}>
-            <Filter className="mr-2 h-4 w-4" />
+          <Button className="flex-1 sm:flex-none" variant="outline" aria-expanded={filterOpen} onClick={() => setFilterOpen((s) => !s)}>
+            <Filter className="h-4 w-4" />
             Filters
           </Button>
         </div>
       </div>
 
       {fullStatus === "loading" && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted-foreground">
           Loading all records for filters and exports…
         </p>
       )}
@@ -2561,17 +2567,17 @@ export default function PaymentRecords() {
 
       {/* Filter panel */}
       {filterOpen && (
-        <div className="p-4 rounded-md border shadow-sm bg-white">
-          <div className="grid grid-cols-4 gap-4">
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Expense Type</label>
+        <div className="rounded-xl border bg-card p-4 shadow-xs">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div>
+              <Label htmlFor="records-filter-expense-type">Expense Type</Label>
               <Select
                 value={filters.expenseType || "All Expense Type"}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, expenseType: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-gray-50 dark:bg-gray-800">
+                <SelectTrigger id="records-filter-expense-type" className="mt-2 w-full">
                   <SelectValue placeholder="All Expense Type" />
                 </SelectTrigger>
                 <SelectContent
@@ -2591,15 +2597,15 @@ export default function PaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Event</label>
+            <div>
+              <Label htmlFor="records-filter-event">Event</Label>
               <Select
                 value={filters.eventName || "All Events"}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, eventName: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-event" className="mt-2 w-full">
                   <SelectValue placeholder="All Events" />
                 </SelectTrigger>
                 <SelectContent
@@ -2619,15 +2625,15 @@ export default function PaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Email</label>
+            <div>
+              <Label htmlFor="records-filter-email">Email</Label>
               <Select
                 value={filters.email || "All Emails"}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, email: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-email" className="mt-2 w-full">
                   <SelectValue placeholder="All Emails" />
                 </SelectTrigger>
                 <SelectContent
@@ -2647,15 +2653,15 @@ export default function PaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Unique ID</label>
+            <div>
+              <Label htmlFor="records-filter-unique-id">Unique ID</Label>
               <Select
                 value={filters.uniqueId || "All Unique IDs"}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, uniqueId: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-unique-id" className="mt-2 w-full">
                   <SelectValue placeholder="All Unique IDs" />
                 </SelectTrigger>
                 <SelectContent
@@ -2675,15 +2681,15 @@ export default function PaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Project of Expense</label>
+            <div>
+              <Label htmlFor="records-filter-location">Project of Expense</Label>
               <Select
                 value={filters.location || "All Locations"}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, location: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-location" className="mt-2 w-full">
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent
@@ -2703,15 +2709,15 @@ export default function PaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Bills</label>
+            <div>
+              <Label htmlFor="records-filter-bills">Bills</Label>
               <Select
                 value={filters.bills || "All Receipt/Voucher"}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, bills: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-bills" className="mt-2 w-full">
                   <SelectValue placeholder="All Receipt/Voucher" />
                 </SelectTrigger>
                 <SelectContent
@@ -2730,15 +2736,15 @@ export default function PaymentRecords() {
             </div>
 
             {paidByBankOptions.length > 0 && (
-              <div className="col-span-3 sm:col-span-1">
-                <label className="text-sm font-medium">Paid by bank</label>
+              <div>
+                <Label htmlFor="records-filter-paid-by-bank">Paid by bank</Label>
                 <Select
                   value={filters.paidByBank || "All Banks"}
                   onValueChange={(v) =>
                     setFilters((f) => ({ ...f, paidByBank: v }))
                   }
                 >
-                  <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectTrigger id="records-filter-paid-by-bank" className="mt-2 w-full">
                     <SelectValue placeholder="All Banks" />
                   </SelectTrigger>
                   <SelectContent
@@ -2763,15 +2769,15 @@ export default function PaymentRecords() {
             )}
 
             {utrValues.length > 0 && (
-              <div className="col-span-3 sm:col-span-1">
-                <label className="text-sm font-medium">UTR</label>
+              <div>
+                <Label htmlFor="records-filter-utr">UTR</Label>
                 <Select
                   value={filters.utr || "All UTRs"}
                   onValueChange={(v) =>
                     setFilters((f) => ({ ...f, utr: v }))
                   }
                 >
-                  <SelectTrigger className="mt-1 w-full bg-white">
+                  <SelectTrigger id="records-filter-utr" className="mt-2 w-full">
                     <SelectValue placeholder="All UTRs" />
                   </SelectTrigger>
                   <SelectContent
@@ -2792,8 +2798,8 @@ export default function PaymentRecords() {
               </div>
             )}
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Date of expense</label>
+            <div>
+              <Label htmlFor="records-filter-date-mode">Date of expense</Label>
               <Select
                 value={filters.dateMode || "All Dates"}
                 onValueChange={(v) => {
@@ -2817,7 +2823,7 @@ export default function PaymentRecords() {
                   });
                 }}
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-date-mode" className="mt-2 w-full">
                   <SelectValue placeholder="All Dates" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2828,10 +2834,10 @@ export default function PaymentRecords() {
               </Select>
 
               {/* Conditional inputs shown below the Date of expense selector */}
-              <div className="mt-2">
+              <div className="mt-3">
                 {filters.dateMode === "Single Date" ? (
                   <>
-                    <label className="text-sm font-medium">Select Date of expense</label>
+                    <Label htmlFor="records-filter-date">Select Date of expense</Label>
                     <Select
                       value={filters.startDate || "none"}
                       onValueChange={(v) =>
@@ -2842,7 +2848,7 @@ export default function PaymentRecords() {
                         }))
                       }
                     >
-                      <SelectTrigger className="mt-1 w-full bg-white">
+                      <SelectTrigger id="records-filter-date" className="mt-2 w-full">
                         <SelectValue placeholder="Select Date of expense" />
                       </SelectTrigger>
                       <SelectContent
@@ -2863,21 +2869,23 @@ export default function PaymentRecords() {
                   </>
                 ) : filters.dateMode === "Custom Date" ? (
                   <>
-                    <label className="text-sm font-medium">Start Date</label>
-                    <input
+                    <Label htmlFor="records-filter-start-date">Start Date</Label>
+                    <Input
+                      id="records-filter-start-date"
                       type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                      className="mt-2"
                       value={filters.startDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, startDate: e.target.value }))
                       }
                     />
-                    <label className="text-sm font-medium mt-2 block">
+                    <Label htmlFor="records-filter-end-date" className="mt-3">
                       End Date
-                    </label>
-                    <input
+                    </Label>
+                    <Input
+                      id="records-filter-end-date"
                       type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                      className="mt-2"
                       value={filters.endDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, endDate: e.target.value }))
@@ -2888,8 +2896,8 @@ export default function PaymentRecords() {
               </div>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Paid date</label>
+            <div>
+              <Label htmlFor="records-filter-paid-date-mode">Paid date</Label>
               <Select
                 value={filters.paidDateMode || "All Dates"}
                 onValueChange={(v) => {
@@ -2913,7 +2921,7 @@ export default function PaymentRecords() {
                   });
                 }}
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-paid-date-mode" className="mt-2 w-full">
                   <SelectValue placeholder="All Dates" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2923,10 +2931,10 @@ export default function PaymentRecords() {
                 </SelectContent>
               </Select>
 
-              <div className="mt-2">
+              <div className="mt-3">
                 {filters.paidDateMode === "Single Date" ? (
                   <>
-                    <label className="text-sm font-medium">Select Paid date</label>
+                    <Label htmlFor="records-filter-paid-date">Select Paid date</Label>
                     <Select
                       value={filters.paidStartDate || "none"}
                       onValueChange={(v) =>
@@ -2937,7 +2945,7 @@ export default function PaymentRecords() {
                         }))
                       }
                     >
-                      <SelectTrigger className="mt-1 w-full bg-white">
+                      <SelectTrigger id="records-filter-paid-date" className="mt-2 w-full">
                         <SelectValue placeholder="Select Paid date" />
                       </SelectTrigger>
                       <SelectContent
@@ -2958,21 +2966,23 @@ export default function PaymentRecords() {
                   </>
                 ) : filters.paidDateMode === "Custom Date" ? (
                   <>
-                    <label className="text-sm font-medium">Start Date</label>
-                    <input
+                    <Label htmlFor="records-filter-paid-start-date">Start Date</Label>
+                    <Input
+                      id="records-filter-paid-start-date"
                       type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                      className="mt-2"
                       value={filters.paidStartDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, paidStartDate: e.target.value }))
                       }
                     />
-                    <label className="text-sm font-medium mt-2 block">
+                    <Label htmlFor="records-filter-paid-end-date" className="mt-3">
                       End Date
-                    </label>
-                    <input
+                    </Label>
+                    <Input
+                      id="records-filter-paid-end-date"
                       type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                      className="mt-2"
                       value={filters.paidEndDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, paidEndDate: e.target.value }))
@@ -2983,15 +2993,15 @@ export default function PaymentRecords() {
               </div>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">TDS Deduction</label>
+            <div>
+              <Label htmlFor="records-filter-tds">TDS Deduction</Label>
               <Select
                 value={filters.tdsDeduction || "All TDS Deductions"}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, tdsDeduction: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-tds" className="mt-2 w-full">
                   <SelectValue placeholder="All TDS Deductions" />
                 </SelectTrigger>
                 <SelectContent
@@ -3011,15 +3021,15 @@ export default function PaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Security Deposit</label>
+            <div>
+              <Label htmlFor="records-filter-security-deposit">Security Deposit</Label>
               <Select
                 value={filters.securityDeposit || "All Security Deposits"}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, securityDeposit: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="records-filter-security-deposit" className="mt-2 w-full">
                   <SelectValue placeholder="All Security Deposits" />
                 </SelectTrigger>
                 <SelectContent
@@ -3039,14 +3049,15 @@ export default function PaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Amount Range</label>
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
+            <div>
+              <Label htmlFor="records-filter-min-amount">Amount Range</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  id="records-filter-min-amount"
                   type="number"
                   min={0}
                   placeholder="Min"
-                  className="w-full border rounded px-3 py-2"
+                  aria-label="Minimum amount"
                   value={filters.minAmount}
                   onChange={(e) =>
                     setFilters((f) => ({
@@ -3055,11 +3066,11 @@ export default function PaymentRecords() {
                     }))
                   }
                 />
-                <input
+                <Input
                   type="number"
                   min={0}
                   placeholder="Max"
-                  className="w-full border rounded px-3 py-2"
+                  aria-label="Maximum amount"
                   value={filters.maxAmount}
                   onChange={(e) =>
                     setFilters((f) => ({
@@ -3071,14 +3082,15 @@ export default function PaymentRecords() {
               </div>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
-              <label className="text-sm font-medium">Actual Amount Range</label>
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
+            <div>
+              <Label htmlFor="records-filter-min-actual-amount">Actual Amount Range</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  id="records-filter-min-actual-amount"
                   type="number"
                   min={0}
                   placeholder="Min"
-                  className="w-full border rounded px-3 py-2"
+                  aria-label="Minimum actual amount"
                   value={filters.minActualAmount}
                   onChange={(e) =>
                     setFilters((f) => ({
@@ -3087,11 +3099,11 @@ export default function PaymentRecords() {
                     }))
                   }
                 />
-                <input
+                <Input
                   type="number"
                   min={0}
                   placeholder="Max"
-                  className="w-full border rounded px-3 py-2"
+                  aria-label="Maximum actual amount"
                   value={filters.maxActualAmount}
                   onChange={(e) =>
                     setFilters((f) => ({
@@ -3103,8 +3115,8 @@ export default function PaymentRecords() {
               </div>
             </div>
           </div>
-          <div className="mt-3 flex justify-end gap-3">
-            <Button className="cursor-pointer" onClick={clearFilters}>
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={clearFilters}>
               Clear
             </Button>
             <Button
@@ -3117,9 +3129,9 @@ export default function PaymentRecords() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible mb-0">
+      <div className="data-table-wrap @container max-h-[70vh]">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300 sticky top-0 z-10">
+          <TableHeader className="sticky top-0 z-10">
             <TableRow>
               <TableHead className="text-center py-3">S.No.</TableHead>
               <TableHead className="text-center py-3">Timestamp</TableHead>
@@ -3187,12 +3199,16 @@ export default function PaymentRecords() {
             {loading ? (
               <TableSkeleton colSpan={20} rows={5} />
             ) : pagination.totalItems === 0 ? (
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 <TableCell
                   colSpan={20}
-                  className="text-center py-6 text-gray-500"
+                  className="p-0"
                 >
-                  No payment records found.
+                  {/* Sticky and as wide as the scroll box, so it stays in view however wide the table is */}
+                  <EmptyState
+                    className="sticky left-0 w-[100cqw]"
+                    title="No payment records found."
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -3325,9 +3341,10 @@ export default function PaymentRecords() {
                   <TableCell className="text-center py-2">
                     {editingFields[record.id]?.utr ? (
                       <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
-                        <input
+                        <Input
                           type="text"
-                          className="border px-2 py-1 rounded text-sm text-center w-full"
+                          className="h-7 px-2 text-center"
+                          aria-label="UTR"
                           value={record.utr || ""}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -3394,6 +3411,7 @@ export default function PaymentRecords() {
                               }
                             }}
                             title="Save"
+                            aria-label="Save UTR"
                           >
                             <Save className="w-4 h-4" />
                           </Button>
@@ -3427,6 +3445,7 @@ export default function PaymentRecords() {
                               }
                             }}
                             title="Edit"
+                            aria-label="Edit UTR"
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
@@ -3459,7 +3478,7 @@ export default function PaymentRecords() {
                         });
                       }}
                     >
-                      <SelectTrigger className="h-8 text-sm w-40 mx-auto bg-transparent cursor-pointer">
+                      <SelectTrigger size="sm" aria-label="Paid by bank" className="w-40 mx-auto bg-transparent">
                         <SelectValue placeholder="N/A" />
                       </SelectTrigger>
                       <SelectContent>
@@ -3484,18 +3503,15 @@ export default function PaymentRecords() {
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="inline-flex">
+                                <div className="inline-flex align-middle">
                                   <Button
                                     size="sm"
-                                    variant={isMarkedAsAdvance ? "outline" : "default"}
+                                    variant="outline"
                                     onClick={() =>
                                       setMarkAdvanceModal({ open: true, id: record.id })
                                     }
                                     disabled={isMarkedAsAdvance}
-                                    className={`flex items-center gap-2 ${isMarkedAsAdvance
-                                      ? "border border-gray-300 text-green-600 bg-gray-100 cursor-not-allowed"
-                                      : "cursor-pointer border border-gray-300 bg-white text-black hover:bg-gray-100"
-                                      }`}
+                                    className={isMarkedAsAdvance ? "bg-muted text-green-700" : ""}
                                   >
                                     {isMarkedAsAdvance && <CheckCircle className="w-5 h-5 " />}
                                     {isMarkedAsAdvance ? "Mark as Advance" : "Mark as Advance"}
@@ -3516,7 +3532,7 @@ export default function PaymentRecords() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="inline-flex">
+                              <div className="inline-flex align-middle">
                                 <Select
                                   value={"regular"}
                                   onValueChange={(val) => {
@@ -3525,7 +3541,7 @@ export default function PaymentRecords() {
                                     }
                                   }}
                                 >
-                                  <SelectTrigger size="sm" className="w-40">
+                                  <SelectTrigger size="sm" aria-label="Payment type" className="w-44">
                                     <SelectValue placeholder="Regular Payment" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -4080,7 +4096,7 @@ export default function PaymentRecords() {
               </label>
             </div>
           </div>
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowExportModal(false)}
@@ -4122,15 +4138,16 @@ export default function PaymentRecords() {
 
       {/* Export Date Selection Modal */}
       <Dialog open={showExportDateModal} onOpenChange={setShowExportDateModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Date Range</DialogTitle>
           </DialogHeader>
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Date of Expense</label>
+              <Label htmlFor="export-expense-date-mode">Date of Expense</Label>
               <select
-                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                id="export-expense-date-mode"
+                className={nativeSelectClass}
                 value={exportDateFilters.expenseDateMode}
                 onChange={(e) => {
                   const mode = e.target.value;
@@ -4163,12 +4180,13 @@ export default function PaymentRecords() {
                 <option>Custom Date</option>
               </select>
 
-              <div className="mt-2">
+              <div className="mt-3">
                 {exportDateFilters.expenseDateMode === "Single Date" ? (
                   <>
-                    <label className="text-sm font-medium">Select Date</label>
+                    <Label htmlFor="export-expense-date">Select Date</Label>
                     <select
-                      className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                      id="export-expense-date"
+                      className={nativeSelectClass}
                       value={exportDateFilters.expenseStartDate}
                       onChange={(e) =>
                         setExportDateFilters((prev) => ({
@@ -4187,12 +4205,13 @@ export default function PaymentRecords() {
                     </select>
                   </>
                 ) : exportDateFilters.expenseDateMode === "Custom Date" ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="text-sm font-medium">From</label>
-                      <input
+                      <Label htmlFor="export-expense-from">From</Label>
+                      <Input
+                        id="export-expense-from"
                         type="date"
-                        className="mt-1 block w-full border rounded px-3 py-2"
+                        className="mt-2"
                         value={exportDateFilters.expenseStartDate}
                         onChange={(e) =>
                           setExportDateFilters((prev) => ({
@@ -4203,10 +4222,11 @@ export default function PaymentRecords() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium">To</label>
-                      <input
+                      <Label htmlFor="export-expense-to">To</Label>
+                      <Input
+                        id="export-expense-to"
                         type="date"
-                        className="mt-1 block w-full border rounded px-3 py-2"
+                        className="mt-2"
                         value={exportDateFilters.expenseEndDate}
                         onChange={(e) =>
                           setExportDateFilters((prev) => ({
@@ -4222,9 +4242,10 @@ export default function PaymentRecords() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Paid Date</label>
+              <Label htmlFor="export-paid-date-mode">Paid Date</Label>
               <select
-                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                id="export-paid-date-mode"
+                className={nativeSelectClass}
                 value={exportDateFilters.paidDateMode}
                 onChange={(e) => {
                   const mode = e.target.value;
@@ -4257,12 +4278,13 @@ export default function PaymentRecords() {
                 <option>Custom Date</option>
               </select>
 
-              <div className="mt-2">
+              <div className="mt-3">
                 {exportDateFilters.paidDateMode === "Single Date" ? (
                   <>
-                    <label className="text-sm font-medium">Select Date</label>
+                    <Label htmlFor="export-paid-date">Select Date</Label>
                     <select
-                      className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                      id="export-paid-date"
+                      className={nativeSelectClass}
                       value={exportDateFilters.paidStartDate}
                       onChange={(e) =>
                         setExportDateFilters((prev) => ({
@@ -4281,12 +4303,13 @@ export default function PaymentRecords() {
                     </select>
                   </>
                 ) : exportDateFilters.paidDateMode === "Custom Date" ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="text-sm font-medium">From</label>
-                      <input
+                      <Label htmlFor="export-paid-from">From</Label>
+                      <Input
+                        id="export-paid-from"
                         type="date"
-                        className="mt-1 block w-full border rounded px-3 py-2"
+                        className="mt-2"
                         value={exportDateFilters.paidStartDate}
                         onChange={(e) =>
                           setExportDateFilters((prev) => ({
@@ -4297,10 +4320,11 @@ export default function PaymentRecords() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium">To</label>
-                      <input
+                      <Label htmlFor="export-paid-to">To</Label>
+                      <Input
+                        id="export-paid-to"
                         type="date"
-                        className="mt-1 block w-full border rounded px-3 py-2"
+                        className="mt-2"
                         value={exportDateFilters.paidEndDate}
                         onChange={(e) =>
                           setExportDateFilters((prev) => ({
@@ -4315,7 +4339,7 @@ export default function PaymentRecords() {
               </div>
             </div>
           </div>
-          <DialogFooter className="mt-4 flex gap-2">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
@@ -4345,15 +4369,16 @@ export default function PaymentRecords() {
 
       {/* Quick Weekly/Monthly Export Modal */}
       <Dialog open={showQuickExportModal} onOpenChange={setShowQuickExportModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Weekly / Monthly Export</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Export Type</label>
+              <Label id="quick-export-type-label">Export Type</Label>
               <RadioGroup
-                className="mt-2 flex flex-wrap gap-6"
+                aria-labelledby="quick-export-type-label"
+                className="mt-3 flex flex-wrap gap-x-6 gap-y-3"
                 value={quickExportMode}
                 onValueChange={(v) => setQuickExportMode(v as "weekly" | "monthly")}
               >
@@ -4372,9 +4397,10 @@ export default function PaymentRecords() {
               </RadioGroup>
             </div>
             <div>
-              <label className="text-sm font-medium">Project of Expense (Date of Expense)</label>
+              <Label htmlFor="quick-export-location">Project of Expense (Date of Expense)</Label>
               <select
-                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                id="quick-export-location"
+                className={nativeSelectClass}
                 value={quickExportLocation}
                 onChange={(e) => setQuickExportLocation(e.target.value)}
               >
@@ -4387,14 +4413,15 @@ export default function PaymentRecords() {
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium">
+              <Label htmlFor="quick-export-period">
                 {quickExportMode === "monthly"
                   ? "Month (Date of Expense)"
                   : "Week (Date of Expense)"}
-              </label>
+              </Label>
               {quickExportMode === "weekly" ? (
                 <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  id="quick-export-period"
+                  className={nativeSelectClass}
                   value={quickExportDate}
                   onChange={(e) => setQuickExportDate(e.target.value)}
                 >
@@ -4407,7 +4434,8 @@ export default function PaymentRecords() {
                 </select>
               ) : (
                 <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  id="quick-export-period"
+                  className={nativeSelectClass}
                   value={quickExportDate}
                   onChange={(e) => setQuickExportDate(e.target.value)}
                 >
@@ -4419,14 +4447,14 @@ export default function PaymentRecords() {
                   ))}
                 </select>
               )}
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="mt-2 text-xs text-muted-foreground">
                 {quickExportMode === "weekly"
                   ? "Select the week (based on Date of Expense) whose records you want to export."
                   : "Select the month (based on Date of Expense) whose records you want to export."}
               </p>
             </div>
           </div>
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowQuickExportModal(false)}
@@ -4447,16 +4475,16 @@ export default function PaymentRecords() {
 
       {/* Format Selection Modal */}
       <Dialog open={showFormatModal} onOpenChange={setShowFormatModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Export Format</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Choose the format for your export file:
             </p>
           </div>
-          <DialogFooter className="mt-4 flex gap-2">
+          <DialogFooter>
             <Button
               onClick={handleExportCSV}
               className="cursor-pointer"

@@ -20,6 +20,7 @@ import {
   Download,
   Tag,
   CheckCircle,
+  Wallet,
 } from "lucide-react";
 import {
   Table,
@@ -35,6 +36,9 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { toast } from "sonner";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +64,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+// Native <select> styled to match the Input primitive.
+const nativeSelectClass =
+  "mt-1 h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm";
 
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || Number.isNaN(amount)) return "N/A";
@@ -1590,22 +1598,23 @@ export default function AdvancePaymentRecords() {
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold flex flex-col sm:flex-row sm:items-center justify-start">Advance Payment Records</h1>
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+    <div className="space-y-6">
+      <PageHeader
+        title="Advance Payment Records"
+        description="Paid expenses marked as advance payments, grouped by the bank that paid them."
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Tabs */}
-        <div className="w-full overflow-x-auto lg:w-auto">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="bg-muted rounded-lg w-max min-w-max">
-              <TabsTrigger value="all" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">All Expense</TabsTrigger>
-              <TabsTrigger value="ngidfc" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">NGIDFC Record</TabsTrigger>
-              <TabsTrigger value="fcidfc" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">FCIDFC Records</TabsTrigger>
-              <TabsTrigger value="kotak" className="cursor-pointer whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">KOTAK Records</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="min-w-0 max-w-full">
+          <TabsList>
+            <TabsTrigger value="all">All Expense</TabsTrigger>
+            <TabsTrigger value="ngidfc">NGIDFC Record</TabsTrigger>
+            <TabsTrigger value="fcidfc">FCIDFC Records</TabsTrigger>
+            <TabsTrigger value="kotak">KOTAK Records</TabsTrigger>
+          </TabsList>
+        </Tabs>
         {/* Actions */}
-        <div className="flex w-full flex-wrap gap-2 lg:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
           {isExportEnabled && (
             <>
               <Button
@@ -1618,7 +1627,6 @@ export default function AdvancePaymentRecords() {
                   setShowExportBankModal(true);
                 }}
                 variant="outline"
-                className="flex w-full items-center gap-2 sm:w-auto"
               >
                 <Download className="w-4 h-4" />
                 Export
@@ -1630,7 +1638,6 @@ export default function AdvancePaymentRecords() {
                   setQuickExportDate("");
                   setShowQuickExportModal(true);
                 }}
-                className="w-full sm:w-auto flex items-center gap-2 cursor-pointer text-xs sm:text-sm"
                 variant="outline"
               >
                 <Download className="w-4 h-4" />
@@ -1641,7 +1648,7 @@ export default function AdvancePaymentRecords() {
           <Button
             variant="outline"
             onClick={() => setFilterOpen((s) => !s)}
-            className="flex w-full items-center gap-2 sm:w-auto"
+            aria-expanded={filterOpen}
           >
             <Filter className="w-4 h-4" />
             Filters
@@ -1651,9 +1658,9 @@ export default function AdvancePaymentRecords() {
 
       {/* Filter panel */}
       {filterOpen && (
-        <div className="p-4 rounded-md border shadow-sm bg-white">
-          <div className="grid grid-cols-4 gap-4">
-            <div className="col-span-3 sm:col-span-1">
+        <div className="rounded-xl border bg-card p-4 shadow-xs">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Expense Type</label>
               <Select
                 value={filters.expenseType || "All Expense Type"}
@@ -1681,7 +1688,7 @@ export default function AdvancePaymentRecords() {
               </Select>
             </div>
 
-            {/* <div className="col-span-3 sm:col-span-1">
+            {/* <div className="min-w-0">
               <label className="text-sm font-medium">Event</label>
               <Select
                 value={filters.eventName || "All Events"}
@@ -1709,7 +1716,7 @@ export default function AdvancePaymentRecords() {
               </Select>
             </div> */}
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Email</label>
               <Select
                 value={filters.email || "All Emails"}
@@ -1737,7 +1744,7 @@ export default function AdvancePaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Unique ID</label>
               <Select
                 value={filters.uniqueId || "All Unique IDs"}
@@ -1765,7 +1772,7 @@ export default function AdvancePaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Project of Expense</label>
               <Select
                 value={filters.location || "All Locations"}
@@ -1793,7 +1800,7 @@ export default function AdvancePaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Bills</label>
               <Select
                 value={filters.bills || "All Receipt/Voucher"}
@@ -1820,7 +1827,7 @@ export default function AdvancePaymentRecords() {
             </div>
 
             {bankOptions.length > 0 && (
-              <div className="col-span-3 sm:col-span-1">
+              <div className="min-w-0">
                 <label className="text-sm font-medium">Paid by Bank</label>
                 <Select
                   value={filters.paidByBank || "All Banks"}
@@ -1849,7 +1856,7 @@ export default function AdvancePaymentRecords() {
               </div>
             )}
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Date of expense</label>
               <Select
                 value={filters.dateMode || "All Dates"}
@@ -1920,21 +1927,23 @@ export default function AdvancePaymentRecords() {
                   </>
                 ) : filters.dateMode === "Custom Date" ? (
                   <>
-                    <label className="text-sm font-medium">Start Date</label>
-                    <input
+                    <label htmlFor="filter-start-date" className="text-sm font-medium">Start Date</label>
+                    <Input
+                      id="filter-start-date"
                       type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                      className="mt-1"
                       value={filters.startDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, startDate: e.target.value }))
                       }
                     />
-                    <label className="text-sm font-medium mt-2 block">
+                    <label htmlFor="filter-end-date" className="text-sm font-medium mt-2 block">
                       End Date
                     </label>
-                    <input
+                    <Input
+                      id="filter-end-date"
                       type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                      className="mt-1"
                       value={filters.endDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, endDate: e.target.value }))
@@ -1945,7 +1954,7 @@ export default function AdvancePaymentRecords() {
               </div>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Paid date</label>
               <Select
                 value={filters.paidDateMode || "All Dates"}
@@ -2015,21 +2024,23 @@ export default function AdvancePaymentRecords() {
                   </>
                 ) : filters.paidDateMode === "Custom Date" ? (
                   <>
-                    <label className="text-sm font-medium">Start Date</label>
-                    <input
+                    <label htmlFor="filter-paid-start-date" className="text-sm font-medium">Start Date</label>
+                    <Input
+                      id="filter-paid-start-date"
                       type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                      className="mt-1"
                       value={filters.paidStartDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, paidStartDate: e.target.value }))
                       }
                     />
-                    <label className="text-sm font-medium mt-2 block">
+                    <label htmlFor="filter-paid-end-date" className="text-sm font-medium mt-2 block">
                       End Date
                     </label>
-                    <input
+                    <Input
+                      id="filter-paid-end-date"
                       type="date"
-                      className="mt-1 block w-full border rounded px-3 py-2"
+                      className="mt-1"
                       value={filters.paidEndDate}
                       onChange={(e) =>
                         setFilters((f) => ({ ...f, paidEndDate: e.target.value }))
@@ -2040,7 +2051,7 @@ export default function AdvancePaymentRecords() {
               </div>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">TDS Deduction</label>
               <Select
                 value={filters.tdsDeduction || "All TDS Deductions"}
@@ -2068,7 +2079,7 @@ export default function AdvancePaymentRecords() {
               </Select>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Security Deposit</label>
               <Select
                 value={filters.securityDeposit || "All Security Deposits"}
@@ -2097,7 +2108,7 @@ export default function AdvancePaymentRecords() {
             </div>
 
             {utrValues.length > 0 && (
-              <div className="col-span-3 sm:col-span-1">
+              <div className="min-w-0">
                 <label className="text-sm font-medium">UTR</label>
                 <Select
                   value={filters.utr || "All UTRs"}
@@ -2126,13 +2137,13 @@ export default function AdvancePaymentRecords() {
               </div>
             )}
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Amount Range</label>
               <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
+                <Input
                   type="number"
                   placeholder="Min"
-                  className="block w-full border rounded px-3 py-2"
+                  aria-label="Minimum amount"
                   value={filters.minAmount}
                   onChange={(e) =>
                     setFilters((f) => ({
@@ -2141,10 +2152,10 @@ export default function AdvancePaymentRecords() {
                     }))
                   }
                 />
-                <input
+                <Input
                   type="number"
                   placeholder="Max"
-                  className="block w-full border rounded px-3 py-2"
+                  aria-label="Maximum amount"
                   value={filters.maxAmount}
                   onChange={(e) =>
                     setFilters((f) => ({
@@ -2156,13 +2167,13 @@ export default function AdvancePaymentRecords() {
               </div>
             </div>
 
-            <div className="col-span-3 sm:col-span-1">
+            <div className="min-w-0">
               <label className="text-sm font-medium">Actual Amount Range</label>
               <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
+                <Input
                   type="number"
                   placeholder="Min"
-                  className="block w-full border rounded px-3 py-2"
+                  aria-label="Minimum actual amount"
                   value={filters.actualMinAmount}
                   onChange={(e) =>
                     setFilters((f) => ({
@@ -2171,10 +2182,10 @@ export default function AdvancePaymentRecords() {
                     }))
                   }
                 />
-                <input
+                <Input
                   type="number"
                   placeholder="Max"
-                  className="block w-full border rounded px-3 py-2"
+                  aria-label="Maximum actual amount"
                   value={filters.actualMaxAmount}
                   onChange={(e) =>
                     setFilters((f) => ({
@@ -2186,7 +2197,7 @@ export default function AdvancePaymentRecords() {
               </div>
             </div>
           </div>
-          <div className="mt-3 flex justify-end gap-3">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Button variant="outline" className="cursor-pointer" onClick={clearFilters}>
               Clear Filters
             </Button>
@@ -2201,9 +2212,9 @@ export default function AdvancePaymentRecords() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+      <div className="data-table-wrap @container max-h-[70vh]">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300">
+          <TableHeader className="sticky top-0 z-10">
             <TableRow>
               <TableHead className="text-center py-3">S.No.</TableHead>
               <TableHead className="text-center py-3">Timestamp</TableHead>
@@ -2270,19 +2281,15 @@ export default function AdvancePaymentRecords() {
             {loading ? (
               <TableSkeleton colSpan={19} rows={5} />
             ) : filteredRecords.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={19}
-                  className="text-center py-12 text-gray-500"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <p className="text-lg font-medium text-gray-700">
-                      No Advance Payment Records Found
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Mark expenses as advance payment from the Records tab to see them here.
-                    </p>
-                  </div>
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={19} className="p-0">
+                  {/* Pinned to the visible width so it stays in view in this wide table */}
+                  <EmptyState
+                    icon={Wallet}
+                    title="No advance payment records found"
+                    description="Mark expenses as advance payment from the Records tab to see them here."
+                    className="sticky left-0 w-[100cqw]"
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -2410,9 +2417,10 @@ export default function AdvancePaymentRecords() {
                   <TableCell className="text-center py-2">
                     {editingFields[record.id]?.utr ? (
                       <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
-                        <input
+                        <Input
                           type="text"
-                          className="border px-2 py-1 rounded text-sm text-center w-full"
+                          aria-label="UTR"
+                          className="h-7 px-2 text-center"
                           value={record.utr || ""}
                           onChange={(e) => {
                             const updated = records.map((r) =>
@@ -2479,6 +2487,7 @@ export default function AdvancePaymentRecords() {
                               }
                             }}
                             title="Save"
+                            aria-label="Save UTR"
                           >
                             <Save className="w-4 h-4" />
                           </Button>
@@ -2512,6 +2521,7 @@ export default function AdvancePaymentRecords() {
                               }
                             }}
                             title="Edit"
+                            aria-label="Edit UTR"
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
@@ -2532,19 +2542,21 @@ export default function AdvancePaymentRecords() {
                     {record.paid_by_bank || "N/A"}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              size="sm"
-                              variant="outline"
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="View details"
                               onClick={() =>
                                 router.push(
                                   `/org/${slug}/advance-payment/${record.id}?tab=${activeTab}`
                                 )
                               }
-                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                              className="size-8"
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -2558,10 +2570,12 @@ export default function AdvancePaymentRecords() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              size="sm"
-                              variant="outline"
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Edit record"
                               onClick={() => openEditModal(record)}
-                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                              className="size-8"
                             >
                               <Pencil className="w-4 h-4" />
                             </Button>
@@ -2598,17 +2612,18 @@ export default function AdvancePaymentRecords() {
           setEditModal((prev) => ({ open, record: open ? prev.record : null }))
         }
       >
-        <DialogContent className="max-w-xl sm:max-w-1xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit advance payment record</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
-            <div className="grid gap-3 text-sm">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-sm font-medium">Unique ID</label>
-                <input
+                <label htmlFor="edit-unique-id" className="text-sm font-medium">Unique ID</label>
+                <Input
+                  id="edit-unique-id"
                   type="text"
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  className="mt-1"
                   value={editForm.unique_id}
                   onChange={(e) =>
                     setEditForm((prev) => ({ ...prev, unique_id: e.target.value }))
@@ -2616,9 +2631,10 @@ export default function AdvancePaymentRecords() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Expense Type</label>
+                <label htmlFor="edit-expense-type" className="text-sm font-medium">Expense Type</label>
                 <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  id="edit-expense-type"
+                  className={nativeSelectClass}
                   value={editForm.expense_type}
                   onChange={(e) =>
                     setEditForm((prev) => ({
@@ -2636,9 +2652,10 @@ export default function AdvancePaymentRecords() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Event Name</label>
+                <label htmlFor="edit-event" className="text-sm font-medium">Event Name</label>
                 <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  id="edit-event"
+                  className={nativeSelectClass}
                   value={editForm.event_id}
                   onChange={(e) =>
                     setEditForm((prev) => ({
@@ -2662,9 +2679,10 @@ export default function AdvancePaymentRecords() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Location</label>
+                <label htmlFor="edit-location" className="text-sm font-medium">Location</label>
                 <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  id="edit-location"
+                  className={nativeSelectClass}
                   value={editForm.location}
                   onChange={(e) =>
                     setEditForm((prev) => ({
@@ -2682,11 +2700,12 @@ export default function AdvancePaymentRecords() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Amount</label>
-                <input
+                <label htmlFor="edit-amount" className="text-sm font-medium">Amount</label>
+                <Input
+                  id="edit-amount"
                   type="number"
                   step="0.01"
-                  className="mt-1 block w-full border rounded px-3 py-2"
+                  className="mt-1"
                   value={editForm.approved_amount}
                   onChange={(e) =>
                     setEditForm((prev) => ({
@@ -2697,10 +2716,11 @@ export default function AdvancePaymentRecords() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">UTR</label>
-                <input
+                <label htmlFor="edit-utr" className="text-sm font-medium">UTR</label>
+                <Input
+                  id="edit-utr"
                   type="text"
-                  className="mt-1 block w-full border rounded px-3 py-2"
+                  className="mt-1"
                   value={editForm.utr}
                   onChange={(e) =>
                     setEditForm((prev) => ({ ...prev, utr: e.target.value }))
@@ -2708,7 +2728,7 @@ export default function AdvancePaymentRecords() {
                 />
               </div>
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Finance-only changes here will not alter the creator&apos;s submitted expense fields.
             </p>
           </div>
@@ -2742,9 +2762,9 @@ export default function AdvancePaymentRecords() {
             <DialogTitle>Enter Password to Unlock UTR Editing</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <input
+            <Input
               type="password"
-              className="w-full border px-3 py-2 rounded mb-0"
+              aria-label="Password"
               placeholder="Password"
               value={enteredPassword}
               onChange={(e) => setEnteredPassword(e.target.value)}
@@ -2770,7 +2790,7 @@ export default function AdvancePaymentRecords() {
                 }
               }}
             />
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Reach out to admin for password to unlock UTR editing.
             </p>
           </div>
@@ -2804,7 +2824,7 @@ export default function AdvancePaymentRecords() {
 
       {/* Column Selection Modal */}
       <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Columns to Export</DialogTitle>
           </DialogHeader>
@@ -2856,7 +2876,7 @@ export default function AdvancePaymentRecords() {
 
       {/* Bank selection modal (pre-export) */}
       <Dialog open={showExportBankModal} onOpenChange={setShowExportBankModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Advance Payment Records to Export</DialogTitle>
           </DialogHeader>
@@ -2947,15 +2967,16 @@ export default function AdvancePaymentRecords() {
 
       {/* Export Date Selection Modal */}
       <Dialog open={showExportDateModal} onOpenChange={setShowExportDateModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Date Range</DialogTitle>
           </DialogHeader>
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Date of Expense</label>
+              <label htmlFor="export-expense-date-mode" className="text-sm font-medium">Date of Expense</label>
               <select
-                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                id="export-expense-date-mode"
+                className={nativeSelectClass}
                 value={exportDateFilters.expenseDateMode}
                 onChange={(e) => {
                   const mode = e.target.value;
@@ -2991,9 +3012,10 @@ export default function AdvancePaymentRecords() {
               <div className="mt-2">
                 {exportDateFilters.expenseDateMode === "Single Date" ? (
                   <>
-                    <label className="text-sm font-medium">Select Date</label>
+                    <label htmlFor="export-expense-date" className="text-sm font-medium">Select Date</label>
                     <select
-                      className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                      id="export-expense-date"
+                      className={nativeSelectClass}
                       value={exportDateFilters.expenseStartDate}
                       onChange={(e) =>
                         setExportDateFilters((prev) => ({
@@ -3012,12 +3034,13 @@ export default function AdvancePaymentRecords() {
                     </select>
                   </>
                 ) : exportDateFilters.expenseDateMode === "Custom Date" ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div>
-                      <label className="text-sm font-medium">From</label>
-                      <input
+                      <label htmlFor="export-expense-from" className="text-sm font-medium">From</label>
+                      <Input
+                        id="export-expense-from"
                         type="date"
-                        className="mt-1 block w-full border rounded px-3 py-2"
+                        className="mt-1"
                         value={exportDateFilters.expenseStartDate}
                         onChange={(e) =>
                           setExportDateFilters((prev) => ({
@@ -3028,10 +3051,11 @@ export default function AdvancePaymentRecords() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium">To</label>
-                      <input
+                      <label htmlFor="export-expense-to" className="text-sm font-medium">To</label>
+                      <Input
+                        id="export-expense-to"
                         type="date"
-                        className="mt-1 block w-full border rounded px-3 py-2"
+                        className="mt-1"
                         value={exportDateFilters.expenseEndDate}
                         onChange={(e) =>
                           setExportDateFilters((prev) => ({
@@ -3047,9 +3071,10 @@ export default function AdvancePaymentRecords() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Paid Date</label>
+              <label htmlFor="export-paid-date-mode" className="text-sm font-medium">Paid Date</label>
               <select
-                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                id="export-paid-date-mode"
+                className={nativeSelectClass}
                 value={exportDateFilters.paidDateMode}
                 onChange={(e) => {
                   const mode = e.target.value;
@@ -3085,9 +3110,10 @@ export default function AdvancePaymentRecords() {
               <div className="mt-2">
                 {exportDateFilters.paidDateMode === "Single Date" ? (
                   <>
-                    <label className="text-sm font-medium">Select Date</label>
+                    <label htmlFor="export-paid-date" className="text-sm font-medium">Select Date</label>
                     <select
-                      className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                      id="export-paid-date"
+                      className={nativeSelectClass}
                       value={exportDateFilters.paidStartDate}
                       onChange={(e) =>
                         setExportDateFilters((prev) => ({
@@ -3106,12 +3132,13 @@ export default function AdvancePaymentRecords() {
                     </select>
                   </>
                 ) : exportDateFilters.paidDateMode === "Custom Date" ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div>
-                      <label className="text-sm font-medium">From</label>
-                      <input
+                      <label htmlFor="export-paid-from" className="text-sm font-medium">From</label>
+                      <Input
+                        id="export-paid-from"
                         type="date"
-                        className="mt-1 block w-full border rounded px-3 py-2"
+                        className="mt-1"
                         value={exportDateFilters.paidStartDate}
                         onChange={(e) =>
                           setExportDateFilters((prev) => ({
@@ -3122,10 +3149,11 @@ export default function AdvancePaymentRecords() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium">To</label>
-                      <input
+                      <label htmlFor="export-paid-to" className="text-sm font-medium">To</label>
+                      <Input
+                        id="export-paid-to"
                         type="date"
-                        className="mt-1 block w-full border rounded px-3 py-2"
+                        className="mt-1"
                         value={exportDateFilters.paidEndDate}
                         onChange={(e) =>
                           setExportDateFilters((prev) => ({
@@ -3192,12 +3220,12 @@ export default function AdvancePaymentRecords() {
 
       {/* Format Selection Modal */}
       <Dialog open={showFormatModal} onOpenChange={setShowFormatModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Export Format</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Choose the format for your export file:
             </p>
           </div>
@@ -3220,7 +3248,7 @@ export default function AdvancePaymentRecords() {
 
       {/* Quick Weekly/Monthly Export Modal */}
       <Dialog open={showQuickExportModal} onOpenChange={setShowQuickExportModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Weekly / Monthly Export</DialogTitle>
           </DialogHeader>
@@ -3247,9 +3275,10 @@ export default function AdvancePaymentRecords() {
               </RadioGroup>
             </div>
             <div>
-              <label className="text-sm font-medium">Project of Expense (Date of Expense)</label>
+              <label htmlFor="quick-export-location" className="text-sm font-medium">Project of Expense (Date of Expense)</label>
               <select
-                className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                id="quick-export-location"
+                className={nativeSelectClass}
                 value={quickExportLocation}
                 onChange={(e) => setQuickExportLocation(e.target.value)}
               >
@@ -3262,14 +3291,15 @@ export default function AdvancePaymentRecords() {
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium">
+              <label htmlFor="quick-export-period" className="text-sm font-medium">
                 {quickExportMode === "monthly"
                   ? "Month (Date of Expense)"
                   : "Week (Date of Expense)"}
               </label>
               {quickExportMode === "weekly" ? (
                 <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  id="quick-export-period"
+                  className={nativeSelectClass}
                   value={quickExportDate}
                   onChange={(e) => setQuickExportDate(e.target.value)}
                 >
@@ -3282,7 +3312,8 @@ export default function AdvancePaymentRecords() {
                 </select>
               ) : (
                 <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
+                  id="quick-export-period"
+                  className={nativeSelectClass}
                   value={quickExportDate}
                   onChange={(e) => setQuickExportDate(e.target.value)}
                 >
@@ -3294,7 +3325,7 @@ export default function AdvancePaymentRecords() {
                   ))}
                 </select>
               )}
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {quickExportMode === "weekly"
                   ? "Select the week (based on Date of Expense) whose records you want to export."
                   : "Select the month (based on Date of Expense) whose records you want to export."}

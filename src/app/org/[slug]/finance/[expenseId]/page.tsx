@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   expenses,
   expenseEvents,
@@ -11,19 +11,13 @@ import {
   organizations,
   orgSettings,
 } from "@/lib/db";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -42,7 +36,6 @@ import { FileText, Clock, ArrowLeft, Pencil, Save, CheckCircle } from "lucide-re
 import { getResubmissionDetails, ResubmissionInfo } from "@/lib/features";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +50,28 @@ import ReceiptPreview from "@/components/ReceiptPreview";
 import VoucherPreview from "@/components/VoucherPreview";
 
 import supabase from "@/lib/supabase"; // Make sure this is correctly imported
+
+// Native <select>s in the edit form, styled to match the Input primitive.
+const nativeSelectClass =
+  "block h-9 w-full max-w-xs min-w-0 rounded-md border border-input bg-transparent px-3 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30";
+
+/** One label/value pair in the expense details grid. */
+function DetailItem({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("min-w-0 space-y-1", className)}>
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="text-sm text-foreground break-words">{children}</dd>
+    </div>
+  );
+}
 
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || Number.isNaN(amount)) return "—";
@@ -730,7 +745,7 @@ export default function FinanceExpenseDetails() {
   };
 
   if (!loading && !expense) {
-    return <div className="p-6 text-red-600">Expense not found</div>;
+    return <div className="text-sm text-red-600">Expense not found</div>;
   }
 
   const tdsPercentage = expense?.tds_deduction_percentage ?? null;
@@ -783,43 +798,50 @@ export default function FinanceExpenseDetails() {
   })();
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <Button
-          variant="link"
-          onClick={() => router.push(backToApprovalQueueUrl)}
-          className="text-sm cursor-pointer"
-          disabled={loading}
-        >
-          <ArrowLeft />
-          Back to Approval Queue
-        </Button>
-        {!loading && (
-          <div className="flex gap-2">
-            <Button
-              onClick={handleFinanceApprove}
-              disabled={processing}
-              variant="success"
-              className="cursor-pointer"
-            >
-              Approve
-            </Button>
-            <Button
-              onClick={() => setShowCommentBox(true)}
-              disabled={processing}
-              variant="destructive"
-              className="cursor-pointer"
-            >
-              Reject
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Expense Review"
+        description="Check the expense details, then approve or reject it."
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(backToApprovalQueueUrl)}
+            className="-ml-2 w-fit"
+            disabled={loading}
+          >
+            <ArrowLeft />
+            Back to Approval Queue
+          </Button>
+        }
+        actions={
+          !loading && (
+            <>
+              <Button
+                onClick={handleFinanceApprove}
+                disabled={processing}
+                variant="success"
+                className="flex-1 sm:flex-none"
+              >
+                Approve
+              </Button>
+              <Button
+                onClick={() => setShowCommentBox(true)}
+                disabled={processing}
+                variant="destructive"
+                className="flex-1 sm:flex-none"
+              >
+                Reject
+              </Button>
+            </>
+          )
+        }
+      />
 
       {/* Show banner if expense was previously rejected, edited, and resubmitted */}
       {resubmissionInfo.isResubmitted && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4">
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <CheckCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div className="text-sm">
@@ -838,19 +860,19 @@ export default function FinanceExpenseDetails() {
       {expense && expense.unique_id &&
         (expense.unique_id.toLowerCase().startsWith("advance_") ||
           expense.unique_id.startsWith("Advance_")) && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-sm text-black-800">
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-900 break-words">
               ℹ️ This expense was created using Advance Unique ID: <span className="font-mono font-semibold">{expense.unique_id}</span>
             </p>
           </div>
         )}
 
       {/* Grid Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         {/* Expense Details */}
-        <div className="space-y-6 md:col-span-4">
-          <div className="bg-white p-6 rounded shadow border">
-            <div className="mb-4 space-y-2">
+        <div className="min-w-0 space-y-6">
+          <div className="rounded-xl border bg-card p-6 shadow-sm">
+            <div className="mb-5 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <h2 className="card-title">Expense Details</h2>
                 <div className="flex items-center gap-1 shrink-0">
@@ -860,6 +882,7 @@ export default function FinanceExpenseDetails() {
                         <Button
                           variant="outline"
                           size="icon"
+                          aria-label="Edit expense details"
                           onClick={handleStartEdit}
                           disabled={
                             loading ||
@@ -882,6 +905,7 @@ export default function FinanceExpenseDetails() {
                         <Button
                           variant="outline"
                           size="icon"
+                          aria-label="Save expense details"
                           onClick={handleSaveDetails}
                           disabled={
                             loading ||
@@ -907,21 +931,20 @@ export default function FinanceExpenseDetails() {
               </p>
             </div>
             {loading ? (
-              <Table>
-                <TableBody>
-                  <DetailTableSkeleton rows={12} />
-                </TableBody>
-              </Table>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-5 w-full max-w-48" />
+                  </div>
+                ))}
+              </div>
             ) : (
-              <Table>
-                <TableBody>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableCell>{formatDateTime(expense.created_at)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Unique ID</TableHead>
-                    <TableCell>
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                  <DetailItem label="Timestamp">
+                    {formatDateTime(expense.created_at)}
+                  </DetailItem>
+                  <DetailItem label="Unique ID">
                       {isEditingDetails ? (
                         <Input
                           value={editForm.unique_id}
@@ -930,25 +953,23 @@ export default function FinanceExpenseDetails() {
                           }
                           placeholder="Enter unique ID"
                           disabled={savingDetails}
+                          aria-label="Unique ID"
                           className="max-w-xs"
                         />
                       ) : (
                         expense.unique_id || "N/A"
                       )}
-                    </TableCell>
-                  </TableRow>
+                  </DetailItem>
                   {isDirectPayment && (
-                    <TableRow>
-                      <TableHead>Expense Credit Person</TableHead>
-                      <TableCell>{expenseCreditPerson}</TableCell>
-                    </TableRow>
+                    <DetailItem label="Expense Credit Person">
+                      {expenseCreditPerson}
+                    </DetailItem>
                   )}
-                  <TableRow>
-                    <TableHead>Project of Expense</TableHead>
-                    <TableCell>
+                  <DetailItem label="Project of Expense">
                       {isEditingDetails ? (
                         <select
-                          className="border px-2 py-1 rounded bg-white text-sm max-w-xs"
+                          aria-label="Project of Expense"
+                          className={nativeSelectClass}
                           value={editForm.location}
                           onChange={(e) =>
                             handleEditFieldChange("location", e.target.value)
@@ -965,14 +986,12 @@ export default function FinanceExpenseDetails() {
                       ) : (
                         expense.location || "N/A"
                       )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Event Name</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Event Name">
                       {isEditingDetails ? (
                         <select
-                          className="border px-2 py-1 rounded bg-white text-sm max-w-xs"
+                          aria-label="Event Name"
+                          className={nativeSelectClass}
                           value={editForm.event_id}
                           onChange={(e) =>
                             handleEditFieldChange("event_id", e.target.value)
@@ -989,14 +1008,12 @@ export default function FinanceExpenseDetails() {
                       ) : (
                         eventTitle || "N/A"
                       )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Expense Type</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Expense Type">
                       {isEditingDetails ? (
                         <select
-                          className="border px-2 py-1 rounded bg-white text-sm max-w-xs"
+                          aria-label="Expense Type"
+                          className={nativeSelectClass}
                           value={editForm.expense_type}
                           onChange={(e) =>
                             handleEditFieldChange("expense_type", e.target.value)
@@ -1013,11 +1030,8 @@ export default function FinanceExpenseDetails() {
                       ) : (
                         expense.expense_type || "Not Provided"
                       )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Invoice Amount</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Invoice Amount">
                       {isEditingDetails ? (
                         <Input
                           type="number"
@@ -1028,16 +1042,14 @@ export default function FinanceExpenseDetails() {
                             handleEditFieldChange("amount", e.target.value)
                           }
                           disabled={savingDetails}
+                          aria-label="Invoice Amount"
                           className="max-w-xs"
                         />
                       ) : (
                         `₹${expense.amount}`
                       )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approved Amount</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Approved Amount">
                       {isEditingDetails ? (
                         <Input
                           type="number"
@@ -1048,25 +1060,20 @@ export default function FinanceExpenseDetails() {
                             handleEditFieldChange("approved_amount", e.target.value)
                           }
                           disabled={savingDetails}
+                          aria-label="Approved Amount"
                           className="max-w-xs"
                         />
                       ) : (
                         formatCurrency(expense.approved_amount)
                       )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>TDS Applicable Amount</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="TDS Applicable Amount">
                       {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
                         ? formatCurrency(tdsBaseAmount)
                         : "N/A"}
-                    </TableCell>
-                  </TableRow>
+                  </DetailItem>
 
-                  <TableRow>
-                    <TableHead>TDS Deduction</TableHead>
-                    <TableCell>
+                  <DetailItem label="TDS Deduction">
                       <div className="flex flex-col items-start gap-2">
                         <Select
                           value={tdsPercentage ? String(tdsPercentage) : "none"}
@@ -1075,7 +1082,7 @@ export default function FinanceExpenseDetails() {
                           }
                           disabled={tdsUpdating || securityDepositUpdating || processing}
                         >
-                          <SelectTrigger className="w-[110px] h-8 text-sm bg-white">
+                          <SelectTrigger aria-label="TDS deduction percentage" className="w-[110px]">
                             <SelectValue placeholder="Select %" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1089,7 +1096,7 @@ export default function FinanceExpenseDetails() {
                             )}
                           </SelectContent>
                         </Select>
-                        <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
+                        <span className="text-xs text-amber-700 font-medium">
                           {tdsAmount !== null
                             ? expense?.tds_round_off_amount != null
                               ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
@@ -1097,18 +1104,16 @@ export default function FinanceExpenseDetails() {
                             : "N/A"}
                         </span>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Security Deposit Deduction</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Security Deposit Deduction">
                       <div className="flex flex-col items-start gap-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
                             className="max-w-[140px]"
+                            aria-label="Security deposit amount"
                             value={securityDepositInput}
                             onChange={(e) => setSecurityDepositInput(e.target.value)}
                             onKeyDown={(e) => {
@@ -1122,7 +1127,6 @@ export default function FinanceExpenseDetails() {
                           />
                           <Button
                             variant="outline"
-                            size="sm"
                             onClick={handleSecurityDepositSave}
                             disabled={processing || tdsUpdating || securityDepositUpdating}
                           >
@@ -1138,74 +1142,52 @@ export default function FinanceExpenseDetails() {
                             : "N/A"}
                         </span>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Net Payable Amount</TableHead>
-                    <TableCell>{formatCurrency(actualAmount)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Net Payable Amount">
+                    {formatCurrency(actualAmount)}
+                  </DetailItem>
+                  <DetailItem label="Date">
                       {new Date(expense.date).toLocaleDateString("en-IN")}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Status</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Status">
                       <ExpenseStatusBadge status={expense.status} />
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approver</TableHead>
-                    <TableCell>{expense.approver?.full_name || "—"}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Receipt/Voucher</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Approver">
+                    {expense.approver?.full_name || "—"}
+                  </DetailItem>
+                  <DetailItem label="Receipt/Voucher">
                       {hasVoucher
                         ? "Voucher Preview Below"
                         : expense?.receipt
                           ? "Receipt Preview Below"
                           : "N/A"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Description</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Description" className="sm:col-span-2">
                       {expense.custom_fields?.description || "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Signature</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Signature">
                       {expense.signature_url ? (
                         <img
                           src={expense.signature_url}
                           alt="Signature"
-                          className="h-16 object-contain border"
+                          className="h-16 max-w-full rounded-md object-contain border"
                         />
                       ) : (
                         "Not Available"
                       )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approver Signature</TableHead>
-                    <TableCell>
+                  </DetailItem>
+                  <DetailItem label="Approver Signature">
                       {expense.approver_signature_url ? (
                         <img
                           src={expense.approver_signature_url}
                           alt="Approver Signature"
-                          className="h-16 object-contain border"
+                          className="h-16 max-w-full rounded-md object-contain border"
                         />
                       ) : (
                         "Not Available"
                       )}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                  </DetailItem>
+              </dl>
             )}
           </div>
 
@@ -1218,8 +1200,8 @@ export default function FinanceExpenseDetails() {
           )}
         </div>
         {/* Activity History */}
-        <div className="md:col-span-3 space-y-4">
-          <Card>
+        <div className="grid min-w-0 content-start gap-6 md:grid-cols-2 xl:grid-cols-1">
+          <Card className="min-w-0">
             <CardHeader className="flex flex-row items-center">
               <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
               <CardTitle>Activity History</CardTitle>
@@ -1242,8 +1224,8 @@ export default function FinanceExpenseDetails() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-6">
+          <Card className="min-w-0">
+            <CardContent>
               {loading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-6 w-32 mb-4" />
@@ -1268,20 +1250,16 @@ export default function FinanceExpenseDetails() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="w-full mt-2">
-            <div className="border border-red-300 rounded p-3 space-y-2">
-              <label className="block font-medium"></label>
-              <Textarea
-                rows={4}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Enter rejection reason..."
-                className="w-full"
-              />
-            </div>
-          </div>
+          <Textarea
+            rows={4}
+            aria-label="Rejection reason"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Enter rejection reason..."
+            className="w-full"
+          />
 
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button
               variant="outline"
               className="cursor-pointer"

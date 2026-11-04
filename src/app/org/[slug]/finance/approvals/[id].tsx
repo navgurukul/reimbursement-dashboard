@@ -17,6 +17,7 @@ import {
   TableHead,
 } from "@/components/ui/table";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
+import { PageHeader } from "@/components/page-header";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -84,28 +85,30 @@ export default function FinanceExpenseDetail() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
-        <h2 className="section-heading">Finance Expense Review</h2>
-        {!loading && (
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => router.back()}>
-              ← Back
-            </Button>
-            <Button onClick={handleApprove}>Approve</Button>
-            <Button
-              variant="destructive"
-              onClick={() => setShowCommentBox(true)}
-            >
-              Reject
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Finance Expense Review"
+        actions={
+          !loading && (
+            <>
+              <Button variant="ghost" onClick={() => router.back()}>
+                ← Back
+              </Button>
+              <Button onClick={handleApprove}>Approve</Button>
+              <Button
+                variant="destructive"
+                onClick={() => setShowCommentBox(true)}
+              >
+                Reject
+              </Button>
+            </>
+          )
+        }
+      />
 
       {/* Expense Info Table */}
-      <div className="overflow-x-auto border rounded bg-white shadow">
+      <div className="overflow-x-auto rounded-xl border bg-card shadow-xs">
         {loading ? (
           <Table>
             <TableBody>
@@ -173,7 +176,7 @@ export default function FinanceExpenseDetail() {
       {/* Rejection Comment Box */}
       {!loading && showCommentBox && (
         <div className="space-y-2 border-t pt-4">
-          <label htmlFor="comment" className="block font-medium">
+          <label htmlFor="comment" className="block text-sm font-medium">
             Rejection Comment (required)
           </label>
           <Textarea

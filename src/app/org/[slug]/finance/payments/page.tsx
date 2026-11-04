@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Pagination, usePagination } from "@/components/pagination";
 import { isExportEnabled } from "@/lib/features";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1274,7 +1275,7 @@ export default function PaymentProcessingOnly() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-1">
+      <div className="flex flex-wrap items-center gap-3">
         <Tabs
           value={activeProcessingTab}
           onValueChange={(val) => {
@@ -1282,23 +1283,30 @@ export default function PaymentProcessingOnly() {
             setSelectedExpenses(new Set()); // clear selection on tab change
             pagination.setCurrentPage(1); // reset to page 1
           }}
-          className="w-auto overflow-x-auto"
+          className="min-w-0 max-w-full"
         >
-          <TabsList className="w-max min-w-max gap-2">
+          <TabsList>
             {["All Data", "NGIDFC Processing", "FCIDFC Processing"].map((tab) => (
-              <TabsTrigger key={tab} value={tab} className="cursor-pointer">
+              <TabsTrigger key={tab} value={tab}>
                 {tab}
               </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
 
-        <div className="flex gap-2 items-center flex-wrap shrink-0">
-          <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
-            <Filter className="mr-2 h-4 w-4" />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+          <Button
+            variant="outline"
+            className="flex-1 sm:flex-none"
+            onClick={() => setFilterOpen((s) => !s)}
+          >
+            <Filter className="h-4 w-4" />
             Filters
           </Button>
-          <Button onClick={() => setShowConfirmAllPaid(true)}>
+          <Button
+            className="flex-1 sm:flex-none"
+            onClick={() => setShowConfirmAllPaid(true)}
+          >
             Mark all as Paid
           </Button>
           {isExportEnabled && (
@@ -1323,7 +1331,7 @@ export default function PaymentProcessingOnly() {
                 }
                 setShowExportModal(true);
               }}
-              className="flex items-center gap-2 cursor-pointer text-sm sm:text-base"
+              className="flex-1 sm:flex-none"
               variant="outline"
             >
               <Download className="w-4 h-4" />
@@ -1334,17 +1342,17 @@ export default function PaymentProcessingOnly() {
       </div>
 
       {filterOpen && (
-        <div className="p-4 rounded-md border shadow-sm bg-white">
+        <div className="rounded-xl border bg-card p-4 shadow-xs">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="text-sm font-medium">Expense Type</label>
+              <Label htmlFor="payments-filter-expense-type">Expense Type</Label>
               <Select
                 value={filters.expenseType || "All Expense Type"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, expenseType: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-expense-type" className="mt-2 w-full">
                   <SelectValue placeholder="All Expense Type" />
                 </SelectTrigger>
                 <SelectContent
@@ -1365,14 +1373,14 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Created By</label>
+              <Label htmlFor="payments-filter-created-by">Created By</Label>
               <Select
                 value={filters.createdBy || "All Creators"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, createdBy: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-created-by" className="mt-2 w-full">
                   <SelectValue placeholder="All Creators" />
                 </SelectTrigger>
                 <SelectContent
@@ -1393,14 +1401,14 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Email</label>
+              <Label htmlFor="payments-filter-email">Email</Label>
               <Select
                 value={filters.email || "All Emails"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, email: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-email" className="mt-2 w-full">
                   <SelectValue placeholder="All Emails" />
                 </SelectTrigger>
                 <SelectContent
@@ -1421,14 +1429,14 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Event Name</label>
+              <Label htmlFor="payments-filter-event-name">Event Name</Label>
               <Select
                 value={filters.eventName || "All Events"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, eventName: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-event-name" className="mt-2 w-full">
                   <SelectValue placeholder="All Events" />
                 </SelectTrigger>
                 <SelectContent
@@ -1449,14 +1457,14 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Project of Expense</label>
+              <Label htmlFor="payments-filter-location">Project of Expense</Label>
               <Select
                 value={filters.location || "All Locations"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, location: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-location" className="mt-2 w-full">
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent
@@ -1477,14 +1485,14 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Approved By</label>
+              <Label htmlFor="payments-filter-approved-by">Approved By</Label>
               <Select
                 value={filters.approvedBy || "All Approvers"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, approvedBy: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-approved-by" className="mt-2 w-full">
                   <SelectValue placeholder="All Approvers" />
                 </SelectTrigger>
                 <SelectContent
@@ -1505,14 +1513,14 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Unique ID</label>
+              <Label htmlFor="payments-filter-unique-id">Unique ID</Label>
               <Select
                 value={filters.uniqueId || "All Unique IDs"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, uniqueId: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-unique-id" className="mt-2 w-full">
                   <SelectValue placeholder="All Unique IDs" />
                 </SelectTrigger>
                 <SelectContent
@@ -1533,14 +1541,14 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">TDS Deduction</label>
+              <Label htmlFor="payments-filter-tds">TDS Deduction</Label>
               <Select
                 value={filters.tdsDeduction || "All TDS Deductions"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, tdsDeduction: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-tds" className="mt-2 w-full">
                   <SelectValue placeholder="All TDS Deductions" />
                 </SelectTrigger>
                 <SelectContent
@@ -1561,14 +1569,14 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Security Deposit</label>
+              <Label htmlFor="payments-filter-security-deposit">Security Deposit</Label>
               <Select
                 value={filters.securityDeposit || "All Security Deposits"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, securityDeposit: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="payments-filter-security-deposit" className="mt-2 w-full">
                   <SelectValue placeholder="All Security Deposits" />
                 </SelectTrigger>
                 <SelectContent
@@ -1589,23 +1597,24 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Amount Range</label>
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
+              <Label htmlFor="payments-filter-min-amount">Amount Range</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  id="payments-filter-min-amount"
                   type="number"
                   min={0}
                   placeholder="Min"
-                  className="w-full border rounded px-3 py-2 bg-white"
+                  aria-label="Min amount"
                   value={filters.minAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, minAmount: e.target.value }))
                   }
                 />
-                <input
+                <Input
                   type="number"
                   min={0}
                   placeholder="Max"
-                  className="w-full border rounded px-3 py-2 bg-white"
+                  aria-label="Max amount"
                   value={filters.maxAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))
@@ -1615,23 +1624,24 @@ export default function PaymentProcessingOnly() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Actual Amount Range</label>
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
+              <Label htmlFor="payments-filter-min-actual-amount">Actual Amount Range</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  id="payments-filter-min-actual-amount"
                   type="number"
                   min={0}
                   placeholder="Min"
-                  className="w-full border rounded px-3 py-2 bg-white"
+                  aria-label="Min actual amount"
                   value={filters.minActualAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, minActualAmount: e.target.value }))
                   }
                 />
-                <input
+                <Input
                   type="number"
                   min={0}
                   placeholder="Max"
-                  className="w-full border rounded px-3 py-2 bg-white"
+                  aria-label="Max actual amount"
                   value={filters.maxActualAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, maxActualAmount: e.target.value }))
@@ -1641,7 +1651,7 @@ export default function PaymentProcessingOnly() {
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
             </Button>
@@ -1652,13 +1662,14 @@ export default function PaymentProcessingOnly() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible mb-0">
+      <div className="data-table-wrap max-h-[70vh]">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300 sticky top-0 z-10">
+          <TableHeader className="sticky top-0 z-10">
             <TableRow>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>
                 <Checkbox
                   className="border border-black cursor-pointer"
+                  aria-label="Select all expenses"
                   checked={
                     tabFilteredExpenses.length > 0 &&
                     tabFilteredExpenses.every((exp) => selectedExpenses.has(exp.id))
@@ -1676,51 +1687,51 @@ export default function PaymentProcessingOnly() {
                   }}
                 />
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
-              <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>S.No.</TableHead>
+              <TableHead>Timestamp</TableHead>
+              <TableHead>
                 Expense Type
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>
                 Created By
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Email</TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>Email</TableHead>
+              <TableHead>
                 Event Name
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Project of Expense</TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>Project of Expense</TableHead>
+              <TableHead>
                 Approved By
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>
                 Beneficiary Name
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>
                 Account Number
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">IFSC</TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>IFSC</TableHead>
+              <TableHead>
                 Payment Type
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>
                 Debit Account
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>
                 Transaction Date
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Amount</TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>
                 TDS Deduction
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead className="text-right">
                 Security Deposit
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead className="text-right">
                 Actual Amount
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Currency</TableHead>
-              <TableHead className="px-4 py-3 text-center">
-                <div className="flex items-center justify-center gap-2">
+              <TableHead>Currency</TableHead>
+              <TableHead>
+                <div className="flex items-center gap-2">
                   <span>UTR</span>
                   {!isPasswordVerified ? (
                     <Button
@@ -1759,10 +1770,10 @@ export default function PaymentProcessingOnly() {
                   )}
                 </div>
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Paid by Bank</TableHead>
-              <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
-              <TableHead className="px-4 py-3 text-center">Status</TableHead>
-              <TableHead className="px-4 py-3 text-center">Actions</TableHead>
+              <TableHead>Paid by Bank</TableHead>
+              <TableHead>Unique ID</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -1787,14 +1798,14 @@ export default function PaymentProcessingOnly() {
                 <TableRow
                   key={expense.id}
                   ref={highlightedExpenseId === expense.id ? highlightedRowRef : null}
-                  className={`hover:bg-gray-50 transition-colors ${highlightedExpenseId === expense.id
+                  className={highlightedExpenseId === expense.id
                     ? "border-2 border-yellow-400 bg-yellow-50"
-                    : ""
-                    }`}
+                    : ""}
                 >
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     <Checkbox
                       className="border border-black cursor-pointer"
+                      aria-label="Select expense"
                       checked={selectedExpenses.has(expense.id)}
                       onCheckedChange={(checked) => {
                         const newSelected = new Set(selectedExpenses);
@@ -1807,40 +1818,40 @@ export default function PaymentProcessingOnly() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="tabular-nums">
                     {pagination.getItemNumber(index)}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {formatDateTime(expense.created_at)}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.expense_type || "N/A"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.creator_name}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.bank_email || expense.email}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.event_title || "N/A"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.location || "N/A"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.approver_name}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.beneficiary_name}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.account_number}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.ifsc}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     <Select
                       value={expense.payment_type || "NEFT"}
                       onValueChange={(value) => {
@@ -1852,7 +1863,7 @@ export default function PaymentProcessingOnly() {
                         setProcessingExpenses(updated);
                       }}
                     >
-                      <SelectTrigger className="w-[280px] h-8 text-sm bg-white mx-auto">
+                      <SelectTrigger className="w-[280px] h-8 text-sm bg-background" aria-label="Payment type">
                         <SelectValue placeholder="Payment Type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1863,12 +1874,13 @@ export default function PaymentProcessingOnly() {
                     </Select>
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {editingFields[expense.id]?.debit ? (
-                      <div className="flex items-center space-x-2 w-40">
-                        <input
+                      <div className="flex w-40 items-center justify-between gap-2">
+                        <Input
                           type="text"
-                          className="border px-2 py-1 rounded text-sm text-center w-full"
+                          className="h-8"
+                          aria-label="Debit account"
                           value={expense.debit_account}
                           onChange={(e) => {
                             const updated = processingExpenses.map((exp) =>
@@ -1879,11 +1891,12 @@ export default function PaymentProcessingOnly() {
                             setProcessingExpenses(updated);
                           }}
                         />
-                        <div className="w-16">
+                        <div className="shrink-0">
                           <Button
                             size="icon"
                             variant="outline"
-                            className="h-7 w-full px-1 text-sm"
+                            className="size-8"
+                            aria-label="Save debit account"
                             onClick={async () => {
                               setEditingFields((prev) => ({
                                 ...prev,
@@ -1900,13 +1913,14 @@ export default function PaymentProcessingOnly() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center space-x-2 w-40">
+                      <div className="flex w-40 items-center justify-between gap-2">
                         <span className="text-sm">{expense.debit_account}</span>
-                        <div className="w-16">
+                        <div className="shrink-0">
                           <Button
                             size="icon"
                             variant="outline"
-                            className="h-7 w-full px-1 text-sm"
+                            className="size-8"
+                            aria-label="Edit debit account"
                             onClick={() =>
                               setEditingFields((prev) => ({
                                 ...prev,
@@ -1925,10 +1939,11 @@ export default function PaymentProcessingOnly() {
                     )}
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 text-center">
-                    <input
+                  <TableCell>
+                    <Input
                       type="date"
-                      className="border px-2 py-1 rounded text-sm"
+                      className="h-8 w-auto"
+                      aria-label="Transaction date"
                       value={
                         expense.value_date
                           ? new Date(expense.value_date)
@@ -1946,11 +1961,11 @@ export default function PaymentProcessingOnly() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="text-right tabular-nums">
                     {formatCurrency(expense.amount)}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <div className="flex flex-col items-center gap-1">
+                  <TableCell>
+                    <div className="flex items-center gap-2">
                       <Select
                         value={
                           expense.tds_deduction_percentage
@@ -1961,7 +1976,7 @@ export default function PaymentProcessingOnly() {
                           handleTdsChange(expense.id, value === "none" ? "" : value)
                         }
                       >
-                        <SelectTrigger className="w-[110px] h-8 text-sm bg-white">
+                        <SelectTrigger className="w-[110px] h-8 text-sm bg-background" aria-label="TDS deduction percentage">
                           <SelectValue placeholder="Select %" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1975,7 +1990,7 @@ export default function PaymentProcessingOnly() {
                           )}
                         </SelectContent>
                       </Select>
-                      <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
+                      <span className="text-xs text-amber-700 font-medium whitespace-nowrap">
                         {expense.tds_deduction_percentage
                           ? (() => {
                             const exactAmount = expense.tds_deduction_amount ??
@@ -1992,13 +2007,13 @@ export default function PaymentProcessingOnly() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="text-right tabular-nums">
                     {expense.security_deposit_amount !== null &&
                       expense.security_deposit_amount !== undefined
                       ? formatCurrency(Number(expense.security_deposit_amount))
                       : "N/A"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="text-right tabular-nums">
                     {(() => {
                       const actualAmount = getActualAmountValue(expense);
 
@@ -2007,15 +2022,16 @@ export default function PaymentProcessingOnly() {
                         : "N/A";
                     })()}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.currency || "INR"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {editingFields[expense.id]?.utr ? (
-                      <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
-                        <input
+                      <div className="flex w-40 items-center justify-between gap-2">
+                        <Input
                           type="text"
-                          className="border px-2 py-1 rounded text-sm text-center w-full"
+                          className="h-8"
+                          aria-label="UTR"
                           value={expense.utr}
                           onChange={(e) => {
                             const updated = processingExpenses.map((exp) =>
@@ -2048,11 +2064,12 @@ export default function PaymentProcessingOnly() {
                             }
                           }}
                         />
-                        <div className="w-16">
+                        <div className="shrink-0">
                           <Button
                             size="icon"
                             variant="outline"
-                            className="h-7 w-full px-1 text-sm"
+                            className="size-8"
+                            aria-label="Save UTR"
                             onClick={async () => {
                               // Update UTR in Supabase when saving
                               const { error } = await supabase
@@ -2080,15 +2097,16 @@ export default function PaymentProcessingOnly() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center space-x-2 w-40 mx-auto">
+                      <div className="flex w-40 items-center justify-between gap-2">
                         <span className="truncate max-w-[100px] text-sm">
                           {expense.utr || "—"}
                         </span>
-                        <div className="w-16">
+                        <div className="shrink-0">
                           <Button
                             size="icon"
                             variant="outline"
-                            className="h-7 w-full px-1 text-sm"
+                            className="size-8"
+                            aria-label="Edit UTR"
                             onClick={() => {
                               if (isPasswordVerified) {
                                 setEditingFields((prev) => ({
@@ -2115,7 +2133,7 @@ export default function PaymentProcessingOnly() {
                     )}
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     <Select
                       value={paidByBank[expense.id] || "none"}
                       onValueChange={async (value) => {
@@ -2164,7 +2182,7 @@ export default function PaymentProcessingOnly() {
                         }
                       }}
                     >
-                      <SelectTrigger className="w-[160px] h-8 text-sm bg-white mx-auto">
+                      <SelectTrigger className="w-[160px] h-8 text-sm bg-background" aria-label="Paid by bank">
                         <SelectValue placeholder="Select Bank" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2176,10 +2194,10 @@ export default function PaymentProcessingOnly() {
                     </Select>
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.unique_id || "N/A"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     <ExpenseStatusBadge
                       status="finance_approved"
                       className="border border-green-300"
@@ -2243,7 +2261,9 @@ export default function PaymentProcessingOnly() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Select Account Type</DialogTitle>
-            Only expenses with a selected bank in 'Paid by Bank' will be exported.
+            <DialogDescription>
+              Only expenses with a selected bank in &apos;Paid by Bank&apos; will be exported.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
@@ -2266,7 +2286,7 @@ export default function PaymentProcessingOnly() {
             </div>
           </div>
 
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowExportModal(false)}
@@ -2303,7 +2323,7 @@ export default function PaymentProcessingOnly() {
           <div className="space-y-3">
             <div className="grid gap-3 max-h-[300px] overflow-auto">
               {allColumns.map((col) => (
-                <div key={col} className="flex items-center gap-2">
+                <label key={col} className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={selectedColumns.includes(col)}
                     onCheckedChange={(checked) => {
@@ -2317,12 +2337,12 @@ export default function PaymentProcessingOnly() {
                     }}
                   />
                   <span>{col}</span>
-                </div>
+                </label>
               ))}
             </div>
           </div>
 
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
@@ -2354,10 +2374,10 @@ export default function PaymentProcessingOnly() {
             <DialogTitle>Choose export format</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Which format would you like to download?
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 onClick={() => {
                   handleExportXLSX();
@@ -2386,10 +2406,10 @@ export default function PaymentProcessingOnly() {
           <DialogHeader>
             <DialogTitle>Mark as Paid?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             This will mark all selected expenses as paid.
           </p>
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowConfirmAllPaid(false)}
@@ -2402,7 +2422,6 @@ export default function PaymentProcessingOnly() {
                 await handleMarkAsPaid();
                 setShowConfirmAllPaid(false);
               }}
-              className="bg-gray-800 text-white cursor-pointer"
             >
               Confirm
             </Button>
@@ -2423,7 +2442,7 @@ export default function PaymentProcessingOnly() {
                 : "Mark this expense as paid? This will move it out of Payment Processing and cannot be undone."}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setConfirmExpenseId(null)}
@@ -2438,7 +2457,6 @@ export default function PaymentProcessingOnly() {
                 }
                 setConfirmExpenseId(null);
               }}
-              className="bg-gray-800 text-white cursor-pointer"
             >
               Confirm
             </Button>
@@ -2454,9 +2472,9 @@ export default function PaymentProcessingOnly() {
             <DialogTitle>Enter Password to Unlock UTR Editing</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <input
+            <Input
               type="password"
-              className="w-full border px-3 py-2 rounded mb-0"
+              aria-label="Password"
               placeholder="Password"
               value={enteredPassword}
               onChange={(e) => setEnteredPassword(e.target.value)}
@@ -2482,11 +2500,11 @@ export default function PaymentProcessingOnly() {
                 }
               }}
             />
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Reach out to admin for password to unlock UTR editing.
             </p>
           </div>
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button
               onClick={() => {
                 if (enteredPassword === ADMIN_PASSWORD) {

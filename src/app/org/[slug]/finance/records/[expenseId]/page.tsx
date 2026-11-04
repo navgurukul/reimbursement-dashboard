@@ -166,7 +166,7 @@ export default function RecordsDetails() {
   }, [expenseId]);
 
   if (!loading && !expense) {
-    return <div className="p-6 text-red-600">Expense not found</div>;
+    return <div className="text-sm text-red-600">Expense not found</div>;
   }
 
   const tdsPercentage = expense?.tds_deduction_percentage ?? null;
@@ -200,7 +200,8 @@ export default function RecordsDetails() {
       : null);
 
   return (
-    <div className="p-6 space-y-6">
+    // Grid columns get min-w-0 and the detail labels may wrap, so the details table fits phone widths
+    <div className="space-y-6 [&>.grid>*]:min-w-0 [&_th]:whitespace-normal">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
         <Button
@@ -359,7 +360,7 @@ export default function RecordsDetails() {
                   </TableRow>
                   <TableRow>
                     <TableHead>Description</TableHead>
-                    <TableCell>
+                    <TableCell className="whitespace-normal break-words">
                       {expense.custom_fields?.description || "—"}
                     </TableCell>
                   </TableRow>
@@ -432,7 +433,7 @@ export default function RecordsDetails() {
           </div>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent>
               {loading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-6 w-32 mb-4" />
