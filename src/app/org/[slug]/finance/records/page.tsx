@@ -20,6 +20,7 @@ import {
   Download,
   Tag,
   CheckCircle,
+  Loader2,
 } from "lucide-react";
 import {
   Table,
@@ -416,6 +417,9 @@ export default function PaymentRecords() {
     id: string | null;
   }>({ open: false, id: null });
   const [sendBackLoading, setSendBackLoading] = useState(false);
+  // Row whose "View details" page is still opening (spinner until navigation completes)
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [markAdvanceModal, setMarkAdvanceModal] = useState<{
     open: boolean;
     id: string | null;
@@ -3551,7 +3555,9 @@ export default function PaymentRecords() {
                             <Button
                               size="sm"
                               variant="outline"
+                              disabled={viewingId === record.id}
                               onClick={() => {
+                                setViewingId(record.id);
                                 const params = new URLSearchParams();
                                 params.set("activeTab", activeTab);
                                 params.set("page", String(pagination.currentPage));
@@ -3563,7 +3569,11 @@ export default function PaymentRecords() {
                               }}
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
                             >
-                              <Eye className="w-4 h-4" />
+                              {viewingId === record.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -3594,12 +3604,17 @@ export default function PaymentRecords() {
                             <Button
                               size="sm"
                               variant="outline"
+                              disabled={sendBackLoading && sendBackModal.id === record.id}
                               onClick={() =>
                                 setSendBackModal({ open: true, id: record.id })
                               }
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
                             >
-                              <Undo2 className="w-4 h-4" />
+                              {sendBackLoading && sendBackModal.id === record.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Undo2 className="w-4 h-4" />
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -3610,12 +3625,17 @@ export default function PaymentRecords() {
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={deletingId === record.id}
                         onClick={() =>
                           setDeleteModal({ open: true, id: record.id })
                         }
                         className="flex items-center gap-2 border border-gray-300 hover:bg-red-100 text-red-600 cursor-pointer"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {deletingId === record.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </Button>
                     </div>
                   </TableCell>
@@ -3901,7 +3921,13 @@ export default function PaymentRecords() {
               className="cursor-pointer"
               disabled={sendBackLoading}
             >
-              {sendBackLoading ? "Sending..." : "Confirm"}
+              {sendBackLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Sending...
+                </>
+              ) : (
+                "Confirm"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3996,14 +4022,17 @@ export default function PaymentRecords() {
               variant="outline"
               onClick={() => setDeleteModal({ open: false, id: null })}
               className="cursor-pointer"
+              disabled={deletingId !== null}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
+              disabled={deletingId !== null}
               onClick={async () => {
                 const id = deleteModal.id;
                 if (!id) return;
+                setDeletingId(id);
                 try {
                   // Mark the record as removed so it doesn't reappear in Payment Processing
                   const { error } = await supabase
@@ -4025,12 +4054,19 @@ export default function PaymentRecords() {
                     description: err.message,
                   });
                 } finally {
+                  setDeletingId(null);
                   setDeleteModal({ open: false, id: null });
                 }
               }}
               className="cursor-pointer"
             >
-              Delete
+              {deletingId !== null ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
