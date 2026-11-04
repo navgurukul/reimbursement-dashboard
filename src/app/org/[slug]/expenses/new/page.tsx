@@ -1365,11 +1365,25 @@ export default function NewExpensePage() {
         ? allSecondApproverIds
         : [];
 
+    // If the logged-in user is a mapped first approver (regardless of the
+    // "show on form" checkbox), their expense goes to the second approver instead.
+    const rawFirstApproverIds = activeEntry
+      ? normalizeIds(activeEntry.approver_id).length
+        ? normalizeIds(activeEntry.approver_id)
+        : resolveIdsFromNames(activeEntry.approver_name)
+      : [];
+    const isLoggedInUserFirstApprover =
+      !!user?.id &&
+      rawFirstApproverIds.includes(user.id) &&
+      allSecondApproverIds.length > 0;
+
     // In approver dropdown, show both first and second approvers when enabled (or when first approver is OOO)
     const mappedIds =
       fieldKey === "second_approver_id"
         ? allSecondApproverIds
-        : Array.from(new Set([...firstApproverIds, ...secondApproverIds]));
+        : isLoggedInUserFirstApprover
+          ? allSecondApproverIds.filter((id) => id !== user?.id)
+          : Array.from(new Set([...firstApproverIds, ...secondApproverIds]));
 
     if (!mappedIds.length) {
       return [];
