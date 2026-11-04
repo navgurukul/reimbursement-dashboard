@@ -29,7 +29,7 @@ import {
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 
 import SignaturePad from "@/components/SignatureCanvas";
-import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusDurationSelector } from "@/components/StatusDurationSelector";
@@ -321,15 +321,15 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-[1320px] mx-auto min-h-screen space-y-6">
-      <div>
-        <h1 className="page-title">My Profile</h1>
-        <p className="descriptive-text">View personal and bank information</p>
-      </div>
+    <div className="max-w-[1320px] mx-auto space-y-6">
+      <PageHeader
+        title="My Profile"
+        description="View personal and bank information"
+      />
 
       {/* Personal Information */}
-      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8 flex flex-col md:flex-row gap-8">
-        <div className="flex flex-col items-center w-full md:w-[340px] bg-[#f9fafb] rounded-2xl border border-[#e5e7eb] p-8">
+      <div className="bg-card border rounded-xl shadow-sm p-4 sm:p-6 lg:p-8 flex flex-col xl:flex-row gap-6 xl:gap-8">
+        <div className="flex flex-col items-center w-full xl:w-[340px] xl:shrink-0 bg-muted/50 rounded-xl border p-6 sm:p-8">
           <div className="w-[180px] h-[180px] rounded bg-white flex items-center justify-center mb-4 border border-[#e5e7eb] overflow-hidden">
             {formData.profile_photo_url ? (
               <img
@@ -355,17 +355,17 @@ export default function ProfilePage() {
           <span className="text-[15px] text-[#64748b] mb-4 text-center">
             Add a photo to complete your profile
           </span>
-          <label htmlFor="profilePhotoInput" className="w-full block">
+          <label htmlFor="profilePhotoInput" className="w-full max-w-xs block">
             <input
               type="file"
               id="profilePhotoInput"
               accept="image/*"
-              className="hidden"
+              className="peer sr-only"
               onChange={handleProfilePhotoChange}
               disabled={uploadingPhoto}
             />
             <div
-              className={`w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer ${uploadingPhoto ? "opacity-50 cursor-not-allowed" : ""
+              className={`w-full h-12 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] font-semibold flex items-center justify-center gap-2 text-base transition hover:bg-[#f1f5f9] cursor-pointer peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50 ${uploadingPhoto ? "opacity-50 cursor-not-allowed" : ""
                 }`}
             >
               {uploadingPhoto ? (
@@ -383,12 +383,12 @@ export default function ProfilePage() {
           </label>
         </div>
 
-        <div className="flex-1 flex flex-col gap-3 justify-start">
+        <div className="flex-1 min-w-0 flex flex-col gap-3 justify-start">
           <div className="flex items-center gap-2 mb-2">
             {/* <User className="w-6 h-6 text-[#111827]" /> */}
-            <span className="font-bold text-xl text-[#111827]">
+            <h2 className="card-title">
               Personal Information
-            </span>
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -433,7 +433,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div>
-              <label className="block text-base font-semibold mb-2 text-[#111827]">
+              <label htmlFor="profile-display-name" className="block text-base font-semibold mb-2 text-[#111827]">
                 Display Name
               </label>
               <div className="relative">
@@ -441,6 +441,7 @@ export default function ProfilePage() {
                   <User className="w-5 h-5 text-slate-400" />
                 </span>
                 <input
+                  id="profile-display-name"
                   className="w-full h-12 rounded-lg border border-[#e5e7eb] pl-12 pr-3 text-base text-[#111827] bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="e.g. OOO"
                   value={userProfile?.display_name || ""}
@@ -466,7 +467,7 @@ export default function ProfilePage() {
                   }}
                 />
               </div>
-              <p className="text-sm text-gray-500 mt-2">When on leave, please set your status to OOO (Out of Office)</p>
+              <p className="text-sm text-muted-foreground mt-2">When on leave, please set your status to OOO (Out of Office)</p>
             </div>
             <div>
               <label className="block text-base font-semibold mb-2 text-[#111827]">
@@ -481,7 +482,7 @@ export default function ProfilePage() {
                   );
                 }}
               />
-              <p className="text-sm text-gray-500 mt-2">Specify how long you will be on leave</p>
+              <p className="text-sm text-muted-foreground mt-2">Specify how long you will be on leave</p>
             </div>
             <div>
               <label className="block text-base font-semibold mb-2 text-[#111827]">
@@ -586,12 +587,12 @@ export default function ProfilePage() {
       </div>
 
       {/* Bank Information */}
-      <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 mb-8">
+      <div className="bg-card border rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
         <div className="flex items-center gap-2 mb-6">
           {/* <Landmark className="w-6 h-6 text-[#111827]" /> */}
-          <span className="font-bold text-xl text-[#111827]">
+          <h2 className="card-title">
             Bank Information
-          </span>
+          </h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -684,15 +685,15 @@ export default function ProfilePage() {
 
       {/* Bank Document Preview */}
       <div className="border-[#e5e7eb]">
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white">
-          <div className="border-b px-4 py-3">
+        <div className="rounded-xl border bg-card shadow-sm">
+          <div className="border-b px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <FileText className="mt-0.5 h-5 w-5 text-blue-600" />
                 <div>
-                  <p className="text-base font-semibold">
+                  <h2 className="card-title">
                     Bank Document
-                  </p>
+                  </h2>
                   <p className="text-sm text-muted-foreground">
                     Opens by default for quick review
                   </p>
@@ -752,9 +753,9 @@ export default function ProfilePage() {
           </div>
 
           {isDocumentPaneOpen && (
-            <div className="p-4">
+            <div className="p-4 sm:p-6">
               {isDocumentValid === null ? (
-                <div className="flex flex-col items-center justify-center h-[200px] text-gray-500">
+                <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
                   <Spinner size="md" className="mb-2" />
                   <p className="mt-2 text-sm">Checking document...</p>
                 </div>
@@ -780,9 +781,9 @@ export default function ProfilePage() {
                   </div>
                 )
               ) : (
-                <div className="flex flex-col items-center justify-center h-[200px] text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                  <FileText className="w-10 h-10 mb-2 text-gray-400" />
-                  <p className="font-medium text-gray-600">Bank Document not available</p>
+                <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground bg-muted/50 rounded-lg border border-dashed">
+                  <FileText className="w-10 h-10 mb-2 text-muted-foreground" />
+                  <p className="font-medium text-muted-foreground">Bank Document not available</p>
                 </div>
               )}
             </div>
@@ -791,17 +792,17 @@ export default function ProfilePage() {
       </div>
 
       {/* Signature */}
-      <div className="p-4 bg-gray-50/50 rounded-lg border space-y-4">
-        <div className="flex items-center space-x-3">
-          <Signature className="h-5 w-5 text-gray-500" />
-          <Label className="text-sm font-medium text-gray-900">
+      <div className="p-4 sm:p-6 bg-card rounded-xl border shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <Signature className="h-5 w-5 text-muted-foreground" />
+          <h2 className="card-title">
             User Signature <span className="text-red-500">*</span>
-          </Label>
+          </h2>
         </div>
 
         {loadingSignature ? (
-          <div className="flex items-center justify-center h-32 bg-gray-50 border rounded-lg">
-            <p className="text-sm text-gray-500">Loading your signature...</p>
+          <div className="flex items-center justify-center h-32 bg-muted/50 border rounded-lg">
+            <p className="text-sm text-muted-foreground">Loading your signature...</p>
           </div>
         ) : (
           <SignaturePad

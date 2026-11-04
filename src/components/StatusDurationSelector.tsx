@@ -138,7 +138,7 @@ export function StatusDurationSelector({
         onValueChange={handleSelectChange}
         disabled={disabled}
       >
-        <SelectTrigger className="w-full bg-white h-10 border-gray-200">
+        <SelectTrigger className="w-full bg-background">
           <SelectValue placeholder="--Select an option--" />
         </SelectTrigger>
         <SelectContent>
@@ -161,7 +161,7 @@ export function StatusDurationSelector({
       </Select>
 
       {showCustomInline && parsedCurrent.end && selectedType !== "custom" && selectedType !== "none" && (
-        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs space-y-1.5 text-slate-700 animate-in fade-in">
+        <div className="p-2.5 bg-muted/50 border rounded-md text-xs space-y-1.5 text-slate-700 animate-in fade-in">
           <div className="flex items-center gap-1.5">
             <span className="bg-blue-50 text-blue-700 border border-blue-200/80 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -170,7 +170,7 @@ export function StatusDurationSelector({
           </div>
           <div className="flex flex-col gap-1 text-[11px] text-slate-600 pl-1 pt-0.5">
             {parsedCurrent.start && (
-              <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
                 <span className="text-slate-500 font-medium">Applied:</span>
                 <span className="font-semibold text-slate-700">
@@ -184,7 +184,7 @@ export function StatusDurationSelector({
                 </span>
               </div>
             )}
-            <div className="flex items-center gap-1.5 whitespace-nowrap">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
               <Clock className="w-3 h-3 text-slate-400 shrink-0" />
               <span className="text-slate-500 font-medium">Until:</span>
               <span className="font-semibold text-slate-800">
@@ -202,31 +202,31 @@ export function StatusDurationSelector({
       )}
 
       {showCustomInline && selectedType === "custom" && (
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-md space-y-2 text-xs">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex-1 space-y-1">
+        <div className="@container p-3 bg-muted/50 border rounded-md space-y-2 text-xs">
+          <div className="flex flex-col @sm:flex-row gap-2">
+            <div className="flex-1 min-w-0 space-y-1">
               <Label className="text-[11px] text-muted-foreground">Start time</Label>
               <Input
                 type="datetime-local"
                 value={customStart}
                 onChange={handleStartChange}
                 disabled={disabled}
-                className="h-8 text-xs bg-white border-slate-200"
+                className="h-8 text-xs bg-background"
               />
             </div>
-            <div className="flex-1 space-y-1">
+            <div className="flex-1 min-w-0 space-y-1">
               <Label className="text-[11px] text-muted-foreground">End time</Label>
               <Input
                 type="datetime-local"
                 value={customEnd}
                 onChange={handleEndChange}
                 disabled={disabled}
-                className="h-8 text-xs bg-white border-slate-200"
+                className="h-8 text-xs bg-background"
               />
             </div>
           </div>
           {parsedCurrent.label && !DURATION_PRESETS.includes(parsedCurrent.label as any) && (
-            <div className="text-[11px] text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 flex items-center gap-1.5">
+            <div className="text-[11px] text-slate-600 bg-background border rounded px-2 py-1 flex items-center gap-1.5">
               <Clock className="w-3 h-3 text-slate-400" />
               <span className="truncate">{parsedCurrent.label}</span>
             </div>

@@ -48,6 +48,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -80,6 +81,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Pagination, usePagination } from "@/components/pagination";
 import { organizations } from "@/lib/db";
 import { profiles } from "@/lib/db";
+import { PageHeader } from "@/components/page-header";
 
 interface ColumnConfig {
   key: string;
@@ -205,10 +207,12 @@ function MultiSelect({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className="h-9 w-full justify-between">
-            <span className="truncate text-sm">
+            <span
+              className={`truncate text-sm ${value.length > 0 ? "" : "text-muted-foreground"}`}
+            >
               {value.length > 0
                 ? `${value.length} selected`
-                : "Select users"}
+                : placeholder || "Select users"}
             </span>
             <span className="text-muted-foreground">▾</span>
           </Button>
@@ -497,13 +501,13 @@ function UserDisplayNamesSection() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex flex-col md:flex-row gap-4 items-start">
-          <div className="space-y-2 flex-1">
-            <Label>Select User</Label>
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
+          <div className="space-y-2 min-w-0">
+            <Label htmlFor="display-name-user">Select User</Label>
             <DropdownMenu open={open} onOpenChange={setOpen}>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between font-normal text-left">
-                  <span className="truncate">
+                <Button id="display-name-user" variant="outline" className="w-full justify-between font-normal text-left">
+                  <span className="min-w-0 truncate">
                     {selectedUser ? `${selectedUser.full_name} (${selectedUser.email})${selectedUser.role ? ` • ${selectedUser.role}` : ""}` : "Search user by name or email..."}
                   </span>
                   <span className="text-muted-foreground">▾</span>
@@ -554,13 +558,13 @@ function UserDisplayNamesSection() {
             </DropdownMenu>
           </div>
 
-          <div className="space-y-2 flex-1">
-            <Label>Display Name</Label>
+          <div className="space-y-2 min-w-0">
+            <Label htmlFor="display-name-input">Display Name</Label>
             <Input
+              id="display-name-input"
               placeholder="e.g. OOO"
               value={displayName}
               maxLength={3}
-              className="border-gray-200"
               onChange={(e) => {
                 const val = e.target.value.toUpperCase();
                 if (val.length > 3) return;
@@ -586,7 +590,7 @@ function UserDisplayNamesSection() {
             />
           </div>
 
-          <div className="space-y-2 flex-1">
+          <div className="space-y-2 min-w-0">
             <Label>Duration</Label>
             <StatusDurationSelector
               value={leaveDuration}
@@ -594,7 +598,7 @@ function UserDisplayNamesSection() {
             />
           </div>
 
-          <div className="flex gap-2 w-full md:w-auto md:mt-8">
+          <div className="flex gap-2 sm:mt-[1.375rem]">
             <Button
               variant="outline"
               onClick={() => {
@@ -619,7 +623,7 @@ function UserDisplayNamesSection() {
         </div>
 
         {oooUsers.length > 0 && (
-          <div className="mt-6 border rounded-md">
+          <div className="data-table-wrap">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -733,7 +737,7 @@ function UserDisplayNamesSection() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-red-500 border-red-200 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-700 border-red-200 hover:text-red-800 hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Remove
@@ -747,10 +751,10 @@ function UserDisplayNamesSection() {
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel className="cursor-pointer border border-gray-200">Cancel</AlertDialogCancel>
+                            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleRemoveDisplayName(user.id)}
-                              className="bg-transparent border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                              className="bg-transparent border border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 cursor-pointer"
                             >
                               Remove
                             </AlertDialogAction>
@@ -1893,7 +1897,10 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Organisation Settings</h1>
+      <PageHeader
+        title="Organisation Settings"
+        description="Configure the expense form, approver mappings, abbreviations and display names for your organisation."
+      />
 
       {/* <Tabs defaultValue="columns" className="space-y-6">
         <TabsList>
@@ -1955,14 +1962,14 @@ export default function SettingsPage() {
       {/* <TabsContent value="columns"> */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>Expense Columns </CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <CardTitle className="leading-snug">Expense Columns </CardTitle>
               <CardDescription>
                 Configure columns and field types for the expense form
               </CardDescription>
             </div>
-            <Button onClick={handleAddColumn}>
+            <Button onClick={handleAddColumn} className="w-full sm:w-auto">
               <PlusCircle className="w-4 h-4" />
               Add Column
             </Button>
@@ -1973,10 +1980,11 @@ export default function SettingsPage() {
             {columns.map((col) => (
               <div
                 key={col.key}
-                className="flex items-center justify-between p-4 border rounded-lg"
+                className="flex items-center justify-between gap-3 p-3 sm:p-4 border rounded-lg"
               >
-                <div className="flex items-center space-x-4">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                   <Checkbox
+                    aria-label={`Show ${col.label} column`}
                     checked={col.visible}
                     onCheckedChange={(v) =>
                       setColumns((prev) =>
@@ -1999,18 +2007,24 @@ export default function SettingsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex shrink-0 items-center gap-1">
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon"
+                    className="size-8"
+                    aria-label={`Edit ${col.label} column`}
                     onClick={() => handleEditColumn(col)}
                   >
                     <Settings2 className="w-4 h-4" />
                   </Button>
                   {!defaultColumns.some((c) => c.key === col.key) && (
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
+                      className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      aria-label={`Delete ${col.label} column`}
                       onClick={() => handleDeleteColumn(col.key)}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -2096,10 +2110,10 @@ export default function SettingsPage() {
           return (
             <div
               key={index}
-              className="flex flex-col gap-4 p-4 border border-black shadow-sm rounded-lg"
+              className="flex flex-col gap-4 p-4 border bg-muted/30 rounded-lg"
             >
-              <div className="flex flex-wrap items-start gap-4">
-                <div className="space-y-1 min-w-[200px] flex-1 max-w-[300px]">
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
+                <div className="space-y-1 min-w-0">
                   <Label className="text-xs">Expense Type</Label>
                   <MultiSelect
                     options={expenseTypeOptionsForSelect}
@@ -2146,8 +2160,8 @@ export default function SettingsPage() {
                     hideBadges
                   />
                 </div>
-                <div className="flex-1 flex flex-wrap gap-4">
-                  <div className="space-y-1.5 min-w-[240px] flex-1">
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5 min-w-0">
                     <Label className="text-xs">Approver</Label>
                     <MultiSelect
                       options={approverOptions}
@@ -2194,7 +2208,7 @@ export default function SettingsPage() {
                       </label>
                     </div>
                   </div>
-                  <div className="space-y-1.5 min-w-[240px] flex-1">
+                  <div className="space-y-1.5 min-w-0">
                     <Label className="text-xs">Second Approver</Label>
                     <MultiSelect
                       options={approverOptions}
@@ -2246,18 +2260,19 @@ export default function SettingsPage() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground hover:text-destructive mt-6"
+                  className="size-8 justify-self-end text-destructive hover:text-destructive hover:bg-destructive/10 lg:mt-5"
                   onClick={() =>
                     handleRemoveExpenseTypeApproverMappingRow(index)
                   }
                   title="Remove mapping"
+                  aria-label="Remove mapping"
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
 
               {(selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
-                <div className="w-full pt-4 border-t border-border/110 flex flex-col gap-6">
+                <div className="w-full pt-4 border-t flex flex-col gap-6">
                   {selectedExpenseTypes.length > 0 && (
                     <div className="w-full">
                       <p className="text-sm font-medium mb-2 text-foreground/80">
@@ -2267,14 +2282,18 @@ export default function SettingsPage() {
                         {selectedExpenseTypes.map((type) => (
                           <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
                             {type}
-                            <X
-                              className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                            <button
+                              type="button"
+                              aria-label={`Remove expense type ${type}`}
+                              className="ml-1 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                               onClick={() => {
                                 updateMappingEntry(index, {
                                   expense_type: selectedExpenseTypes.filter((t) => t !== type),
                                 });
                               }}
-                            />
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </Badge>
                         ))}
                       </div>
@@ -2292,8 +2311,10 @@ export default function SettingsPage() {
                             {selectedApproverIds.map((id) => (
                               <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
                                 {getApproverLabel(id)}
-                                <X
-                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                <button
+                                  type="button"
+                                  aria-label={`Remove approver ${getApproverLabel(id)}`}
+                                  className="ml-1 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                                   onClick={() => {
                                     const nextIds = selectedApproverIds.filter((t) => t !== id);
                                     updateMappingEntry(index, {
@@ -2301,7 +2322,9 @@ export default function SettingsPage() {
                                       approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
                                     });
                                   }}
-                                />
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </Badge>
                             ))}
                           </div>
@@ -2317,8 +2340,10 @@ export default function SettingsPage() {
                             {selectedSecondApproverIds.map((id) => (
                               <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
                                 {getApproverLabel(id)}
-                                <X
-                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                <button
+                                  type="button"
+                                  aria-label={`Remove second approver ${getApproverLabel(id)}`}
+                                  className="ml-1 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                                   onClick={() => {
                                     const nextIds = selectedSecondApproverIds.filter((t) => t !== id);
                                     updateMappingEntry(index, {
@@ -2326,7 +2351,9 @@ export default function SettingsPage() {
                                       second_approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
                                     });
                                   }}
-                                />
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </Badge>
                             ))}
                           </div>
@@ -2343,9 +2370,9 @@ export default function SettingsPage() {
         return (
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle>Expense Type → Approver Mapping ( Without Campus Wise )</CardTitle>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1.5">
+                  <CardTitle className="leading-snug">Expense Type → Approver Mapping ( Without Campus Wise )</CardTitle>
                   <CardDescription>
                     Set approver and second approver for each expense type.
                     These will auto-fill on the new expense form when a user
@@ -2354,6 +2381,7 @@ export default function SettingsPage() {
                 </div>
                 <Button
                   onClick={handleAddExpenseTypeApproverMappingRow}
+                  className="w-full sm:w-auto"
                 >
                   <Plus className="w-4 h-4" />
                   Add Mapping
@@ -2370,14 +2398,14 @@ export default function SettingsPage() {
                   displayRows.map((index) => renderRow(index))
                 )}
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   // type="button"
                   // variant="outline"
                   // size="sm"
                   onClick={handleAddExpenseTypeApproverMappingRow}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  <Plus className="w-4 h-4" />
                   Add Mapping
                 </Button>
                 <Button
@@ -2479,10 +2507,10 @@ export default function SettingsPage() {
           return (
             <div
               key={index}
-              className="flex flex-col gap-4 p-4 border border-black rounded-lg"
+              className="flex flex-col gap-4 p-4 border bg-muted/30 rounded-lg"
             >
-              <div className="flex flex-wrap items-start gap-4">
-                <div className="space-y-3 min-w-[200px] flex-1 max-w-[300px]">
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
+                <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
                   <div className="space-y-1">
                     <Label className="text-xs">Location</Label>
                     <MultiSelect
@@ -2591,8 +2619,8 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
-                <div className="flex-1 flex flex-wrap gap-4">
-                  <div className="space-y-1.5 min-w-[240px] flex-1">
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5 min-w-0">
                     <Label className="text-xs">Approver</Label>
                     <MultiSelect
                       options={approverOptions}
@@ -2639,7 +2667,7 @@ export default function SettingsPage() {
                       </label>
                     </div>
                   </div>
-                  <div className="space-y-1.5 min-w-[240px] flex-1">
+                  <div className="space-y-1.5 min-w-0">
                     <Label className="text-xs">Second Approver</Label>
                     <MultiSelect
                       options={approverOptions}
@@ -2691,16 +2719,17 @@ export default function SettingsPage() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground hover:text-destructive mt-6"
+                  className="size-8 justify-self-end text-destructive hover:text-destructive hover:bg-destructive/10 lg:mt-5"
                   onClick={() => handleRemoveLocationApproverMappingRow(index)}
                   title="Remove mapping"
+                  aria-label="Remove mapping"
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
 
               {(selectedLocations.length > 0 || selectedExpenseTypes.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
-                <div className="w-full pt-4 border-t border-border/110 flex-col gap-6">
+                <div className="w-full pt-4 border-t flex-col gap-6">
                   {(selectedLocations.length > 0 || selectedApproverIds.length > 0 || selectedSecondApproverIds.length > 0) && (
                     <div className="flex flex-wrap gap-x-12 gap-y-6">
                       {selectedLocations.length > 0 && (
@@ -2712,14 +2741,18 @@ export default function SettingsPage() {
                             {selectedLocations.map((loc) => (
                               <Badge key={loc} variant="secondary" className="gap-1 font-normal bg-background border">
                                 {locationOptionsForSelect.find((o) => o.value === loc)?.label || loc}
-                                <X
-                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                <button
+                                  type="button"
+                                  aria-label={`Remove location ${loc}`}
+                                  className="ml-1 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                                   onClick={() => {
                                     updateMappingEntry(index, {
                                       location: selectedLocations.filter((t) => t !== loc),
                                     });
                                   }}
-                                />
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </Badge>
                             ))}
                           </div>
@@ -2735,8 +2768,10 @@ export default function SettingsPage() {
                             {selectedApproverIds.map((id) => (
                               <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
                                 {getApproverLabel(id)}
-                                <X
-                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                <button
+                                  type="button"
+                                  aria-label={`Remove approver ${getApproverLabel(id)}`}
+                                  className="ml-1 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                                   onClick={() => {
                                     const nextIds = selectedApproverIds.filter((t) => t !== id);
                                     updateMappingEntry(index, {
@@ -2744,7 +2779,9 @@ export default function SettingsPage() {
                                       approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
                                     });
                                   }}
-                                />
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </Badge>
                             ))}
                           </div>
@@ -2760,8 +2797,10 @@ export default function SettingsPage() {
                             {selectedSecondApproverIds.map((id) => (
                               <Badge key={id} variant="secondary" className="gap-1 font-normal bg-background border">
                                 {getApproverLabel(id)}
-                                <X
-                                  className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                                <button
+                                  type="button"
+                                  aria-label={`Remove second approver ${getApproverLabel(id)}`}
+                                  className="ml-1 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                                   onClick={() => {
                                     const nextIds = selectedSecondApproverIds.filter((t) => t !== id);
                                     updateMappingEntry(index, {
@@ -2769,7 +2808,9 @@ export default function SettingsPage() {
                                       second_approver_name: nextIds.length ? nextIds.map(getApproverLabel).join(", ") : undefined,
                                     });
                                   }}
-                                />
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </Badge>
                             ))}
                           </div>
@@ -2787,14 +2828,18 @@ export default function SettingsPage() {
                         {selectedExpenseTypes.map((type) => (
                           <Badge key={type} variant="secondary" className="gap-1 font-normal bg-background border">
                             {type}
-                            <X
-                              className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-foreground"
+                            <button
+                              type="button"
+                              aria-label={`Remove expense type ${type}`}
+                              className="ml-1 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                               onClick={() => {
                                 updateMappingEntry(index, {
                                   expense_type: selectedExpenseTypes.filter((t) => t !== type),
                                 });
                               }}
-                            />
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </Badge>
                         ))}
                       </div>
@@ -2809,9 +2854,9 @@ export default function SettingsPage() {
         return (
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle>Project of Expenses → Approver Mapping (Campus Wise)</CardTitle>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1.5">
+                  <CardTitle className="leading-snug">Project of Expenses → Approver Mapping (Campus Wise)</CardTitle>
                   <CardDescription>
                     Set approver and second approver for each project of
                     expense. These will auto-fill on the new expense form
@@ -2823,6 +2868,7 @@ export default function SettingsPage() {
                   // variant="outline"
                   // size="sm"
                   onClick={handleAddLocationApproverMappingRow}
+                  className="w-full sm:w-auto"
                 >
                   <Plus className="w-4 h-4" />
                   Add Mapping
@@ -2839,7 +2885,7 @@ export default function SettingsPage() {
                   displayRows.map((index) => renderRow(index))
                 )}
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   onClick={handleAddLocationApproverMappingRow}
                 >
@@ -2869,8 +2915,9 @@ export default function SettingsPage() {
           </DialogHeader>
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
             <div className="space-y-2">
-              <Label>Column Label</Label>
+              <Label htmlFor="column-label">Column Label</Label>
               <Input
+                id="column-label"
                 value={editingColumn?.label || ""}
                 onChange={(e) =>
                   setEditingColumn((prev) =>
@@ -2895,7 +2942,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Field Type</Label>
+              <Label htmlFor="column-type">Field Type</Label>
               <Select
                 value={editingColumn?.type}
                 onValueChange={(value: ColumnConfig["type"]) =>
@@ -2907,7 +2954,7 @@ export default function SettingsPage() {
                   (c) => c.key === editingColumn?.key
                 )}
               >
-                <SelectTrigger>
+                <SelectTrigger id="column-type" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -2928,8 +2975,9 @@ export default function SettingsPage() {
             ) &&
               editingColumn?.key !== "approver" && (
                 <div className="space-y-2">
-                  <Label>Options (one per line)</Label>
+                  <Label htmlFor="column-options">Options (one per line)</Label>
                   <Textarea
+                    id="column-options"
                     value={newOptions}
                     onChange={(e) => setNewOptions(e.target.value)}
                     placeholder="Enter options..."
@@ -2949,6 +2997,7 @@ export default function SettingsPage() {
 
             <div className="flex items-center space-x-2">
               <Checkbox
+                id="column-required"
                 checked={editingColumn?.required}
                 onCheckedChange={(v) =>
                   setEditingColumn((prev) =>
@@ -2956,27 +3005,28 @@ export default function SettingsPage() {
                   )
                 }
               />
-              <Label>Required field</Label>
+              <Label htmlFor="column-required">Required field</Label>
             </div>
-
-            <Button onClick={handleSaveColumn} className="w-full">
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSaveColumn} className="w-full sm:w-auto">
               Save Column
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle className="mb-2">Expense Type Abbreviations Details</CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <CardTitle className="leading-snug">Expense Type Abbreviations Details</CardTitle>
               <CardDescription>
                 Add and edit Group, Sub-Group, Expense Ledger, and Description
                 entries.
               </CardDescription>
             </div>
-            <Button onClick={openAddExpenseTypeDialog}>
+            <Button onClick={openAddExpenseTypeDialog} className="w-full sm:w-auto">
               <PlusCircle className="w-4 h-4" />
               Add
             </Button>
@@ -2988,12 +3038,13 @@ export default function SettingsPage() {
               value={expenseTypeSearchQuery}
               onChange={(e) => setExpenseTypeSearchQuery(e.target.value)}
               placeholder="Search by Group, Sub-Group, Expense Ledger / Expense Type, Description"
+              aria-label="Search expense type details"
             />
           </div>
 
-          <div className="overflow-x-auto">
-            <Table className="min-w-[980px] table-fixed">
-              <TableHeader className="bg-gray-300">
+          <div className="data-table-wrap">
+            <Table className="min-w-[860px] table-fixed">
+              <TableHeader>
                 <TableRow>
                   <TableHead className="w-[18%] whitespace-normal break-words">
                     Group
@@ -3004,10 +3055,10 @@ export default function SettingsPage() {
                   <TableHead className="w-[24%] whitespace-normal break-words">
                     Expense Ledger / Expense Type
                   </TableHead>
-                  <TableHead className="w-[30%] whitespace-normal break-words">
+                  <TableHead className="w-[28%] whitespace-normal break-words">
                     Expense Type Description
                   </TableHead>
-                  <TableHead className="w-[10%] text-right whitespace-normal break-words">
+                  <TableHead className="w-[12%] text-right whitespace-normal break-words">
                     Action
                   </TableHead>
                 </TableRow>
@@ -3017,7 +3068,7 @@ export default function SettingsPage() {
                   <TableSkeleton colSpan={5} rows={5} />
                 ) : filteredExpenseTypeRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5}>
+                    <TableCell colSpan={5} className="py-6 text-muted-foreground">
                       {expenseTypeRows.length === 0
                         ? "No expense type details found."
                         : "No matching expense type details found."}
@@ -3041,15 +3092,21 @@ export default function SettingsPage() {
                       <TableCell className="align-top">
                         <div className="flex items-center justify-end gap-1">
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
+                            className="size-8"
+                            aria-label={`Edit ${row.expense_ledger || "expense type details"}`}
                             onClick={() => openEditExpenseTypeDialog(row)}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
+                            className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            aria-label={`Delete ${row.expense_ledger || "expense type details"}`}
                             onClick={() => setExpenseTypeDeleteTarget(row)}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -3086,7 +3143,7 @@ export default function SettingsPage() {
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="grid gap-4 md:grid-cols-2 max-h-[70vh] overflow-y-auto pr-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[70vh] overflow-y-auto pr-2">
                 <div className="space-y-2">
                   <Label htmlFor="expense-type-group">Group</Label>
                   <Input
@@ -3111,7 +3168,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="expense-type-ledger">Expense Ledger / Expense Type</Label>
                   <Input
                     id="expense-type-ledger"
@@ -3126,7 +3183,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="expense-type-description">Description</Label>
                   <Textarea
                     id="expense-type-description"
@@ -3140,7 +3197,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              <DialogFooter>
                 <Button
                   onClick={handleAddExpenseTypeDetails}
                   disabled={isAddingExpenseType}
@@ -3153,7 +3210,7 @@ export default function SettingsPage() {
                       ? "Update Expense Type Details"
                       : "Add Expense Type Details"}
                 </Button>
-              </div>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
 
@@ -3195,14 +3252,14 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle className="mb-1">Project of Expense Abbreviations Details</CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <CardTitle className="leading-snug">Project of Expense Abbreviations Details</CardTitle>
               <CardDescription>
                 Add and edit Project of Expense and Description entries.
               </CardDescription>
             </div>
-            <Button onClick={openAddProjectOfExpenseDialog}>
+            <Button onClick={openAddProjectOfExpenseDialog} className="w-full sm:w-auto">
               <PlusCircle className="w-4 h-4" />
               Add
             </Button>
@@ -3214,12 +3271,13 @@ export default function SettingsPage() {
               value={projectOfExpenseSearchQuery}
               onChange={(e) => setProjectOfExpenseSearchQuery(e.target.value)}
               placeholder="Search by Project of Expense or Description"
+              aria-label="Search project of expense details"
             />
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="data-table-wrap">
             <Table className="min-w-[900px] table-fixed">
-              <TableHeader className="bg-gray-300">
+              <TableHeader>
                 <TableRow>
                   <TableHead className="w-[35%] whitespace-normal break-words">
                     Project of Expense
@@ -3237,7 +3295,7 @@ export default function SettingsPage() {
                   <TableSkeleton colSpan={3} rows={5} />
                 ) : filteredProjectOfExpenseRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3}>
+                    <TableCell colSpan={3} className="py-6 text-muted-foreground">
                       {projectOfExpenseRows.length === 0
                         ? "No project of expense details found."
                         : "No matching project of expense details found."}
@@ -3255,15 +3313,21 @@ export default function SettingsPage() {
                       <TableCell className="align-top">
                         <div className="flex items-center justify-end gap-1">
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
+                            className="size-8"
+                            aria-label={`Edit ${row.project_of_expense || "project of expense details"}`}
                             onClick={() => openEditProjectOfExpenseDialog(row)}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
+                            className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            aria-label={`Delete ${row.project_of_expense || "project of expense details"}`}
                             onClick={() => setProjectOfExpenseDeleteTarget(row)}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -3333,7 +3397,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              <DialogFooter>
                 <Button
                   onClick={handleAddProjectOfExpenseDetails}
                   disabled={isAddingProjectOfExpense}
@@ -3346,7 +3410,7 @@ export default function SettingsPage() {
                       ? "Update Project of Expense Details"
                       : "Add Project of Expense Details"}
                 </Button>
-              </div>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
 

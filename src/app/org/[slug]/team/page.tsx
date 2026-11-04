@@ -52,7 +52,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { PageHeader } from "@/components/page-header";
 
 interface Member {
   id: string;
@@ -555,27 +558,26 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="page-title">Team Members</h1>
-          <p className="descriptive-text">
+      <PageHeader
+        title="Team Members"
+        description={
+          <>
             {org?.name}:{" "}
             {roleFilter !== "all" || debouncedSearch
               ? `${filteredMembers.length} of ${members.length} member${
                   members.length !== 1 ? "s" : ""
                 }`
-              : `${members.length} member${members.length !== 1 && "s"}`}
-          </p>
-        </div>
-        {(userRole === "owner" || userRole === "admin") && (
+              : `${members.length} member${members.length !== 1 ? "s" : ""}`}
+          </>
+        }
+        actions={(userRole === "owner" || userRole === "admin") && (
           <Button
             onClick={() => setShowInviteCard(true)}
-            className="bg-primary text-white"
           >
             Invite Members
           </Button>
         )}
-      </div>
+      />
 
       <Card>
         {/* <CardHeader>
@@ -585,25 +587,26 @@ export default function TeamPage() {
         </CardHeader> */}
 
         <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="w-full sm:max-w-sm">
               <Input
                 placeholder="Search by name or email"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="max-w-lg w-full"
+                aria-label="Search members by name or email"
+                className="w-full"
               />
             </div>
 
-            <div className="w-full sm:w-[180px] rounded-md mt-2 sm:mt-0">
+            <div className="w-full sm:w-[180px]">
               <Select
                 value={roleFilter}
                 onValueChange={(v: any) => setRoleFilter(v)}
               >
-                <SelectTrigger className="w-full cursor-pointer">
+                <SelectTrigger className="w-full cursor-pointer" aria-label="Filter by role">
                   <SelectValue placeholder="Filter role" />
                 </SelectTrigger>
-                <SelectContent className="bg-white">
+                <SelectContent>
                   <SelectGroup>
                     <SelectItem value="all" className="cursor-pointer">
                       <div className="flex items-center gap-2 px-2 py-1">
@@ -641,7 +644,7 @@ export default function TeamPage() {
               {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
-                  className="border rounded-lg px-4 py-3 shadow-sm bg-white"
+                  className="border rounded-lg px-4 py-3 shadow-sm bg-card"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div className="flex-1 space-y-2">
@@ -664,44 +667,24 @@ export default function TeamPage() {
                   {pagination.paginatedData.map((m) => (
                     <div
                       key={m.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between border rounded-lg px-4 py-3 shadow-sm bg-white"
+                      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border rounded-lg px-4 py-3 shadow-sm bg-card"
                     >
-                      <div>
-                        <div className="font-medium">{m.fullName || "—"}</div>
-                        <div className="text-sm text-muted-foreground">
+                      <div className="min-w-0">
+                        <div className="font-medium break-words">{m.fullName || "—"}</div>
+                        <div className="text-sm text-muted-foreground break-words">
                           {m.email}
                         </div>
                       </div>
 
-                      <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
                         {userRole !== "admin" && userRole !== "owner" && (
-                          <span
-                            className={`text-xs px-4 py-2 rounded-full font-medium shadow-sm bg-white border ${
-                              m.role === "owner"
-                                ? "text-black border-gray-200 cursor-pointer"
-                                : m.role === "admin"
-                                ? "text-black border-gray-200 cursor-pointer"
-                                : m.role === "manager"
-                                ? "text-black border-gray-200 cursor-pointer"
-                                : "text-black border-gray-200 cursor-pointer"
-                            }`}
-                          >
+                          <span className="text-xs px-4 py-2 rounded-full font-medium shadow-xs bg-card border text-foreground">
                             {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
                           </span>
                         )}
                         {(userRole === "owner" || userRole === "admin") &&
                           (m.role === "owner" ? (
-                            <span
-                              className={`text-xs px-4 py-2 rounded-full font-medium shadow-sm bg-white border ${
-                                m.role === "owner"
-                                  ? "text-black border-gray-200 cursor-pointer"
-                                  : m.role === "admin"
-                                  ? "text-black border-gray-200 cursor-pointer"
-                                  : m.role === "manager"
-                                  ? "text-black border-gray-200 cursor-pointer"
-                                  : "text-black border-gray-200 cursor-pointer"
-                              }`}
-                            >
+                            <span className="text-xs px-4 py-2 rounded-full font-medium shadow-xs bg-card border text-foreground">
                               {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
                             </span>
                           ) : (
@@ -713,21 +696,15 @@ export default function TeamPage() {
                               disabled={updatingRoleId === m.id}
                             >
                               <SelectTrigger
-                                className={`text-sm h-8 rounded-full px-3 py-1 flex items-center justify-between gap-2 min-w-[140px] shadow-sm bg-white border ${
-                                  m.role === "owner"
-                                    ? "text-black border-gray-200 cursor-pointer"
-                                    : m.role === "admin"
-                                    ? "text-black border-gray-200 cursor-pointer"
-                                    : m.role === "manager"
-                                    ? "text-black border-gray-200 cursor-pointer"
-                                    : "text-black border-gray-200 cursor-pointer"
-                                }`}
+                                size="sm"
+                                aria-label={`Role for ${m.fullName || m.email}`}
+                                className="min-w-[140px] rounded-full bg-card px-3 text-sm text-foreground"
                               >
                                 <div className="flex-1 text-center">
                                   <SelectValue placeholder="Change role" />
                                 </div>
                               </SelectTrigger>
-                              <SelectContent className="bg-white">
+                              <SelectContent>
                                 <SelectGroup>
                                   <SelectItem
                                     value="member"
@@ -754,10 +731,16 @@ export default function TeamPage() {
 
                         {(userRole === "owner" || userRole === "admin") &&
                           m.role !== "owner" && (
-                            <Trash2
-                              className="w-4 h-4 text-red-600 cursor-pointer hover:text-red-800"
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              aria-label={`Remove ${m.fullName || m.email}`}
                               onClick={() => confirmDeleteMember(m.id)}
-                            />
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           )}
                       </div>
                     </div>
@@ -782,34 +765,38 @@ export default function TeamPage() {
       {/* Invite Modal */}
 
       <Dialog open={showInviteCard} onOpenChange={setShowInviteCard}>
-        <DialogContent className="max-w-[500px] bg-white text-gray-900">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
+            <DialogTitle>
               Invite New Team Members
             </DialogTitle>
-            <DialogDescription className="text-gray-600 text-sm">
+            <DialogDescription>
               Add new members to your team by sending email invitations or
               generating a shareable link.
             </DialogDescription>
           </DialogHeader>
 
           {/* Tabs */}
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b">
             <button
-              className={`px-4 py-2 text-sm font-medium ${
+              type="button"
+              aria-pressed={activeTab === "email"}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium rounded-t-md outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
                 activeTab === "email"
-                  ? "text-black border-b-2 border-black"
-                  : "text-gray-500"
+                  ? "text-foreground border-foreground"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
               }`}
               onClick={() => setActiveTab("email")}
             >
               Email Invites
             </button>
             <button
-              className={`px-4 py-2 text-sm font-medium ${
+              type="button"
+              aria-pressed={activeTab === "link"}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium rounded-t-md outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
                 activeTab === "link"
-                  ? "text-black border-b-2 border-black"
-                  : "text-gray-500"
+                  ? "text-foreground border-foreground"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
               }`}
               onClick={() => setActiveTab("link")}
             >
@@ -819,18 +806,19 @@ export default function TeamPage() {
 
           {/* Email Invite Tab */}
           {activeTab === "email" && (
-            <div className="space-y-4 pt-4">
+            <div className="space-y-4 pt-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="invite-emails" className="block text-sm font-medium mb-1.5">
                   Email Addresses
                 </label>
-                <textarea
-                  className="w-full p-2 border border-gray-300 rounded text-sm h-15"
+                <Textarea
+                  id="invite-emails"
+                  className="min-h-20 max-h-60"
                   placeholder={"john@example.com\nsarah@example.com"}
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1.5">
                   You can invite multiple people at once, Enter one email
                   address per line or import via csv.
                 </p>
@@ -904,7 +892,6 @@ export default function TeamPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
                     onClick={() =>
                       document.getElementById(fileInputId)?.click()
                     }
@@ -922,17 +909,17 @@ export default function TeamPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="invite-default-role" className="block text-sm font-medium mb-1.5">
                   Default Role
                 </label>
                 <Select
                   value={inviteRole}
                   onValueChange={(v: any) => setInviteRole(v)}
                 >
-                  <SelectTrigger className="w-full border-gray-300">
+                  <SelectTrigger id="invite-default-role" className="w-full">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white">
+                  <SelectContent>
                     <SelectGroup>
                       <SelectItem value="member">
                         <div className="flex items-center gap-2">
@@ -959,10 +946,9 @@ export default function TeamPage() {
                 </Select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              <DialogFooter className="pt-2">
                 <Button
                   variant="outline"
-                  className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-black"
                   onClick={() => setShowInviteCard(false)}
                 >
                   Cancel
@@ -970,24 +956,23 @@ export default function TeamPage() {
 
                 {/*Then modify your button to use the wrapper */}
                 <Button
-                  className="bg-black text-white hover:bg-gray-800"
                   onClick={handleInviteSubmitWrapper}
                   disabled={loading}
                 >
                   {loading ? <Spinner className="mr-2 h-4 w-4" /> : null}
                   {loading ? "Sending..." : "Send invitations"}
                 </Button>
-              </div>
+              </DialogFooter>
             </div>
           )}
 
           {/* Shareable Link Tab */}
           {activeTab === "link" && (
-            <div className="space-y-4 pt-4">
-              <div className="flex gap-2">
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
                   variant="outline"
-                  className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-black flex-1"
+                  className="sm:flex-1"
                   onClick={handleGenerateLink}
                   disabled={linkLoading}
                 >
@@ -1002,10 +987,10 @@ export default function TeamPage() {
                   value={multiUserRole}
                   onValueChange={(v: any) => setMultiUserRole(v)}
                 >
-                  <SelectTrigger className="w-[150px] border-gray-300">
+                  <SelectTrigger className="w-full sm:w-[150px]" aria-label="Role for invite link">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white">
+                  <SelectContent>
                     <SelectGroup>
                       <SelectItem value="member">
                         <div className="flex items-center gap-2">
@@ -1033,25 +1018,26 @@ export default function TeamPage() {
               </div>
               {generatedLink && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
+                  <label htmlFor="invite-generated-link" className="text-sm font-medium">
                     Generated Link
                   </label>
                   <div className="flex gap-2">
                     <Input
+                      id="invite-generated-link"
                       value={generatedLink}
                       readOnly
-                      className="font-mono text-sm border-gray-300"
+                      className="font-mono text-sm"
                     />
                     <Button
                       variant="outline"
                       size="icon"
-                      className="border-gray-300 hover:bg-gray-50"
+                      aria-label="Copy invite link"
                       onClick={copyLinkToClipboard}
                     >
                       <Copy className="w-4 h-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     Anyone with this link can join as {multiUserRole}.
                   </p>
                 </div>
@@ -1063,18 +1049,18 @@ export default function TeamPage() {
       {/* CSV Mapping Dialog */}
       {mappingOpen && (
         <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
-          <DialogContent className="max-w-[480px] bg-white text-gray-900">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-lg font-semibold">
+              <DialogTitle>
                 Map CSV columns
               </DialogTitle>
-              <DialogDescription className="text-gray-600 text-sm">
+              <DialogDescription>
                 Select which column contains the email addresses.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="csv-email-column" className="block text-sm font-medium mb-1.5">
                   Email column
                 </label>
                 <Select
@@ -1087,10 +1073,10 @@ export default function TeamPage() {
                     setSelectedEmailColumn(parseInt(v, 10))
                   }
                 >
-                  <SelectTrigger className="w-full border-gray-300">
+                  <SelectTrigger id="csv-email-column" className="w-full">
                     <SelectValue placeholder="Choose a column" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white">
+                  <SelectContent>
                     <SelectGroup>
                       {csvHeaders.map((h, i) => (
                         <SelectItem key={i} value={String(i)}>
@@ -1101,11 +1087,11 @@ export default function TeamPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 Preview first 3 rows:
-                <div className="mt-2 border rounded overflow-auto max-h-40 max-w-full">
+                <div className="mt-2 border rounded-md overflow-auto max-h-40 max-w-full">
                   {selectedEmailColumn === null ? (
-                    <div className="px-2 py-3 text-[11px] text-gray-500">
+                    <div className="px-2 py-3 text-[11px] text-muted-foreground">
                       Select a column to preview
                     </div>
                   ) : (
@@ -1118,7 +1104,7 @@ export default function TeamPage() {
                         <table className="min-w-full table-fixed">
                           <thead>
                             <tr>
-                              <th className="px-2 py-1 text-[11px] font-medium bg-gray-50 border-b text-left whitespace-nowrap">
+                              <th className="px-2 py-1 text-[11px] font-medium bg-muted/50 border-b text-left whitespace-nowrap">
                                 {header}
                               </th>
                             </tr>
@@ -1139,16 +1125,14 @@ export default function TeamPage() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <DialogFooter className="pt-2">
               <Button
                 variant="outline"
-                className="border-gray-300"
                 onClick={() => setMappingOpen(false)}
               >
                 Cancel
               </Button>
               <Button
-                className="bg-black text-white hover:bg-gray-800"
                 disabled={selectedEmailColumn === null}
                 onClick={() => {
                   if (selectedEmailColumn === null) return;
@@ -1180,7 +1164,7 @@ export default function TeamPage() {
               >
                 Import
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
@@ -1197,7 +1181,7 @@ export default function TeamPage() {
                 permanently removed from your organization.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex justify-end gap-4">
+            <DialogFooter>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1221,7 +1205,7 @@ export default function TeamPage() {
                   "Delete User"
                 )}
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}

@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { ExpenseTypeApproverMappingEntry, LocationApproverMappingEntry } from "@/lib/db";
 import { parseLeaveDuration, cleanExpiredLeaveProfiles } from "@/lib/leave-status";
+import { PageHeader } from "@/components/page-header";
 
 export default function ApproverInfoPage() {
   const { organization, userRole } = useOrgStore();
@@ -287,11 +288,14 @@ export default function ApproverInfoPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Approver Information</h1>
+      <PageHeader
+        title="Approver Information"
+        description="Who approves each expense type and project of expense, and which approvers are currently on leave."
+      />
 
       <Card>
         <CardHeader>
-          <CardTitle>Expense Type → Approver Mapping (Without Campus Wise)</CardTitle>
+          <CardTitle className="text-sm leading-snug sm:text-base">Expense Type → Approver Mapping (Without Campus Wise)</CardTitle>
           <CardDescription>
             Approvers mapped to specific expense types across the organization.
           </CardDescription>
@@ -300,9 +304,10 @@ export default function ApproverInfoPage() {
           {isLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Loading...</div>
           ) : (
+            <div className="data-table-wrap">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-300">
+                <TableRow>
                   <TableHead>Expense Type</TableHead>
                   <TableHead>Primary Approver(s)</TableHead>
                   <TableHead>Secondary Approver(s)</TableHead>
@@ -343,13 +348,14 @@ export default function ApproverInfoPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Project of Expenses → Approver Mapping (Campus Wise)</CardTitle>
+          <CardTitle className="text-sm leading-snug sm:text-base">Project of Expenses → Approver Mapping (Campus Wise)</CardTitle>
           <CardDescription>
             Approvers mapped based on the location/project of the expense.
           </CardDescription>
@@ -358,9 +364,10 @@ export default function ApproverInfoPage() {
           {isLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Loading...</div>
           ) : (
+            <div className="data-table-wrap">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-300">
+                <TableRow>
                   <TableHead>Location / Project</TableHead>
                   <TableHead>Expense Type</TableHead>
                   <TableHead>Primary Approver(s)</TableHead>
@@ -405,6 +412,7 @@ export default function ApproverInfoPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

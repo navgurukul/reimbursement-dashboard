@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { defaultExpenseColumns } from "@/lib/defaults";
+import { PageHeader } from "@/components/page-header";
 
 const defaultPolicy: Omit<
   Policy,
@@ -363,13 +364,14 @@ export default function PoliciesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="page-title">Expense Policies</h1>
-        {isAdminOrOwner && (
+      <PageHeader
+        title="Expense Policies"
+        description="Per unit costs, upper limits and eligibility rules for each expense type."
+        actions={isAdminOrOwner && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => handleOpenDialog()}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Policy
+                <PlusCircle className="h-4 w-4" /> Add Policy
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[525px]">
@@ -381,12 +383,12 @@ export default function PoliciesPage() {
                     : "Define a new expense policy for your organization."}
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="expense_type" className="text-right">
+              <form onSubmit={handleSubmit} className="grid gap-4 py-2 sm:py-4">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                  <Label htmlFor="expense_type" className="sm:justify-end sm:text-right">
                     Expense Type
                   </Label>
-                  <div className="col-span-3">
+                  <div className="sm:col-span-3">
                     <Select
                       value={currentPolicy.expense_type || ""}
                       onValueChange={(value) =>
@@ -410,17 +412,17 @@ export default function PoliciesPage() {
                       </SelectContent>
                     </Select>
                     {errors["expense_type"] && (
-                      <p className="text-red-500 text-sm">
+                      <p className="text-destructive text-sm">
                         {errors["expense_type"]}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="per_unit_cost" className="text-right">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                  <Label htmlFor="per_unit_cost" className="sm:justify-end sm:text-right">
                     Per Unit Cost
                   </Label>
-                  <div className="col-span-3">
+                  <div className="sm:col-span-3">
                     <Input
                       id="per_unit_cost"
                       name="per_unit_cost"
@@ -433,15 +435,15 @@ export default function PoliciesPage() {
                       placeholder="e.g., 3/km, 200/meal"
                     />
                     {errors["per_unit_cost"] && (
-                      <p className="text-red-500 text-sm">
+                      <p className="text-destructive text-sm">
                         {errors["per_unit_cost"]}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="upper_limit">Upper Limit (₹)</Label>
-                  <div className="col-span-3">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                  <Label htmlFor="upper_limit" className="sm:justify-end sm:text-right">Upper Limit (₹)</Label>
+                  <div className="sm:col-span-3">
                     <Input
                       id="upper_limit"
                       name="upper_limit"
@@ -454,17 +456,17 @@ export default function PoliciesPage() {
                       placeholder="e.g., 5000"
                     />
                     {errors["upper_limit"] && (
-                      <p className="text-red-500 text-sm">
+                      <p className="text-destructive text-sm">
                         {errors["upper_limit"]}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="eligibility" className="text-right">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                  <Label htmlFor="eligibility" className="sm:justify-end sm:text-right">
                     Eligibility
                   </Label>
-                  <div className="col-span-3">
+                  <div className="sm:col-span-3">
                     <Input
                       id="eligibility"
                       name="eligibility"
@@ -476,17 +478,17 @@ export default function PoliciesPage() {
                       placeholder="e.g., All Team Members"
                     />
                     {errors["eligibility"] && (
-                      <p className="text-red-500 text-sm">
+                      <p className="text-destructive text-sm">
                         {errors["eligibility"]}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="conditions" className="text-right">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                  <Label htmlFor="conditions" className="sm:justify-end sm:text-right">
                     Conditions
                   </Label>
-                  <div className="col-span-3">
+                  <div className="sm:col-span-3">
                     <Textarea
                       id="conditions"
                       name="conditions"
@@ -498,40 +500,39 @@ export default function PoliciesPage() {
                       placeholder="Enter any specific conditions..."
                     />
                     {errors["conditions"] && (
-                      <p className="text-red-500 text-sm">
+                      <p className="text-destructive text-sm">
                         {errors["conditions"]}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="fileUpload" className="text-right">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                  <Label htmlFor="fileUpload" className="sm:justify-end sm:text-right">
                     Policies
                   </Label>
-                  <div className="col-span-3">
-                    <label
-                      htmlFor="fileUpload"
-                      className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-gray rounded border border-gray-400"
-                    >
-                      <Upload className="w-5 h-5" />
-                      Upload Policy
-                    </label>
-
+                  <div className="sm:col-span-3">
                     <input
                       type="file"
                       id="fileUpload"
                       name="fileUpload"
                       accept="application/pdf"
-                      className="hidden"
+                      className="peer sr-only"
                       onChange={handleFileUpload}
                     />
+                    <label
+                      htmlFor="fileUpload"
+                      className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-background px-4 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50"
+                    >
+                      <Upload className="size-4" />
+                      Upload Policy
+                    </label>
                     {selectedFileName && (
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-muted-foreground mt-1 break-all">
                         Selected file: {selectedFileName}
                       </p>
                     )}
                     {errors["fileUpload"] && (
-                      <p className="text-red-500 text-sm">
+                      <p className="text-destructive text-sm">
                         {errors["fileUpload"]}
                       </p>
                     )}
@@ -545,7 +546,8 @@ export default function PoliciesPage() {
                   >
                     {isSubmitting ? (
                       <>
-                        <Spinner size="sm" /> Adding Policy...
+                        <Spinner size="sm" />{" "}
+                        {isEditing ? "Saving Changes..." : "Adding Policy..."}
                       </>
                     ) : isEditing ? (
                       "Save Changes"
@@ -558,11 +560,11 @@ export default function PoliciesPage() {
             </DialogContent>
           </Dialog>
         )}
-      </div>
+      />
 
-      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+      <div className="data-table-wrap">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300">
+          <TableHeader>
             <TableRow>
               <TableHead className="px-4 py-3">Expense Type</TableHead>
               <TableHead className="px-4 py-3">Per Unit Cost</TableHead>
@@ -589,10 +591,7 @@ export default function PoliciesPage() {
               </TableRow>
             ) : (
               policyList.map((policy) => (
-                <TableRow
-                  key={policy.id}
-                  className="hover:bg-gray-50 transition-colors"
-                >
+                <TableRow key={policy.id}>
                   <TableCell className="px-4 py-3 font-medium">
                     {policy.expense_type}
                   </TableCell>
@@ -624,32 +623,36 @@ export default function PoliciesPage() {
                         href={policy.policy_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-black hover:text-blue-800 hover:button"
+                        className="font-medium text-blue-700 underline-offset-4 hover:text-blue-800 hover:underline"
                       >
                         View Policy
                       </a>
                     ) : (
-                      <span className="text-gray-500 italic">No PDF</span>
+                      <span className="text-muted-foreground italic">No PDF</span>
                     )}
                   </TableCell>
                   {isAdminOrOwner && (
                     <TableCell className="px-4 py-3 text-center">
-                      <div className="flex justify-center items-center space-x-1">
+                      <div className="flex justify-center items-center gap-1">
                         <Button
+                          type="button"
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           onClick={() => handleOpenDialog(policy)}
-                          className="h-8 w-8 p-0 cursor-pointer"
+                          className="size-8"
+                          aria-label={`Edit ${policy.expense_type} policy`}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
+                          type="button"
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           onClick={() => setDeletePolicyId(policy.id)}
-                          className="h-8 w-8 p-0 cursor-pointer"
+                          className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          aria-label={`Delete ${policy.expense_type} policy`}
                         >
-                          <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -666,7 +669,7 @@ export default function PoliciesPage() {
         open={!!deletePolicyId}
         onOpenChange={() => setDeletePolicyId(null)}
       >
-        <DialogContent className="!bg-white !text-black">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Policy</DialogTitle>
             <DialogDescription>
