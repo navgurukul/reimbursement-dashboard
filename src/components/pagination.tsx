@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 
@@ -26,39 +27,51 @@ export function Pagination({
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
   return (
-    <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-sm text-black">
-        Showing {startItem}-{endItem} of {totalItems}
-      </div>
+    <nav
+      aria-label={`${itemLabel} pagination`}
+      className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        Showing{" "}
+        <span className="font-medium tabular-nums text-foreground">
+          {startItem}–{endItem}
+        </span>{" "}
+        of{" "}
+        <span className="font-medium tabular-nums text-foreground">
+          {totalItems}
+        </span>
+      </p>
 
       <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
         <Button
           type="button"
           size="sm"
+          variant="outline"
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage <= 1 || isLoading}
-          className="cursor-pointer caret-transparent px-3 py-1 h-auto border border-gray-300 rounded-md"
-          variant="default"
+          aria-label="Previous page"
         >
+          <ChevronLeft className="size-4" aria-hidden />
           Previous
         </Button>
 
-        <div className="text-sm text-slate-600 font-medium whitespace-nowrap px-2">
+        <span className="px-2 text-sm font-medium whitespace-nowrap text-muted-foreground tabular-nums">
           Page {currentPage} of {totalPages}
-        </div>
+        </span>
 
         <Button
           type="button"
           size="sm"
+          variant="outline"
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage >= totalPages || isLoading}
-          className="cursor-pointer caret-transparent px-3 py-1 h-auto border border-gray-300 rounded-md"
-          variant="default"
+          aria-label="Next page"
         >
           Next
+          <ChevronRight className="size-4" aria-hidden />
         </Button>
       </div>
-    </div>
+    </nav>
   );
 }
 

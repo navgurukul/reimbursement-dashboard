@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 type StatusMeta = {
   label: string;
@@ -9,68 +10,68 @@ const STATUS_BADGE_META: Record<string, StatusMeta> = {
   submitted: {
     label: "Submitted",
     className:
-      "bg-amber-100 text-amber-800 hover:bg-amber-700 hover:text-white",
+      "bg-amber-100 text-amber-800",
   },
   approved: {
     label: "Manager Approved",
     className:
-      "bg-green-100 text-green-800 hover:bg-green-700 hover:text-white",
+      "bg-green-100 text-green-800",
   },
   approved_as_per_policy: {
     label: "Approved as per Policy",
     className:
-      "bg-green-100 text-green-800 hover:bg-green-700 hover:text-white",
+      "bg-green-100 text-green-800",
   },
   rejected: {
     label: "Manager Rejected",
-    className: "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white",
+    className: "bg-red-100 text-red-800",
   },
   manager_rejected: {
     label: "Manager Rejected",
-    className: "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white",
+    className: "bg-red-100 text-red-800",
   },
   finance_approved: {
     label: "Finance Approved",
     className:
-      "bg-green-100 text-green-800 hover:bg-green-700 hover:text-white",
+      "bg-green-100 text-green-800",
   },
   finance_rejected: {
     label: "Finance Rejected",
-    className: "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white",
+    className: "bg-red-100 text-red-800",
   },
   payment_processed: {
     label: "Payment successful",
-    className: "bg-blue-100 text-blue-800 hover:bg-blue-700 hover:text-white",
+    className: "bg-blue-100 text-blue-800",
   },
   payment_not_processed: {
     label: "Payment has been rejected",
-    className: "bg-red-100 text-red-800 hover:bg-red-700 hover:text-white",
+    className: "bg-red-100 text-red-800",
   },
   ready_for_payment: {
     label: "Ready for Payment",
-    className: "bg-blue-100 text-blue-800 hover:bg-blue-700 hover:text-white",
+    className: "bg-blue-100 text-blue-800",
   },
   draft: {
     label: "Draft",
-    className: "bg-gray-100 text-gray-800 hover:bg-gray-700 hover:text-white",
+    className: "bg-gray-100 text-gray-800",
   },
   reimbursed: {
     label: "Reimbursed",
-    className: "bg-gray-100 text-gray-800 hover:bg-gray-700 hover:text-white",
+    className: "bg-gray-100 text-gray-800",
   },
   paid: {
     label: "Paid",
     className:
-      "bg-green-100 text-green-800 hover:bg-green-700 hover:text-white",
+      "bg-green-100 text-green-800",
   },
   updated: {
     label: "Updated",
-    className: "bg-blue-100 text-blue-800 hover:bg-blue-700 hover:text-white",
+    className: "bg-blue-100 text-blue-800",
   },
   created: {
     label: "Created",
     className:
-      "bg-slate-100 text-slate-800 hover:bg-slate-700 hover:text-white",
+      "bg-slate-100 text-slate-800",
   },
 };
 
@@ -78,7 +79,7 @@ function getStatusMeta(status?: string | null): StatusMeta {
   if (!status) {
     return {
       label: "Unknown",
-      className: "bg-gray-100 text-gray-800 hover:bg-gray-700 hover:text-white",
+      className: "bg-gray-100 text-gray-800",
     };
   }
 
@@ -92,7 +93,7 @@ function getStatusMeta(status?: string | null): StatusMeta {
 
   return {
     label: fallbackLabel,
-    className: "bg-gray-100 text-gray-800 hover:bg-gray-700 hover:text-white",
+    className: "bg-gray-100 text-gray-800",
   };
 }
 
@@ -108,7 +109,7 @@ export function ExpenseStatusBadge({
   const { label, className: statusClassName } = getStatusMeta(status);
 
   return (
-    <Badge className={`${statusClassName} ${className || ""}`}>{label}</Badge>
+    <Badge className={cn(statusClassName, className)}>{label}</Badge>
   );
 }
 
@@ -134,7 +135,7 @@ export function EventStatusBadge({
     } else if (now < start) {
       return { label: "Upcoming", className: "bg-blue-100 text-blue-800" };
     } else {
-      return { label: "Past", className: "bg-gray-300 text-gray-800" };
+      return { label: "Past", className: "bg-gray-100 text-gray-700" };
     }
   };
 
@@ -143,7 +144,7 @@ export function EventStatusBadge({
   return (
     <Badge
       variant="outline"
-      className={`${statusClassName} ${className || ""}`}
+      className={cn("border-transparent", statusClassName, className)}
     >
       {label}
     </Badge>

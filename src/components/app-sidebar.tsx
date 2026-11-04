@@ -1,44 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  Calendar,
+  ChevronsUpDown,
+  CreditCard,
+  FileText,
+  IndianRupee,
+  Landmark,
+  LogOut,
+  MapPin,
+  Menu,
+  Settings,
+  Tags,
+  UserCheck,
+  UserRound,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import supabase from "@/lib/supabase";
+import { organizations } from "@/lib/db";
+import { PUNE_SOSC_ALLOWED_EMAILS } from "@/lib/features";
 import { useOrgStore } from "@/store/useOrgStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
-import { FileText, Landmark } from "lucide-react";
-import { PUNE_SOSC_ALLOWED_EMAILS } from "@/lib/features";
-
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  LayoutDashboard,
-  IndianRupee,
-  Users,
-  Calendar,
-  Settings,
-  LogOut,
-  Menu,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronsUpDownIcon,
-  Wallet,
-  Tags,
-  MapPin,
-  UserCheck,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { useState } from "react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
 import {
   Dialog,
   DialogContent,
@@ -46,10 +52,159 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { organizations } from "@/lib/db";
+
+type NavItem = { title: string; href: string; icon: LucideIcon };
+type NavGroup = { label: string; items: NavItem[] };
+
+interface SidebarBodyProps {
+  orgName?: string;
+  homeHref: string;
+  groups: NavGroup[];
+  pathname: string;
+  userName: string;
+  userEmail: string;
+  userInitial: string;
+  profileHref: string;
+  onNavigate?: () => void;
+  onSignOut: () => void;
+}
+
+const isRouteActive = (pathname: string, href: string) =>
+  pathname === href || pathname.startsWith(`${href}/`);
+
+function OrgMark({ name }: { name?: string }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground"
+    >
+      {name?.trim()?.[0]?.toUpperCase() ?? "R"}
+    </span>
+  );
+}
+
+function SidebarBody({
+  orgName,
+  homeHref,
+  groups,
+  pathname,
+  userName,
+  userEmail,
+  userInitial,
+  profileHref,
+  onNavigate,
+  onSignOut,
+}: SidebarBodyProps) {
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
+      {/* Org name */}
+      <div className="flex h-14 shrink-0 items-center border-b border-sidebar-border px-4">
+        <Link
+          href={homeHref}
+          onClick={onNavigate}
+          className="flex min-w-0 items-center gap-2.5 rounded-md font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          <OrgMark name={orgName} />
+          <span className="truncate text-sm" title={orgName}>
+            {orgName || "Reimbursements"}
+          </span>
+        </Link>
+      </div>
+
+      {/* Nav links */}
+      <nav
+        aria-label="Main navigation"
+        className="flex-1 space-y-5 overflow-y-auto px-3 py-4"
+      >
+        {groups.map((group) => (
+          <div key={group.label} className="space-y-1">
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {group.label}
+            </p>
+            {group.items.map((item) => {
+              const active = isRouteActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition-colors",
+                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                    active &&
+                      "bg-sidebar-accent text-sidebar-accent-foreground shadow-xs ring-1 ring-sidebar-border"
+                  )}
+                >
+                  <item.icon
+                    className={cn(
+                      "size-4 shrink-0",
+                      active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                    aria-hidden
+                  />
+                  <span className="truncate">{item.title}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      {/* User menu */}
+      <div className="shrink-0 border-t border-sidebar-border p-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="group flex w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=open]:bg-sidebar-accent">
+            <Avatar className="size-9">
+              <AvatarFallback className="bg-primary text-sm font-medium text-primary-foreground">
+                {userInitial}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium leading-tight">
+                {userName}
+              </p>
+              <p
+                className="truncate text-xs leading-tight text-muted-foreground"
+                title={userEmail}
+              >
+                {userEmail}
+              </p>
+            </div>
+            <ChevronsUpDown
+              className="size-4 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="start" side="top" className="w-60">
+            <DropdownMenuLabel className="font-normal">
+              <p className="truncate text-sm font-medium">{userName}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {userEmail}
+              </p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link href={profileHref} onClick={onNavigate}>
+                <UserRound className="size-4" aria-hidden />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onSignOut} className="cursor-pointer">
+              <LogOut className="size-4" aria-hidden />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
 
 export function AppSidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { organization, userRole, setUserRole } = useOrgStore();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -61,6 +216,12 @@ export function AppSidebar() {
   // Get email from multiple possible sources
   const userEmail = profile?.email || user?.email || user?.user_metadata?.email || "";
   const userName = profile?.full_name || userEmail.split('@')[0] || "?";
+  const userInitial = (profile?.full_name || userEmail || "?")[0]?.toUpperCase() ?? "?";
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -168,169 +329,105 @@ export function AppSidebar() {
     }
   };
 
-  const baseRoutes = [
+  const base = `/org/${organization?.slug}`;
+
+  const groups: NavGroup[] = [
     {
-      title: "Expenses",
-      href: `/org/${organization?.slug}/expenses`,
-      icon: IndianRupee,
+      label: "Workspace",
+      items: [
+        { title: "Expenses", href: `${base}/expenses`, icon: IndianRupee },
+        { title: "Expense Events", href: `${base}/expense-events`, icon: Calendar },
+        { title: "Policies", href: `${base}/policies`, icon: FileText },
+        { title: "Team", href: `${base}/team`, icon: Users },
+        { title: "Approver Info", href: `${base}/approver-info`, icon: UserCheck },
+        { title: "Abbreviations", href: `${base}/abbreviations`, icon: Tags },
+        // Show CP Pune-SoSC ONLY to allowed users based on email
+        ...(PUNE_SOSC_ALLOWED_EMAILS.includes(userEmail)
+          ? [{ title: "Pune SOSC Dashboard", href: `${base}/pune-sosc`, icon: MapPin }]
+          : []),
+      ],
     },
-    { title: "Team", 
-      href: `/org/${organization?.slug}/team`, 
-      icon: Users 
-    },
-    {
-      title: "Policies",
-      href: `/org/${organization?.slug}/policies`,
-      icon: FileText,
-    },
-    {
-      title: "Expense Events",
-      href: `/org/${organization?.slug}/expense-events`,
-      icon: Calendar,
-    },
-    {
-      title: "Abbreviations",
-      href: `/org/${organization?.slug}/abbreviations`,
-      icon: Tags,
-    },
-    {
-      title: "Approver Info",
-      href: `/org/${organization?.slug}/approver-info`,
-      icon: UserCheck,
-    },
-    // Show CP Pune-SoSC ONLY to allowed users based on email
-    ...(PUNE_SOSC_ALLOWED_EMAILS.includes(userEmail)
+    ...(isAdmin
       ? [
           {
-            title: "Pune SOSC Dashboard",
-            href: `/org/${organization?.slug}/pune-sosc`,
-            icon: MapPin,
+            label: "Finance",
+            items: [
+              { title: "Finance Management", href: `${base}/finance`, icon: Landmark },
+              { title: "Advance Payment", href: `${base}/advance-payment`, icon: Wallet },
+              { title: "Bank Details", href: `${base}/bank-details`, icon: CreditCard },
+            ],
+          },
+          {
+            label: "Administration",
+            items: [{ title: "Settings", href: `${base}/settings`, icon: Settings }],
           },
         ]
       : []),
-    ...(isAdmin
-      ? [
-        {
-          title: "Finance Management",
-          href: `/org/${organization?.slug}/finance`,
-          icon: Landmark,
-        },
-        {
-          title: "Advance Payment",
-          href: `/org/${organization?.slug}/advance-payment`,
-          icon: Wallet,
-        },
-        {
-          title: "Bank Details",
-          href: `/org/${organization?.slug}/bank-details`,
-          icon: IndianRupee,
-        },
-      ]
-      : []),
   ];
 
-  const adminRoutes = {
-    title: "Settings",
-    href: `/org/${organization?.slug}/settings`,
-    icon: Settings,
+  const bodyProps: SidebarBodyProps = {
+    orgName: organization?.name,
+    homeHref: `${base}/expenses`,
+    groups,
+    pathname,
+    userName,
+    userEmail,
+    userInitial,
+    profileHref: `${base}/profile`,
+    onSignOut: handleSignOut,
   };
-
-  const sidebarItems = isAdmin ? [...baseRoutes, adminRoutes] : baseRoutes;
-
-  function SidebarContent() {
-    return (
-      <div className="fixed left-0 top-0 h-screen flex flex-col w-64 border-r bg-muted/40">
-        {/* Org name / logo */}
-        <div className="flex h-14 items-center border-b px-4">
-          <Link
-            href={`/org/${organization?.slug}/expenses`}
-            className="flex items-center gap-2 font-semibold"
-          >
-            <span className="text-lg">{organization?.name}</span>
-          </Link>
-        </div>
-
-        {/* Nav links */}
-        <div className="flex-1 overflow-auto py-2">
-          <nav className="grid items-start px-2 text-sm font-medium">
-            {sidebarItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground transition-all",
-                    isActive && "bg-accent text-accent-foreground"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.title}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="mt-auto px-2 pb-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="cursor-pointer group flex w-full items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent">
-              <Avatar className="h-9 w-9">
-                {/* {user ? (
-                  <AvatarImage src={user?.avatar_url} alt={user.email ?? ""} />
-                ) : ( */}
-                <AvatarFallback className="bg-black text-white">
-                  {profile?.full_name?.[0]?.toUpperCase() ?? "?"}
-                </AvatarFallback>
-                {/* )} */}
-              </Avatar>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium leading-none">{userName}</p>
-                <p
-                  className="text-xs leading-none text-muted-foreground truncate max-w-[180px] pb-1"
-                  title={userEmail}
-                >
-                  {userEmail}
-                </p>
-              </div>
-              <ChevronsUpDownIcon className="h-3 w-3 " aria-hidden />
-            </DropdownMenuTrigger>
-
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link href={`/org/${organization?.slug}/profile`}>Profile</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleSignOut}>
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
-      {/* Mobile */}
-      <div className="lg:hidden">
-        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-72 p-0">
-            <SidebarContent />
-          </SheetContent>
-        </Sheet>
-      </div>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
 
-      {/* Desktop */}
-      <div className="hidden border-r bg-muted/40 lg:block lg:w-64">
-        <SidebarContent />
-      </div>
+      {/* Mobile and tablet: top bar with a drawer */}
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-4 lg:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Open menu"
+          aria-expanded={isMobileMenuOpen}
+          onClick={() => setIsMobileMenuOpen(true)}
+        >
+          <Menu className="size-5" />
+        </Button>
+        <Link
+          href={bodyProps.homeHref}
+          className="flex min-w-0 items-center gap-2 rounded-md font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          <OrgMark name={organization?.name} />
+          <span className="truncate text-sm">
+            {organization?.name || "Reimbursements"}
+          </span>
+        </Link>
+      </header>
+
+      <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+        <SheetContent
+          side="left"
+          className="w-[18rem] max-w-[85vw] gap-0 p-0 lg:hidden"
+        >
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SheetDescription className="sr-only">
+            Pages in this organisation
+          </SheetDescription>
+          <SidebarBody
+            {...bodyProps}
+            onNavigate={() => setIsMobileMenuOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop: fixed sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border lg:block">
+        <SidebarBody {...bodyProps} />
+      </aside>
 
       {/* Removal Msg Modal */}
       <Dialog open={showRemovedModal} onOpenChange={setShowRemovedModal}>
