@@ -1244,7 +1244,7 @@ export default function EditExpensePage() {
 
               return (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Event Name</Label>
                       <Input
@@ -1517,11 +1517,11 @@ export default function EditExpensePage() {
                     onChange={handleFileChange}
                     disabled={isReceiptProcessing}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Upload receipts. Multiple files will be merged into a single PDF.
                   </p>
-                  <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
-                    <span>
+                  <div className="text-sm text-muted-foreground mt-1 flex items-center justify-between gap-2">
+                    <span className="min-w-0 break-all">
                       {receiptFile
                         ? receiptFile.name
                         : expense.receipt
@@ -1529,11 +1529,11 @@ export default function EditExpensePage() {
                         : "No file chosen"}
                     </span>
                     {isReceiptProcessing ? (
-                      <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                      <span className="shrink-0 text-xs text-blue-700 font-medium flex items-center gap-1">
                         <Loader2 className="w-3 h-3 animate-spin" /> Merging into PDF...
                       </span>
                     ) : receiptFile ? (
-                      <span className="text-xs text-emerald-600 font-medium">
+                      <span className="shrink-0 text-xs text-emerald-700 font-medium">
                         PDF Ready
                       </span>
                     ) : null}
@@ -1613,12 +1613,12 @@ export default function EditExpensePage() {
           setPreviewPdfModal((prev) => ({ ...prev, open }))
         }
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 sm:p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
           <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
             <DialogTitle className="text-base font-semibold text-gray-900 truncate">
               {previewPdfModal.title}
             </DialogTitle>
-            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-1 text-xs text-gray-500">
               <DialogDescription asChild>
                 <span>
                   {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0

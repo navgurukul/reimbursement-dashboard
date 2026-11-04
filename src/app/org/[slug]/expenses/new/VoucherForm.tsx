@@ -214,14 +214,14 @@ export default function VoucherForm({
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
-        <Info className="h-5 w-5 text-blue-500 mt-0.5" />
+        <Info className="h-5 w-5 shrink-0 text-blue-500 mt-0.5" />
         <p className="text-sm text-blue-700">
           Create a cash voucher when no receipt is available
         </p>
       </div>
 
-      <div className="border border-dashed border-gray-200 rounded-lg p-6">
-        <div className="grid grid-cols-2 gap-6">
+      <div className="border border-dashed border-gray-200 rounded-lg p-4 sm:p-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
           <div className="space-y-2">
             <Label htmlFor="yourName" className="text-sm font-medium">
               Your Name <span className="text-red-500">*</span>
@@ -234,7 +234,7 @@ export default function VoucherForm({
                 onChange={(e) => onInputChange("yourName", e.target.value)}
                 aria-invalid={getError("yourName") ? "true" : "false"}
                 aria-describedby={getError("yourName") ? "yourName-error" : undefined}
-                className={`w-full ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500 " : ""} ${!isEditingName ? "bg-white" : ""}`}
+                className={`w-full pr-10 ${getError("yourName") ? "border-red-500 focus:border-red-500 focus:ring-red-500 " : ""} ${!isEditingName ? "bg-white" : ""}`}
                 readOnly={!isEditingName}
                 ref={nameInputRef}
               />
@@ -252,7 +252,7 @@ export default function VoucherForm({
                         onInputChange("yourName", (formData.yourName || "").trim());
                       }
                     }}
-                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white cursor-pointer"
+                    className="absolute right-2 top-1.5 p-1 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 z-10 bg-white outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
                     {isEditingName ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
                   </button>
@@ -314,7 +314,7 @@ export default function VoucherForm({
                 readOnly={!isEditingAmount}
                 aria-invalid={getError("voucherAmount") ? "true" : "false"}
                 aria-describedby={getError("voucherAmount") ? "voucherAmount-error" : undefined}
-                className={`w-full pl-7 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingAmount ? "bg-white" : ""}`}
+                className={`w-full pl-7 pr-10 ${getError("voucherAmount") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingAmount ? "bg-white" : ""}`}
               />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -333,7 +333,7 @@ export default function VoucherForm({
                         onInputChange("voucherAmount", num);
                       }
                     }}
-                    className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white cursor-pointer"
+                    className="absolute right-2 top-1.5 p-1 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 z-10 bg-white outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
                     {isEditingAmount ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
                   </button>
@@ -385,7 +385,7 @@ export default function VoucherForm({
               readOnly={!isEditingCreditPerson}
               aria-invalid={getError("voucherCreditPerson") ? "true" : "false"}
               aria-describedby={getError("voucherCreditPerson") ? "voucherCreditPerson-error" : undefined}
-              className={`w-full ${getError("voucherCreditPerson") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingCreditPerson ? "bg-white" : ""}`}
+              className={`w-full pr-10 ${getError("voucherCreditPerson") ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""} ${!isEditingCreditPerson ? "bg-white" : ""}`}
             />
             <Tooltip>
               <TooltipTrigger asChild>
@@ -404,7 +404,7 @@ export default function VoucherForm({
                       );
                     }
                   }}
-                  className="absolute right-2 top-2 p-1 rounded text-gray-500 hover:bg-gray-100 z-10 bg-white cursor-pointer"
+                  className="absolute right-2 top-1.5 p-1 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 z-10 bg-white outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 >
                   {isEditingCreditPerson ? (
                     <Check className="h-4 w-4" />
@@ -476,14 +476,14 @@ export default function VoucherForm({
               Upload proof of payment (JPG, PNG, or PDF). Multiple files will be merged into a single PDF.
             </p>
 
-            <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
-              <span>{attachmentFile ? attachmentFile.name : "No file chosen"}</span>
+            <div className="text-sm text-muted-foreground mt-1 flex items-center justify-between gap-2">
+              <span className="min-w-0 break-all">{attachmentFile ? attachmentFile.name : "No file chosen"}</span>
               {isAttachmentProcessing ? (
-                <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                <span className="shrink-0 text-xs text-blue-700 font-medium flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" /> Merging into PDF...
                 </span>
               ) : attachmentFile ? (
-                <span className="text-xs text-emerald-600 font-medium">
+                <span className="shrink-0 text-xs text-emerald-700 font-medium">
                   PDF Ready
                 </span>
               ) : null}

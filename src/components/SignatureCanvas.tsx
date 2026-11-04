@@ -205,10 +205,11 @@ export default function SignaturePad({
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-between items-center">
-        <p className="text-sm font-medium text-gray-700">{label}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium text-foreground">{label}</p>
         {!isSigning && previewUrl && (
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={startSigning}
@@ -227,7 +228,8 @@ export default function SignaturePad({
             <button
               type="button"
               onClick={switchToDraw}
-              className={`flex-1 flex items-center justify-center py-2 px-4 text-sm font-medium transition-colors ${
+              aria-pressed={signatureMode === "draw"}
+              className={`flex-1 flex items-center justify-center py-2 px-3 text-sm font-medium transition-colors rounded-tl-lg outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50 ${
                 signatureMode === "draw"
                   ? "bg-white text-black border-b-2 border-black"
                   : "text-gray-600 hover:text-gray-900"
@@ -239,7 +241,8 @@ export default function SignaturePad({
             <button
               type="button"
               onClick={switchToUpload}
-              className={`flex-1 flex items-center justify-center py-2 px-4 text-sm font-medium transition-colors ${
+              aria-pressed={signatureMode === "upload"}
+              className={`flex-1 flex items-center justify-center py-2 px-3 text-sm font-medium transition-colors rounded-tr-lg outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50 ${
                 signatureMode === "upload"
                   ? "bg-white text-black border-b-2 border-black"
                   : "text-gray-600 hover:text-gray-900"
@@ -266,18 +269,19 @@ export default function SignaturePad({
 
             {/* Upload Area */}
             {signatureMode === "upload" && (
-              <div
-                className="h-32 flex items-center justify-center border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+              <button
+                type="button"
+                className="h-32 w-full flex items-center justify-center border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 onClick={triggerFileUpload}
               >
-                <div className="text-center">
+                <span className="block px-3 text-center">
                   <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600 mb-1">
+                  <span className="block text-sm text-gray-600 mb-1">
                     Click to upload signature image
-                  </p>
-                  <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
-                </div>
-              </div>
+                  </span>
+                  <span className="block text-xs text-gray-500">PNG, JPG up to 5MB</span>
+                </span>
+              </button>
             )}
           </div>
 
@@ -289,7 +293,7 @@ export default function SignaturePad({
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-between p-2 border-t border-gray-100 bg-gray-50 rounded-b-lg">
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2 border-t border-gray-100 bg-gray-50 rounded-b-lg">
             <div>
               {userSignatureUrl && (
                 <Button
@@ -297,13 +301,12 @@ export default function SignaturePad({
                   variant="outline"
                   size="sm"
                   onClick={useExisting}
-                  className="mr-2"
                 >
                   Use Existing
                 </Button>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="ml-auto flex gap-2">
               {signatureMode === "draw" && (
                 <>
                   <Button
@@ -318,7 +321,6 @@ export default function SignaturePad({
                     type="button"
                     size="sm"
                     onClick={save}
-                    className="bg-black text-white hover:bg-black/90"
                   >
                     <Check className="h-4 w-4 mr-1" /> Save
                   </Button>

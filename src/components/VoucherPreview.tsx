@@ -152,7 +152,7 @@ export default function VoucherPreview({
   }, [expenseId, expense?.id]);
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow border">
+    <div className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm sm:p-6">
       <div className="border-b pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -353,14 +353,14 @@ export default function VoucherPreview({
       </div>
 
       {isOpen && (
-        <div className="space-y-4 p-4">
+        <div className="space-y-4 pt-4">
           {voucherPreviewLoading ? (
             <div className="flex h-64 items-center justify-center">
               <Spinner size="lg" />
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label className="text-sm text-muted-foreground">Your Name</Label>
                   {isEditing ? (
@@ -423,7 +423,7 @@ export default function VoucherPreview({
                   <p className="text-sm text-muted-foreground">Second Approver</p>
                   <p className="font-medium">{expense?.custom_fields?.second_approver_name || "N/A"}</p>
                 </div>
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2">
                   <Label className="text-sm text-muted-foreground">Purpose</Label>
                   {isEditing ? (
                     <Textarea
@@ -432,7 +432,7 @@ export default function VoucherPreview({
                       className="mt-1 min-h-[60px]"
                     />
                   ) : (
-                    <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">{voucherDetails?.purpose || "N/A"}</div>
+                    <div className="mt-1 rounded-md border bg-muted/50 px-3 py-2 text-sm break-words">{voucherDetails?.purpose || "N/A"}</div>
                   )}
                 </div>
               </div>
@@ -450,7 +450,7 @@ export default function VoucherPreview({
 
               {isEditing && (
                 <div className="space-y-2 border-t pt-4 mt-4 mb-4">
-                  <Label htmlFor="voucher-attachment-edit" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="voucher-attachment-edit" className="text-sm font-medium text-foreground">
                     Update Attachment
                   </Label>
                   <Input
@@ -488,12 +488,12 @@ export default function VoucherPreview({
                     disabled={isAttachmentProcessing}
                     className="mt-1"
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Upload proof of payment (JPG, PNG, or PDF). Multiple files will be merged into a single PDF.
                   </p>
 
-                  <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
-                    <span>
+                  <div className="text-sm text-muted-foreground mt-1 flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">
                       {newAttachment
                         ? newAttachment.name
                         : voucherAttachmentFilename
@@ -513,10 +513,10 @@ export default function VoucherPreview({
 
                   {newAttachment && attachmentPreviewUrl && (
                     <div className="mt-2.5">
-                      <div className="p-3 bg-gray-50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                      <div className="p-3 bg-muted/50 rounded-md border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
                           <FileText className="w-4 h-4 text-red-500 shrink-0" />
-                          <p className="text-sm text-gray-700 font-medium truncate">
+                          <p className="text-sm text-foreground font-medium truncate">
                             {newAttachment.name}
                           </p>
                         </div>
@@ -578,7 +578,7 @@ export default function VoucherPreview({
                       <p className="text-sm font-medium">Attachment</p>
                     </div>
                     {previewFilename?.toLowerCase().endsWith(".pdf") ? (
-                      <div className="rounded-md border bg-white overflow-hidden" style={{ height: "500px" }}>
+                      <div className="h-[60vh] min-h-[320px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
                         <iframe src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`} className="h-full w-full border-none" title="Attachment PDF Preview" />
                       </div>
                     ) : (
@@ -606,12 +606,12 @@ export default function VoucherPreview({
           setPreviewPdfModal((prev) => ({ ...prev, open }))
         }
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
-          <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
-            <DialogTitle className="text-base font-semibold text-gray-900 truncate">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 sm:p-0 bg-background text-foreground overflow-hidden shadow-2xl">
+          <DialogHeader className="p-4 pb-3 border-b bg-muted/50 pr-10 text-left">
+            <DialogTitle className="text-base font-semibold text-foreground truncate">
               {previewPdfModal.title}
             </DialogTitle>
-            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-1 text-xs text-muted-foreground">
               <DialogDescription asChild>
                 <span>
                   {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0
@@ -631,14 +631,14 @@ export default function VoucherPreview({
               )}
             </div>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100/70 max-h-[calc(90vh-80px)]">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/50 max-h-[calc(90vh-80px)]">
             {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0 ? (
               previewPdfModal.pageImages.map((imgSrc, idx) => (
                 <div
                   key={idx}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col items-center p-3"
+                  className="bg-card rounded-lg shadow-sm border overflow-hidden flex flex-col items-center p-3"
                 >
-                  <div className="w-full flex items-center justify-between pb-2 mb-2 border-b text-xs text-gray-500 font-medium">
+                  <div className="w-full flex items-center justify-between pb-2 mb-2 border-b text-xs text-muted-foreground font-medium">
                     <span>Page {idx + 1} of {previewPdfModal.pageImages?.length}</span>
                   </div>
                   <img

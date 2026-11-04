@@ -14,10 +14,10 @@ export function PolicyAlert({ expense, policy }: PolicyAlertProps) {
   }
 
   return (
-    <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded">
-      <div className="flex items-start">
-        <AlertCircle className="h-5 w-5 text-amber-400 mr-2 mt-0.5" />
-        <div>
+    <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-md">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" aria-hidden="true" />
+        <div className="min-w-0">
           <p className="text-sm font-medium text-amber-800">
             Expense exceeds policy limit
           </p>
