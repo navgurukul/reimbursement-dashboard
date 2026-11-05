@@ -2926,6 +2926,9 @@ export default function ViewExpensePage() {
                           normalizedKey !== "second approver name" &&
                           normalizedKey !== "second approver id" &&
                           normalizedKey !== "expense credit person" &&
+                          normalizedKey !== "marked as advance" &&
+                          normalizedKey !== "marked as advance at" &&
+                          normalizedKey !== "original serial number" &&
                           normalizedKey !== "description"
                         );
                       }) // Exclude Project Of Expense and description

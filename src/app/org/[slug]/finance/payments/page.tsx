@@ -8,7 +8,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useEffect, useMemo, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { Eye, Download, Pencil, Save, Filter, AlertTriangle } from "lucide-react";
+import { Eye, Download, Pencil, Save, Filter, AlertTriangle, Loader2 } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { auth, profiles } from "@/lib/db";
 
@@ -97,6 +97,7 @@ export default function PaymentProcessingOnly() {
   const slug = params?.slug as string;
   const [processingExpenses, setProcessingExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewingId, setViewingId] = useState<string | null>(null);
   // const [editingFields, setEditingFields] = useState<Record<string, { remarks: boolean; debit: boolean }>>({});
   const [editingFields, setEditingFields] = useState<
     Record<string, { utr?: boolean; debit?: boolean }>
@@ -2208,14 +2209,20 @@ export default function PaymentProcessingOnly() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() =>
+                            onClick={() => {
+                              setViewingId(expense.id);
                               router.push(
                                 `/org/${slug}/finance/payments/${expense.id}`
-                              )
-                            }
-                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black"
+                              );
+                            }}
+                            disabled={viewingId === expense.id}
+                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black disabled:cursor-not-allowed"
                           >
-                            <Eye className="w-4 h-4" />
+                            {viewingId === expense.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
