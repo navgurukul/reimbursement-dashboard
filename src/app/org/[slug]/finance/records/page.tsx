@@ -20,6 +20,7 @@ import {
   Download,
   Tag,
   CheckCircle,
+  Loader2,
 } from "lucide-react";
 import {
   Table,
@@ -416,6 +417,9 @@ export default function PaymentRecords() {
     id: string | null;
   }>({ open: false, id: null });
   const [sendBackLoading, setSendBackLoading] = useState(false);
+  // Row whose "View details" page is still opening (spinner until navigation completes)
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [markAdvanceModal, setMarkAdvanceModal] = useState<{
     open: boolean;
     id: string | null;
@@ -435,19 +439,6 @@ export default function PaymentRecords() {
     sNo: "",
   });
   const [confirmBankLoading, setConfirmBankLoading] = useState(false);
-  const [editModal, setEditModal] = useState<{
-    open: boolean;
-    record: any | null;
-  }>({ open: false, record: null });
-  const [editForm, setEditForm] = useState({
-    expense_type: "",
-    event_id: "",
-    location: "",
-    amount: "",
-    utr: "",
-    unique_id: "",
-  });
-  const [savingEdit, setSavingEdit] = useState(false);
 
   // Export state
   const [showExportModal, setShowExportModal] = useState(false);
@@ -1677,83 +1668,6 @@ export default function PaymentRecords() {
       });
     } finally {
       setMarkAdvanceLoading(false);
-    }
-  };
-
-  const openEditModal = async (record: any) => {
-    // The event dropdown and title lookup come from the full list.
-    if (!(await ensureFullDatasetWithToast())) return;
-    setEditForm({
-      expense_type: record.expense_type || "",
-      event_id: record.event_id || "",
-      location: record.location || "",
-      amount:
-        record.amount !== undefined
-          ? String(record.amount)
-          : record.amount !== undefined
-            ? String(record.amount)
-            : "",
-      utr: record.utr || "",
-      unique_id: record.unique_id || "",
-    });
-    setEditModal({ open: true, record });
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editModal.record) return;
-
-    const parsedAmount = Number(editForm.amount);
-    if (
-      editForm.amount !== "" &&
-      !Number.isFinite(parsedAmount)
-    ) {
-      toast.error("Please enter a valid amount");
-      return;
-    }
-
-    const payload = {
-      expense_type:
-        editForm.expense_type || editModal.record.expense_type || null,
-      event_id: editForm.event_id || editModal.record.event_id || null,
-      location: editForm.location || editModal.record.location || null,
-      approved_amount:
-        editForm.amount === ""
-          ? editModal.record.approved_amount ?? null
-          : parsedAmount,
-      utr: editForm.utr.trim() || null,
-      unique_id: editForm.unique_id.trim() || null,
-    };
-
-    const updatedEventTitle = payload.event_id
-      ? eventTitleLookup[payload.event_id] || editModal.record.event_title || "N/A"
-      : editModal.record.event_title || "N/A";
-
-    try {
-      setSavingEdit(true);
-
-      const { error } = await supabase
-        .from("expense_new")
-        .update(payload)
-        .eq("id", editModal.record.id);
-
-      if (error) throw error;
-
-      const updateList = (list: any[]) =>
-        list.map((r: any) =>
-          r.id === editModal.record.id
-            ? { ...r, ...payload, event_title: updatedEventTitle }
-            : r
-        );
-
-      setRecords((prev) => updateList(prev));
-      setFilteredRecords((prev) => updateList(prev));
-
-      toast.success("Record updated");
-      setEditModal({ open: false, record: null });
-    } catch (err: any) {
-      toast.error("Failed to update record", { description: err.message });
-    } finally {
-      setSavingEdit(false);
     }
   };
 
@@ -3551,7 +3465,9 @@ export default function PaymentRecords() {
                             <Button
                               size="sm"
                               variant="outline"
+                              disabled={viewingId === record.id}
                               onClick={() => {
+                                setViewingId(record.id);
                                 const params = new URLSearchParams();
                                 params.set("activeTab", activeTab);
                                 params.set("page", String(pagination.currentPage));
@@ -3563,7 +3479,11 @@ export default function PaymentRecords() {
                               }}
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
                             >
-                              <Eye className="w-4 h-4" />
+                              {viewingId === record.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -3577,29 +3497,17 @@ export default function PaymentRecords() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => openEditModal(record)}
-                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Edit record</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="outline"
+                              disabled={sendBackLoading && sendBackModal.id === record.id}
                               onClick={() =>
                                 setSendBackModal({ open: true, id: record.id })
                               }
                               className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
                             >
-                              <Undo2 className="w-4 h-4" />
+                              {sendBackLoading && sendBackModal.id === record.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Undo2 className="w-4 h-4" />
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -3610,12 +3518,17 @@ export default function PaymentRecords() {
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={deletingId === record.id}
                         onClick={() =>
                           setDeleteModal({ open: true, id: record.id })
                         }
                         className="flex items-center gap-2 border border-gray-300 hover:bg-red-100 text-red-600 cursor-pointer"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {deletingId === record.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </Button>
                     </div>
                   </TableCell>
@@ -3636,147 +3549,6 @@ export default function PaymentRecords() {
           itemLabel="Records"
         />
       )}
-
-      {/* Edit record modal */}
-      <Dialog
-        open={editModal.open}
-        onOpenChange={(open) =>
-          setEditModal((prev) => ({ open, record: open ? prev.record : null }))
-        }
-      >
-        <DialogContent className="max-w-xl sm:max-w-1xl">
-          <DialogHeader>
-            <DialogTitle>Edit payment record</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
-            <div className="grid gap-3 text-sm">
-              <div>
-                <label className="text-sm font-medium">Unique ID</label>
-                <input
-                  type="text"
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
-                  value={editForm.unique_id}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, unique_id: e.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Expense Type</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
-                  value={editForm.expense_type}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      expense_type: e.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Select expense type</option>
-                  {expenseTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Event Name</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
-                  value={editForm.event_id}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      event_id: e.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Select event</option>
-                  {eventOptions.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      {ev.title}
-                    </option>
-                  ))}
-                  {editModal.record?.event_id &&
-                    eventOptions.every((ev) => ev.id !== editModal.record?.event_id) && (
-                      <option value={editModal.record.event_id}>
-                        {editModal.record.event_title || "Current event"}
-                      </option>
-                    )}
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Project of Expense</label>
-                <select
-                  className="mt-1 block w-full border rounded px-3 py-2 bg-white"
-                  value={editForm.location}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      location: e.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Select location</option>
-                  {locations.map((loc) => (
-                    <option key={loc} value={loc}>
-                      {loc}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="mt-1 block w-full border rounded px-3 py-2"
-                  value={editForm.amount}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      amount: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">UTR</label>
-                <input
-                  type="text"
-                  className="mt-1 block w-full border rounded px-3 py-2"
-                  value={editForm.utr}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, utr: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-            <p className="text-xs text-gray-500">
-              Finance-only changes here will not alter the creator&apos;s submitted expense fields.
-            </p>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setEditModal({ open: false, record: null })}
-              className="cursor-pointer"
-              disabled={savingEdit}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveEdit}
-              className="cursor-pointer"
-              disabled={savingEdit}
-            >
-              {savingEdit ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Password Modal for UTR Editing */}
       <Dialog
@@ -3877,7 +3649,13 @@ export default function PaymentRecords() {
               className="cursor-pointer"
               disabled={sendBackLoading}
             >
-              {sendBackLoading ? "Sending..." : "Confirm"}
+              {sendBackLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Sending...
+                </>
+              ) : (
+                "Confirm"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3972,14 +3750,17 @@ export default function PaymentRecords() {
               variant="outline"
               onClick={() => setDeleteModal({ open: false, id: null })}
               className="cursor-pointer"
+              disabled={deletingId !== null}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
+              disabled={deletingId !== null}
               onClick={async () => {
                 const id = deleteModal.id;
                 if (!id) return;
+                setDeletingId(id);
                 try {
                   // Mark the record as removed so it doesn't reappear in Payment Processing
                   const { error } = await supabase
@@ -4001,12 +3782,19 @@ export default function PaymentRecords() {
                     description: err.message,
                   });
                 } finally {
+                  setDeletingId(null);
                   setDeleteModal({ open: false, id: null });
                 }
               }}
               className="cursor-pointer"
             >
-              Delete
+              {deletingId !== null ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,7 +6,7 @@ import supabase from "@/lib/supabase";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, Filter } from "lucide-react";
+import { Eye, Filter, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -110,6 +110,7 @@ export default function FinanceReview() {
 
   const [expenseList, setExpenseList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewingId, setViewingId] = useState<string | null>(null);
   const [confirmApproveAllOpen, setConfirmApproveAllOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [hasAppliedHighlight, setHasAppliedHighlight] = useState(false);
@@ -471,6 +472,7 @@ export default function FinanceReview() {
 
   const handleViewClick = (expense: any) => {
     if (!organization?.slug || !expense?.id) return;
+    setViewingId(expense.id);
     const params = new URLSearchParams();
     params.set("tab", "approvals");
     params.set("expID", expense.id);
@@ -1104,9 +1106,14 @@ export default function FinanceReview() {
                           <TooltipTrigger asChild>
                             <button
                               onClick={() => handleViewClick(expense)}
-                              className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black"
+                              disabled={viewingId === expense.id}
+                              className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black disabled:cursor-not-allowed"
                             >
-                              <Eye className="w-4 h-4" />
+                              {viewingId === expense.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
 import { orgSettings, expenses, expenseHistory, vouchers, profiles, expenseEvents, organizations, } from "@/lib/db";
 import { toast } from "sonner";
@@ -111,10 +111,23 @@ function SearchableDropdown({
 export default function EditExpensePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const { organization, userRole } = useOrgStore();
   const orgId = organization?.id!;
   const expenseId = params.id as string;
   const slug = params.slug as string;
+
+  const isFromRecords = searchParams.get("from") === "records";
+  const recordsQuery = new URLSearchParams();
+  const activeTabParam = searchParams.get("activeTab");
+  if (activeTabParam) recordsQuery.set("activeTab", activeTabParam);
+  const pageParam = searchParams.get("page");
+  if (pageParam) recordsQuery.set("page", pageParam);
+  const sNoParam = searchParams.get("sNo");
+  if (sNoParam) recordsQuery.set("sNo", sNoParam);
+  const recordsBackUrl = `/org/${slug}/finance/records/${expenseId}${
+    recordsQuery.toString() ? `?${recordsQuery.toString()}` : ""
+  }`;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -157,6 +170,32 @@ export default function EditExpensePage() {
     };
 
     return labelMap[key] || key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  const isExcludedCustomField = (key: string) => {
+    const norm = key.replace(/[\s_-]+/g, "").toLowerCase();
+    const excluded = [
+      "location",
+      "locationofexpense",
+      "projectofexpense",
+      "approver",
+      "approvername",
+      "secondapproverid",
+      "secondapprovername",
+      "expensecreditperson",
+      "markedasadvance",
+      "markedasadvanceat",
+      "originalserialnumber",
+      "originalsno",
+      "originalserialno",
+      "serialnumber",
+      "sno",
+      "isvoucher",
+      "yourname",
+      "voucherdate",
+      "voucheramount",
+    ];
+    return excluded.includes(norm);
   };
 
   useEffect(() => {
@@ -1036,7 +1075,11 @@ export default function EditExpensePage() {
       try {
         sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
       } catch (e) { }
-      router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
+      if (isFromRecords) {
+        router.push(recordsBackUrl);
+      } else {
+        router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
+      }
     } catch (error: any) {
       console.error("Error updating expense:", error);
       toast.error("Failed to update expense", {
@@ -1089,11 +1132,15 @@ export default function EditExpensePage() {
             try {
               sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
             } catch (e) { }
-            router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
+            if (isFromRecords) {
+              router.push(recordsBackUrl);
+            } else {
+              router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
+            }
           }}
         >
           <ArrowLeft />
-          Back to Expense
+          {isFromRecords ? "Back to Records" : "Back to Expense"}
         </Button>
         <div className="flex gap-2">
           <Button onClick={(e) => handleSubmit(e, false)} disabled={saving || isReceiptProcessing} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
@@ -1390,14 +1437,7 @@ export default function EditExpensePage() {
 
                   {/* Custom fields */}
                   {Object.entries(expense.custom_fields)
-                    .filter(([key]) => {
-                      const normalizedKey = key.replace(/_/g, " ").toLowerCase();
-                      const excludedKeys = [
-                        "location", "location of expense", "project of expense",
-                        "approver name", "second approver id", "second approver name"
-                      ];
-                      return !excludedKeys.includes(normalizedKey);
-                    })
+                    .filter(([key]) => !isExcludedCustomField(key))
                     .map(([key, value]) => {
                       // Check if this field is location_of_expense and has options
                       const normalizedKey = key.replace(/_/g, " ").toLowerCase();
