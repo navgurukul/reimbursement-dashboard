@@ -13,7 +13,7 @@ import {
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock, ArrowLeft, Pencil } from "lucide-react";
+import { FileText, Clock, ArrowLeft, Pencil, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DetailTableSkeleton } from "@/components/ui/detail-table-skeleton";
 import {
@@ -99,6 +99,7 @@ export default function RecordsDetails() {
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [comment, setComment] = useState("");
   const [eventTitle, setEventTitle] = useState<string | null>(null);
+  const [isNavigatingToEdit, setIsNavigatingToEdit] = useState(false);
 
   useEffect(() => {
     const fetchExpense = async () => {
@@ -223,8 +224,10 @@ export default function RecordsDetails() {
         <div className="flex items-center gap-2">
           {!loading && expense && (
             <Button
-              variant="outline"
+              variant="ghost"
+              disabled={isNavigatingToEdit}
               onClick={() => {
+                setIsNavigatingToEdit(true);
                 const query = new URLSearchParams();
                 query.set("activeTab", activeTab);
                 const page = searchParams.get("page");
@@ -235,9 +238,17 @@ export default function RecordsDetails() {
                   `/org/${slug}/finance/records/${expenseId}/edit?${query.toString()}`
                 );
               }}
-              className="flex items-center gap-2 cursor-pointer"
+              className={`flex items-center gap-1.5 h-8 px-2 text-xs transition-opacity cursor-pointer ${
+                isNavigatingToEdit
+                  ? "opacity-100 text-black"
+                  : "text-white hover:text-black opacity-20 hover:opacity-100"
+              }`}
             >
-              <Pencil className="w-4 h-4" />
+              {isNavigatingToEdit ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Pencil className="w-4 h-4" />
+              )}
               Edit Expense
             </Button>
           )}
