@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSignedInUser, unauthorized } from "@/lib/server/auth";
 
 interface Recipient {
   email: string;
@@ -35,6 +36,8 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function POST(req: NextRequest) {
+  if (!(await getSignedInUser())) return unauthorized();
+
   try {
     const {
       expenseId,

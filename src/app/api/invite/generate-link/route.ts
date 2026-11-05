@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import supabase from "@/lib/supabase";
+import {
+  INVITABLE_ROLES,
+  ORG_MANAGER_ROLES,
+  forbidden,
+  getOrgRole,
+  getSignedInUser,
+  unauthorized,
+  type OrgRole,
+} from "@/lib/server/auth";
 
 export async function POST(request: NextRequest) {
+  const caller = await getSignedInUser();
+  if (!caller) return unauthorized();
+
   try {
     const { role, orgId, orgName, userId, maxUses, expiresInDays } =
       await request.json();
@@ -12,6 +24,16 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    if (!INVITABLE_ROLES.includes(role as OrgRole)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+
+    // Links are created by the signed-in user; reject requests made on someone else's behalf.
+    if (userId !== caller.id) return forbidden();
+
+    const callerRole = await getOrgRole(caller.id, orgId);
+    if (!callerRole || !ORG_MANAGER_ROLES.includes(callerRole)) return forbidden();
 
     // Create invite link record
     const { data: inviteLink, error } = await supabase

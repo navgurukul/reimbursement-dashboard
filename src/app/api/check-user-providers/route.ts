@@ -1,30 +1,16 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(request: Request) {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
-  ) {
+  let supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch {
     return NextResponse.json(
-      {
-        error: "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY or URL missing",
-      },
+      { error: "Supabase service role key or URL missing" },
       { status: 500 }
     );
   }
-
-  // Initialize Supabase admin client with service role key at runtime
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    }
-  );
   try {
     const { email } = await request.json();
 

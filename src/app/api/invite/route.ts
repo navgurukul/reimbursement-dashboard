@@ -2,6 +2,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { invites } from "@/lib/db";
 import nodemailer from "nodemailer";
+import {
+  INVITABLE_ROLES,
+  ORG_MANAGER_ROLES,
+  forbidden,
+  getOrgRole,
+  getSignedInUser,
+  unauthorized,
+  type OrgRole,
+} from "@/lib/server/auth";
 
 // Configure Nodemailer transporter with NEXT_PUBLIC_ prefixed variables
 const transporter = nodemailer.createTransport({
@@ -15,6 +24,9 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function POST(req: NextRequest) {
+  const caller = await getSignedInUser();
+  if (!caller) return unauthorized();
+
   try {
     const { email, role, orgId, orgName } = await req.json();
 
@@ -25,6 +37,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    if (!INVITABLE_ROLES.includes(role as OrgRole)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+
+    const callerRole = await getOrgRole(caller.id, orgId);
+    if (!callerRole || !ORG_MANAGER_ROLES.includes(callerRole)) return forbidden();
 
     // Log SMTP configuration for debugging
     // console.log("SMTP Configuration:", {
