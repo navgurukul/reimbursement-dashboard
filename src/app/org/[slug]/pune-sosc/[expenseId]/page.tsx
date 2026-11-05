@@ -25,6 +25,7 @@ import VoucherPreview from "@/components/VoucherPreview";
 import ExpenseHistory from "../../expenses/[id]/history/expense-history";
 import { ExpenseComments } from "../../expenses/[id]/history/expense-comments";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/page-header";
 
 // Helper function to get signature URL from different buckets
 async function getSignatureUrl(path: string): Promise<string | null> {
@@ -131,10 +132,11 @@ export default function PuneSoSCExpenseDetailsPage() {
 
   if (!loading && !expense) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-6">
         <Button
           variant="ghost"
-          className="w-fit gap-2"
+          size="sm"
+          className="-ml-2 w-fit text-muted-foreground"
           onClick={() => router.push(`/org/${slug}/pune-sosc`)}
         >
           <ArrowLeft className="h-4 w-4" />
@@ -150,30 +152,35 @@ export default function PuneSoSCExpenseDetailsPage() {
   }
 
   return (
-    <div className="space-y-6 p-0">
-      <div className="flex items-center justify-between gap-4">
-        <Button
-          variant="link"
-          className="w-fit gap-2 -ml-2 text-gray-600 hover:text-gray-900"
-          onClick={() => {
-            const query = new URLSearchParams();
-            const page = searchParams.get("page");
-            if (page) query.set("page", page);
-            if (expenseId) query.set("expID", expenseId as string);
-            router.push(`/org/${slug}/pune-sosc?${query.toString()}`);
-          }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Pune SoSC
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 w-fit text-muted-foreground"
+            onClick={() => {
+              const query = new URLSearchParams();
+              const page = searchParams.get("page");
+              if (page) query.set("page", page);
+              if (expenseId) query.set("expID", expenseId as string);
+              router.push(`/org/${slug}/pune-sosc?${query.toString()}`);
+            }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Pune SoSC
+          </Button>
+        }
+        title="Pune SoSC Expense Details"
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 min-w-0">
           <Card className="shadow-sm overflow-hidden">
-            <CardHeader className="border-b bg-gray-50/60">
-              <CardTitle className="text-lg flex items-center gap-2 ">
-                Pune SoSC Expense Details
+            <CardHeader className="border-b bg-muted/50">
+              <CardTitle className="card-title flex items-center gap-2">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                Details
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
@@ -188,44 +195,44 @@ export default function PuneSoSCExpenseDetailsPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Expense Type</p>
-                      <p>{expense.expense_type || "Not Provided"}</p>
+                  <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Expense Type</p>
+                      <p className="text-sm text-foreground break-words">{expense.expense_type || "Not Provided"}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Event Name</p>
-                      <p>{eventTitle}</p>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Event Name</p>
+                      <p className="text-sm text-foreground break-words">{eventTitle}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Project of Expense</p>
-                      <p>{expense.location || "CP Pune-SoSC"}</p>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Project of Expense</p>
+                      <p className="text-sm text-foreground break-words">{expense.location || "CP Pune-SoSC"}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Unique ID</p>
-                      <p>{expense.unique_id || expense.id}</p>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Unique ID</p>
+                      <p className="text-sm text-foreground break-words">{expense.unique_id || expense.id}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Amount</p>
-                      <p>{formatCurrency(Number(expense.amount || 0))}</p>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Amount</p>
+                      <p className="text-sm text-foreground break-words">{formatCurrency(Number(expense.amount || 0))}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Approved Amount</p>
-                      <p className="text-sm text-green-600 mt-1">{expense.approved_amount !== null && expense.approved_amount !== undefined ? formatCurrency(Number(expense.approved_amount)) : "NA"}</p>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Approved Amount</p>
+                      <p className="text-sm text-green-700 break-words">{expense.approved_amount !== null && expense.approved_amount !== undefined ? formatCurrency(Number(expense.approved_amount)) : "NA"}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Date</p>
-                      <p>{expense.date ? new Date(expense.date).toLocaleDateString("en-GB") : "—"}</p>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Date</p>
+                      <p className="text-sm text-foreground break-words">{expense.date ? new Date(expense.date).toLocaleDateString("en-GB") : "—"}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Status</p>
-                      <p className={`text-sm mt-1 capitalize ${expense.status === 'approved' ? 'text-green-600' : 'text-gray-900'}`}>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Status</p>
+                      <p className={`text-sm capitalize break-words ${expense.status === 'approved' ? 'text-green-700' : 'text-foreground'}`}>
                         {expense.status}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Approver</p>
-                      <p>{expense.approver?.full_name || expense.approver_id || "—"}</p>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Approver</p>
+                      <p className="text-sm text-foreground break-words">{expense.approver?.full_name || expense.approver_id || "—"}</p>
                     </div>
                   </div>
                 )}
@@ -251,7 +258,7 @@ export default function PuneSoSCExpenseDetailsPage() {
                   <p className="text-sm font-medium text-muted-foreground mb-2">
                     User Signature
                   </p>
-                  <div className="border rounded-md p-4 bg-white">
+                  <div className="border rounded-md p-4 bg-card">
                     <img
                       src={signatureUrl}
                       alt="Signature"
@@ -263,9 +270,9 @@ export default function PuneSoSCExpenseDetailsPage() {
 
               {!loading && expense?.custom_fields?.description && (
                 <div className="space-y-2">
-                  <h3 className="text-sm text-gray-500">Description</h3>
-                  <div className="border rounded-md px-4 py-3 flex justify-between items-center bg-white">
-                    <p className="text-sm text-gray-700">{expense.custom_fields.description}</p>
+                  <h3 className="text-xs font-medium text-muted-foreground">Description</h3>
+                  <div className="border rounded-md px-4 py-3 flex justify-between items-center bg-card">
+                    <p className="min-w-0 text-sm text-foreground break-words">{expense.custom_fields.description}</p>
                   </div>
                 </div>
               )}
@@ -279,10 +286,10 @@ export default function PuneSoSCExpenseDetailsPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           <Card className="shadow-sm">
-            <CardHeader className="border-b bg-gray-50/60">
-              <CardTitle className="text-lg flex items-center gap-2">
+            <CardHeader className="border-b bg-muted/50">
+              <CardTitle className="card-title flex items-center gap-2">
                 <Clock className="h-5 w-5 text-muted-foreground" />
                 Activity History
               </CardTitle>

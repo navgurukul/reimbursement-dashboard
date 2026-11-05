@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ import {
   Trash2,
   Info,
   FileText,
+  Plus,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -3006,61 +3008,67 @@ export default function NewExpensePage() {
     (col) => col.visible && !defaultSystemFields.includes(col.key)
   );
 
+  // Same label for the Save button in the page header and at the end of the form.
+  const saveExpenseButtonContent = saving ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      Saving...
+    </>
+  ) : (
+    <>
+      <svg
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      Save Expense
+    </>
+  );
+
   return (
-    <div className="max-w-[800px] mx-auto py-6">
-      <div className="flex items-center justify-between mb-6">
-        <Button
-          variant="link"
-          onClick={() => {
-            if (eventIdFromQuery) {
-              router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
-            } else {
-              router.push(`/org/${slug}/expenses`);
-            }
-          }}
-          className="text-gray-600 hover:text-gray-900 cursor-pointer"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={saving}
-          variant="neutral"
-          className="cursor-pointer"
-        >
-          {saving ? (
-            <>
-              <Spinner className="mr-2 h-4 w-4" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <svg
-                className="mr-2 h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Save Expense
-            </>
-          )}
-        </Button>
-      </div>
+    <div className="mx-auto max-w-[800px] space-y-6">
+      <PageHeader
+        title="New Expense"
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (eventIdFromQuery) {
+                router.push(`/org/${slug}/expense-events/${eventIdFromQuery}`);
+              } else {
+                router.push(`/org/${slug}/expenses`);
+              }
+            }}
+            className="-ml-2 w-fit"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {eventIdFromQuery ? "Back to Event" : "Back to Expenses"}
+          </Button>
+        }
+        actions={
+          <Button
+            onClick={handleSubmit}
+            disabled={saving}
+            variant="neutral"
+          >
+            {saveExpenseButtonContent}
+          </Button>
+        }
+      />
 
       <Card className="shadow-sm">
-        <CardHeader className="border-b">
-          <CardTitle className="text-lg font-medium">New Expense</CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 pt-0">
+        <CardContent className="px-4 py-2 sm:px-6">
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* Unique Expense ID - editable by user */}
             <div className="space-y-2">
@@ -3073,7 +3081,13 @@ export default function NewExpensePage() {
                 </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                    <button
+                      type="button"
+                      aria-label="About Payment Unique ID"
+                      className="rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-help"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-xs">
                     <p>A unique identifier used for payment processing</p>
@@ -3112,7 +3126,7 @@ export default function NewExpensePage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="sm:w-40 cursor-pointer bg-gray-300"
+                  className="sm:w-40"
                   onClick={() => {
                     // setBankSearchQuery(formData.unique_id || user?.email || "");
                     setBankSearchQuery("");
@@ -3133,15 +3147,15 @@ export default function NewExpensePage() {
               )}
 
               {uniqueIdUnavailable && !formData.unique_id && (
-                <p className="text-xs px-2 py-0 text-gray-600">
+                <p className="text-xs text-muted-foreground">
                   Unique ID is not available for your login email. Please search
                   for a user.
                 </p>
               )}
 
               {(selectedUniqueIdUser || prefilledUniqueId) && (
-                <div className="bg-white px-2 py-0 text-sm text-gray-800">
-                  <p className="mt-1 text-xs text-gray-600">
+                <div className="text-sm">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Pre-filled Payment Unique ID; allows searching and replacing
                     with another user’s Unique ID.
                   </p>
@@ -3153,7 +3167,7 @@ export default function NewExpensePage() {
               open={uniqueIdModalOpen}
               onOpenChange={setUniqueIdModalOpen}
             >
-              <DialogContent className="max-w-xl">
+              <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                   <DialogTitle>Select a user</DialogTitle>
                   <DialogDescription>
@@ -3218,15 +3232,15 @@ export default function NewExpensePage() {
                                   onClick={() => handleUniqueIdSelect(row)}
                                   className="flex w-full items-center justify-between gap-3 rounded-lg border bg-white px-3 py-3 text-left shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer"
                                 >
-                                  <div>
+                                  <div className="min-w-0">
                                     <p className="text-sm font-semibold text-gray-900">
                                       {row.account_holder || "Unnamed account"}
                                     </p>
-                                    <p className="text-xs text-gray-600">
+                                    <p className="text-xs text-gray-600 break-all">
                                       {row.email || "No email available"}
                                     </p>
                                   </div>
-                                  <div className="text-right">
+                                  <div className="shrink-0 text-right">
                                     <p className="font-mono text-sm text-gray-900">
                                       {row.unique_id || "—"}
                                     </p>
@@ -3301,7 +3315,7 @@ export default function NewExpensePage() {
                 if (!open) setDuplicateMatchDetails([]);
               }}
             >
-              <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden">
+              <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden">
                 <DialogHeader>
                   <DialogTitle>Duplicate Expense Entry Detected</DialogTitle>
                   <DialogDescription>
@@ -3383,7 +3397,7 @@ export default function NewExpensePage() {
             </Dialog>
 
             <Dialog open={oooModalOpen} onOpenChange={setOooModalOpen}>
-              <DialogContent className="max-w-md">
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Approver On Leave</DialogTitle>
                   <DialogDescription>
@@ -3403,12 +3417,12 @@ export default function NewExpensePage() {
                 setPreviewPdfModal((prev) => ({ ...prev, open }))
               }
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+              <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 sm:p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
                 <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
                   <DialogTitle className="text-base font-semibold text-gray-900 truncate">
                     {previewPdfModal.title}
                   </DialogTitle>
-                  <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mt-1 text-xs text-gray-500">
                     <DialogDescription asChild>
                       <span>
                         {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0
@@ -3601,7 +3615,7 @@ export default function NewExpensePage() {
             {/* Expense Type, Amount, Date, Approver, Description */}
             <div className="space-y-6">
               {/* Grid Row: Date and Approver */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {columns.map((col) => {
                   if (
                     !col.visible ||
@@ -4221,13 +4235,14 @@ export default function NewExpensePage() {
 
             <div className="space-y-4">
               <div className="p-4 bg-gray-50/50 rounded-lg border">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <svg
-                      className="h-5 w-5 text-gray-400"
+                      className="h-5 w-5 shrink-0 text-gray-400"
                       viewBox="0 0 24 24"
                       fill="none"
                       xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
                     >
                       <path
                         d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
@@ -4239,7 +4254,7 @@ export default function NewExpensePage() {
                     </svg>
                     <Label
                       htmlFor="voucher-switch"
-                      className="text-sm font-medium text-gray-900 cursor-pointer"
+                      className="text-sm font-medium leading-snug text-gray-900 cursor-pointer"
                     >
                       No receipt? Create a voucher instead
                     </Label>
@@ -4292,14 +4307,14 @@ export default function NewExpensePage() {
                         </p>
                       )}
 
-                      <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
-                        <span>{receiptFile ? receiptFile.name : "No file chosen"}</span>
+                      <div className="text-sm text-muted-foreground mt-1 flex items-center justify-between gap-2">
+                        <span className="min-w-0 break-all">{receiptFile ? receiptFile.name : "No file chosen"}</span>
                         {isReceiptProcessing ? (
-                          <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                          <span className="shrink-0 text-xs text-blue-700 font-medium flex items-center gap-1">
                             <Spinner className="w-3 h-3 animate-spin" /> Merging into PDF...
                           </span>
                         ) : receiptFile ? (
-                          <span className="text-xs text-emerald-600 font-medium">
+                          <span className="shrink-0 text-xs text-emerald-700 font-medium">
                             PDF Ready
                           </span>
                         ) : null}
@@ -4382,17 +4397,20 @@ export default function NewExpensePage() {
             {expenseItems.length > 0 && (
               <div className="space-y-6">
                 {expenseItems.map((id, index) => (
-                  <div key={id} className="border rounded-lg bg-white p-5">
-                    <div className="flex justify-between items-center mb-3">
-                      <h1 className="text-xl font-medium text-gray-700">
+                  <div key={id} className="border-t pt-5 sm:rounded-lg sm:border sm:bg-card sm:p-5">
+                    <div className="flex justify-between items-center gap-2 mb-3">
+                      <h2 className="subsection-heading">
                         Expense {index + 2}
-                      </h1>
+                      </h2>
 
                       <Button
                         type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={() => deleteItem(id)}
-                        className="p-2 rounded-md bg-white-200 hover:bg-red-200 text-red-600 hover:text-red-700 shadow-sm transition duration-200 cursor-pointer"
+                        className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                         title="Delete"
+                        aria-label={`Delete expense ${index + 2}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -4502,7 +4520,7 @@ export default function NewExpensePage() {
                       ))}
 
                     {/* Expense Type, Amount, Date */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       {columns
                         .filter(
                           (col) =>
@@ -4787,7 +4805,7 @@ export default function NewExpensePage() {
                         return null;
 
                       return (
-                        <div key={col.key} className="space-y-2">
+                        <div key={col.key} className="space-y-2 mt-5">
                           <Label
                             htmlFor={col.key}
                             className="text-sm font-medium text-gray-700"
@@ -5209,13 +5227,14 @@ export default function NewExpensePage() {
                       </Label>
 
                       <div className="p-4 bg-gray-50/50 rounded-lg border">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
                             <svg
-                              className="h-5 w-5 text-gray-400"
+                              className="h-5 w-5 shrink-0 text-gray-400"
                               viewBox="0 0 24 24"
                               fill="none"
                               xmlns="http://www.w3.org/2000/svg"
+                              aria-hidden="true"
                             >
                               <path
                                 d="M8 7H16M8 12H16M8 17H12M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
@@ -5227,7 +5246,7 @@ export default function NewExpensePage() {
                             </svg>
                             <Label
                               htmlFor={`voucher-switch-${id}`}
-                              className="text-sm font-medium text-gray-900 cursor-pointer"
+                              className="text-sm font-medium leading-snug text-gray-900 cursor-pointer"
                             >
                               No receipt? Create a voucher instead
                             </Label>
@@ -5285,18 +5304,18 @@ export default function NewExpensePage() {
                                 </p>
                               )}
 
-                              <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
-                                <span>
+                              <div className="text-sm text-muted-foreground mt-1 flex items-center justify-between gap-2">
+                                <span className="min-w-0 break-all">
                                   {receiptFiles[id] && receiptFiles[id]!.name
                                     ? receiptFiles[id]!.name
                                     : "No file chosen"}
                                 </span>
                                 {receiptProcessingMap[id] ? (
-                                  <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                                  <span className="shrink-0 text-xs text-blue-700 font-medium flex items-center gap-1">
                                     <Spinner className="w-3 h-3 animate-spin" /> Merging into PDF...
                                   </span>
                                 ) : receiptFiles[id] ? (
-                                  <span className="text-xs text-emerald-600 font-medium flex items-end">
+                                  <span className="shrink-0 text-xs text-emerald-700 font-medium flex items-end">
                                     PDF Ready
                                   </span>
                                 ) : null}
@@ -5413,10 +5432,11 @@ export default function NewExpensePage() {
             <Button
               type="button"
               onClick={handleAddItem}
-              variant="neutral"
-              className="cursor-pointer"
+              variant="outline"
+              className="w-full sm:w-auto"
             >
-              ➕ Add Another Expense Item
+              <Plus className="h-4 w-4" />
+              Add Another Expense Item
             </Button>
 
             {/* Expense Signature Section - Only shown when voucher is not open */}
@@ -5489,6 +5509,19 @@ export default function NewExpensePage() {
               }
               return null;
             })()}
+
+            {/* Primary action repeated at the end of this long form (same handler as the header button). */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                variant="neutral"
+                className="w-full sm:w-auto"
+              >
+                {saveExpenseButtonContent}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

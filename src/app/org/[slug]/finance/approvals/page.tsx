@@ -41,6 +41,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -619,13 +621,18 @@ export default function FinanceReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end gap-2 mb-1">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {/* <h2 className="subsection-heading">Finance Review</h2> */}
-        <Button variant="outline" onClick={() => setFilterOpen((s) => !s)}>
-          <Filter className="mr-2 h-4 w-4" />
+        <Button
+          variant="outline"
+          className="flex-1 sm:flex-none"
+          onClick={() => setFilterOpen((s) => !s)}
+        >
+          <Filter className="h-4 w-4" />
           Filters
         </Button>
         <Button
+          className="flex-1 sm:flex-none"
           onClick={() => setConfirmApproveAllOpen(true)}
           disabled={filteredExpenseList.length === 0 || loading}
         >
@@ -634,17 +641,17 @@ export default function FinanceReview() {
       </div>
 
       {filterOpen && (
-        <div className="p-4 rounded-md border shadow-sm bg-white">
+        <div className="rounded-xl border bg-card p-4 shadow-xs">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="text-sm font-medium">Unique ID</label>
+              <Label htmlFor="approvals-filter-unique-id">Unique ID</Label>
               <Select
                 value={filters.uniqueId || "All Unique IDs"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, uniqueId: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="approvals-filter-unique-id" className="mt-2 w-full">
                   <SelectValue placeholder="All Unique IDs" />
                 </SelectTrigger>
                 <SelectContent
@@ -665,14 +672,14 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Expense Type</label>
+              <Label htmlFor="approvals-filter-expense-type">Expense Type</Label>
               <Select
                 value={filters.expenseType || "All Expense Type"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, expenseType: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="approvals-filter-expense-type" className="mt-2 w-full">
                   <SelectValue placeholder="All Expense Type" />
                 </SelectTrigger>
                 <SelectContent
@@ -693,14 +700,14 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Event Name</label>
+              <Label htmlFor="approvals-filter-event-name">Event Name</Label>
               <Select
                 value={filters.eventName || "All Events"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, eventName: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="approvals-filter-event-name" className="mt-2 w-full">
                   <SelectValue placeholder="All Events" />
                 </SelectTrigger>
                 <SelectContent
@@ -721,14 +728,14 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Project of Expense</label>
+              <Label htmlFor="approvals-filter-location">Project of Expense</Label>
               <Select
                 value={filters.location || "All Locations"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, location: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="approvals-filter-location" className="mt-2 w-full">
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent
@@ -749,23 +756,24 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Amount Range</label>
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
+              <Label htmlFor="approvals-filter-min-amount">Amount Range</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  id="approvals-filter-min-amount"
                   type="number"
                   min={0}
                   placeholder="Min"
-                  className="w-full border rounded px-3 py-2 bg-white"
+                  aria-label="Min amount"
                   value={filters.minAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, minAmount: e.target.value }))
                   }
                 />
-                <input
+                <Input
                   type="number"
                   min={0}
                   placeholder="Max"
-                  className="w-full border rounded px-3 py-2 bg-white"
+                  aria-label="Max amount"
                   value={filters.maxAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))
@@ -775,23 +783,24 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Actual Amount Range</label>
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
+              <Label htmlFor="approvals-filter-min-actual-amount">Actual Amount Range</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  id="approvals-filter-min-actual-amount"
                   type="number"
                   min={0}
                   placeholder="Min"
-                  className="w-full border rounded px-3 py-2 bg-white"
+                  aria-label="Min actual amount"
                   value={filters.minActualAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, minActualAmount: e.target.value }))
                   }
                 />
-                <input
+                <Input
                   type="number"
                   min={0}
                   placeholder="Max"
-                  className="w-full border rounded px-3 py-2 bg-white"
+                  aria-label="Max actual amount"
                   value={filters.maxActualAmount}
                   onChange={(e) =>
                     setFilters((prev) => ({ ...prev, maxActualAmount: e.target.value }))
@@ -801,7 +810,7 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Date</label>
+              <Label htmlFor="approvals-filter-date">Date</Label>
               <Select
                 value={filters.dateMode || "All Dates"}
                 onValueChange={(v) =>
@@ -816,7 +825,7 @@ export default function FinanceReview() {
                   })
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="approvals-filter-date" className="mt-2 w-full">
                   <SelectValue placeholder="All Dates" />
                 </SelectTrigger>
                 <SelectContent>
@@ -837,7 +846,7 @@ export default function FinanceReview() {
                     setFilters((prev) => ({ ...prev, startDate: v === "none" ? "" : v }))
                   }
                 >
-                  <SelectTrigger className="mt-2 w-full bg-white">
+                  <SelectTrigger className="mt-2 w-full" aria-label="Select date">
                     <SelectValue placeholder="Select Date" />
                   </SelectTrigger>
                   <SelectContent
@@ -859,17 +868,17 @@ export default function FinanceReview() {
 
               {filters.dateMode === "Custom Date" && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <input
+                  <Input
                     type="date"
-                    className="w-full border rounded px-3 py-2 bg-white"
+                    aria-label="Start date"
                     value={filters.startDate}
                     onChange={(e) =>
                       setFilters((prev) => ({ ...prev, startDate: e.target.value }))
                     }
                   />
-                  <input
+                  <Input
                     type="date"
-                    className="w-full border rounded px-3 py-2 bg-white"
+                    aria-label="End date"
                     value={filters.endDate}
                     onChange={(e) =>
                       setFilters((prev) => ({ ...prev, endDate: e.target.value }))
@@ -880,14 +889,14 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Submitted By</label>
+              <Label htmlFor="approvals-filter-submitted-by">Submitted By</Label>
               <Select
                 value={filters.submittedBy || "All Submitters"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, submittedBy: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="approvals-filter-submitted-by" className="mt-2 w-full">
                   <SelectValue placeholder="All Submitters" />
                 </SelectTrigger>
                 <SelectContent
@@ -908,14 +917,14 @@ export default function FinanceReview() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Approved By</label>
+              <Label htmlFor="approvals-filter-approved-by">Approved By</Label>
               <Select
                 value={filters.approvedBy || "All Approvers"}
                 onValueChange={(v) =>
                   setFilters((prev) => ({ ...prev, approvedBy: v }))
                 }
               >
-                <SelectTrigger className="mt-1 w-full bg-white">
+                <SelectTrigger id="approvals-filter-approved-by" className="mt-2 w-full">
                   <SelectValue placeholder="All Approvers" />
                 </SelectTrigger>
                 <SelectContent
@@ -936,7 +945,7 @@ export default function FinanceReview() {
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
             </Button>
@@ -947,36 +956,36 @@ export default function FinanceReview() {
         </div>
       )}
 
-      <div className="rounded-md border shadow-sm bg-white max-h-[75vh] overflow-auto [&>div]:overflow-visible mb-0">
+      <div className="data-table-wrap max-h-[70vh]">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300 sticky top-0 z-10">
+          <TableHeader className="sticky top-0 z-10">
             <TableRow>
-              <TableHead className="px-4 py-3 text-center">S.No.</TableHead>
-              <TableHead className="px-4 py-3 text-center">Timestamp</TableHead>
-              <TableHead className="px-4 py-3 text-center">Unique ID</TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>S.No.</TableHead>
+              <TableHead>Timestamp</TableHead>
+              <TableHead>Unique ID</TableHead>
+              <TableHead>
                 Expense Type
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>
                 Event Name
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Project of Expense</TableHead>
-              <TableHead className="px-4 py-3 text-center">Amount</TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>Project of Expense</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>
                 TDS Deduction
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead className="text-right">
                 Actual Amount
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Date</TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>Date</TableHead>
+              <TableHead>
                 Submitted By
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">
+              <TableHead>
                 Approved By
               </TableHead>
-              <TableHead className="px-4 py-3 text-center">Status</TableHead>
-              <TableHead className="px-4 py-3 text-center">Actions</TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1002,34 +1011,33 @@ export default function FinanceReview() {
                     key={expense.id}
                     ref={isHighlighted ? highlightedRowRef : null}
                     data-expense-row={expense.id}
-                    className={`hover:bg-gray-50 transition-colors ${isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""
-                      }`}
+                    className={isHighlighted ? "border-2 border-yellow-400 bg-yellow-50" : ""}
                   >
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="tabular-nums">
                     {pagination.getItemNumber(index)}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center whitespace-nowrap">
+                  <TableCell className="whitespace-nowrap">
                     {formatDateTime(expense.created_at)}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     <span className="font-mono">
                       {expense.unique_id || "N/A"}
                     </span>
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.expense_type}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.event_title || "N/A"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell>
                     {expense.location || "N/A"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center font-medium text-green-700">
+                  <TableCell className="text-right font-medium tabular-nums text-green-700">
                     {formatCurrency(expense.amount)}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <div className="flex flex-col items-center gap-1">
+                  <TableCell>
+                    <div className="flex items-center gap-2">
                       <Select
                         value={
                           expense.tds_deduction_percentage
@@ -1040,7 +1048,10 @@ export default function FinanceReview() {
                           handleTdsChange(expense.id, value === "none" ? "" : value)
                         }
                       >
-                        <SelectTrigger className="w-[110px] h-8 text-sm bg-white">
+                        <SelectTrigger
+                          className="w-[110px] h-8 text-sm bg-background"
+                          aria-label="TDS deduction percentage"
+                        >
                           <SelectValue placeholder="Select %" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1054,7 +1065,7 @@ export default function FinanceReview() {
                           )}
                         </SelectContent>
                       </Select>
-                      <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
+                      <span className="text-xs text-amber-700 font-medium whitespace-nowrap">
                         {expense.tds_deduction_percentage
                           ? (() => {
                             const exactAmount = expense.tds_deduction_amount ??
@@ -1071,7 +1082,7 @@ export default function FinanceReview() {
                       </span>
                     </div>
                   </TableCell>
-                    <TableCell className="px-4 py-3 text-center text-sm">
+                    <TableCell className="text-right tabular-nums">
                       {formatCurrency(
                         Math.round((expense.amount ?? 0) -
                           (expense.tds_deduction_amount ??
@@ -1084,17 +1095,17 @@ export default function FinanceReview() {
                           (expense.security_deposit_amount ?? 0))
                       )}
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-center whitespace-nowrap">
+                    <TableCell className="whitespace-nowrap">
                       {new Date(expense.date).toLocaleDateString("en-IN", {
                         day: "2-digit",
                         month: "short",
                         year: "numeric",
                       })}
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-center">
+                    <TableCell>
                       {expense.creator_name}
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-center">
+                    <TableCell>
                       {expense.approver_name}
                     </TableCell>
                     <TableCell className="px-4 py-3 text-center">
@@ -1104,17 +1115,21 @@ export default function FinanceReview() {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="View expense"
                               onClick={() => handleViewClick(expense)}
                               disabled={viewingId === expense.id}
-                              className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black disabled:cursor-not-allowed"
+                              className="size-8"
                             >
                               {viewingId === expense.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
                                 <Eye className="w-4 h-4" />
                               )}
-                            </button>
+                            </Button>
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>View Expense</p>
@@ -1147,8 +1162,10 @@ export default function FinanceReview() {
           <DialogHeader>
             <DialogTitle>Confirm Bulk Approval</DialogTitle>
           </DialogHeader>
-          <p>Are you sure you want to approve all listed expenses?</p>
-          <DialogFooter className="flex justify-end gap-2">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to approve all listed expenses?
+          </p>
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setConfirmApproveAllOpen(false)}

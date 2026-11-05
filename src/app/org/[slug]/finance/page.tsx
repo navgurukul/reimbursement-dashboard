@@ -8,6 +8,7 @@ import Records from "./records/page";
 import { useOrgStore } from "@/store/useOrgStore";
 import supabase from "@/lib/supabase";
 import { Spinner } from "@/components/ui/spinner";
+import { PageHeader } from "@/components/page-header";
 import { notFound, useRouter, useSearchParams } from "next/navigation";
 
 export default function FinancePage() {
@@ -37,27 +38,20 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="page-title">Financial management</h1>
-      </div>
+      <PageHeader
+        title="Finance Management"
+        description="Review approved expenses, process payments and look up payment records."
+      />
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
-        className="space-y-6"
+        className="gap-6"
       >
-        <div className="w-full overflow-x-auto">
-          <TabsList className="w-max min-w-max gap-2">
-            <TabsTrigger value="approvals" className="cursor-pointer">
-              Approval Queue
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="cursor-pointer">
-              Payment Processing
-            </TabsTrigger>
-            <TabsTrigger value="records" className="cursor-pointer">
-              Records
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        <TabsList>
+          <TabsTrigger value="approvals">Approval Queue</TabsTrigger>
+          <TabsTrigger value="payments">Payment Processing</TabsTrigger>
+          <TabsTrigger value="records">Records</TabsTrigger>
+        </TabsList>
 
         <TabsContent value="approvals">
           <FinanceReview />

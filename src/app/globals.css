@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -55,7 +56,8 @@
   --secondary: oklch(0.97 0.001 106.424);
   --secondary-foreground: oklch(0.216 0.006 56.043);
   --muted: oklch(0.97 0.001 106.424);
-  --muted-foreground: oklch(0.553 0.013 58.071);
+  /* Darker than the shadcn default so helper text passes WCAG AA on white and muted surfaces. */
+  --muted-foreground: oklch(0.5 0.013 58.071);
   --accent: oklch(0.97 0.001 106.424);
   --accent-foreground: oklch(0.216 0.006 56.043);
   --destructive: oklch(0.577 0.245 27.325);
@@ -116,8 +118,22 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    min-height: 100svh;
+  }
+
+  /* Tailwind v4 resets buttons to the default cursor; keep the pointer for anything clickable. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for] {
+    cursor: pointer;
   }
 }
 
@@ -196,22 +212,22 @@
 
   /* Page Titles - Used for main page headings */
   .page-title {
-    @apply text-3xl font-bold tracking-tight;
+    @apply text-2xl font-semibold tracking-tight text-foreground sm:text-3xl;
   }
 
   /* Section Headings - Used for major sections within a page */
   .section-heading {
-    @apply text-2xl font-semibold tracking-tight;
+    @apply text-xl font-semibold tracking-tight sm:text-2xl;
   }
 
   /* Subsection Headings - Used for subsections */
   .subsection-heading {
-    @apply text-xl font-semibold;
+    @apply text-lg font-semibold sm:text-xl;
   }
 
   /* Card Titles - Used for card headers */
   .card-title {
-    @apply text-lg font-semibold;
+    @apply text-base font-semibold sm:text-lg;
   }
 
   /* Small Headings - Used for labels and small section headers */
@@ -226,41 +242,73 @@
 
   /* Large Stats - Used for dashboard statistics */
   .stat-value {
-    @apply text-2xl font-bold;
+    @apply text-2xl font-semibold tabular-nums tracking-tight;
+  }
+
+  /*
+   * Scroll container for wide tables. The table scrolls inside this box (both
+   * ways) so the page itself never scrolls sideways, and a sticky header keeps
+   * working because the inner table wrapper is not a second scroller.
+   */
+  .data-table-wrap {
+    @apply relative w-full overflow-auto rounded-xl border bg-card shadow-xs;
+  }
+
+  .data-table-wrap > [data-slot="table-container"] {
+    overflow: visible;
+  }
+
+  /*
+   * An empty-state row spans every column, so in a wide table its centred
+   * message would sit off-screen on phones. Pin it to the visible width of the
+   * wrapper instead.
+   */
+  .data-table-wrap:has([data-slot="empty-state"]) {
+    container-type: inline-size;
+  }
+
+  .data-table-wrap [data-slot="empty-state"] {
+    position: sticky;
+    left: 0;
+    width: 100cqw;
+  }
+
+  /* Hide a scrollbar but keep the element scrollable (tab strips, chip rows). */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer base {
+  /* Thin, always-visible scrollbars so wide tables show they can scroll. */
+  @supports (scrollbar-width: thin) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgb(120 120 120 / 0.4) transparent;
+    }
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
 
   ::-webkit-scrollbar-track {
     background: transparent;
   }
 
-
   ::-webkit-scrollbar-thumb {
-    background-color: rgba(120, 120, 120, 0.35);
+    background-color: rgb(120 120 120 / 0.4);
+    border: 2px solid transparent;
     border-radius: 999px;
-    transition: background-color 0.3s ease, opacity 0.3s ease;
-    opacity: 0;
-  }
-
-  body.scrolling ::-webkit-scrollbar-thumb {
-    opacity: 1;
+    background-clip: content-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(120, 120, 120, 0.6);
+    background-color: rgb(120 120 120 / 0.65);
   }
-
-  /* Firefox */
-  html {
-    scrollbar-width: none;
-  }
-
-  body.scrolling {
-    scrollbar-width: thin;
-  }
-
 }

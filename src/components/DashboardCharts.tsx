@@ -276,14 +276,14 @@ export function WhereTheMoneyGoesChart({
           return (
             <div
               key={row.key}
-              className="flex items-center gap-4 py-2 transition-all hover:bg-slate-50/50 rounded-xl px-2 -mx-2"
+              className="flex items-center gap-3 py-2 transition-all hover:bg-slate-50/50 rounded-xl px-2 -mx-2 sm:gap-4"
             >
               <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 sm:rounded-[14px]"
                 style={{ backgroundColor: iconBg }}
               >
                 {Icon ? (
-                  <Icon className="h-[22px] w-[22px]" style={{ color: row.barColor }} strokeWidth={1.5} />
+                  <Icon className="h-5 w-5 sm:h-[22px] sm:w-[22px]" style={{ color: row.barColor }} strokeWidth={1.5} />
                 ) : (
                   <span className="text-xs font-semibold" style={{ color: row.barColor }}>
                     {row.abbreviation}
@@ -292,11 +292,11 @@ export function WhereTheMoneyGoesChart({
               </div>
 
               <div className="flex-1 flex flex-col justify-center gap-1.5 min-w-0 pr-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[15px] font-semibold truncate text-slate-800">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm sm:text-[15px] font-semibold truncate text-slate-800" title={row.displayName}>
                     {row.displayName}
                   </span>
-                  <span className="text-[13px] font-semibold text-slate-500">
+                  <span className="shrink-0 text-[13px] font-semibold text-slate-500">
                     {row.percent.toFixed(0)}%
                   </span>
                 </div>
@@ -308,7 +308,7 @@ export function WhereTheMoneyGoesChart({
                 </div>
               </div>
 
-              <div className="shrink-0 text-right w-[72px]">
+              <div className="shrink-0 text-right w-16 sm:w-[72px]">
                 <p className="text-[15px] font-bold tracking-tight text-slate-900">
                   {formatCompactCurrency(row.amount)}
                 </p>
@@ -338,7 +338,7 @@ export function WhereTheMoneyGoesChart({
               }
               setShowAllCategories((prev) => !prev);
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-100 cursor-pointer"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-600 outline-none transition-colors hover:bg-slate-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer"
           >
             {showAllCategories ? "Show less" : "Show all categories"}
             {!showAllCategories && <span className="font-bold">+{hiddenCount}</span>}
@@ -681,7 +681,7 @@ export function SpendingPatternChart({ data }: { data: Expense[] }) {
     <TooltipProvider>
       <div className="flex h-full flex-col justify-between">
         <div className="flex-1 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
-          <div className="flex items-center text-[11px] font-bold text-slate-400 tracking-wider mb-2">
+          <div className="flex items-center text-[11px] font-bold text-slate-500 tracking-wider mb-2">
             <div className="w-6 shrink-0" />
             <div className="relative flex w-full h-4">
               {monthLabels.map((m) => (
@@ -693,7 +693,7 @@ export function SpendingPatternChart({ data }: { data: Expense[] }) {
           </div>
 
           <div className="flex">
-            <div className="flex flex-col gap-1 w-6 shrink-0 text-[10px] font-bold text-slate-400 pr-2 uppercase">
+            <div className="flex flex-col gap-1 w-6 shrink-0 text-[10px] font-bold text-slate-500 pr-2 uppercase">
               {[0, 1, 2, 3, 4, 5, 6].map((row) => (
                 <div key={row} className="h-4 flex items-center justify-end">
                   {row === 0 && "M"}

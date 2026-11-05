@@ -7,7 +7,7 @@ import { orgSettings, expenses } from "@/lib/db";
 import supabase from "@/lib/supabase";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,15 @@ import {
   Copy,
   Trash2,
   Search,
+  Receipt,
+  UserCheck,
+  BadgeCheck,
+  Clock,
+  XCircle,
+  Ban,
+  SearchX,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -56,9 +65,13 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/page-header";
+import { StatCard } from "@/components/stat-card";
+import { EmptyState } from "@/components/empty-state";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { isExportEnabled } from "@/lib/features";
@@ -796,125 +809,94 @@ export default function ExpensesPage() {
   };
 
   return (
-    <div className="space-y-6 pt-0">
-      <h1 className="page-title">Expenses</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Expenses"
+        description="Submit expenses and track them through approval and payment."
+        actions={
+          <Button onClick={handleNew}>
+            <PlusCircle />
+            New Expense
+          </Button>
+        }
+      />
       <Tabs
         value={activeTab}
         onValueChange={(v) => handleTabChange(v as "my" | "pending" | "all")}
+        className="gap-4"
       >
-        <div className="w-full overflow-x-auto md:overflow-visible md:w-fit">
-          <TabsList className="cursor-pointer">
-            {tabs.map((t) => (
-              <TabsTrigger
-                key={t.value}
-                value={t.value}
-                className="cursor-pointer"
-              >
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+        <TabsList>
+          {tabs.map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
         {tabs.map((t) => (
-          <TabsContent key={t.value} value={t.value}>
+          <TabsContent key={t.value} value={t.value} className="space-y-4">
             {/* stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-semibold">
-                    Total Expense{" "}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="stat-value">{stats.total}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-semibold">
-                    Manager Approved
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="stat-value">{stats.approved}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-semibold">
-                    Finance Approved
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="stat-value">{stats.finance_approved}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-semibold">
-                    Expense Pending
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="stat-value">{stats.pending}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-semibold">
-                    Manager Rejected
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="stat-value">{stats.rejected}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-semibold">
-                    Finance Rejected
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="stat-value">{stats.finance_rejected}</div>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+              <StatCard label="Total Expense" value={stats.total} icon={Receipt} />
+              <StatCard
+                label="Manager Approved"
+                value={stats.approved}
+                icon={UserCheck}
+                tone="info"
+              />
+              <StatCard
+                label="Finance Approved"
+                value={stats.finance_approved}
+                icon={BadgeCheck}
+                tone="success"
+              />
+              <StatCard
+                label="Expense Pending"
+                value={stats.pending}
+                icon={Clock}
+                tone="warning"
+              />
+              <StatCard
+                label="Manager Rejected"
+                value={stats.rejected}
+                icon={XCircle}
+                tone="danger"
+              />
+              <StatCard
+                label="Finance Rejected"
+                value={stats.finance_rejected}
+                icon={Ban}
+                tone="danger"
+              />
             </div>
             {/* toolbar */}
-            <div className="flex items-center justify-between mb-4">
-              <Button onClick={handleNew}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                New Expense
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                aria-expanded={showFilters}
+                onClick={() => setShowFilters((s) => !s)}
+              >
+                <Filter />
+                Filters
               </Button>
-              <div className="flex space-x-2">
+              {isExportEnabled && (
                 <Button
                   variant="outline"
-                  onClick={() => setShowFilters((s) => !s)}
+                  disabled={exporting}
+                  onClick={() => setExportModalOpen(true)}
                 >
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filters
+                  <Download />
+                  {exporting ? "Exporting…" : "Export"}
                 </Button>
-                {isExportEnabled && (
-                  <Button
-                    variant="outline"
-                    className="cursor-pointer"
-                    disabled={exporting}
-                    onClick={() => setExportModalOpen(true)}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    {exporting ? "Exporting…" : "Export"}
-                  </Button>
-                )}
-              </div>
+              )}
             </div>
 
             {showFilters && (
-              <Card className="mb-4">
-                <CardContent className="pt-4 space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div className={`space-y-1`}>
-                      <Label>Expense Type</Label>
+                      <Label htmlFor="exp-filter-type">Expense Type</Label>
                       <Select
                         value={filters.expenseType || OPTION_ALL}
                         onValueChange={(v) =>
@@ -924,7 +906,7 @@ export default function ExpensesPage() {
                           })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id="exp-filter-type" className="w-full">
                           <SelectValue placeholder="Expense Type" />
                         </SelectTrigger>
                         <SelectContent
@@ -946,7 +928,7 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label>Project of Expense</Label>
+                      <Label htmlFor="exp-filter-project">Project of Expense</Label>
                       <Select
                         value={filters.projectOfExpense || OPTION_ALL}
                         onValueChange={(v) =>
@@ -956,7 +938,7 @@ export default function ExpensesPage() {
                           })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id="exp-filter-project" className="w-full">
                           <SelectValue placeholder="Project of Expense" />
                         </SelectTrigger>
                         <SelectContent
@@ -1004,7 +986,7 @@ export default function ExpensesPage() {
                       </Select>
                     </div> */}
                     <div className="space-y-1">
-                      <Label>Status</Label>
+                      <Label htmlFor="exp-filter-status">Status</Label>
                       <Select
                         value={filters.status || OPTION_ALL}
                         onValueChange={(v) =>
@@ -1014,7 +996,7 @@ export default function ExpensesPage() {
                           })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id="exp-filter-status" className="w-full">
                           <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent
@@ -1037,9 +1019,10 @@ export default function ExpensesPage() {
                     </div>
                     <div className="space-y-1">
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-sm">Amount Min</Label>
+                        <div className="space-y-1">
+                          <Label htmlFor="exp-filter-amount-min">Amount Min</Label>
                           <Input
+                            id="exp-filter-amount-min"
                             type="number"
                             placeholder="Min"
                             value={filters.amountMin}
@@ -1056,9 +1039,10 @@ export default function ExpensesPage() {
                             }}
                           />
                         </div>
-                        <div>
-                          <Label className="text-sm">Amount Max</Label>
+                        <div className="space-y-1">
+                          <Label htmlFor="exp-filter-amount-max">Amount Max</Label>
                           <Input
+                            id="exp-filter-amount-max"
                             type="number"
                             placeholder="Max"
                             value={filters.amountMax}
@@ -1078,9 +1062,9 @@ export default function ExpensesPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-1">
-                      <Label>Date</Label>
+                      <Label htmlFor="exp-filter-date-mode">Date</Label>
                       <Select
                         value={filters.dateMode || OPTION_ALL}
                         onValueChange={(v) =>
@@ -1095,7 +1079,7 @@ export default function ExpensesPage() {
                           })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id="exp-filter-date-mode" className="w-full">
                           <SelectValue placeholder="Date Range" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1106,13 +1090,14 @@ export default function ExpensesPage() {
                       </Select>
                       {filters.dateMode !== OPTION_ALL && (
                         <>
-                          <Label>
+                          <Label htmlFor="exp-filter-date-from">
                             {filters.dateMode === "SINGLE"
                               ? "On Date"
                               : "From Date"}
                           </Label>
                           {filters.dateMode === "SINGLE" ? (
                             <Input
+                              id="exp-filter-date-from"
                               type="date"
                               value={filters.dateFrom}
                               onChange={(e) =>
@@ -1124,6 +1109,7 @@ export default function ExpensesPage() {
                             />
                           ) : (
                             <Input
+                              id="exp-filter-date-from"
                               type="date"
                               placeholder="From"
                               value={filters.dateFrom}
@@ -1137,8 +1123,9 @@ export default function ExpensesPage() {
                           )}
                           {filters.dateMode === "CUSTOM" && (
                             <>
-                              <Label>To Date</Label>
+                              <Label htmlFor="exp-filter-date-to">To Date</Label>
                               <Input
+                                id="exp-filter-date-to"
                                 type="date"
                                 placeholder="To"
                                 value={filters.dateTo}
@@ -1156,7 +1143,7 @@ export default function ExpensesPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <Label>Created By</Label>
+                      <Label htmlFor="exp-filter-created-by">Created By</Label>
                       <Select
                         value={filters.createdBy || OPTION_ALL}
                         onValueChange={(v) =>
@@ -1166,7 +1153,7 @@ export default function ExpensesPage() {
                           })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id="exp-filter-created-by" className="w-full">
                           <SelectValue placeholder="Created By" />
                         </SelectTrigger>
                         <SelectContent
@@ -1188,8 +1175,9 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label>Unique ID</Label>
+                      <Label htmlFor="exp-filter-unique-id">Unique ID</Label>
                       <Input
+                        id="exp-filter-unique-id"
                         placeholder="Search unique ID..."
                         value={filters.uniqueId}
                         onChange={(e) =>
@@ -1201,7 +1189,7 @@ export default function ExpensesPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label>Approver</Label>
+                      <Label htmlFor="exp-filter-approver">Approver</Label>
                       <Select
                         value={filters.approver || OPTION_ALL}
                         onValueChange={(v) =>
@@ -1211,7 +1199,7 @@ export default function ExpensesPage() {
                           })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id="exp-filter-approver" className="w-full">
                           <SelectValue placeholder="Approver" />
                         </SelectTrigger>
                         <SelectContent
@@ -1233,7 +1221,7 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -1273,10 +1261,10 @@ export default function ExpensesPage() {
             )}
 
             {/* table */}
-            <Card className="pt-0">
-              <CardContent className="p-0 max-h-[75vh] overflow-auto [&>div]:overflow-visible">
+            <div>
+              <div className="data-table-wrap @container max-h-[70vh]">
                 <Table>
-                  <TableHeader className="bg-gray-300 sticky top-0 z-10">
+                  <TableHeader className="sticky top-0 z-10">
                     <TableRow>
                       <TableHead>S.No.</TableHead>
                       <TableHead>Timestamp</TableHead>
@@ -1297,23 +1285,44 @@ export default function ExpensesPage() {
                         rows={5}
                       />
                     ) : totalCount === 0 && !hasActiveFilters ? (
-                      <TableRow>
+                      <TableRow className="hover:bg-transparent">
                         <TableCell
                           colSpan={columns.filter((c) => c.visible).length + 5}
-                          className="text-center py-4 text-muted-foreground"
+                          className="p-0"
                         >
-                          No expenses.
+                          {/* sticky + container width keeps the message in view when the empty table is wider than its box */}
+                          <EmptyState
+                            className="sticky left-0 w-[100cqw]"
+                            icon={Receipt}
+                            title={
+                              activeTab === "pending"
+                                ? "Nothing waiting for your approval"
+                                : "No expenses yet"
+                            }
+                            description={
+                              activeTab === "pending"
+                                ? "Submitted expenses assigned to you will show up here."
+                                : "Expenses will show up here once they are submitted."
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     ) : totalCount === 0 ? (
-                      <TableRow>
+                      <TableRow className="hover:bg-transparent">
                         <TableCell
                           colSpan={columns.filter((c) => c.visible).length + 5}
-                          className="text-center py-4 text-muted-foreground"
+                          className="p-0"
                         >
-                          {filters.amountMin || filters.amountMax
-                            ? "No expenses found in the selected amount range."
-                            : "No expenses match the selected filters."}
+                          <EmptyState
+                            className="sticky left-0 w-[100cqw]"
+                            icon={SearchX}
+                            title={
+                              filters.amountMin || filters.amountMax
+                                ? "No expenses found in the selected amount range."
+                                : "No expenses match the selected filters."
+                            }
+                            description="Try changing or clearing the filters."
+                          />
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -1411,12 +1420,16 @@ export default function ExpensesPage() {
                               <ExpenseStatusBadge status={exp.status} />
                             </TableCell>
                             <TableCell>
-                              <div className="flex space-x-1 gap-0">
+                              <div className="flex items-center gap-1">
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <div
-                                        className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 text-muted-foreground hover:text-foreground"
+                                        aria-label="View expense"
                                         onClick={() => {
                                           setNavigatingViewId(exp.id);
                                           // For pending tab, add nextId to enable sequential approval flow
@@ -1430,9 +1443,9 @@ export default function ExpensesPage() {
                                         {navigatingViewId === exp.id ? (
                                           <Spinner className="w-4 h-4" />
                                         ) : (
-                                          <Eye className="w-4 h-4 text-gray-600 hover:text-black" />
+                                          <Eye className="w-4 h-4" />
                                         )}
-                                      </div>
+                                      </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <p>View Expense</p>
@@ -1444,8 +1457,12 @@ export default function ExpensesPage() {
                                     <TooltipProvider>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <div
-                                            className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer flex items-center justify-center"
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="size-8 text-muted-foreground hover:text-foreground"
+                                            aria-label="Edit expense"
                                             onClick={() => {
                                               setNavigatingEditId(exp.id);
                                               router.push(
@@ -1456,9 +1473,9 @@ export default function ExpensesPage() {
                                             {navigatingEditId === exp.id ? (
                                               <Spinner className="w-4 h-4" />
                                             ) : (
-                                              <Pencil className="w-4 h-4 text-gray-600 hover:text-black" />
+                                              <Pencil className="w-4 h-4" />
                                             )}
-                                          </div>
+                                          </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
                                           <p>Edit Expense</p>
@@ -1471,12 +1488,16 @@ export default function ExpensesPage() {
                                     <TooltipProvider>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <div
-                                            className="p-1.5 rounded-md border border-transparent hover:border-red-300 hover:bg-red-50 transition-all cursor-pointer flex items-center justify-center"
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            aria-label="Delete expense"
                                             onClick={() => handleDelete(exp.id)}
                                           >
-                                            <Trash2 className="w-4 h-4 text-red-600 hover:text-red-700" />
-                                          </div>
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
                                           <p>Delete Expense</p>
@@ -1492,10 +1513,8 @@ export default function ExpensesPage() {
                     )}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-            {totalCount > 0 && (
-              <div className="px-2">
+              </div>
+              {totalCount > 0 && (
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
@@ -1504,8 +1523,8 @@ export default function ExpensesPage() {
                   isLoading={loading}
                   itemLabel="Expenses"
                 />
-              </div>
-            )}
+              )}
+            </div>
           </TabsContent>
         ))}
       </Tabs>
@@ -1516,7 +1535,7 @@ export default function ExpensesPage() {
           setDeleteConfirmation((prev) => ({ ...prev, isOpen: open }))
         }
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Expense</DialogTitle>
             <DialogDescription>
@@ -1524,24 +1543,22 @@ export default function ExpensesPage() {
               be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-3">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() =>
                 setDeleteConfirmation({ isOpen: false, expenseId: null })
               }
-              className="cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleDeleteConfirm}
-              className="cursor-pointer"
             >
               Delete
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1556,15 +1573,16 @@ export default function ExpensesPage() {
               Choose the format in which you want to export your expenses.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-row justify-center gap-3 mt-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Button
               variant="outline"
               onClick={() => {
                 handleExport("excel");
                 setExportModalOpen(false);
               }}
-              className="cursor-pointer flex-1"
+              className="w-full"
             >
+              <FileSpreadsheet />
               Microsoft Excel (.xlsx)
             </Button>
             <Button
@@ -1573,8 +1591,9 @@ export default function ExpensesPage() {
                 handleExport("csv");
                 setExportModalOpen(false);
               }}
-              className="cursor-pointer flex-1"
+              className="w-full"
             >
+              <FileText />
               CSV (.csv)
             </Button>
           </div>

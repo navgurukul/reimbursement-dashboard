@@ -44,6 +44,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
  
 
 type QuickRangeValue = "7d" | "30d" | "90d" | "ytd" | "all";
@@ -616,50 +618,53 @@ export default function PuneSoSCDashboard() {
   const showApprovalsTab = isOverviewTab || activeTab === "approvals";
 
   return (
-    <div className="space-y-6 bg-[#f4f6f8] min-h-screen -m-6 p-6 overflow-x-hidden">
-      <div className="flex w-full flex-col gap-5 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Pune SoSC Dashboard Overview</h1>
-          <p className="text-base text-muted-foreground">
+    <div className="space-y-6">
+      <PageHeader
+        title="Pune SoSC Dashboard Overview"
+        description={
+          <>
             {filteredData.length} expenses across {uniquePeopleCount} people
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={exportToCSV}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Export
-          </button>
-          <div className="flex flex-wrap items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
-            {(["7d", "30d", "90d", "ytd", "all"] as QuickRangeValue[]).map((range) => (
-              <button
-                key={range}
-                type="button"
-                onClick={() => setQuickRange(range)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  quickRange === range
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {range === "all" ? "All time" : range === "ytd" ? "YTD" : range.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <Button type="button" variant="outline" onClick={exportToCSV}>
+              <Download />
+              Export
+            </Button>
+            <div
+              role="group"
+              aria-label="Time range"
+              className="flex flex-wrap items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm"
+            >
+              {(["7d", "30d", "90d", "ytd", "all"] as QuickRangeValue[]).map((range) => (
+                <button
+                  key={range}
+                  type="button"
+                  aria-pressed={quickRange === range}
+                  onClick={() => setQuickRange(range)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
+                    quickRange === range
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  {range === "all" ? "All time" : range === "ytd" ? "YTD" : range.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </>
+        }
+      />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <Select
           value={filters.expenseType}
           onValueChange={(value) => setFilters((f) => ({ ...f, expenseType: value }))}
         >
-          <SelectTrigger className="w-[170px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
-            <span className="text-slate-400 mr-1">Type:</span>
+          <SelectTrigger className="w-full justify-start rounded-lg border-slate-200 bg-white text-sm shadow-sm sm:w-[170px] [&>svg]:ml-auto">
+            <span className="text-muted-foreground">Type:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -674,8 +679,8 @@ export default function PuneSoSCDashboard() {
           value={filters.status}
           onValueChange={(value) => setFilters((f) => ({ ...f, status: value }))}
         >
-          <SelectTrigger className="w-[180px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
-            <span className="text-slate-400 mr-1">Status:</span>
+          <SelectTrigger className="w-full justify-start rounded-lg border-slate-200 bg-white text-sm shadow-sm sm:w-[180px] [&>svg]:ml-auto">
+            <span className="text-muted-foreground">Status:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -690,8 +695,8 @@ export default function PuneSoSCDashboard() {
           value={filters.user}
           onValueChange={(value) => setFilters((f) => ({ ...f, user: value }))}
         >
-          <SelectTrigger className="w-[180px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
-            <span className="text-slate-400 mr-1">User:</span>
+          <SelectTrigger className="w-full justify-start rounded-lg border-slate-200 bg-white text-sm shadow-sm sm:w-[180px] [&>svg]:ml-auto">
+            <span className="text-muted-foreground">User:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -706,8 +711,8 @@ export default function PuneSoSCDashboard() {
           value={filters.date}
           onValueChange={(value) => setFilters((f) => ({ ...f, date: value }))}
         >
-          <SelectTrigger className="w-[190px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
-            <span className="text-slate-400 mr-1">Date:</span>
+          <SelectTrigger className="w-full justify-start rounded-lg border-slate-200 bg-white text-sm shadow-sm sm:w-[190px] [&>svg]:ml-auto">
+            <span className="text-muted-foreground">Date:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -722,8 +727,8 @@ export default function PuneSoSCDashboard() {
           value={filters.month}
           onValueChange={(value) => setFilters((f) => ({ ...f, month: value }))}
         >
-          <SelectTrigger className="w-[180px] rounded-lg border-slate-200 bg-white text-sm shadow-sm">
-            <span className="text-slate-400 mr-1">Month:</span>
+          <SelectTrigger className="w-full justify-start rounded-lg border-slate-200 bg-white text-sm shadow-sm sm:w-[180px] [&>svg]:ml-auto">
+            <span className="text-muted-foreground">Month:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -748,7 +753,7 @@ export default function PuneSoSCDashboard() {
                 timeRange: "day",
               })
             }
-            className="text-sm font-medium text-slate-500 hover:text-slate-900 underline underline-offset-2 transition-colors"
+            className="justify-self-start rounded-sm text-sm font-medium text-slate-600 underline underline-offset-2 outline-none transition-colors hover:text-slate-900 focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >
             Clear filters ({activeFilterCount})
           </button>
@@ -756,12 +761,13 @@ export default function PuneSoSCDashboard() {
       </div>
 
       {/* Tabs*/}
-      <div className="w-full overflow-x-auto">
+      <div className="no-scrollbar w-full overflow-x-auto">
         <div className="inline-flex min-w-max items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1">
           <button
             type="button"
+            aria-pressed={activeTab === "overview"}
             onClick={() => setActiveTab("overview")}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "overview"
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${activeTab === "overview"
                 ? "bg-slate-900 text-white"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
@@ -772,8 +778,9 @@ export default function PuneSoSCDashboard() {
 
           <button
             type="button"
+            aria-pressed={activeTab === "categories"}
             onClick={() => setActiveTab("categories")}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "categories"
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${activeTab === "categories"
                 ? "bg-slate-900 text-white"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
@@ -784,8 +791,9 @@ export default function PuneSoSCDashboard() {
 
           <button
             type="button"
+            aria-pressed={activeTab === "people"}
             onClick={() => setActiveTab("people")}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "people"
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${activeTab === "people"
                 ? "bg-slate-900 text-white"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
@@ -796,8 +804,9 @@ export default function PuneSoSCDashboard() {
 
           <button
             type="button"
+            aria-pressed={activeTab === "timeline"}
             onClick={() => setActiveTab("timeline")}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "timeline"
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${activeTab === "timeline"
                 ? "bg-slate-900 text-white"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
@@ -808,8 +817,9 @@ export default function PuneSoSCDashboard() {
 
           <button
             type="button"
+            aria-pressed={activeTab === "approvals"}
             onClick={() => setActiveTab("approvals")}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${activeTab === "approvals"
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${activeTab === "approvals"
                 ? "bg-slate-900 text-white"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
@@ -823,15 +833,15 @@ export default function PuneSoSCDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Total Spent Card */}
         <Card className="rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-[#5c7afc] via-[#7b7efb] to-[#9d83f8] text-white">
-          <CardContent className="p-8 flex flex-col h-full">
+          <CardContent className="p-6 sm:p-8 flex flex-col h-full">
             <div>
               <p className="text-[13px] font-bold tracking-widest text-white/80 uppercase mb-3">Total spent</p>
-              <div className="text-5xl font-bold text-white tracking-tight leading-none mb-1">
+              <div className="text-4xl sm:text-5xl font-bold text-white tracking-tight leading-none mb-1 break-words">
                 {summaryCards.formatAmount(summaryCards.totalAmount)}
               </div>
             </div>
 
-            <div className="flex items-center gap-3 mt-3">
+            <div className="flex flex-wrap items-center gap-3 mt-3">
               <div className="inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-[13px] font-semibold backdrop-blur-md">
                 {summaryCards.totalChangePct != null ? (
                   <>
@@ -863,9 +873,9 @@ export default function PuneSoSCDashboard() {
       {showCategoriesTab ? (
         <div id="where-money-goes-section" className="grid grid-cols-1 gap-5">
           <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-3 px-0 pb-0">
-            <CardTitle className="text-2xl font-semibold text-slate-900">
+            <h2 className="section-heading text-slate-900">
               Where the money goes
-            </CardTitle>
+            </h2>
             <p className="text-sm text-slate-500">Top 5 shown · expand to see all</p>
           </CardHeader>
           <Card className="flex flex-col gap-0">
@@ -941,12 +951,12 @@ export default function PuneSoSCDashboard() {
           {showPeopleTab ? (
             <div className="flex flex-col gap-0 mt-2">
               <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-3 px-0 pb-4">
-                <CardTitle className="text-2xl font-semibold text-slate-900">
+                <h2 className="section-heading text-slate-900">
                   Who's claiming
-                </CardTitle>
+                </h2>
                 <p className="text-sm text-slate-500">Bars sized by total claimed</p>
               </CardHeader>
-              <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0 p-6">
+              <Card className="flex flex-col rounded-2xl border border-slate-200/80 shadow-sm gap-0 p-4 sm:p-6">
                 {loading ? (
                   <div className="h-full min-h-[320px] w-full animate-pulse rounded-md bg-gray-100" />
                 ) : (
@@ -970,37 +980,39 @@ export default function PuneSoSCDashboard() {
 
       {isOverviewTab ? (
         <Card className="gap-0 p-0 mb-10 rounded-2xl border border-slate-200/80 shadow-sm bg-white">
-          <div 
-            className={`p-6 cursor-pointer flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-slate-50 rounded-2xl ${isExpensesOpen ? "border-b border-gray-100 rounded-b-none" : ""}`}
+          <div
+            className={`p-4 sm:p-6 cursor-pointer flex items-center justify-between gap-3 transition-colors hover:bg-slate-50 rounded-2xl ${isExpensesOpen ? "border-b border-gray-100 rounded-b-none" : ""}`}
             onClick={() => setIsExpensesOpen(!isExpensesOpen)}
           >
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-col gap-1">
               <h3 className="text-[17px] font-bold text-slate-900">All expenses</h3>
               <p className="text-[13px] text-slate-500">Tap to see the full list of {filteredData.length} claims</p>
             </div>
-            <div className="flex items-center gap-4">
-              <button 
-                type="button" 
-                className="text-slate-500 hover:text-slate-900 transition-colors"
+            <div className="flex shrink-0 items-center gap-4">
+              <button
+                type="button"
+                aria-label="Toggle all expenses"
+                aria-expanded={isExpensesOpen}
+                className="rounded-md p-1 text-slate-500 outline-none transition-colors hover:text-slate-900 focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 {isExpensesOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
               </button>
             </div>
           </div>
           {isExpensesOpen && (
-          <CardContent className="pl-5 pr-5">
+          <CardContent className="px-4 pt-4 sm:px-5">
             <TooltipProvider>
-              <div className="overflow-x-auto">
+              <div className="data-table-wrap">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">#</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">DATE</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">WHO</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">CATEGORY</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">AMOUNT</TableHead>
+                      <TableHead className="tracking-widest">#</TableHead>
+                      <TableHead className="tracking-widest">DATE</TableHead>
+                      <TableHead className="tracking-widest">WHO</TableHead>
+                      <TableHead className="tracking-widest">CATEGORY</TableHead>
+                      <TableHead className="tracking-widest">AMOUNT</TableHead>
                       {/* <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">APPROVER</TableHead> */}
-                      <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra">STATUS</TableHead>
+                      <TableHead className="tracking-widest">STATUS</TableHead>
                       {/* <TableHead className="text-xs font-semibold uppercase tracking-widest text-slate-400 whitespace-nowra text-center">ACTIONS</TableHead> */}
                     </TableRow>
                   </TableHeader>
@@ -1030,7 +1042,7 @@ export default function PuneSoSCDashboard() {
                               : ""
                             }`}
                         >
-                          <TableCell className="whitespace-nowrap text-[13px] font-medium text-slate-400">
+                          <TableCell className="whitespace-nowrap text-[13px] font-medium text-muted-foreground">
                             {pagination.getItemNumber(index)}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-[13px] font-medium text-slate-900">
@@ -1082,7 +1094,7 @@ export default function PuneSoSCDashboard() {
               </div>
             </TooltipProvider>
 
-            <div className="p-4 border-t border-gray-100">
+            <div className="py-4">
               <Pagination
                 currentPage={pagination.currentPage}
                 totalPages={pagination.totalPages}

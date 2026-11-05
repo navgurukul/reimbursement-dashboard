@@ -124,9 +124,9 @@ export default function ReceiptPreview({
   }, [expense?.receipt?.path, expense, previewUrl, filename]);
 
   return (
-    <div className={`bg-white rounded shadow border ${compact ? "p-4" : "p-6"}`}>
+    <div className={`rounded-xl border bg-card text-card-foreground shadow-sm ${compact ? "p-4" : "p-4 sm:p-6"}`}>
       <div
-        className={`border-b ${compact ? "-mx-4 px-4 pb-3" : "-mx-6 px-6 pb-4"}`}
+        className={`border-b ${compact ? "-mx-4 px-4 pb-3" : "-mx-4 px-4 pb-4 sm:-mx-6 sm:px-6"}`}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -178,14 +178,14 @@ export default function ReceiptPreview({
       </div>
 
       {isOpen && (
-        <div className={compact ? "pt-3" : "p-4"}>
+        <div className={compact ? "pt-3" : "pt-4"}>
           {loading ? (
             <div className="flex h-64 items-center justify-center">
               <Spinner size="lg" />
             </div>
           ) : receiptPreviewUrl ? (
             isPdf ? (
-              <div className="h-[68vh] min-h-[360px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
+              <div className="h-[60vh] min-h-[320px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
                 <iframe
                   src={`${receiptPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
                   className="h-full w-full border-none"
@@ -193,7 +193,7 @@ export default function ReceiptPreview({
                 />
               </div>
             ) : (
-              <div className="overflow-y-auto rounded-md border bg-muted" style={{ height: "auto" }}>
+              <div className="max-h-[70vh] overflow-y-auto rounded-md border bg-muted" style={{ height: "auto" }}>
                 <img src={receiptPreviewUrl} alt={filename || expense?.receipt?.filename || "Receipt preview"} className="w-full object-contain" />
               </div>
             )

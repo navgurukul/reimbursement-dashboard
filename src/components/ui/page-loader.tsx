@@ -15,7 +15,7 @@ export function PageLoader({
     >
       <div className="flex flex-col items-center gap-3">
         <Spinner size="lg" />
-        <span className="text-sm text-gray-600">{message}</span>
+        <span className="text-sm text-muted-foreground">{message}</span>
       </div>
     </div>
   );

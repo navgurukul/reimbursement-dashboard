@@ -163,7 +163,7 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
 
   if (loading) {
     return (
-      <div className="text-center py-4 text-gray-500">Loading history...</div>
+      <div className="text-center py-4 text-sm text-muted-foreground">Loading history...</div>
     );
   }
 
@@ -197,7 +197,7 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
 
   if (filteredHistory.length === 0) {
     return (
-      <div className="text-center py-4 text-gray-500">
+      <div className="text-center py-4 text-sm text-muted-foreground">
         No history available for this expense.
       </div>
     );
@@ -210,12 +210,12 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
           {/* Timeline connector */}
           {index < filteredHistory.length - 1 && (
             <div
-              className="absolute left-4 top-10 h-full w-[1px] bg-gray-200"
+              className="absolute left-4 top-10 h-full w-[1px] bg-border"
               aria-hidden="true"
             ></div>
           )}
 
-          <div className="flex items-start space-x-3">
+          <div className="flex items-start gap-3">
             {/* Clock icon */}
             <div className="relative flex-shrink-0 mt-0.5">
               <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
@@ -225,16 +225,16 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
 
             {/* Content */}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                 <ExpenseStatusBadge status={item.action_type} />
-                <span className="text-sm font-medium text-gray-800">
+                <span className="text-sm font-medium text-foreground">
                   {item.profile?.full_name || item.user_name}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mb-1">
+              <p className="text-xs text-muted-foreground mb-1">
                 {formatDateTime(item.created_at)}
               </p>
-              <div className="text-sm text-gray-700">
+              <div className="text-sm text-foreground break-words">
                 <p>{getActivityMessage(item)}</p>
               </div>
             </div>

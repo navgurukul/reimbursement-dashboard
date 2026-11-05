@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { PageLoader } from "@/components/ui/page-loader";
-import { ArrowLeft, Download } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { ArrowLeft, Download, ExternalLink } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import supabase from "@/lib/supabase";
@@ -137,22 +138,28 @@ export default function VoucherViewPage() {
 
   if (!voucher || !expense) {
     return (
-      <div className="max-w-[800px] mx-auto py-6">
-        <Button
-          variant="ghost"
-          onClick={() => router.push(`/org/${slug}/expenses`)}
-          className="mb-6"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Expenses
-        </Button>
+      <div className="mx-auto max-w-3xl space-y-6">
+        <PageHeader
+          title="Voucher"
+          leading={
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push(`/org/${slug}/expenses`)}
+              className="-ml-2 w-fit"
+            >
+              <ArrowLeft />
+              Back to Expenses
+            </Button>
+          }
+        />
 
         <Card>
           <CardHeader>
             <CardTitle>Voucher Not Found</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-red-500">
+            <p className="text-sm text-red-700">
               No voucher was found for this expense. This expense may not have
               been created with a voucher.
             </p>
@@ -390,101 +397,103 @@ export default function VoucherViewPage() {
   };
 
   return (
-    <div className="max-w-[800px] mx-auto py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        {fromRecords ? (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader
+        title="Voucher"
+        leading={
+        fromRecords ? (
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={() => router.push(`/org/${slug}/finance?tab=records`)}
-            className="text-gray-600 hover:text-gray-900 cursor-pointer"
+            className="-ml-2 w-fit"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft />
             Back to Records
           </Button>
         ) : fromApprovalQueue ? (
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={() => router.push(`/org/${slug}/finance/${expenseId}`)}
-            className="text-gray-600 hover:text-gray-900 cursor-pointer"
+            className="-ml-2 w-fit"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft />
             Back to Approval Queue
           </Button>
         ) : fromPaymentProcessing ? (
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={() =>
               router.push(`/org/${slug}/finance/payments/${expenseId}`)
             }
-            className="text-gray-600 hover:text-gray-900 cursor-pointer"
+            className="-ml-2 w-fit"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft />
             Back to Payment Processing
           </Button>
         ) : (
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={() => router.push(`/org/${slug}/expenses/${expenseId}`)}
-            className="text-gray-600 hover:text-gray-900 cursor-pointer"
+            className="-ml-2 w-fit"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft />
             Back to Expense Details
           </Button>
-        )}
-
+        )
+        }
+        actions={
         <Button
           variant="outline"
           onClick={handleDownloadPDF}
-          className="cursor-pointer"
         >
-          <Download className="mr-2 h-4 w-4" />
+          <Download />
           Download PDF
         </Button>
-      </div>
+        }
+      >
+        <ExpenseStatusBadge status={expense.status} />
+      </PageHeader>
 
-      <Card className="shadow-sm mb-6">
-        <CardHeader className="bg-gray-50 border-b">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-xl font-medium">Voucher</CardTitle>
-            <ExpenseStatusBadge status={expense.status} />
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-6">
+      <Card>
+        <CardContent>
           <div className="border-b pb-6 mb-6">
             <h3 className="text-base font-medium mb-4">Voucher Details</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <div>
-                <div className="text-sm text-gray-500 mb-1">Your Name</div>
-                <div className="font-medium">{voucher.your_name}</div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Your Name</div>
+                <div className="text-sm font-medium break-words">{voucher.your_name}</div>
               </div>
 
               <div>
-                <div className="text-sm text-gray-500 mb-1">Amount</div>
-                <div className="font-medium">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Amount</div>
+                <div className="text-sm font-medium">
                   {formatCurrency(voucher.amount)}
                 </div>
               </div>
 
               <div>
-                <div className="text-sm text-gray-500 mb-1">Date</div>
-                <div className="font-medium">{formatDate(expense.date)}</div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Date</div>
+                <div className="text-sm font-medium">{formatDate(expense.date)}</div>
               </div>
 
               <div>
-                <div className="text-sm text-gray-500 mb-1">Credit Person</div>
-                <div className="font-medium">{voucher.credit_person}</div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Credit Person</div>
+                <div className="text-sm font-medium break-words">{voucher.credit_person}</div>
               </div>
 
               <div>
-                <div className="text-sm text-gray-500 mb-1">Approver</div>
-                <div className="font-medium">{approverName || "—"}</div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Approver</div>
+                <div className="text-sm font-medium break-words">{approverName || "—"}</div>
               </div>
 
-              <div className="md:col-span-2">
-                <div className="text-sm text-gray-500 mb-1">Purpose</div>
-                <div className="border rounded-md p-3 bg-gray-50">
+              <div className="sm:col-span-2">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Purpose</div>
+                <div className="border rounded-md p-3 bg-muted/50 text-sm break-words">
                   {voucher.purpose}
                 </div>
               </div>
@@ -499,7 +508,7 @@ export default function VoucherViewPage() {
                 return (
                   <div className="mt-6 border-b pb-6 mb-6">
                     <h3 className="text-base font-medium mb-2">Attachment</h3>
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-muted-foreground text-sm">
                       Loading attachment...
                     </p>
                   </div>
@@ -511,8 +520,8 @@ export default function VoucherViewPage() {
                   <Button
                     variant="outline"
                     onClick={() => window.open(attachmentUrl, "_blank")}
-                    className="inline-flex items-center text-blue-800 hover:text-blue-800 cursor-pointer"
                   >
+                    <ExternalLink />
                     View Attachment
                   </Button>
                 </div>
@@ -523,7 +532,7 @@ export default function VoucherViewPage() {
             <h3 className="text-base font-medium mb-4">Signature</h3>
 
             <div>
-              <div className="text-sm text-gray-500 mb-2">Your Signature</div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">Your Signature</div>
               {userSignatureUrl ? (
                 <div className="border rounded-md p-2 bg-white">
                   <img
@@ -533,7 +542,7 @@ export default function VoucherViewPage() {
                   />
                 </div>
               ) : (
-                <div className="text-amber-500 text-sm">
+                <div className="text-amber-700 text-sm">
                   No signature provided
                 </div>
               )}
@@ -542,8 +551,8 @@ export default function VoucherViewPage() {
         </CardContent>
       </Card>
 
-      <div className="text-sm text-gray-500">
-        <p>Voucher ID: {voucher.id}</p>
+      <div className="text-sm text-muted-foreground">
+        <p className="break-all">Voucher ID: {voucher.id}</p>
         <p>Created: {formatDate(voucher.created_at)}</p>
       </div>
     </div>

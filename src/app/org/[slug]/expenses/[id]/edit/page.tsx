@@ -23,7 +23,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import { ArrowLeft, Save, Upload, X, FileText, Loader2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import supabase from "@/lib/supabase";
@@ -1123,67 +1124,74 @@ export default function EditExpensePage() {
 
   const approverDropdownOptions = getApproverDropdownOptions();
 
+  // Same label for the Save button in the page header and at the end of the form.
+  const saveChangesButtonContent = saving ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      Saving...
+    </>
+  ) : isReceiptProcessing ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      Merging Receipt...
+    </>
+  ) : (
+    <>
+      <Save className="h-4 w-4" />
+      Save Changes
+    </>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button
-          variant="link"
-          onClick={() => {
-            try {
-              sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
-            } catch (e) { }
-            if (isFromRecords) {
-              router.push(recordsBackUrl);
-            } else {
-              router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
-            }
-          }}
-        >
-          <ArrowLeft />
-          {isFromRecords ? "Back to Records" : "Back to Expense"}
-        </Button>
-        <div className="flex gap-2">
-          <Button onClick={(e) => handleSubmit(e, false)} disabled={saving || isReceiptProcessing} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
-            {saving ? (
-              <>
-                <Spinner className="h-4 w-4" />
-                Saving...
-              </>
-            ) : isReceiptProcessing ? (
-              <>
-                <Spinner className="h-4 w-4" />
-                Merging Receipt...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Save Changes
-              </>
-            )}
+      <PageHeader
+        title="Edit Expense"
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 w-fit"
+            onClick={() => {
+              try {
+                sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
+              } catch (e) { }
+              if (isFromRecords) {
+                router.push(recordsBackUrl);
+              } else {
+                router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
+              }
+            }}
+          >
+            <ArrowLeft />
+            {isFromRecords ? "Back to Records" : "Back to Expense"}
           </Button>
-          {/* {(expense?.status === "rejected" || expense?.status === "finance_rejected") && (
-            <Button onClick={(e) => handleSubmit(e, true)} disabled={saving} className="bg-black">
-              {saving ? (
-                <>
-                  <Spinner className="h-4 w-4" />
-                  Resubmitting...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Save & Resubmit
-                </>
-              )}
+        }
+        actions={
+          <>
+            <Button onClick={(e) => handleSubmit(e, false)} disabled={saving || isReceiptProcessing} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
+              {saveChangesButtonContent}
             </Button>
-          )} */}
-        </div>
-      </div>
+            {/* {(expense?.status === "rejected" || expense?.status === "finance_rejected") && (
+              <Button onClick={(e) => handleSubmit(e, true)} disabled={saving} className="bg-black">
+                {saving ? (
+                  <>
+                    <Spinner className="h-4 w-4" />
+                    Resubmitting...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Save & Resubmit
+                  </>
+                )}
+              </Button>
+            )} */}
+          </>
+        }
+      />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Edit Expense</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* <div className="grid grid-cols-2 gap-4">
               {locationFieldKey && (
@@ -1291,7 +1299,7 @@ export default function EditExpensePage() {
 
               return (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Event Name</Label>
                       <Input
@@ -1557,11 +1565,11 @@ export default function EditExpensePage() {
                     onChange={handleFileChange}
                     disabled={isReceiptProcessing}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Upload receipts. Multiple files will be merged into a single PDF.
                   </p>
-                  <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
-                    <span>
+                  <div className="text-sm text-muted-foreground mt-1 flex items-center justify-between gap-2">
+                    <span className="min-w-0 break-all">
                       {receiptFile
                         ? receiptFile.name
                         : expense.receipt
@@ -1569,11 +1577,11 @@ export default function EditExpensePage() {
                         : "No file chosen"}
                     </span>
                     {isReceiptProcessing ? (
-                      <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                      <span className="shrink-0 text-xs text-blue-700 font-medium flex items-center gap-1">
                         <Loader2 className="w-3 h-3 animate-spin" /> Merging into PDF...
                       </span>
                     ) : receiptFile ? (
-                      <span className="text-xs text-emerald-600 font-medium">
+                      <span className="shrink-0 text-xs text-emerald-700 font-medium">
                         PDF Ready
                       </span>
                     ) : null}
@@ -1621,6 +1629,18 @@ export default function EditExpensePage() {
                 )}
               </div>
             )}
+
+            {/* Primary action repeated at the end of this long form (same handler as the header button). */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                onClick={(e) => handleSubmit(e, false)}
+                disabled={saving || isReceiptProcessing}
+                className="w-full sm:w-auto"
+              >
+                {saveChangesButtonContent}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -1653,12 +1673,12 @@ export default function EditExpensePage() {
           setPreviewPdfModal((prev) => ({ ...prev, open }))
         }
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 sm:p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
           <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
             <DialogTitle className="text-base font-semibold text-gray-900 truncate">
               {previewPdfModal.title}
             </DialogTitle>
-            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-1 text-xs text-gray-500">
               <DialogDescription asChild>
                 <span>
                   {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0

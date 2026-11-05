@@ -78,8 +78,8 @@ export default function Hero() {
   // Show loading state while data is being fetched
   if (isLoading && user) {
     return (
-      <main className="relative min-h-screen bg-gradient-to-b from-background to-muted flex items-center">
-        <header className="absolute top-0 inset-x-0 flex justify-end p-6">
+      <main className="relative flex min-h-svh items-center bg-gradient-to-b from-background to-muted">
+        <header className="absolute top-0 inset-x-0 flex justify-end p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -91,11 +91,11 @@ export default function Hero() {
             </Button>
           </div>
         </header>
-        <div className="container mx-auto px-6 py-16 text-center">
+        <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center sm:px-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-12 bg-muted rounded w-64 mx-auto"></div>
-            <div className="h-4 bg-muted rounded w-96 mx-auto"></div>
-            <div className="h-10 bg-muted rounded w-40 mx-auto"></div>
+            <div className="h-12 bg-muted rounded w-64 max-w-full mx-auto"></div>
+            <div className="h-4 bg-muted rounded w-96 max-w-full mx-auto"></div>
+            <div className="h-10 bg-muted rounded w-40 max-w-full mx-auto"></div>
           </div>
         </div>
       </main>
@@ -125,9 +125,9 @@ export default function Hero() {
   const shouldDisableButton = isInvited && !hasValidOrgSlug;
 
   return (
-    <main className="relative min-h-screen bg-gradient-to-b from-background to-muted flex items-center">
+    <main className="relative flex min-h-svh items-center bg-gradient-to-b from-background to-muted">
       {/* Top‑right dynamic nav */}
-      <header className="absolute top-0 inset-x-0 flex justify-end p-6">
+      <header className="absolute top-0 inset-x-0 flex justify-end p-4 sm:p-6">
         {user && (
           <div className="flex items-center gap-4">
             <Button
@@ -143,34 +143,34 @@ export default function Hero() {
       </header>
 
       {/* Hero content */}
-      <div className="container mx-auto px-6 py-16 text-center space-y-6">
-        <h1 className="text-4xl lg:text-5xl font-extrabold">
+      <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center space-y-6 sm:px-6">
+        <h1 className="text-3xl font-extrabold tracking-tight text-balance break-words sm:text-4xl lg:text-5xl">
           {user
             ? `Welcome back, ${profile?.full_name || user.email}`
             : "Simplify Your Expense Reimbursements"}
         </h1>
-        <p className="text-lg text-muted-foreground mx-auto">
+        <p className="mx-auto max-w-xl text-base text-muted-foreground sm:text-lg">
           {user
             ? "Manage your expenses and reimbursements with ease."
             : "Upload bills, generate vouchers, and get manager approvals — all in one sleek dashboard."}
         </p>
         {!user ? (
-          <div className="flex justify-center gap-4">
-            <Button asChild size="lg">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Button asChild size="lg" className="w-full sm:w-auto">
               <Link href="/auth/signup">Get Started</Link>
             </Button>
-            <Button asChild variant="outline" size="lg">
+            <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
               <Link href="/auth/signin">Sign In</Link>
             </Button>
           </div>
         ) : (
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             {shouldDisableButton ? (
-              <Button size="lg" disabled>
+              <Button size="lg" disabled className="w-full sm:w-auto">
                 Loading...
               </Button>
             ) : (
-              <Button asChild size="lg">
+              <Button asChild size="lg" className="w-full sm:w-auto">
                 <Link href={getDashboardLink()}>{getButtonText()}</Link>
               </Button>
             )}

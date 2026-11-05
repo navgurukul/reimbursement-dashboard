@@ -24,8 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Save, Upload, X, FileText, Loader2, Pencil } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
+import { ArrowLeft, Save, Upload, X, FileText, Loader2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import supabase from "@/lib/supabase";
 import ReceiptPreview from "@/components/ReceiptPreview";
@@ -632,52 +633,52 @@ export default function RecordsEditExpensePage() {
     ? projectOfExpenseEntry[0]
     : "project_of_expense";
 
+  // Same label for the Save button in the page header and at the end of the form.
+  const saveChangesButtonContent = saving ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      Saving...
+    </>
+  ) : isReceiptProcessing ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      Merging Receipt...
+    </>
+  ) : (
+    <>
+      <Save className="h-4 w-4" />
+      Save Changes
+    </>
+  );
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <Button
-          variant="link"
-          onClick={() => router.push(getBackUrl())}
-          className="p-0 h-auto text-sm cursor-pointer inline-flex items-center gap-1.5"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Records
-        </Button>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Edit Expense (Records)"
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 w-fit"
+            onClick={() => router.push(getBackUrl())}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Records
+          </Button>
+        }
+        actions={
           <Button
             onClick={handleSubmit}
             disabled={saving || isReceiptProcessing}
-            className="flex items-center gap-2 cursor-pointer"
           >
-            {saving ? (
-              <>
-                <Spinner className="h-4 w-4" />
-                Saving...
-              </>
-            ) : isReceiptProcessing ? (
-              <>
-                <Spinner className="h-4 w-4" />
-                Merging Receipt...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Save Changes
-              </>
-            )}
+            {saveChangesButtonContent}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Pencil className="w-5 h-5 text-muted-foreground" />
-            <CardTitle>Edit Expense (Records)</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -961,7 +962,7 @@ export default function RecordsEditExpensePage() {
                   <Label htmlFor="receipt" className="text-base font-semibold">
                     Replace Receipt / Bill
                   </Label>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Upload new bills/receipts. Multiple files will be merged automatically into a single PDF.
                   </p>
                 </div>
@@ -974,8 +975,8 @@ export default function RecordsEditExpensePage() {
                     onChange={handleFileChange}
                     disabled={isReceiptProcessing}
                   />
-                  <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
-                    <span>
+                  <div className="text-sm text-muted-foreground mt-1 flex items-center justify-between gap-2">
+                    <span className="min-w-0 break-all">
                       {receiptFile
                         ? receiptFile.name
                         : expense.receipt
@@ -983,11 +984,11 @@ export default function RecordsEditExpensePage() {
                         : "No file chosen"}
                     </span>
                     {isReceiptProcessing ? (
-                      <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                      <span className="shrink-0 text-xs text-blue-700 font-medium flex items-center gap-1">
                         <Loader2 className="w-3 h-3 animate-spin" /> Merging into PDF...
                       </span>
                     ) : receiptFile ? (
-                      <span className="text-xs text-emerald-600 font-medium">
+                      <span className="shrink-0 text-xs text-emerald-700 font-medium">
                         PDF Ready
                       </span>
                     ) : null}
@@ -1035,6 +1036,18 @@ export default function RecordsEditExpensePage() {
                 )}
               </div>
             )}
+
+            {/* Primary action repeated at the end of this long form (same handler as the header button). */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving || isReceiptProcessing}
+                className="w-full sm:w-auto"
+              >
+                {saveChangesButtonContent}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -1067,12 +1080,12 @@ export default function RecordsEditExpensePage() {
           setPreviewPdfModal((prev) => ({ ...prev, open }))
         }
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 bg-white text-gray-900 overflow-hidden shadow-2xl">
           <DialogHeader className="p-4 pb-3 border-b bg-gray-50/80 pr-10 text-left">
             <DialogTitle className="text-base font-semibold text-gray-900 truncate">
               {previewPdfModal.title}
             </DialogTitle>
-            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-1 text-xs text-gray-500">
               <DialogDescription asChild>
                 <span>
                   {previewPdfModal.pageImages && previewPdfModal.pageImages.length > 0

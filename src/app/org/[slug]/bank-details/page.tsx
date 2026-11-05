@@ -32,9 +32,11 @@ import { isExportEnabled } from "@/lib/features";
 import { toast } from "sonner";
 import { useOrgStore } from "@/store/useOrgStore";
 import { notFound, useRouter } from "next/navigation";
-import { Download, Pencil, Plus, Upload, AlertTriangle } from "lucide-react";
+import { Download, Pencil, Plus, Upload, AlertTriangle, CreditCard } from "lucide-react";
 import { bankDocumentFiles } from "@/lib/db";
 import { Spinner } from "@/components/ui/spinner";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 
 function DocumentLink({ url }: { url: string }) {
@@ -55,7 +57,7 @@ function DocumentLink({ url }: { url: string }) {
   }, [url]);
 
   if (isValid === null) {
-    return <span className="text-gray-400 text-xs">Checking...</span>;
+    return <span className="text-muted-foreground text-xs">Checking...</span>;
   }
 
   return isValid ? (
@@ -68,7 +70,7 @@ function DocumentLink({ url }: { url: string }) {
       View
     </a>
   ) : (
-    <span className="text-gray-500">N/A</span>
+    <span className="text-muted-foreground">N/A</span>
   );
 }
 
@@ -611,37 +613,39 @@ export default function BankDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="page-title">Bank Details</h1>
-        <Button
-          onClick={() => {
-            fetchAllBankDetails();
-            setEditing(null);
-            setForm({
-              account_holder: "",
-              account_number: "",
-              ifsc_code: "",
-              bank_name: "",
-              email: "",
-              unique_id: "",
-              advance_unique_id: "",
-              document_url: "",
-              user_id: "",
-            });
-            setDocumentFile(null);
-            setDocumentFileName("");
-            setErrors({});
-            setDialogOpen(true);
-          }}
-          className="cursor-pointer"
-        >
-          <Plus className="w-4 h-4 mr-2" /> Add New
-        </Button>
-      </div>
+      <PageHeader
+        title="Bank Details"
+        description="Payee bank accounts used for reimbursement and advance payouts."
+        actions={
+          <Button
+            onClick={() => {
+              fetchAllBankDetails();
+              setEditing(null);
+              setForm({
+                account_holder: "",
+                account_number: "",
+                ifsc_code: "",
+                bank_name: "",
+                email: "",
+                unique_id: "",
+                advance_unique_id: "",
+                document_url: "",
+                user_id: "",
+              });
+              setDocumentFile(null);
+              setDocumentFileName("");
+              setErrors({});
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4" /> Add New
+          </Button>
+        }
+      />
 
       {/* Add / Edit Form Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-white shadow-lg w-[95vw] sm:max-w-lg md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl">
           <form onSubmit={handleSubmit} className="space-y-4">
             <DialogTitle className="subsection-heading">
               {editing ? "Edit Bank Detail" : "Add New Bank Detail"}
@@ -676,7 +680,7 @@ export default function BankDetailsPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {[
                 { name: "account_holder", label: "Account Holder" },
                 { name: "account_number", label: "Account Number" },
@@ -686,11 +690,12 @@ export default function BankDetailsPage() {
                 { name: "unique_id", label: "Unique ID" },
                 { name: "advance_unique_id", label: "Advance Unique ID" },
               ].map(({ name, label }) => (
-                <div key={name}>
-                  <label className="block text-sm font-medium mb-1">
+                <div key={name} className="min-w-0">
+                  <label htmlFor={`bank-${name}`} className="block text-sm font-medium mb-1">
                     {label}
                   </label>
                   <Input
+                    id={`bank-${name}`}
                     name={name}
                     value={(form as any)[name]}
                     onChange={handleInputChange}
@@ -703,46 +708,47 @@ export default function BankDetailsPage() {
                     )}
                   />
                   {errors[name] && (
-                    <p className="text-red-500 text-xs mt-1">{errors[name]}</p>
+                    <p className="text-red-600 text-xs mt-1">{errors[name]}</p>
                   )}
                 </div>
               ))}
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Bank Document <span className="text-xs text-gray-500 font-normal">(PDF only)</span></label>
+              <div className="sm:col-span-2">
+                <label htmlFor="fileUpload" className="block text-sm font-medium mb-1">Bank Document <span className="text-xs text-muted-foreground font-normal">(PDF only)</span></label>
                 <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="fileUpload"
-                    className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
-                  >
-                    <Upload className="w-4 h-4" />
-                    {documentFileName ? "Change Document" : "Upload Document"}
-                  </label>
+                  {/* Visually hidden but focusable, so the upload works from the keyboard */}
                   <input
                     type="file"
                     id="fileUpload"
                     accept="application/pdf"
-                    className="hidden"
+                    className="peer sr-only"
                     onChange={handleFileUpload}
                   />
+                  <label
+                    htmlFor="fileUpload"
+                    className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium shadow-xs transition-[color,box-shadow] hover:bg-accent hover:text-accent-foreground peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {documentFileName ? "Change Document" : "Upload Document"}
+                  </label>
                 </div>
                 {documentFileName ? (
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1 break-all">
                     Selected: {documentFileName}
                   </p>
                 ) : form.document_url ? (
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Upload a new PDF to replace the existing document.
                   </p>
                 ) : (
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Please upload a valid PDF document.
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
+            <DialogFooter className="pt-2">
               <Button
                 type="button"
                 variant="outline"
@@ -761,25 +767,28 @@ export default function BankDetailsPage() {
                   "Save"
                 )}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}>
-        <DialogContent className="w-full max-w-xs sm:max-w-xs mx-auto p-4 rounded shadow bg-white">
-          <DialogTitle className="text-lg font-semibold">
-            Verify Identity
-          </DialogTitle>
-          <p className="text-sm text-gray-600 mt-2">
-            Type <strong>CONFIRM UPDATE</strong> below to proceed.
-          </p>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">
+              Verify Identity
+            </DialogTitle>
+            <DialogDescription>
+              Type <strong>CONFIRM UPDATE</strong> below to proceed.
+            </DialogDescription>
+          </DialogHeader>
           {/* Secret String */}
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">
+          <div>
+            <label htmlFor="bank-verify-secret" className="block text-sm font-medium">
               Verification String
             </label>
             <Input
+              id="bank-verify-secret"
               type="text"
               placeholder='Type "CONFIRM UPDATE"'
               value={secret}
@@ -788,7 +797,7 @@ export default function BankDetailsPage() {
             />
           </div>
 
-          <div className="flex justify-end gap-2 mt-6">
+          <DialogFooter className="mt-2">
             <Button
               variant="outline"
               onClick={() => setShowVerifyDialog(false)}
@@ -811,7 +820,7 @@ export default function BankDetailsPage() {
             >
               Verify & Update
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -825,7 +834,7 @@ export default function BankDetailsPage() {
           <div className="space-y-3">
             <div className="grid gap-3 max-h-[300px] overflow-auto">
               {allColumns.map((col) => (
-                <div key={col} className="flex items-center gap-2">
+                <label key={col} className="flex cursor-pointer items-center gap-2 text-sm">
                   <Checkbox
                     checked={selectedColumns.includes(col)}
                     onCheckedChange={(checked) => {
@@ -839,7 +848,7 @@ export default function BankDetailsPage() {
                     }}
                   />
                   <span>{col}</span>
-                </div>
+                </label>
               ))}
             </div>
           </div>
@@ -873,10 +882,10 @@ export default function BankDetailsPage() {
             <DialogTitle>Choose export format</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Which format would you like to download?
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => {
                   handleExportXLSX();
@@ -901,21 +910,21 @@ export default function BankDetailsPage() {
       </Dialog>
 
       {/* Search + Export */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Input
           type="text"
           placeholder="Search by account name or email..."
+          aria-label="Search bank details by account name or email"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
           }}
-          className="max-w-md"
+          className="w-full sm:w-80"
         />
         {isExportEnabled && (
           <Button
             variant="outline"
             onClick={() => setShowColumnsModal(true)}
-            className="flex items-center gap-2 cursor-pointer"
           >
             <Download className="w-4 h-4" /> Export Bank Details
           </Button>
@@ -923,9 +932,9 @@ export default function BankDetailsPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-md border shadow-sm bg-white overflow-x-auto">
+      <div className="data-table-wrap @container max-h-[70vh]">
         <Table className="w-full text-sm">
-          <TableHeader className="bg-gray-300">
+          <TableHeader className="sticky top-0 z-10">
             <TableRow>
               <TableHead className="px-4 py-3">Account Name</TableHead>
               <TableHead className="px-4 py-3">Account Number</TableHead>
@@ -943,20 +952,20 @@ export default function BankDetailsPage() {
             {loading ? (
               <TableSkeleton colSpan={10} rows={5} />
             ) : data.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={10}
-                  className="text-center py-6 text-muted-foreground"
-                >
-                  No results found
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={10} className="p-0">
+                  {/* Pinned to the visible width so it stays in view in this wide table */}
+                  <EmptyState
+                    icon={CreditCard}
+                    title="No bank details found"
+                    description="Try a different name or email, or add a new bank detail."
+                    className="sticky left-0 w-[100cqw]"
+                  />
                 </TableCell>
               </TableRow>
             ) : (
               pagination.paginatedData.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="hover:bg-gray-50 transition-colors"
-                >
+                <TableRow key={row.id}>
                   <TableCell className="px-4 py-3">
                     {row.account_holder}
                   </TableCell>
@@ -979,13 +988,15 @@ export default function BankDetailsPage() {
                     {row.document_url ? (
                       <DocumentLink url={row.document_url} />
                     ) : (
-                      <span className="text-gray-500">N/A</span>
+                      <span className="text-muted-foreground">N/A</span>
                     )}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-center">
                     <Button
+                      type="button"
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      aria-label={`Edit bank details for ${row.account_holder}`}
                       onClick={() => {
                         fetchAllBankDetails();
                         setEditing(row);
@@ -1005,7 +1016,7 @@ export default function BankDetailsPage() {
                         setErrors({});
                         setDialogOpen(true);
                       }}
-                      className="h-8 w-8 p-0 cursor-pointer"
+                      className="size-8"
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>

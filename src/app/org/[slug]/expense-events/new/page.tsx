@@ -9,9 +9,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Save } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { PageHeader } from "@/components/page-header";
 
 export default function CreateExpenseEventPage() {
   const router = useRouter();
@@ -116,43 +118,45 @@ export default function CreateExpenseEventPage() {
   };
 
   return (
-    <div className="max-w-[800px] mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => router.push(`/org/${slug}/expense-events`)}
-          className="text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Events
-        </Button>
-      </div>
+    <div className="max-w-[800px] mx-auto space-y-6">
+      <PageHeader
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/org/${slug}/expense-events`)}
+            className="-ml-2 w-fit text-muted-foreground"
+          >
+            <ArrowLeft />
+            Back to Events
+          </Button>
+        }
+        title="Create New Expense Event"
+      />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Create New Expense Event</CardTitle>
-        </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="title" className="text-sm font-medium">
-                Event Title*
-              </label>
+              <Label htmlFor="title">
+                Event Title <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="title"
                 value={formData.title}
                 onChange={(e) => handleInputChange("title", e.target.value)}
-                className={errors["title"] ? "border-red-500" : ""}
+                aria-invalid={!!errors["title"]}
+                className={errors["title"] ? "border-destructive" : ""}
               />
               {errors["title"] && (
-                <p className="text-red-500 text-sm mt-1">{errors["title"]}</p>
+                <p className="text-sm text-destructive">{errors["title"]}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="description" className="text-sm font-medium">
-                Description
-              </label>
+              <Label htmlFor="description">
+                Description <span className="text-destructive">*</span>
+              </Label>
               <Textarea
                 id="description"
                 value={formData.description}
@@ -161,22 +165,23 @@ export default function CreateExpenseEventPage() {
                 }
                 placeholder="Details about this expense event"
                 rows={4}
+                aria-invalid={!!errors["description"]}
                 className={`w-full ${
-                  errors["description"] ? "border-red-500" : ""
+                  errors["description"] ? "border-destructive" : ""
                 }`}
               />
               {errors["description"] && (
-                <p className="text-red-500 text-sm mt-1">
+                <p className="text-sm text-destructive">
                   {errors["description"]}
                 </p>
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label htmlFor="start_date" className="text-sm font-medium">
-                  Start Date <span className="text-red-500">*</span>
-                </label>
+                <Label htmlFor="start_date">
+                  Start Date <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="start_date"
                   type="date"
@@ -184,18 +189,19 @@ export default function CreateExpenseEventPage() {
                   onChange={(e) =>
                     handleInputChange("start_date", e.target.value)
                   }
-                  className={errors["start_date"] ? "border-red-500" : ""}
+                  aria-invalid={!!errors["start_date"]}
+                  className={errors["start_date"] ? "border-destructive" : ""}
                 />
                 {errors["start_date"] && (
-                  <p className="text-red-500 text-sm mt-1">
+                  <p className="text-sm text-destructive">
                     {errors["start_date"]}
                   </p>
                 )}
               </div>
               <div className="space-y-2">
-                <label htmlFor="end_date" className="text-sm font-medium">
-                  End Date <span className="text-red-500">*</span>
-                </label>
+                <Label htmlFor="end_date">
+                  End Date <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="end_date"
                   type="date"
@@ -203,18 +209,24 @@ export default function CreateExpenseEventPage() {
                   onChange={(e) =>
                     handleInputChange("end_date", e.target.value)
                   }
-                  className={errors["end_date"] ? "border-red-500" : ""}
+                  aria-invalid={!!errors["end_date"]}
+                  className={errors["end_date"] ? "border-destructive" : ""}
                 />
                 {errors["end_date"] && (
-                  <p className="text-red-500 text-sm mt-1">
+                  <p className="text-sm text-destructive">
                     {errors["end_date"]}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="pt-4 flex justify-end">
-              <Button type="submit" disabled={saving} variant="neutral">
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+              <Button
+                type="submit"
+                disabled={saving}
+                variant="neutral"
+                className="w-full sm:w-auto"
+              >
                 {saving ? (
                   <>
                     <Spinner className="mr-2 h-4 w-4" />

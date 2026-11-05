@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PolicyAlert } from "@/components/policy-alert";
+import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -1889,22 +1890,29 @@ export default function ViewExpensePage() {
       : null;
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="mb-4 flex items-center justify-between">
-        <Button
-          variant="link"
-          onClick={() => router.push(backToExpensesUrl)}
-        >
-          <ArrowLeft />
-          Back to Expenses
-        </Button>
-        {((user?.id && expense.user_id === user.id) ||
+    <div className="space-y-6">
+      <PageHeader
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 w-fit"
+            onClick={() => router.push(backToExpensesUrl)}
+          >
+            <ArrowLeft />
+            Back to Expenses
+          </Button>
+        }
+        title="Expense Details"
+        actions={
+        ((user?.id && expense.user_id === user.id) ||
           (currentUserId && expense.user_id === currentUserId)) &&
           isRejectedToday &&
           (expense.status === "rejected" ||
             expense.status === "finance_rejected") && (
-          <div className="flex items-center gap-2">
+          <>
             <Button
+              variant="outline"
               onClick={() => {
                 setEditingLoading(true);
                 router.push(`/org/${slug}/expenses/${expenseId}/edit`);
@@ -1939,22 +1947,30 @@ export default function ViewExpensePage() {
                 </>
               )}
             </Button>
-          </div>
-        )}
-      </div>
+          </>
+        )
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {expense.unique_id && (
+            <span className="font-mono break-all">{expense.unique_id}</span>
+          )}
+          <ExpenseStatusBadge status={expense.status} />
+        </div>
+      </PageHeader>
 
       {/* Show message if expense is rejected by Manager or Finance today */}
       {isRejectedToday &&
         (expense.status === "rejected" ||
           expense.status === "finance_rejected") && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
             <div className="text-sm">
               <p className="font-semibold text-red-900">
                 Expense Rejected by {expense.status === "finance_rejected" ? "Finance" : "Manager"}
               </p>
-              <p className="text-red-600 text-xs mt-0.5">
+              <p className="text-red-700 text-xs mt-0.5">
                 You can edit this rejected expense and submit it again for approval.
               </p>
             </div>
@@ -1964,8 +1980,8 @@ export default function ViewExpensePage() {
 
       {/* Show banner if expense was previously rejected, edited, and resubmitted */}
       {resubmissionInfo.isResubmitted && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
             <CheckCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div className="text-sm">
               <p className="font-semibold text-amber-950">
@@ -1983,22 +1999,20 @@ export default function ViewExpensePage() {
       {expense.unique_id &&
         (expense.unique_id.toLowerCase().startsWith("advance_") ||
           expense.unique_id.startsWith("Advance_")) && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-sm text-black-800">
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-sm text-yellow-900 break-words">
               ℹ️ This expense was created using Advance Unique ID: <span className="font-mono font-semibold">{expense.unique_id}</span>
             </p>
           </div>
         )}
 
-      {/* Added more margin to the policy alert banner */}
+      {/* Policy alert banner (renders nothing when within the limit) */}
       {isOverPolicy && relevantPolicy && (
-        <div className="mb-6">
-          <PolicyAlert expense={expense} policy={relevantPolicy} />
-        </div>
+        <PolicyAlert expense={expense} policy={relevantPolicy} />
       )}
 
       {userRole !== "member" && expense.status === "submitted" && (
-        <div className="mb-6 px-1 space-y-3">
+        <div className="space-y-3">
           {!isAssignedApprover && (
             <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-md">
               <p className="text-sm text-amber-800">
@@ -2009,8 +2023,8 @@ export default function ViewExpensePage() {
           )}
           {showCustomAmountInput ? (
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2">
+              <div className="relative w-full sm:w-56">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   ₹
                 </span>
                 <Input
@@ -2019,11 +2033,11 @@ export default function ViewExpensePage() {
                   onChange={(e) => setCustomAmount(e.target.value)}
                   className="pl-8 pr-3 py-2"
                   placeholder="Enter amount"
+                  aria-label="Custom approved amount"
                 />
               </div>
               <Button
                 onClick={handleApproveCustomAmount}
-                className="bg-[#0353a4] hover:bg-[#02458b] text-white"
                 disabled={updateLoading || !customAmount || !isAssignedApprover}
               >
                 {updateLoading ? (
@@ -2047,7 +2061,7 @@ export default function ViewExpensePage() {
                 variant="destructive"
                 onClick={handleReject}
                 disabled={updateLoading || !isAssignedApprover}
-                size="sm"
+                className="flex-1 sm:flex-none"
               >
                 {updateLoading ? <Spinner size="sm" className="mr-2" /> : <X />}
                 Reject
@@ -2059,6 +2073,7 @@ export default function ViewExpensePage() {
                     onClick={() => handleApprove("policy")}
                     variant="success"
                     disabled={updateLoading || !isAssignedApprover}
+                    className="flex-1 sm:flex-none"
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
@@ -2072,6 +2087,7 @@ export default function ViewExpensePage() {
                     onClick={() => handleApprove("full")}
                     variant="warning"
                     disabled={updateLoading || !isAssignedApprover}
+                    className="flex-1 sm:flex-none"
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
@@ -2084,7 +2100,7 @@ export default function ViewExpensePage() {
                     variant="secondary"
                     onClick={() => handleApprove("custom")}
                     disabled={updateLoading || !isAssignedApprover}
-                    size="sm"
+                    className="flex-1 sm:flex-none"
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
@@ -2100,7 +2116,7 @@ export default function ViewExpensePage() {
                     onClick={() => handleApprove("full")}
                     variant="default"
                     disabled={updateLoading || !isAssignedApprover}
-                    size="sm"
+                    className="flex-1 sm:flex-none"
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
@@ -2113,6 +2129,7 @@ export default function ViewExpensePage() {
                     onClick={() => handleApprove("custom")}
                     variant="secondary"
                     disabled={updateLoading || !isAssignedApprover}
+                    className="flex-1 sm:flex-none"
                   >
                     {updateLoading ? (
                       <Spinner size="sm" className="mr-2" />
@@ -2129,53 +2146,53 @@ export default function ViewExpensePage() {
       )}
 
       {/* Adjusted grid - added gap-6 to create more space between card */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Main content - takes slightly more than 3/4 of the space */}
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        {/* Main content */}
+        <div className="min-w-0">
           <Card>
             <CardHeader>
-              <CardTitle>Expense Details </CardTitle>
+              <CardTitle>Details</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Expense Type
                   </p>
-                  <p>{expense.expense_type}</p>
+                  <p className="mt-1 text-sm break-words">{expense.expense_type}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Event Name
                   </p>
-                  <p>{eventTitle || "N/A"}</p>
+                  <p className="mt-1 text-sm break-words">{eventTitle || "N/A"}</p>
                 </div>
                 {/* ✅ Add this block to show Location */}
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Project of Expense
                   </p>
-                  <p>{expenseLocationValue || "N/A"}</p>
+                  <p className="mt-1 text-sm break-words">{expenseLocationValue || "N/A"}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Unique ID
                   </p>
-                  <div className="flex items-center space-x-2">
-                    <p className="font-mono">{expense.unique_id || "N/A"}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="font-mono text-sm break-all">{expense.unique_id || "N/A"}</p>
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Amount
                   </p>
-                  <p className={isOverPolicy ? "text-red-600 font-medium" : ""}>
+                  <p className={`mt-1 text-sm break-words ${isOverPolicy ? "text-red-700 font-medium" : ""}`}>
                     {new Intl.NumberFormat("en-IN", {
                       style: "currency",
                       currency: "INR",
                     }).format(expense.amount)}
                     {isOverPolicy && (
-                      <span className="ml-2 text-sm text-red-600">
+                      <span className="ml-2 text-red-700">
                         (Exceeds policy)
                       </span>
                     )}
@@ -2184,10 +2201,10 @@ export default function ViewExpensePage() {
 
                 {isDirectPayment && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Expense Credit Person
                     </p>
-                    <p>{expenseCreditPersonValue || "N/A"}</p>
+                    <p className="mt-1 text-sm break-words">{expenseCreditPersonValue || "N/A"}</p>
                   </div>
                 )}
 
@@ -2195,10 +2212,10 @@ export default function ViewExpensePage() {
                 {expense.approved_amount !== null &&
                   expense.approved_amount !== undefined && (
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">
+                      <p className="text-xs font-medium text-muted-foreground">
                         Approved Amount
                       </p>
-                      <p className="text-green-600 font-medium">
+                      <p className="mt-1 text-sm font-medium text-green-700">
                         {new Intl.NumberFormat("en-IN", {
                           style: "currency",
                           currency: "INR",
@@ -2209,10 +2226,10 @@ export default function ViewExpensePage() {
 
                 {tdsPercentage ? (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">
                       TDS Deduction
                     </p>
-                    <p className="text-amber-600 font-medium">
+                    <p className="mt-1 text-sm font-medium text-amber-700">
                       {tdsPercentage}% (
                       {new Intl.NumberFormat("en-IN", {
                         style: "currency",
@@ -2225,10 +2242,10 @@ export default function ViewExpensePage() {
 
                 {securityDepositAmount !== null ? (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Security Deposit Deduction
                     </p>
-                    <p className="text-amber-600 font-medium">
+                    <p className="mt-1 text-sm font-medium text-amber-700">
                       {new Intl.NumberFormat("en-IN", {
                         style: "currency",
                         currency: "INR",
@@ -2238,44 +2255,36 @@ export default function ViewExpensePage() {
                 ) : null}
 
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Date
                   </p>
-                  <p>{new Date(expense.date).toLocaleDateString("en-GB")}</p>
+                  <p className="mt-1 text-sm">{new Date(expense.date).toLocaleDateString("en-GB")}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Status
                   </p>
-                  <p
-                    className={`${expense.status === "approved"
-                        ? "text-green-600"
-                        : expense.status === "rejected"
-                          ? "text-red-600"
-                          : "text-amber-600"
-                      }`}
-                  >
-                    {expense.status.charAt(0).toUpperCase() +
-                      expense.status.slice(1)}
-                  </p>
+                  <div className="mt-1">
+                    <ExpenseStatusBadge status={expense.status} />
+                  </div>
                 </div>
 
                 {(expense.approver || expense.custom_fields?.approver_name) && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Approver
                     </p>
-                    <p>{expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}</p>
+                    <p className="mt-1 text-sm break-words">{expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}</p>
                   </div>
                 )}
 
                 {relevantPolicy && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Policy Limit
                     </p>
-                    <p>
+                    <p className="mt-1 text-sm">
                       {new Intl.NumberFormat("en-IN", {
                         style: "currency",
                         currency: "INR",
@@ -2287,24 +2296,24 @@ export default function ViewExpensePage() {
               {/* Finance Rejected Comment */}
               {expense.status === "finance_rejected" &&
                 expense.finance_comment && (
-                  <div className="mt-1 text-sm">
-                    <span className="block font-medium text-muted-foreground">
+                  <div>
+                    <span className="block text-xs font-medium text-muted-foreground">
                       Finance Comment
                     </span>
-                    <span>{expense.finance_comment}</span>
+                    <span className="mt-1 block text-sm break-words">{expense.finance_comment}</span>
                   </div>
                 )}
 
               {/* Receipt section with View Receipt button */}
-              <div>
+              <div className="space-y-4">
                 {!expense.receipt && !hasVoucher && (
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     No receipt or voucher available
                   </p>
                 )}
 
                 {expense.receipt && (
-                  <div className="mt-4 rounded-lg border border-gray-200 bg-white">
+                  <div className="rounded-lg border bg-card">
                     <div className="border-b px-4 py-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3">
@@ -2400,16 +2409,18 @@ export default function ViewExpensePage() {
 
                       {/* Share link section for receipt */}
                       {shareLink && (
-                        <div className="flex items-center space-x-2 mt-3">
+                        <div className="mt-3 flex items-center gap-2">
                           <Input
                             value={shareLink}
                             readOnly
-                            className="flex-1"
+                            className="min-w-0 flex-1"
+                            aria-label="Shareable link"
                           />
                           <Button
                             className="cursor-pointer"
                             variant="outline"
                             size="icon"
+                            aria-label="Copy link"
                             onClick={() => {
                               navigator.clipboard.writeText(shareLink);
                               toast.success("Link copied to clipboard");
@@ -2421,6 +2432,7 @@ export default function ViewExpensePage() {
                             className="cursor-pointer"
                             variant="outline"
                             size="icon"
+                            aria-label="Hide link"
                             onClick={() => setShareLink("")}
                           >
                             <X className="h-4 w-4" />
@@ -2437,7 +2449,7 @@ export default function ViewExpensePage() {
                           </div>
                         ) : receiptPreviewUrl ? (
                           isReceiptPdf ? (
-                            <div className="h-[68vh] min-h-[360px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
+                            <div className="h-[60vh] min-h-[320px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
                               <iframe
                                 src={`${receiptPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
                                 className="h-full w-full border-none"
@@ -2446,7 +2458,7 @@ export default function ViewExpensePage() {
                             </div>
                           ) : (
                             <div
-                              className="overflow-y-auto rounded-md border bg-muted"
+                              className="max-h-[70vh] overflow-y-auto rounded-md border bg-muted"
                               style={{ height: "auto" }}
                             >
                               <img
@@ -2469,7 +2481,7 @@ export default function ViewExpensePage() {
                 )}
 
                 {voucherDetails && (
-                  <div className="mt-4 rounded-lg border border-gray-200 bg-white">
+                  <div className="rounded-lg border bg-card">
                     <div className="border-b px-4 py-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3">
@@ -2560,16 +2572,18 @@ export default function ViewExpensePage() {
 
                       {/* Share link section - shows below the header when share is clicked */}
                       {shareLink && (
-                        <div className="flex items-center space-x-2 mt-3">
+                        <div className="mt-3 flex items-center gap-2">
                           <Input
                             value={shareLink}
                             readOnly
-                            className="flex-1"
+                            className="min-w-0 flex-1"
+                            aria-label="Shareable link"
                           />
                           <Button
                             className="cursor-pointer"
                             variant="outline"
                             size="icon"
+                            aria-label="Copy link"
                             onClick={() => {
                               navigator.clipboard.writeText(shareLink);
                               toast.success("Link copied to clipboard");
@@ -2581,6 +2595,7 @@ export default function ViewExpensePage() {
                             className="cursor-pointer"
                             variant="outline"
                             size="icon"
+                            aria-label="Hide link"
                             onClick={() => setShareLink("")}
                           >
                             <X className="h-4 w-4" />
@@ -2597,7 +2612,7 @@ export default function ViewExpensePage() {
                           </div>
                         ) : (
                           <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                               <div>
                                 <p className="text-sm text-muted-foreground">
                                   Your Name
@@ -2650,11 +2665,11 @@ export default function ViewExpensePage() {
                                   {expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}
                                 </p>
                               </div>
-                              <div className="md:col-span-2">
+                              <div className="sm:col-span-2">
                                 <p className="text-sm text-muted-foreground">
                                   Purpose
                                 </p>
-                                <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">
+                                <div className="mt-1 rounded-md border bg-muted/50 px-3 py-2 text-sm break-words">
                                   {voucherDetails.purpose || "—"}
                                 </div>
                               </div>
@@ -2690,10 +2705,7 @@ export default function ViewExpensePage() {
                                   voucherAttachmentFilename
                                     .toLowerCase()
                                     .endsWith(".pdf") ? (
-                                  <div
-                                    className="rounded-md border bg-white overflow-hidden"
-                                    style={{ height: "500px" }}
-                                  >
+                                  <div className="h-[60vh] min-h-[320px] sm:h-[500px] rounded-md border bg-white overflow-hidden">
                                     <iframe
                                       src={`${voucherAttachmentUrl}#toolbar=0&navpanes=0&scrollbar=1`}
                                       className="h-full w-full border-none"
@@ -2732,8 +2744,8 @@ export default function ViewExpensePage() {
 
               {/* Signature Section - Add this section to show the signature */}
               {signatureUrl && (
-                <div className="mt-6">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
                     Signature
                   </p>
                   <div className="border rounded-md p-4 bg-white">
@@ -2748,10 +2760,10 @@ export default function ViewExpensePage() {
 
               {/* Show approver signature section only if current user is the approver */}
               {currentUserId === expense.approver_id && (
-                <div ref={approverSigRef} className={`p-4 bg-gray-50/50 rounded-lg border space-y-4 ${approverHighlight ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}>
-                  <div className="flex items-center space-x-3">
+                <div ref={approverSigRef} className={`p-4 bg-muted/30 rounded-lg border space-y-4 ${approverHighlight ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}>
+                  <div className="flex items-center gap-3">
                     <svg
-                      className="h-5 w-5 text-gray-500"
+                      className="h-5 w-5 text-muted-foreground"
                       viewBox="0 0 24 24"
                       fill="none"
                       xmlns="http://www.w3.org/2000/svg"
@@ -2778,14 +2790,14 @@ export default function ViewExpensePage() {
                         strokeLinejoin="round"
                       />
                     </svg>
-                    <Label className="text-sm font-medium text-gray-900">
+                    <Label className="text-sm font-medium text-foreground">
                       Approver Signature <span className="text-red-500">*</span>
                     </Label>
                   </div>
 
                   {loadingSignature ? (
-                    <div className="flex items-center justify-center h-32 bg-gray-50 border rounded-lg">
-                      <p className="text-sm text-gray-500">
+                    <div className="flex items-center justify-center h-32 bg-muted/50 border rounded-lg">
+                      <p className="text-sm text-muted-foreground">
                         Loading your signature...
                       </p>
                     </div>
@@ -2811,8 +2823,8 @@ export default function ViewExpensePage() {
 
               {/* Custom fields section */}
               {/* Description: editable by creator until finance approves */}
-              <div className="mt-4">
-                <p className="text-sm font-medium text-muted-foreground mb-2">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
                   Description
                 </p>
                 {(() => {
@@ -2860,16 +2872,16 @@ export default function ViewExpensePage() {
                     }
 
                     return (
-                      <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm flex items-start justify-between">
-                        <div className="flex-1 pr-2">{descriptionText || "—"}</div>
-                        <div>
+                      <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 self-center break-words">{descriptionText || "—"}</div>
+                        <div className="shrink-0">
                           <TooltipProvider delayDuration={150}>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="cursor-pointer"
+                                  className="size-8"
                                   onClick={() => setDescriptionEditing(true)}
                                   aria-label="Edit description"
                                 >
@@ -2887,19 +2899,19 @@ export default function ViewExpensePage() {
                   }
 
                   return (
-                    <div className="mt-1 rounded-md border bg-gray-50 px-3 py-2 text-sm">
+                    <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm break-words">
                       {descriptionText || "—"}
                     </div>
                   );
                 })()}
-                <p className="text-sm text-muted-foreground">
+                <p className="mt-1.5 text-xs text-muted-foreground">
                   Description can only be edited till Finance approves the expense.
                 </p>
               </div>
               {expense.custom_fields &&
                 Object.keys(expense.custom_fields).length > 0 &&
                 customFields.length > 0 && ( // make sure customFields are loaded
-                  <div className="grid grid-cols-2 gap-4 mt-4 break-words">
+                  <div className="grid grid-cols-1 gap-x-6 gap-y-4 break-words sm:grid-cols-2">
                     {Object.entries(expense.custom_fields)
                       .filter(([key]) => {
                         const normalizedKey = key
@@ -2926,10 +2938,10 @@ export default function ViewExpensePage() {
                         );
                         return (
                           <div key={key}>
-                            <p className="text-sm font-medium text-muted-foreground">
+                            <p className="text-xs font-medium text-muted-foreground">
                               {matchedField?.label || formatFieldName(key)}
                             </p>
-                            <p>
+                            <p className="mt-1 text-sm">
                               {value !== undefined && value !== ""
                                 ? formatFieldValue(value)
                                 : "—"}
@@ -2944,8 +2956,8 @@ export default function ViewExpensePage() {
 
         </div>
 
-        {/* Activity History - Takes 2 columns of the 5-column grid to be wider */}
-        <div className="lg:col-span-2 space-y-4">
+        {/* Side column: activity history + comments (stacks below the details under xl) */}
+        <div className="min-w-0 space-y-6">
           <Card>
             <CardHeader className="flex flex-row items-center">
               <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -2957,7 +2969,7 @@ export default function ViewExpensePage() {
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent>
               <ExpenseComments expenseId={expense.id} />
             </CardContent>
           </Card>
@@ -2974,12 +2986,12 @@ export default function ViewExpensePage() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-2">
               <AlertCircle className="h-6 w-6" />
             </div>
-            <DialogTitle className="text-xl font-semibold text-gray-900">
+            <DialogTitle className="px-8 text-xl font-semibold text-foreground">
               Expense Rejected
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground pt-1 text-center">
               This expense was rejected by{" "}
-              <span className="font-semibold text-red-600">
+              <span className="font-semibold text-red-700">
                 {expense?.status === "finance_rejected"
                   ? "Finance"
                   : "Manager"}
@@ -2998,10 +3010,9 @@ export default function ViewExpensePage() {
             </div>
           </div>
 
-          <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+          <DialogFooter>
             <Button
               variant="outline"
-              className="border border-black"
               onClick={() => setShowRejectedModal(false)}
             >
               Close

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { notFound } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
-import { Tags } from "lucide-react";
 import {
     ExpenseTypeDetail,
     ProjectOfExpenseDetail,
@@ -23,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Input } from "@/components/ui/input";
 import { Pagination, usePagination } from "@/components/pagination";
+import { PageHeader } from "@/components/page-header";
 
 export default function ExpenseTypeDetailsPage() {
     const { organization, userRole } = useOrgStore();
@@ -169,11 +169,11 @@ export default function ExpenseTypeDetailsPage() {
     }, [organization?.id]);
 
     return (
-        <div className="space-y-4">
-            <div className="flex items-center gap-2">
-                <Tags className="h-6 w-6 text-primary" />
-                <h1 className="text-xl font-bold tracking-tight">Expense Type Details & Project Of Expense Details</h1>
-            </div>
+        <div className="space-y-6">
+            <PageHeader
+                title="Abbreviations"
+                description="Expense type details and project of expense details used across the organisation."
+            />
 
             <Card>
                 <CardHeader>
@@ -185,11 +185,12 @@ export default function ExpenseTypeDetailsPage() {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search by Group, Sub-Group, Expense Ledger / Expense Type, Description"
+                            aria-label="Search expense type details"
                         />
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="data-table-wrap">
                     <Table className="min-w-[900px] table-fixed">
-                        <TableHeader className="bg-gray-300">
+                        <TableHeader>
                             <TableRow>
                                 <TableHead className="w-[18%] whitespace-normal break-words">
                                     Group
@@ -260,12 +261,13 @@ export default function ExpenseTypeDetailsPage() {
                             value={projectSearchQuery}
                             onChange={(e) => setProjectSearchQuery(e.target.value)}
                             placeholder="Search by Project of Expense or Description"
+                            aria-label="Search project of expense details"
                         />
                     </div>
 
-                    <div className="overflow-x-auto">
+                    <div className="data-table-wrap">
                         <Table className="min-w-[800px] table-fixed">
-                            <TableHeader className="bg-gray-300">
+                            <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[35%] whitespace-normal break-words">
                                         Project of Expense

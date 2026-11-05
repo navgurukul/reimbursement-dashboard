@@ -343,10 +343,10 @@ export function SignupForm({
 
   return (
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
-      <Card className="shadow-md border">
+      <Card>
         <CardContent className="p-6 space-y-6">
           <div className="text-center">
-            <h1 className="section-heading">{getFormTitle()}</h1>
+            <h1 className="section-heading break-words">{getFormTitle()}</h1>
             {inviteType === "new" && inviteLink && (
               <p className="text-sm text-muted-foreground mt-1">
                 You're joining as a{" "}
@@ -359,8 +359,9 @@ export function SignupForm({
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label htmlFor="name">Name</Label>
               <Input
+                id="name"
                 type="text"
                 placeholder="Your full name"
                 value={name}
@@ -370,8 +371,9 @@ export function SignupForm({
             </div>
 
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -397,7 +399,9 @@ export function SignupForm({
             </div> */}
 
             {(error || authError) && (
-              <p className="text-sm text-red-500">{error || authError}</p>
+              <p role="alert" className="text-sm text-destructive">
+                {error || authError}
+              </p>
             )}
 
             <Button
@@ -410,9 +414,9 @@ export function SignupForm({
           </form>
 
           <div className="my-4 flex items-center gap-2">
-            <div className="h-px bg-black flex-1" />
+            <div className="h-px bg-border flex-1" />
             <span className="text-xs text-muted-foreground">OR</span>
-            <div className="h-px bg-black flex-1" />
+            <div className="h-px bg-border flex-1" />
           </div>
 
           <Button
@@ -457,11 +461,11 @@ export function SignupForm({
             )}
           </Button>
 
-          <p className="text-center text-sm">
+          <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link
               href="/auth/signin"
-              className="text-slate-500 hover:underline"
+              className="rounded-sm font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               Sign in
             </Link>
@@ -471,7 +475,7 @@ export function SignupForm({
 
       {/* Signup feedback modal */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{dialogState.title}</DialogTitle>
             {dialogState.description && (
