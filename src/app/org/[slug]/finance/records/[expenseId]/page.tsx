@@ -10,8 +10,9 @@ import {
   auth,
   profiles,
 } from "@/lib/db";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { cn, formatCurrency, formatDateTime } from "@/lib/utils";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Clock, ArrowLeft, Pencil, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,13 +32,7 @@ import VoucherPreview from "@/components/VoucherPreview";
 
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useOrgStore } from "@/store/useOrgStore";
 import DownloadAllExpensesAsPdf from "@/components/DownloadAllExpensesAsPdf";
@@ -75,6 +70,24 @@ const getCustomFieldValue = (
 
   return null;
 };
+
+/** One label/value pair in the expense details list. */
+function DetailItem({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("min-w-0 space-y-1", className)}>
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="text-sm text-foreground break-words">{children}</dd>
+    </div>
+  );
+}
 
 export default function RecordsDetails() {
   const { expenseId } = useParams();
@@ -201,234 +214,183 @@ export default function RecordsDetails() {
       : null);
 
   return (
-    // Grid columns get min-w-0 and the detail labels may wrap, so the details table fits phone widths
-    <div className="space-y-6 [&>.grid>*]:min-w-0 [&_th]:whitespace-normal">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
-        <Button
-          variant="link"
-          onClick={() => {
-            const query = new URLSearchParams();
-            query.set("tab", "records");
-            query.set("activeTab", activeTab);
-            const page = searchParams.get("page");
-            if (page) query.set("page", page);
-            if (expenseId) query.set("expID", expenseId as string);
-            router.push(`/org/${slug}/finance?${query.toString()}`);
-          }}
-        // className="text-sm cursor-pointer"
-        // disabled={loading}
-        >
-          <ArrowLeft />
-          Back to Records
-        </Button>
-        <div className="flex items-center gap-2">
-          {!loading && expense && (
-            <Button
-              variant="ghost"
-              disabled={isNavigatingToEdit}
-              onClick={() => {
-                setIsNavigatingToEdit(true);
-                const query = new URLSearchParams();
-                query.set("activeTab", activeTab);
-                const page = searchParams.get("page");
-                if (page) query.set("page", page);
-                const sNo = searchParams.get("sNo");
-                if (sNo) query.set("sNo", sNo);
-                router.push(
-                  `/org/${slug}/finance/records/${expenseId}/edit?${query.toString()}`
-                );
-              }}
-              className={`flex items-center gap-1.5 h-8 px-2 text-xs transition-opacity cursor-pointer ${
-                isNavigatingToEdit
-                  ? "opacity-100 text-black"
-                  : "text-white hover:text-black opacity-20 hover:opacity-100"
-              }`}
-            >
-              {isNavigatingToEdit ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Pencil className="w-4 h-4" />
-              )}
-              Edit Expense
-            </Button>
-          )}
-          {!loading && expense && organization && (
-            <DownloadAllExpensesAsPdf
-              expensesList={[expense]}
-              organization={organization}
-            />
-          )}
-        </div>
-      </div>
+      <PageHeader
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 w-fit"
+            onClick={() => {
+              const query = new URLSearchParams();
+              query.set("tab", "records");
+              query.set("activeTab", activeTab);
+              const page = searchParams.get("page");
+              if (page) query.set("page", page);
+              if (expenseId) query.set("expID", expenseId as string);
+              router.push(`/org/${slug}/finance?${query.toString()}`);
+            }}
+          >
+            <ArrowLeft />
+            Back to Records
+          </Button>
+        }
+        title="Record Details"
+        description="Paid expense, its deductions and activity."
+        actions={
+          <>
+            {!loading && expense && (
+              <Button
+                variant="ghost"
+                disabled={isNavigatingToEdit}
+                onClick={() => {
+                  setIsNavigatingToEdit(true);
+                  const query = new URLSearchParams();
+                  query.set("activeTab", activeTab);
+                  const page = searchParams.get("page");
+                  if (page) query.set("page", page);
+                  const sNo = searchParams.get("sNo");
+                  if (sNo) query.set("sNo", sNo);
+                  router.push(
+                    `/org/${slug}/finance/records/${expenseId}/edit?${query.toString()}`
+                  );
+                }}
+                className={`flex items-center gap-1.5 h-8 px-2 text-xs transition-opacity cursor-pointer ${
+                  isNavigatingToEdit
+                    ? "opacity-100 text-black"
+                    : "text-white hover:text-black opacity-20 hover:opacity-100"
+                }`}
+              >
+                {isNavigatingToEdit ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Pencil className="w-4 h-4" />
+                )}
+                Edit Expense
+              </Button>
+            )}
+            {!loading && expense && organization && (
+              <DownloadAllExpensesAsPdf
+                expensesList={[expense]}
+                organization={organization}
+              />
+            )}
+          </>
+        }
+      />
 
       {/* Grid Layout */}
-      <div className="grid md:grid-cols-3 gap-8">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         {/* Expense Details */}
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded shadow border">
-            <h2 className="card-title mb-4">Expense Details</h2>
-            {loading ? (
-              <Table>
-                <TableBody>
-                  <DetailTableSkeleton rows={12} />
-                </TableBody>
-              </Table>
-            ) : (
-              <Table>
-                <TableBody>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableCell>{formatDateTime(expense.created_at)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Paid Date</TableHead>
-                    <TableCell>
-                      {expense.paid_approval_time ? new Date(expense.paid_approval_time).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Payment Unique ID</TableHead>
-                    <TableCell className="font-mono">
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader>
+              <h2 className="card-title">Expense Details</h2>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Table>
+                  <TableBody>
+                    <DetailTableSkeleton rows={12} />
+                  </TableBody>
+                </Table>
+              ) : (
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                  <DetailItem label="Timestamp">{formatDateTime(expense.created_at)}</DetailItem>
+                  <DetailItem label="Paid Date">
+                    {expense.paid_approval_time ? new Date(expense.paid_approval_time).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                  </DetailItem>
+                  <DetailItem label="Payment Unique ID">
+                    <span className="font-mono">
                       {expense.unique_id || expense.uniqueId || expense.id}
-                    </TableCell>
-                  </TableRow>
+                    </span>
+                  </DetailItem>
                   {isDirectPayment && (
-                    <TableRow>
-                      <TableHead>Expense Credit Person</TableHead>
-                      <TableCell>{expenseCreditPerson}</TableCell>
-                    </TableRow>
+                    <DetailItem label="Expense Credit Person">{expenseCreditPerson}</DetailItem>
                   )}
-                  <TableRow>
-                    <TableHead>Project of Expense</TableHead>
-                    <TableCell>{expense.location || "N/A"}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Event Name</TableHead>
-                    <TableCell>{eventTitle || "N/A"}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Expense Type</TableHead>
-                    <TableCell>
-                      {expense.expense_type || "Not Provided"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Invoice Amount</TableHead>
-                    <TableCell>₹{expense.amount}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approved Amount</TableHead>
-                    <TableCell>₹{expense.approved_amount}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>TDS Applicable Amount</TableHead>
-                    <TableCell>
-                      {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
-                        ? `₹${expense.approved_amount}`
+                  <DetailItem label="Project of Expense">{expense.location || "N/A"}</DetailItem>
+                  <DetailItem label="Event Name">{eventTitle || "N/A"}</DetailItem>
+                  <DetailItem label="Expense Type">
+                    {expense.expense_type || "Not Provided"}
+                  </DetailItem>
+                  <DetailItem label="Invoice Amount">₹{expense.amount}</DetailItem>
+                  <DetailItem label="Approved Amount">₹{expense.approved_amount}</DetailItem>
+                  <DetailItem label="TDS Applicable Amount">
+                    {tdsPercentage || (tdsAmount !== null && tdsAmount !== undefined)
+                      ? `₹${expense.approved_amount}`
+                      : "N/A"}
+                  </DetailItem>
+                  <DetailItem label="TDS Deduction">
+                    {tdsPercentage ? (
+                      <span className="text-amber-700 font-medium">
+                        {expense?.tds_round_off_amount != null
+                          ? `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)}) | Round off: ₹${expense.tds_round_off_amount}`
+                          : `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)})`}
+                      </span>
+                    ) : tdsAmount !== null && tdsAmount !== undefined ? (
+                      <span className="text-amber-700 font-medium">
+                        {expense?.tds_round_off_amount != null
+                          ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
+                          : `TDS amount: ${formatCurrency(tdsAmount)}`}
+                      </span>
+                    ) : (
+                      "N/A"
+                    )}
+                  </DetailItem>
+                  <DetailItem label="Security Deposit Deduction">
+                    {securityDepositAmount !== null
+                      ? formatCurrency(securityDepositAmount)
+                      : "N/A"}
+                  </DetailItem>
+                  <DetailItem label="Net Payable Amount">
+                    {actualAmount !== null && actualAmount !== undefined
+                      ? formatCurrency(Number(actualAmount))
+                      : "—"}
+                  </DetailItem>
+                  <DetailItem label="Date">
+                    {new Date(expense.date).toLocaleDateString("en-IN")}
+                  </DetailItem>
+                  <DetailItem label="Status">
+                    <ExpenseStatusBadge status={expense.status} />
+                  </DetailItem>
+                  <DetailItem label="Approver">{expense.approver?.full_name || "—"}</DetailItem>
+                  <DetailItem label="Receipt/Voucher">
+                    {hasVoucher
+                      ? "Voucher Preview Below"
+                      : expense?.receipt
+                        ? "Receipt Preview Below"
                         : "N/A"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>TDS Deduction</TableHead>
-                    <TableCell>
-                      {tdsPercentage ? (
-                        <span className="text-amber-600 font-medium whitespace-nowrap">
-                          {expense?.tds_round_off_amount != null
-                            ? `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)}) | Round off: ₹${expense.tds_round_off_amount}`
-                            : `${tdsPercentage}% (TDS amount: ${formatCurrency(tdsAmount ?? 0)})`}
-                        </span>
-                      ) : tdsAmount !== null && tdsAmount !== undefined ? (
-                        <span className="text-amber-600 font-medium whitespace-nowrap">
-                          {expense?.tds_round_off_amount != null
-                            ? `TDS amount: ${formatCurrency(tdsAmount)} | Round off: ₹${expense.tds_round_off_amount}`
-                            : `TDS amount: ${formatCurrency(tdsAmount)}`}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Security Deposit Deduction</TableHead>
-                    <TableCell>
-                      {securityDepositAmount !== null
-                        ? formatCurrency(securityDepositAmount)
-                        : "N/A"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Net Payable Amount</TableHead>
-                    <TableCell>
-                      {actualAmount !== null && actualAmount !== undefined
-                        ? formatCurrency(Number(actualAmount))
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableCell>
-                      {new Date(expense.date).toLocaleDateString("en-IN")}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Status</TableHead>
-                    <TableCell>
-                      <ExpenseStatusBadge status={expense.status} />
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approver</TableHead>
-                    <TableCell>{expense.approver?.full_name || "—"}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Receipt/Voucher</TableHead>
-                    <TableCell>
-                      {hasVoucher
-                        ? "Voucher Preview Below"
-                        : expense?.receipt
-                          ? "Receipt Preview Below"
-                          : "N/A"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Description</TableHead>
-                    <TableCell className="whitespace-normal break-words">
-                      {expense.custom_fields?.description || "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Signature</TableHead>
-                    <TableCell>
-                      {expense.signature_url ? (
-                        <img
-                          src={expense.signature_url}
-                          alt="Signature"
-                          className="h-16 object-contain border"
-                        />
-                      ) : (
-                        "Not Available"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Approver Signature</TableHead>
-                    <TableCell>
-                      {expense.approver_signature_url ? (
-                        <img
-                          src={expense.approver_signature_url}
-                          alt="Approver Signature"
-                          className="h-16 object-contain border"
-                        />
-                      ) : (
-                        "Not Available"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            )}
-          </div>
+                  </DetailItem>
+                  <DetailItem label="Description" className="sm:col-span-2">
+                    {expense.custom_fields?.description || "—"}
+                  </DetailItem>
+                  <DetailItem label="Signature">
+                    {expense.signature_url ? (
+                      <img
+                        src={expense.signature_url}
+                        alt="Signature"
+                        className="h-16 max-w-full rounded-md border bg-white object-contain"
+                      />
+                    ) : (
+                      "Not Available"
+                    )}
+                  </DetailItem>
+                  <DetailItem label="Approver Signature">
+                    {expense.approver_signature_url ? (
+                      <img
+                        src={expense.approver_signature_url}
+                        alt="Approver Signature"
+                        className="h-16 max-w-full rounded-md border bg-white object-contain"
+                      />
+                    ) : (
+                      "Not Available"
+                    )}
+                  </DetailItem>
+                </dl>
+              )}
+            </CardContent>
+          </Card>
           {/* Receipt Preview (component) */}
           {expense?.receipt && <ReceiptPreview expense={expense} />}
 
@@ -439,8 +401,8 @@ export default function RecordsDetails() {
         </div>
 
         {/* Activity History */}
-        <div className="space-y-4">
-          <div className="md:col-span-3">
+        <div className="grid min-w-0 content-start gap-6 md:grid-cols-2 xl:grid-cols-1">
+          <div className="min-w-0">
             <Card>
               <CardHeader className="flex flex-row items-center">
                 <Clock className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -465,7 +427,7 @@ export default function RecordsDetails() {
             </Card>
           </div>
 
-          <Card>
+          <Card className="min-w-0">
             <CardContent>
               {loading ? (
                 <div className="space-y-2">

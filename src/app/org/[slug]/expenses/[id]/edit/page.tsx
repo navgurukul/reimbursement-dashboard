@@ -23,7 +23,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import { ArrowLeft, Save, Upload, X, FileText, Loader2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import supabase from "@/lib/supabase";
@@ -1123,67 +1124,74 @@ export default function EditExpensePage() {
 
   const approverDropdownOptions = getApproverDropdownOptions();
 
+  // Same label for the Save button in the page header and at the end of the form.
+  const saveChangesButtonContent = saving ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      Saving...
+    </>
+  ) : isReceiptProcessing ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      Merging Receipt...
+    </>
+  ) : (
+    <>
+      <Save className="h-4 w-4" />
+      Save Changes
+    </>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button
-          variant="link"
-          onClick={() => {
-            try {
-              sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
-            } catch (e) { }
-            if (isFromRecords) {
-              router.push(recordsBackUrl);
-            } else {
-              router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
-            }
-          }}
-        >
-          <ArrowLeft />
-          {isFromRecords ? "Back to Records" : "Back to Expense"}
-        </Button>
-        <div className="flex gap-2">
-          <Button onClick={(e) => handleSubmit(e, false)} disabled={saving || isReceiptProcessing} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
-            {saving ? (
-              <>
-                <Spinner className="h-4 w-4" />
-                Saving...
-              </>
-            ) : isReceiptProcessing ? (
-              <>
-                <Spinner className="h-4 w-4" />
-                Merging Receipt...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Save Changes
-              </>
-            )}
+      <PageHeader
+        title="Edit Expense"
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 w-fit"
+            onClick={() => {
+              try {
+                sessionStorage.setItem(`hide_rejected_modal_${expenseId}`, "true");
+              } catch (e) { }
+              if (isFromRecords) {
+                router.push(recordsBackUrl);
+              } else {
+                router.push(`/org/${slug}/expenses/${expenseId}?fromEdit=true`);
+              }
+            }}
+          >
+            <ArrowLeft />
+            {isFromRecords ? "Back to Records" : "Back to Expense"}
           </Button>
-          {/* {(expense?.status === "rejected" || expense?.status === "finance_rejected") && (
-            <Button onClick={(e) => handleSubmit(e, true)} disabled={saving} className="bg-black">
-              {saving ? (
-                <>
-                  <Spinner className="h-4 w-4" />
-                  Resubmitting...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Save & Resubmit
-                </>
-              )}
+        }
+        actions={
+          <>
+            <Button onClick={(e) => handleSubmit(e, false)} disabled={saving || isReceiptProcessing} variant={(expense?.status === "rejected" || expense?.status === "finance_rejected") ? "default" : "default"}>
+              {saveChangesButtonContent}
             </Button>
-          )} */}
-        </div>
-      </div>
+            {/* {(expense?.status === "rejected" || expense?.status === "finance_rejected") && (
+              <Button onClick={(e) => handleSubmit(e, true)} disabled={saving} className="bg-black">
+                {saving ? (
+                  <>
+                    <Spinner className="h-4 w-4" />
+                    Resubmitting...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Save & Resubmit
+                  </>
+                )}
+              </Button>
+            )} */}
+          </>
+        }
+      />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Edit Expense</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* <div className="grid grid-cols-2 gap-4">
               {locationFieldKey && (
@@ -1621,6 +1629,18 @@ export default function EditExpensePage() {
                 )}
               </div>
             )}
+
+            {/* Primary action repeated at the end of this long form (same handler as the header button). */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                onClick={(e) => handleSubmit(e, false)}
+                disabled={saving || isReceiptProcessing}
+                className="w-full sm:w-auto"
+              >
+                {saveChangesButtonContent}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

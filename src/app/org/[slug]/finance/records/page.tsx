@@ -3474,13 +3474,15 @@ export default function PaymentRecords() {
                     })()}
                   </TableCell>
                   <TableCell className="text-center py-2">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              size="sm"
-                              variant="outline"
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="View details"
                               disabled={viewingId === record.id}
                               onClick={() => {
                                 setViewingId(record.id);
@@ -3493,7 +3495,7 @@ export default function PaymentRecords() {
                                   `/org/${slug}/finance/records/${record.id}?${params.toString()}`
                                 );
                               }}
-                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                              className="size-8"
                             >
                               {viewingId === record.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -3511,13 +3513,15 @@ export default function PaymentRecords() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              size="sm"
-                              variant="outline"
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Back to Payment Processing"
                               disabled={sendBackLoading && sendBackModal.id === record.id}
                               onClick={() =>
                                 setSendBackModal({ open: true, id: record.id })
                               }
-                              className="flex items-center gap-2 border border-gray-300 text-black cursor-pointer"
+                              className="size-8"
                             >
                               {sendBackLoading && sendBackModal.id === record.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -3532,13 +3536,15 @@ export default function PaymentRecords() {
                         </Tooltip>
                       </TooltipProvider>
                       <Button
-                        size="sm"
-                        variant="outline"
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Delete record"
                         disabled={deletingId === record.id}
                         onClick={() =>
                           setDeleteModal({ open: true, id: record.id })
                         }
-                        className="flex items-center gap-2 border border-gray-300 hover:bg-red-100 text-red-600 cursor-pointer"
+                        className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         {deletingId === record.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -3818,7 +3824,7 @@ export default function PaymentRecords() {
 
       {/* Export Modal - Bank Type Selection */}
       <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Records to Export</DialogTitle>
           </DialogHeader>

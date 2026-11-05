@@ -1115,17 +1115,21 @@ export default function FinanceReview() {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="View expense"
                               onClick={() => handleViewClick(expense)}
                               disabled={viewingId === expense.id}
-                              className="p-1.5 rounded-md border border-transparent hover:border-gray-300 hover:bg-white transition-all cursor-pointer text-black hover:text-black disabled:cursor-not-allowed"
+                              className="size-8"
                             >
                               {viewingId === expense.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
                                 <Eye className="w-4 h-4" />
                               )}
-                            </button>
+                            </Button>
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>View Expense</p>
