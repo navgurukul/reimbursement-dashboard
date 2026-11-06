@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { createSmtpTransport, isSmtpConfigured, smtpConfig, smtpFrom } from "@/lib/server/smtp";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSignedInUser, unauthorized } from "@/lib/server/auth";
 
@@ -25,15 +25,7 @@ const escapeHtml = (value: string) =>
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-const transporter = nodemailer.createTransport({
-  host: process.env.NEXT_PUBLIC_SMTP_HOST,
-  port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
-  secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true",
-  auth: {
-    user: process.env.NEXT_PUBLIC_SMTP_USER,
-    pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD,
-  },
-});
+const transporter = createSmtpTransport();
 
 export async function POST(req: NextRequest) {
   if (!(await getSignedInUser())) return unauthorized();
@@ -53,7 +45,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "expenseId and commentContent required" }, { status: 400 });
     }
 
-    if (!process.env.NEXT_PUBLIC_SMTP_HOST || !process.env.NEXT_PUBLIC_SMTP_USER) {
+    if (!isSmtpConfigured()) {
       return NextResponse.json({ error: "SMTP is not configured" }, { status: 500 });
     }
 
@@ -397,11 +389,11 @@ export async function POST(req: NextRequest) {
 
 
     const mailOptions = {
-      from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      from: smtpFrom(),
       to:
         uniqueToRecipients.length > 0
           ? uniqueToRecipients.map((recipient) => recipient.email).join(", ")
-          : process.env.NEXT_PUBLIC_SMTP_USER,
+          : smtpConfig.user,
       cc:
         uniqueCcRecipients.length > 0
           ? uniqueCcRecipients.map((recipient) => recipient.email).join(", ")
