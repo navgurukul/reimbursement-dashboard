@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { createSmtpTransport, isSmtpConfigured, smtpFrom } from "@/lib/server/smtp";
 import { getSignedInUser, unauthorized } from "@/lib/server/auth";
 
-const transporter = nodemailer.createTransport({
-  host: process.env.NEXT_PUBLIC_SMTP_HOST,
-  port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
-  secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true",
-  auth: {
-    user: process.env.NEXT_PUBLIC_SMTP_USER,
-    pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD,
-  },
-});
+const transporter = createSmtpTransport();
 
 export async function POST(req: NextRequest) {
   if (!(await getSignedInUser())) return unauthorized();
@@ -38,7 +30,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!process.env.NEXT_PUBLIC_SMTP_HOST || !process.env.NEXT_PUBLIC_SMTP_USER) {
+    if (!isSmtpConfigured()) {
       return NextResponse.json(
         { error: "SMTP is not configured" },
         { status: 500 }
@@ -112,9 +104,7 @@ export async function POST(req: NextRequest) {
 
    
     const mailOptions = {
-      from:
-        process.env.NEXT_PUBLIC_SMTP_FROM ||
-        `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      from: smtpFrom(),
       to: creatorEmail,
       subject,
       text: `${creatorGreeting}\n\n${decisionLine}${rejectionReasonText}\nOrganization: ${orgLabel}\nType: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}${
