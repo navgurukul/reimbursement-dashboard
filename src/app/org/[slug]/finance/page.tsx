@@ -9,16 +9,29 @@ import { useOrgStore } from "@/store/useOrgStore";
 import supabase from "@/lib/supabase";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/page-header";
-import { notFound, useRouter, useSearchParams } from "next/navigation";
+import { PageLoader } from "@/components/ui/page-loader";
+import { notFound, useParams, useRouter, useSearchParams } from "next/navigation";
 
+// Wait until the org layout has loaded the role for this organisation before
+// deciding. Calling notFound() earlier shows the 404 page, which replaces the
+// layout, so the role would never load.
 export default function FinancePage() {
-  const { userRole } = useOrgStore();
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const { userRole, organization } = useOrgStore();
+  const params = useParams<{ slug: string }>();
 
+  if (!userRole || organization?.slug !== params?.slug) {
+    return <PageLoader />;
+  }
   if (userRole !== "owner" && userRole !== "admin") {
     notFound();
   }
+  return <FinanceManagement />;
+}
+
+function FinanceManagement() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [activeTab, setActiveTab] = useState("approvals");
 
   const handleTabChange = (value: string) => {
