@@ -251,7 +251,7 @@ export default function ExpenseEventDetailPage() {
     try {
       // First unlink all expenses from this event
       for (const expense of eventExpenses) {
-        await expenses.update(expense.id, { event_id: undefined });
+        await expenses.update(expense.id, { event_id: null });
       }
 
       // Then delete the event
@@ -324,7 +324,7 @@ export default function ExpenseEventDetailPage() {
   const handleRemoveExpense = async (expenseId: string) => {
     try {
       const { error } = await expenses.update(expenseId, {
-        event_id: undefined,
+        event_id: null,
       });
       if (error) throw error;
 
