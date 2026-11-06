@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { getSignedInUser, unauthorized } from "@/lib/server/auth";
 
 const transporter = nodemailer.createTransport({
     host: process.env.NEXT_PUBLIC_SMTP_HOST,
@@ -12,6 +13,8 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function POST(req: NextRequest) {
+    if (!(await getSignedInUser())) return unauthorized();
+
     try {
         const {
             expenseId,
