@@ -31,11 +31,11 @@ const formSchema = z.object({
   subdomain: z
     .string()
     .min(3, {
-      message: "Subdomain must be at least 3 characters.",
+      message: "URL must be at least 3 characters.",
     })
     .regex(/^[a-z0-9-]+$/, {
       message:
-        "Subdomain can only contain lowercase letters, numbers, and hyphens.",
+        "URL can only contain lowercase letters, numbers, and hyphens.",
     }),
 });
 
@@ -81,15 +81,7 @@ export default function CreateOrganizationPage() {
           setUserRole(membership.role as "owner" | "admin" | "member");
 
           // If the user already has an organization, redirect to their dashboard
-          const isLocal =
-            window.location.hostname === "localhost" ||
-            window.location.hostname === "127.0.0.1";
-
-          if (isLocal) {
-            router.push(`/org/${membership.organizations.slug}`);
-          } else {
-            window.location.href = `https://${membership.organizations.slug}.yourdomain.com/`;
-          }
+          router.push(`/org/${membership.organizations.slug}`);
         }
       } catch (err) {
         console.error("Error checking user organization:", err);
@@ -167,15 +159,7 @@ export default function CreateOrganizationPage() {
 
       // 5) Delay redirect to ensure state updates and API calls complete
       setTimeout(() => {
-        const isLocal =
-          window.location.hostname === "localhost" ||
-          window.location.hostname === "127.0.0.1";
-
-        if (isLocal) {
-          router.push(`/org/${orgData.slug}`);
-        } else {
-          window.location.href = `https://${orgData.slug}.yourdomain.com/`;
-        }
+        router.push(`/org/${orgData.slug}`);
       }, 1000); // 1 second delay for state to settle and toast to be visible
     } catch (err: any) {
       toast.dismiss(loadingToast);
@@ -233,8 +217,11 @@ export default function CreateOrganizationPage() {
                 name="subdomain"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Subdomain</FormLabel>
+                    <FormLabel>Organization URL</FormLabel>
                     <div className="flex items-center gap-2">
+                      <span className="shrink-0 text-sm text-muted-foreground">
+                        /org/
+                      </span>
                       <FormControl>
                         <Input
                           placeholder="acme"
@@ -242,12 +229,9 @@ export default function CreateOrganizationPage() {
                           disabled={isSubmitting}
                         />
                       </FormControl>
-                      <span className="shrink-0 text-sm text-muted-foreground">
-                        .yourdomain.com
-                      </span>
                     </div>
                     <FormDescription>
-                      Your organization's unique URL.
+                      Your organization's unique address in the app.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
