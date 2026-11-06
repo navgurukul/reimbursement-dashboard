@@ -257,7 +257,7 @@ export interface Expense {
   };
   policy_validations: PolicyValidation[];
   approver_id?: string;
-  event_id?: string; // Add this field
+  event_id?: string | null;
   created_at: string;
   signature_url?: string;
   updated_at: string;
