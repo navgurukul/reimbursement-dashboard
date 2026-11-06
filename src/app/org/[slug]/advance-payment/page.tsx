@@ -953,16 +953,16 @@ export default function AdvancePaymentRecords() {
         )
           return false;
       }
-      if (filters.startDate) {
-        const start = new Date(filters.startDate);
-        const recDate = new Date(r.updated_at || r.created_at || r.date);
-        if (recDate < start) return false;
-      }
-      if (filters.endDate) {
-        const end = new Date(filters.endDate);
-        const recDate = new Date(r.updated_at || r.created_at || r.date);
-        end.setHours(23, 59, 59, 999);
-        if (recDate > end) return false;
+      // "Date of expense": compare the expense date (YYYY-MM-DD), like the export filter does.
+      if (filters.startDate || filters.endDate) {
+        const expenseDate = r.date ? new Date(r.date) : null;
+        const expenseYmd =
+          expenseDate && !isNaN(expenseDate.getTime())
+            ? expenseDate.toISOString().slice(0, 10)
+            : null;
+        if (!expenseYmd) return false;
+        if (filters.startDate && expenseYmd < filters.startDate) return false;
+        if (filters.endDate && expenseYmd > filters.endDate) return false;
       }
       const paidApprovalDate = r.paid_approval_time
         ? new Date(r.paid_approval_time)
