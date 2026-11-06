@@ -1871,6 +1871,13 @@ export default function PaymentProcessingOnly() {
                         <SelectItem value="IFT">IFT - Within Bank Payment</SelectItem>
                         <SelectItem value="NEFT">NEFT - Inter-Bank(NEFT) Payment</SelectItem>
                         <SelectItem value="RTGS">RTGS - Inter-Bank(RTGS) Payment</SelectItem>
+                        {/* Keep any other stored value visible so it can be seen and changed. */}
+                        {expense.payment_type &&
+                          !["IFT", "NEFT", "RTGS"].includes(expense.payment_type) && (
+                            <SelectItem value={expense.payment_type}>
+                              {expense.payment_type}
+                            </SelectItem>
+                          )}
                       </SelectContent>
                     </Select>
                   </TableCell>
