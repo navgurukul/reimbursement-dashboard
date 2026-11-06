@@ -780,6 +780,43 @@ export default function ViewExpensePage() {
     };
   }, [expense?.receipt?.path]);
 
+  // Approver name to display; after a transfer the live assignee wins
+  const approverDisplayName =
+    (expense?.custom_fields?.transferred_to_second_approver === true
+      ? expense?.approver?.full_name ||
+        expense?.custom_fields?.transferred_to_approver_name
+      : expense?.custom_fields?.approver_name) ||
+    expense?.approver?.full_name ||
+    "—";
+
+  // Name of the approver who transferred the expense (for the banner).
+  // Older transfers only stored the id, so look the name up when missing.
+  const [transferredByName, setTransferredByName] = useState<string | null>(
+    null
+  );
+  useEffect(() => {
+    const cf = expense?.custom_fields;
+    if (cf?.transferred_to_second_approver !== true) {
+      setTransferredByName(null);
+      return;
+    }
+    if (cf.transferred_from_approver_name) {
+      setTransferredByName(cf.transferred_from_approver_name);
+      return;
+    }
+    if (!cf.transferred_from_approver_id) {
+      setTransferredByName(null);
+      return;
+    }
+    let cancelled = false;
+    profiles.getById(cf.transferred_from_approver_id).then(({ data }) => {
+      if (!cancelled) setTransferredByName(data?.full_name || null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [expense?.custom_fields]);
+
   // Resolve second approver from org mapping when not saved on the expense
   useEffect(() => {
     let cancelled = false;
@@ -790,28 +827,33 @@ export default function ViewExpensePage() {
     const resolve = async () => {
       setFallbackSecondApproverId(null);
       if (!expense) return;
-      const saved = first(expense.custom_fields?.second_approver_id);
-      if (typeof saved === "string" && saved.trim()) return;
 
       const cf = expense.custom_fields || {};
       const location =
-        cf.location_of_expense || cf["Project of Expense"] || expense.location;
+        cf.project_of_expense ||
+        cf["Project of Expense"] ||
+        cf.location_of_expense ||
+        cf["Location of Expense"] ||
+        cf.location ||
+        expense.location;
       const type = expense.expense_type;
+      const noType = (m: any) =>
+        !m.expense_type ||
+        (typeof m.expense_type === "string" && m.expense_type.trim() === "") ||
+        (Array.isArray(m.expense_type) && m.expense_type.length === 0);
 
-      const locEntry = approverMappings.location.find(
-        (m) =>
-          m.enabled !== false &&
-          matches(m.location, location) &&
-          (!m.expense_type ||
-            (Array.isArray(m.expense_type) && m.expense_type.length === 0) ||
-            matches(m.expense_type, type))
+      // Same precedence as the new-expense form:
+      // location + type > location only > expense type only
+      const locCandidates = approverMappings.location.filter(
+        (m) => m.enabled !== false && location && matches(m.location, location)
       );
+      const locEntry =
+        locCandidates.find((m) => !noType(m) && matches(m.expense_type, type)) ||
+        locCandidates.find(noType);
       const typeEntry = approverMappings.expenseType.find(
         (m) => m.enabled !== false && matches(m.expense_type, type)
       );
-      const entry = [locEntry, typeEntry].find(
-        (e) => e && (first(e.second_approver_id) || first(e.second_approver_name))
-      );
+      const entry = locEntry || typeEntry;
       if (!entry) return;
 
       let id: string | null = first(entry.second_approver_id) || null;
@@ -847,7 +889,8 @@ export default function ViewExpensePage() {
     const id = Array.isArray(raw) ? raw[0] : raw;
     return typeof id === "string" && id.trim() ? id.trim() : null;
   })();
-  const secondApproverId = savedSecondApproverId || fallbackSecondApproverId;
+  // The current org mapping wins; the value saved on the expense is a fallback.
+  const secondApproverId = fallbackSecondApproverId || savedSecondApproverId;
   const alreadyTransferred =
     expense?.custom_fields?.transferred_to_second_approver === true;
   // Only the first approver can transfer, regardless of policy, and only once.
@@ -884,8 +927,12 @@ export default function ViewExpensePage() {
 
       const newCustomFields = {
         ...(expense.custom_fields || {}),
+        // Keep displayed approver in sync with the new assignee
+        approver_name: secondName,
         transferred_to_second_approver: true,
         transferred_from_approver_id: currentUserId,
+        transferred_from_approver_name: profile?.full_name || "First approver",
+        transferred_to_approver_name: secondName,
         transferred_at: new Date().toISOString(),
       };
 
@@ -894,6 +941,16 @@ export default function ViewExpensePage() {
         .update({ approver_id: secondApproverId, custom_fields: newCustomFields })
         .eq("id", expenseId);
       if (error) throw error;
+
+      // Keep the voucher's approver in sync (best effort)
+      try {
+        await supabase
+          .from("vouchers")
+          .update({ approver_id: secondApproverId })
+          .eq("expense_id", expenseId);
+      } catch (e) {
+        console.warn("Failed to update voucher approver", e);
+      }
 
       await expenseHistory.addEntry(
         expenseId,
@@ -930,6 +987,14 @@ export default function ViewExpensePage() {
 
       toast.success(`Expense transferred to ${secondName} for approval.`);
 
+      // Update local state so the transfer banner shows right away
+      setExpense({
+        ...expense,
+        approver_id: secondApproverId,
+        approver: { full_name: secondName },
+        custom_fields: newCustomFields,
+      });
+
       setTimeout(async () => {
         const tab = fromTab || "my";
         if (tab === "pending") {
@@ -940,7 +1005,7 @@ export default function ViewExpensePage() {
           }
         }
         router.push(`/org/${slug}/expenses?tab=${tab}`);
-      }, 1000);
+      }, 2500);
     } catch (error: any) {
       console.error("Transfer error:", error);
       toast.error("Failed to transfer expense", { description: error?.message });
@@ -2160,7 +2225,7 @@ export default function ViewExpensePage() {
       {isRejectedToday &&
         (expense.status === "rejected" ||
           expense.status === "finance_rejected") && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start justify-between gap-4">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start justify-between gap-4 mb-3">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
             <div className="text-sm">
@@ -2177,7 +2242,7 @@ export default function ViewExpensePage() {
 
       {/* Show banner if expense was previously rejected, edited, and resubmitted */}
       {resubmissionInfo.isResubmitted && (
-        <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4">
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start justify-between gap-4 mb-3">
           <div className="flex items-start gap-3">
             <CheckCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div className="text-sm">
@@ -2196,12 +2261,29 @@ export default function ViewExpensePage() {
       {expense.unique_id &&
         (expense.unique_id.toLowerCase().startsWith("advance_") ||
           expense.unique_id.startsWith("Advance_")) && (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md mb-3">
             <p className="text-sm text-yellow-900 break-words">
               ℹ️ This expense was created using Advance Unique ID: <span className="font-mono font-semibold">{expense.unique_id}</span>
             </p>
           </div>
         )}
+
+      {alreadyTransferred && (
+        <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 p-4">
+          <ArrowRightLeft className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+          <p className="text-sm text-blue-900">
+            This expense was transferred
+            {transferredByName ? (
+              <>
+                {" "}by <span className="font-semibold">{transferredByName}</span>{" "}
+                (First Approver)
+              </>
+            ) : null}{" "}
+            to <span className="font-semibold">{approverDisplayName}</span>{" "}
+            (Second Approver) for review and approval.
+          </p>
+        </div>
+      )}
 
       {/* Policy alert banner (renders nothing when within the limit) */}
       {isOverPolicy && relevantPolicy && (
@@ -2488,7 +2570,7 @@ export default function ViewExpensePage() {
                     <p className="text-xs font-medium text-muted-foreground">
                       Approver
                     </p>
-                    <p className="mt-1 text-sm break-words">{expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}</p>
+                    <p className="mt-1 text-sm break-words">{approverDisplayName}</p>
                   </div>
                 )}
 
@@ -2875,7 +2957,7 @@ export default function ViewExpensePage() {
                                   Approver
                                 </p>
                                 <p className="font-medium">
-                                  {expense.custom_fields?.approver_name || expense.approver?.full_name || "—"}
+                                  {approverDisplayName}
                                 </p>
                               </div>
                               <div className="sm:col-span-2">

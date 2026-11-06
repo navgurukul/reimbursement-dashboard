@@ -459,10 +459,16 @@ export default function ExpensesPage() {
               expense.hasVoucher = true;
               expense.voucherId = voucher.id;
             }
-            const approverName =
-              expense.custom_fields?.approver_name ||
-              expense.approver?.full_name ||
-              "—";
+            // After a transfer, the live approver profile is the source of truth
+            const approverName = expense.custom_fields
+              ?.transferred_to_second_approver
+              ? expense.approver?.full_name ||
+                expense.custom_fields?.transferred_to_approver_name ||
+                expense.custom_fields?.approver_name ||
+                "—"
+              : expense.custom_fields?.approver_name ||
+                expense.approver?.full_name ||
+                "—";
             expense.approver = {
               full_name: approverName,
               user_id: expense.approver_id || voucher?.approver_id,
@@ -1403,7 +1409,9 @@ export default function ExpensesPage() {
                                       "No receipt or voucher"
                                     )
                                   ) : c.key === "approver" ? (
-                                    exp.custom_fields?.approver_name || exp.approver?.full_name || "—"
+                                    (exp.custom_fields?.transferred_to_second_approver
+                                      ? exp.approver?.full_name || exp.custom_fields?.transferred_to_approver_name
+                                      : exp.custom_fields?.approver_name) || exp.approver?.full_name || "—"
                                   ) : c.key === "category" ? (
                                     getExpenseValue(exp, "category")
                                   ) : c.key === "event_title" ? (
