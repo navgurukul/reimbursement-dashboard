@@ -49,6 +49,48 @@ export async function getOrgRole(
   return ROLE_RANK.find((role) => roles.includes(role)) ?? roles[0];
 }
 
+/** An expense's organisation and creator, or null if it doesn't exist. */
+export async function getExpenseOrg(expenseId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data: expense } = await supabase
+    .from("expense_new")
+    .select("id, org_id, user_id")
+    .eq("id", expenseId)
+    .maybeSingle();
+  if (!expense) return null;
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("slug, name")
+    .eq("id", expense.org_id)
+    .maybeSingle();
+  return {
+    id: expense.id as string,
+    orgId: expense.org_id as string,
+    creatorId: expense.user_id as string,
+    orgSlug: (org?.slug as string | undefined) || (expense.org_id as string),
+    orgName: (org?.name as string | undefined) || null,
+  };
+}
+
+/** Whether the email address belongs to a member of the organisation. */
+export async function isOrgMemberEmail(orgId: string, email: string) {
+  const supabase = getSupabaseAdmin();
+  const { data: members } = await supabase
+    .from("organization_users")
+    .select("user_id")
+    .eq("org_id", orgId);
+  const userIds = (members ?? []).map((row) => row.user_id);
+  if (!userIds.length) return false;
+  const { data: memberProfiles } = await supabase
+    .from("profiles")
+    .select("email")
+    .in("user_id", userIds);
+  const target = email.trim().toLowerCase();
+  return (memberProfiles ?? []).some(
+    (row) => String(row.email || "").trim().toLowerCase() === target
+  );
+}
+
 export function unauthorized() {
   return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 }

@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSmtpTransport, isSmtpConfigured, smtpFrom } from "@/lib/server/smtp";
-import { getSignedInUser, unauthorized } from "@/lib/server/auth";
+import { createSmtpTransport, escapeHtml, isSmtpConfigured, smtpFrom } from "@/lib/server/smtp";
+import {
+    forbidden,
+    getExpenseOrg,
+    getOrgRole,
+    getSignedInUser,
+    isOrgMemberEmail,
+    unauthorized,
+} from "@/lib/server/auth";
 
 const transporter = createSmtpTransport();
 
 export async function POST(req: NextRequest) {
-    if (!(await getSignedInUser())) return unauthorized();
+    const caller = await getSignedInUser();
+    if (!caller) return unauthorized();
 
     try {
         const {
@@ -33,11 +41,21 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Only members of the expense's organisation can notify, and only another member.
+        const expense = await getExpenseOrg(expenseId);
+        if (!expense) {
+            return NextResponse.json({ error: "Expense not found" }, { status: 404 });
+        }
+        if (!(await getOrgRole(caller.id, expense.orgId))) return forbidden();
+        if (!(await isOrgMemberEmail(expense.orgId, String(approverEmail)))) {
+            return forbidden("The approver isn't a member of this organisation");
+        }
+
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-        const expenseUrl = `${baseUrl}/org/${slug}/expenses/${expenseId}`;
+        const expenseUrl = `${baseUrl}/org/${expense.orgSlug}/expenses/${expense.id}`;
         const approverGreeting = approverName ? `Hi ${approverName},` : "Hello,";
         const requesterLabel = requesterName || "A teammate";
-        const orgLabel = orgName || "your organization";
+        const orgLabel = expense.orgName || orgName || "your organization";
         const amountLabel = typeof amount === "number" ? amount.toFixed(2) : amount;
         const expenseTypeLabel = expenseType || "Expense";
 
@@ -67,17 +85,17 @@ export async function POST(req: NextRequest) {
           <body>
             <div class="container">
               <div class="header">
-                <div style="font-size: 18px; font-weight: 600;">Organization Name: ${orgLabel}</div>
+                <div style="font-size: 18px; font-weight: 600;">Organization Name: ${escapeHtml(orgLabel)}</div>
                 <div style="font-size: 18px; font-weight: 400;">Expense approval needed</div>
               </div>
               <div class="content">
-                <p>${approverGreeting}</p>
-                <p>${requesterLabel} has submitted a new expense for your review and approval.</p>
-                <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
-                <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
-                <p><a class="cta" href="${expenseUrl}" style="color: white;">Review expense</a></p>
+                <p>${escapeHtml(approverGreeting)}</p>
+                <p>${escapeHtml(requesterLabel)} has submitted a new expense for your review and approval.</p>
+                <div class="meta"><strong>Expense Type:</strong> ${escapeHtml(expenseTypeLabel)}</div>
+                <div class="meta"><strong>Expense Amount:</strong> ${escapeHtml(amountLabel || "-")}</div>
+                <p><a class="cta" href="${escapeHtml(expenseUrl)}" style="color: white;">Review expense</a></p>
                 <p>If the button does not work, copy and paste this link:</p>
-                <p style="word-break: break-all; color: #2563eb;">${expenseUrl}</p>
+                <p style="word-break: break-all; color: #2563eb;">${escapeHtml(expenseUrl)}</p>
               </div>
               <div class="footer">This is an automated message from the reimbursement dashboard.</div>
             </div>

@@ -38,3 +38,13 @@ export function createSmtpTransport() {
 export function smtpFrom() {
   return smtpConfig.from || `"Reimbursement App" <${smtpConfig.user}>`;
 }
+
+/** Escapes text for use in email HTML (element content or quoted attributes). */
+export function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
