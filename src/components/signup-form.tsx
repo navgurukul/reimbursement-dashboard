@@ -482,6 +482,17 @@ export function SignupForm({
               <DialogDescription>{dialogState.description}</DialogDescription>
             )}
           </DialogHeader>
+          {dialogState.status === "success" && dialogState.nextHref && (
+            <DialogFooter>
+              <Button asChild>
+                <Link href={dialogState.nextHref}>
+                  {dialogState.nextHref === "/auth/signin"
+                    ? "Go to sign in"
+                    : "Continue"}
+                </Link>
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
