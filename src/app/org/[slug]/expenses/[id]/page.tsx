@@ -3142,6 +3142,9 @@ export default function ViewExpensePage() {
                           normalizedKey !== "marked as advance" &&
                           normalizedKey !== "marked as advance at" &&
                           normalizedKey !== "original serial number" &&
+                          normalizedKey !== "transferred at" &&
+                          normalizedKey !== "transferred from approver id" &&
+                          normalizedKey !== "transferred to second approver" &&
                           normalizedKey !== "description"
                         );
                       }) // Exclude Project Of Expense and description
