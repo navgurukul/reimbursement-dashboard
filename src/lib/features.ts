@@ -147,3 +147,29 @@ export const getResubmissionDetails = (
     rejectionDate: rejectionEntry.created_at || null,
   };
 };
+
+const TRANSFER_KEYS = [
+  "transferred_to_second_approver",
+  "transferred_from_approver_id",
+  "transferred_from_approver_name",
+  "transferred_to_approver_name",
+  "transferred_at",
+];
+
+/**
+ * When a transferred expense is resubmitted after a rejection it must go back
+ * to the first approver. Returns the approver id/name to restore and the
+ * custom_fields with the transfer metadata cleared (so it can be transferred
+ * again), or null when the expense was never transferred.
+ */
+export function getTransferResetOnResubmit(
+  customFields: Record<string, any> | null | undefined
+): { firstApproverId: string; cleanedCustomFields: Record<string, any> } | null {
+  const cf = customFields || {};
+  if (cf.transferred_to_second_approver !== true) return null;
+  const firstApproverId = cf.transferred_from_approver_id;
+  if (!firstApproverId || typeof firstApproverId !== "string") return null;
+  const cleanedCustomFields = { ...cf };
+  TRANSFER_KEYS.forEach((k) => delete cleanedCustomFields[k]);
+  return { firstApproverId, cleanedCustomFields };
+}

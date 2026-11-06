@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useOrgStore } from "@/store/useOrgStore";
+import { getTransferResetOnResubmit } from "@/lib/features";
 import { orgSettings, expenses, expenseHistory, vouchers, profiles, expenseEvents, organizations, } from "@/lib/db";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -183,6 +184,12 @@ export default function EditExpensePage() {
       "approvername",
       "secondapproverid",
       "secondapprovername",
+      // Internal transfer-to-second-approver metadata
+      "transferredtosecondapprover",
+      "transferredat",
+      "transferredfromapproverid",
+      "transferredfromapprovername",
+      "transferredtoapprovername",
       "expensecreditperson",
       "markedasadvance",
       "markedasadvanceat",
@@ -1032,6 +1039,25 @@ export default function EditExpensePage() {
         updates.custom_fields.expense_credit_person = updatedExpenseCreditPerson;
       }
 
+      // Resubmitting a transferred expense sends it back to the first approver
+      let resubmitApproverId: string | null = null;
+      if (isResubmit) {
+        const reset = getTransferResetOnResubmit(expense.custom_fields);
+        if (reset) {
+          const { data: firstProfile } = await profiles.getById(
+            reset.firstApproverId
+          );
+          resubmitApproverId = reset.firstApproverId;
+          updates.approver_id = reset.firstApproverId;
+          const cleaned: Record<string, any> = { ...updates.custom_fields };
+          Object.keys(cleaned).forEach((k) => {
+            if (k.startsWith("transferred_")) delete cleaned[k];
+          });
+          if (firstProfile?.full_name) cleaned.approver_name = firstProfile.full_name;
+          updates.custom_fields = cleaned;
+        }
+      }
+
       // Update expense with receipt if provided
       const { error } = await expenses.update(
         expenseId,
@@ -1048,8 +1074,9 @@ export default function EditExpensePage() {
 
         // Notify approver
         try {
-          if (expense.approver_id) {
-            const { data: approverProfile } = await profiles.getById(expense.approver_id);
+          const notifyApproverId = resubmitApproverId || expense.approver_id;
+          if (notifyApproverId) {
+            const { data: approverProfile } = await profiles.getById(notifyApproverId);
             if (approverProfile?.email) {
               await fetch("/api/expenses/notify-approver", {
                 method: "POST",

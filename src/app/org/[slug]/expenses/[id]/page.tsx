@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowLeft,
+  ArrowRightLeft,
   Check,
   X,
   FileText,
@@ -67,6 +68,7 @@ import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import {
   isDateToday,
   getResubmissionDetails,
+  getTransferResetOnResubmit,
   ResubmissionInfo,
 } from "@/lib/features";
 
@@ -182,6 +184,14 @@ export default function ViewExpensePage() {
 
   const [loading, setLoading] = useState(true);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [approverMappings, setApproverMappings] = useState<{
+    expenseType: any[];
+    location: any[];
+  }>({ expenseType: [], location: [] });
+  const [fallbackSecondApproverId, setFallbackSecondApproverId] = useState<
+    string | null
+  >(null);
   const [expense, setExpense] = useState<any>(null);
   const [hasVoucher, setHasVoucher] = useState(false);
   const [relevantPolicy, setRelevantPolicy] = useState<Policy | null>(null);
@@ -267,6 +277,23 @@ export default function ViewExpensePage() {
         approved_amount: null,
       };
 
+      // A transferred expense goes back to the first approver on resubmit
+      let notifyApproverId: string | null = expense.approver_id || null;
+      const reset = getTransferResetOnResubmit(expense.custom_fields);
+      if (reset) {
+        const { data: firstProfile } = await profiles.getById(
+          reset.firstApproverId
+        );
+        notifyApproverId = reset.firstApproverId;
+        updates.approver_id = reset.firstApproverId;
+        updates.custom_fields = {
+          ...reset.cleanedCustomFields,
+          ...(firstProfile?.full_name
+            ? { approver_name: firstProfile.full_name }
+            : {}),
+        };
+      }
+
       const { error } = await expenses.update(expenseId, updates);
       if (error) throw error;
 
@@ -280,8 +307,8 @@ export default function ViewExpensePage() {
       );
 
       // notify approver
-      if (expense.approver_id) {
-        const { data: approverProfile } = await profiles.getById(expense.approver_id);
+      if (notifyApproverId) {
+        const { data: approverProfile } = await profiles.getById(notifyApproverId);
         if (approverProfile?.email) {
           await fetch("/api/expenses/notify-approver", {
             method: "POST",
@@ -400,7 +427,9 @@ export default function ViewExpensePage() {
     async function fetchOrgSettings() {
       const { data, error } = await supabase
         .from("org_settings")
-        .select("expense_columns")
+        .select(
+          "expense_columns, expense_type_approver_mapping, location_approver_mapping"
+        )
         .eq("org_id", organization?.id)
         .single();
 
@@ -408,6 +437,11 @@ export default function ViewExpensePage() {
         console.error("Error fetching custom fields:", error);
         return;
       }
+
+      setApproverMappings({
+        expenseType: (data as any)?.expense_type_approver_mapping || [],
+        location: (data as any)?.location_approver_mapping || [],
+      });
 
       if (data?.expense_columns) {
         setCustomFields(data.expense_columns);
@@ -746,11 +780,174 @@ export default function ViewExpensePage() {
     };
   }, [expense?.receipt?.path]);
 
+  // Resolve second approver from org mapping when not saved on the expense
+  useEffect(() => {
+    let cancelled = false;
+    const first = (v: any) => (Array.isArray(v) ? v[0] : v);
+    const matches = (field: any, value?: string) =>
+      Array.isArray(field) ? field.includes(value) : field === value;
+
+    const resolve = async () => {
+      setFallbackSecondApproverId(null);
+      if (!expense) return;
+      const saved = first(expense.custom_fields?.second_approver_id);
+      if (typeof saved === "string" && saved.trim()) return;
+
+      const cf = expense.custom_fields || {};
+      const location =
+        cf.location_of_expense || cf["Project of Expense"] || expense.location;
+      const type = expense.expense_type;
+
+      const locEntry = approverMappings.location.find(
+        (m) =>
+          m.enabled !== false &&
+          matches(m.location, location) &&
+          (!m.expense_type ||
+            (Array.isArray(m.expense_type) && m.expense_type.length === 0) ||
+            matches(m.expense_type, type))
+      );
+      const typeEntry = approverMappings.expenseType.find(
+        (m) => m.enabled !== false && matches(m.expense_type, type)
+      );
+      const entry = [locEntry, typeEntry].find(
+        (e) => e && (first(e.second_approver_id) || first(e.second_approver_name))
+      );
+      if (!entry) return;
+
+      let id: string | null = first(entry.second_approver_id) || null;
+      if (!id) {
+        const name = first(entry.second_approver_name);
+        const { data } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .ilike("full_name", String(name))
+          .limit(1)
+          .maybeSingle();
+        id = data?.user_id || null;
+      }
+      if (!cancelled) setFallbackSecondApproverId(id);
+    };
+
+    resolve();
+    return () => {
+      cancelled = true;
+    };
+  }, [expense, approverMappings]);
+
   // Check if current user is the assigned approver
   const isAssignedApprover =
     expense?.approver_id && currentUserId
       ? expense.approver_id === currentUserId
       : false;
+
+  // Second approver: saved on the expense when created, otherwise resolved
+  // from the org's approver mapping (covers older expenses).
+  const savedSecondApproverId: string | null = (() => {
+    const raw = expense?.custom_fields?.second_approver_id;
+    const id = Array.isArray(raw) ? raw[0] : raw;
+    return typeof id === "string" && id.trim() ? id.trim() : null;
+  })();
+  const secondApproverId = savedSecondApproverId || fallbackSecondApproverId;
+  const alreadyTransferred =
+    expense?.custom_fields?.transferred_to_second_approver === true;
+  // Only the first approver can transfer, regardless of policy, and only once.
+  const canTransferToSecondApprover =
+    isAssignedApprover &&
+    !!secondApproverId &&
+    secondApproverId !== currentUserId &&
+    secondApproverId !== expense?.user_id &&
+    !alreadyTransferred;
+
+  // Transfer an over-limit expense to the second approver for review
+  const handleTransferToSecondApprover = async () => {
+    try {
+      setTransferLoading(true);
+
+      if (!currentUserId || !canTransferToSecondApprover || !secondApproverId) {
+        toast.error("This expense cannot be transferred.");
+        return;
+      }
+
+      const { data: secondProfile, error: secondProfileError } =
+        await profiles.getById(secondApproverId);
+      if (secondProfileError || !secondProfile) {
+        toast.error(
+          "Second approver is not a member of this organization, so the expense cannot be transferred."
+        );
+        return;
+      }
+
+      const secondName =
+        secondProfile.full_name ||
+        expense.custom_fields?.second_approver_name ||
+        "Second approver";
+
+      const newCustomFields = {
+        ...(expense.custom_fields || {}),
+        transferred_to_second_approver: true,
+        transferred_from_approver_id: currentUserId,
+        transferred_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("expense_new")
+        .update({ approver_id: secondApproverId, custom_fields: newCustomFields })
+        .eq("id", expenseId);
+      if (error) throw error;
+
+      await expenseHistory.addEntry(
+        expenseId,
+        currentUserId,
+        profile?.full_name || "Unknown User",
+        "updated",
+        expense.status,
+        `Transferred to second approver ${secondName}${
+          isOverPolicy ? " (amount exceeds policy limit)" : ""
+        }`
+      );
+
+      // Notify the second approver (best effort)
+      try {
+        if (secondProfile.email) {
+          await fetch("/api/expenses/notify-approver", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              expenseId,
+              approverEmail: secondProfile.email,
+              approverName: secondProfile.full_name,
+              requesterName: expense.creator?.full_name || "A teammate",
+              orgName: organization?.name,
+              slug,
+              amount: expense.amount,
+              expenseType: expense.expense_type,
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to notify second approver", e);
+      }
+
+      toast.success(`Expense transferred to ${secondName} for approval.`);
+
+      setTimeout(async () => {
+        const tab = fromTab || "my";
+        if (tab === "pending") {
+          const next = await getNextPendingId(expenseId);
+          if (next) {
+            router.push(`/org/${slug}/expenses/${next}?fromTab=${tab}`);
+            return;
+          }
+        }
+        router.push(`/org/${slug}/expenses?tab=${tab}`);
+      }, 1000);
+    } catch (error: any) {
+      console.error("Transfer error:", error);
+      toast.error("Failed to transfer expense", { description: error?.message });
+    } finally {
+      setTransferLoading(false);
+    }
+  };
 
   // Handle custom amount approval
   const handleApproveCustomAmount = async () => {
@@ -2139,6 +2336,22 @@ export default function ViewExpensePage() {
                     Custom amount
                   </Button>
                 </>
+              )}
+
+              {canTransferToSecondApprover && (
+                <Button
+                  variant="outline"
+                  onClick={handleTransferToSecondApprover}
+                  disabled={updateLoading || transferLoading}
+                  className="flex-1 sm:flex-none"
+                >
+                  {transferLoading ? (
+                    <Spinner size="sm" className="mr-2" />
+                  ) : (
+                    <ArrowRightLeft />
+                  )}
+                  Transfer to second approver
+                </Button>
               )}
             </div>
           )}
