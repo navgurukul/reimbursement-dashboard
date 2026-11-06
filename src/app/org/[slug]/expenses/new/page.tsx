@@ -415,19 +415,15 @@ export default function NewExpensePage() {
   ) => {
     const shouldResetApprovers = key === "location" || key === "expense_type";
 
-    // Clear item-level "required" error when user fills the field
-    if (key === "expense_credit_person") {
-      const stringValue = String(value ?? "").trim();
-      if (stringValue !== "") {
-        setErrors((prevErrors) => {
-          const updatedErrors = { ...prevErrors };
-          const errorKey = `expense_credit_person-${itemId}`;
-          if (updatedErrors[errorKey]) {
-            delete updatedErrors[errorKey];
-          }
-          return updatedErrors;
-        });
-      }
+    // Clear this item's "required" error once the field has a value
+    if (String(value ?? "").trim() !== "") {
+      setErrors((prevErrors) => {
+        const errorKey = `${key}-${itemId}`;
+        if (!prevErrors[errorKey]) return prevErrors;
+        const updatedErrors = { ...prevErrors };
+        delete updatedErrors[errorKey];
+        return updatedErrors;
+      });
     }
 
     setExpenseItemsData((prev) => ({
@@ -2339,14 +2335,14 @@ export default function NewExpensePage() {
           col.label?.trim().toLowerCase() === "expense credit person";
 
         // For "Expense Credit Person", only require it when this item is Direct Payment.
-        // Error keys for item-level fields use the raw column key so that UI bindings
-        // like `errors[col.key]` work correctly.
+        // Item errors are keyed `${col.key}-${itemId}`, like the item's field ids, so
+        // they don't collide with the main form's fields.
         if (
           col.required &&
           !item[col.key] &&
           (!isExpenseCreditPersonField || itemIsDirectPayment)
         ) {
-          newErrors[col.key] = `${col.label} is required`;
+          newErrors[`${col.key}-${itemId}`] = `${col.label} is required`;
         }
       });
 
@@ -4449,7 +4445,7 @@ export default function NewExpensePage() {
                             >
                               <SelectTrigger
                                 id={`${col.key}-${id}`}
-                                className={`w-full ${errors[col.key]
+                                className={`w-full ${errors[`${col.key}-${id}`]
                                   ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                   : ""
                                   }`}
@@ -4503,7 +4499,7 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full ${errors[col.key]
+                              className={`w-full ${errors[`${col.key}-${id}`]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                                 }`}
@@ -4511,9 +4507,9 @@ export default function NewExpensePage() {
                             />
                           )}
 
-                          {errors[col.key] && (
-                            <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-error`}>
-                              {errors[col.key]}
+                          {errors[`${col.key}-${id}`] && (
+                            <p className="text-red-500 text-sm mt-1" role="alert" id={`${col.key}-${id}-error`}>
+                              {errors[`${col.key}-${id}`]}
                             </p>
                           )}
                         </div>
@@ -4545,7 +4541,7 @@ export default function NewExpensePage() {
                             className="space-y-2"
                           >
                             <Label
-                              htmlFor={col.key}
+                              htmlFor={`${col.key}-${id}`}
                               className="text-sm font-medium text-gray-700"
                             >
                               {col.label}
@@ -4602,8 +4598,8 @@ export default function NewExpensePage() {
                                       }
                                     >
                                       <SelectTrigger
-                                        id={col.key}
-                                        className={`w-full ${errors[col.key]
+                                        id={`${col.key}-${id}`}
+                                        className={`w-full ${errors[`${col.key}-${id}`]
                                           ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                           : ""
                                           }`}
@@ -4636,9 +4632,9 @@ export default function NewExpensePage() {
                                     </Select>
                                   );
                                 })()}
-                                {errors[col.key] && (
+                                {errors[`${col.key}-${id}`] && (
                                   <p className="text-red-500 text-sm">
-                                    {errors[col.key]}
+                                    {errors[`${col.key}-${id}`]}
                                   </p>
                                 )}
                                 <p className="text-xs text-gray-600">
@@ -4672,8 +4668,8 @@ export default function NewExpensePage() {
                                   }
                                 >
                                   <SelectTrigger
-                                    id={col.key}
-                                    className={`w-full ${errors[col.key]
+                                    id={`${col.key}-${id}`}
+                                    className={`w-full ${errors[`${col.key}-${id}`]
                                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                       : ""
                                       }`}
@@ -4707,9 +4703,9 @@ export default function NewExpensePage() {
                                       })}
                                   </SelectContent>
                                 </Select>
-                                {errors[col.key] && (
+                                {errors[`${col.key}-${id}`] && (
                                   <p className="text-red-500 text-sm">
-                                    {errors[col.key]}
+                                    {errors[`${col.key}-${id}`]}
                                   </p>
                                 )}
                                 {(col.key === "expense_type" ||
@@ -4726,7 +4722,7 @@ export default function NewExpensePage() {
                             {col.type === "date" && (
                               <>
                                 <Input
-                                  id={col.key}
+                                  id={`${col.key}-${id}`}
                                   name={col.key}
                                   type="date"
                                   value={getExpenseItemValue(id, "date")}
@@ -4737,16 +4733,16 @@ export default function NewExpensePage() {
                                       e.target.value
                                     )
                                   }
-                                  className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[col.key]
+                                  className={`relative w-full overflow-hidden pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:left-auto [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors[`${col.key}-${id}`]
                                     ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                     : ""
                                     }`}
                                   min={dateBounds.min}
                                   max={dateBounds.max}
                                 />
-                                {errors[col.key] && (
+                                {errors[`${col.key}-${id}`] && (
                                   <p className="text-red-500 text-sm">
-                                    {errors[col.key]}
+                                    {errors[`${col.key}-${id}`]}
                                   </p>
                                 )}
                                 <p className="text-xs text-gray-600">
@@ -4759,7 +4755,7 @@ export default function NewExpensePage() {
                             {col.type === "number" && (
                               <>
                                 <Input
-                                  id={col.key}
+                                  id={`${col.key}-${id}`}
                                   name={col.key}
                                   type="number"
                                   placeholder="Enter amount"
@@ -4772,7 +4768,7 @@ export default function NewExpensePage() {
                                     )
                                   }
 
-                                  className={`w-full ${errors[col.key]
+                                  className={`w-full ${errors[`${col.key}-${id}`]
                                     ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                     : ""
                                     }`}
@@ -4782,9 +4778,9 @@ export default function NewExpensePage() {
                                     Decimal values are automatically rounded off.
                                   </p>
                                 )}
-                                {errors[col.key] && (
+                                {errors[`${col.key}-${id}`] && (
                                   <p className="text-red-500 text-sm">
-                                    {errors[col.key]}
+                                    {errors[`${col.key}-${id}`]}
                                   </p>
                                 )}
 
@@ -4807,7 +4803,7 @@ export default function NewExpensePage() {
                       return (
                         <div key={col.key} className="space-y-2 mt-5">
                           <Label
-                            htmlFor={col.key}
+                            htmlFor={`${col.key}-${id}`}
                             className="text-sm font-medium text-gray-700"
                           >
                             {col.label}
@@ -4818,7 +4814,7 @@ export default function NewExpensePage() {
                             )}
                           </Label>
                           <Textarea
-                            id={col.key}
+                            id={`${col.key}-${id}`}
                             name={col.key}
                             value={getExpenseItemValue(id, "description")}
                             onChange={(e) =>
@@ -4828,7 +4824,7 @@ export default function NewExpensePage() {
                                 e.target.value
                               )
                             }
-                            className={`w-full min-h-[75px] ${errors[col.key]
+                            className={`w-full min-h-[75px] ${errors[`${col.key}-${id}`]
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : ""
                               }`}
@@ -4837,9 +4833,9 @@ export default function NewExpensePage() {
                           <p className="text-xs text-gray-600">
                             Purpose of the expense, related activity/program, amount spent, number of people involved etc...
                           </p>
-                          {errors[col.key] && (
+                          {errors[`${col.key}-${id}`] && (
                             <p className="text-red-500 text-sm">
-                              {errors[col.key]}
+                              {errors[`${col.key}-${id}`]}
                             </p>
                           )}
                         </div>
@@ -4883,7 +4879,7 @@ export default function NewExpensePage() {
                       return (
                         <div key={col.key} className="space-y-2 mt-5">
                           <Label
-                            htmlFor={col.key}
+                            htmlFor={`${col.key}-${id}`}
                             className="text-sm font-medium text-gray-700"
                           >
                             {col.label}
@@ -4895,7 +4891,7 @@ export default function NewExpensePage() {
                           </Label>
                           {col.type === "text" && (
                             <Input
-                              id={col.key}
+                              id={`${col.key}-${id}`}
                               name={col.key}
                               type={col.type}
                               value={
@@ -4911,7 +4907,7 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full ${errors[col.key]
+                              className={`w-full ${errors[`${col.key}-${id}`]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                                 }`}
@@ -4920,7 +4916,7 @@ export default function NewExpensePage() {
                           )}
                           {col.type === "number" && (
                             <Input
-                              id={col.key}
+                              id={`${col.key}-${id}`}
                               name={col.key}
                               type={col.type}
                               value={
@@ -4938,7 +4934,7 @@ export default function NewExpensePage() {
                                     : e.target.value
                                 )
                               }
-                              className={`w-full ${errors[col.key]
+                              className={`w-full ${errors[`${col.key}-${id}`]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                                 }`}
@@ -4947,7 +4943,7 @@ export default function NewExpensePage() {
                           )}
                           {col.type === "date" && (
                             <Input
-                              id={col.key}
+                              id={`${col.key}-${id}`}
                               name={col.key}
                               type="date"
                               value={
@@ -4963,7 +4959,7 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full ${errors[col.key]
+                              className={`w-full ${errors[`${col.key}-${id}`]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                                 }`}
@@ -4971,7 +4967,7 @@ export default function NewExpensePage() {
                           )}
                           {col.type === "textarea" && (
                             <Textarea
-                              id={col.key}
+                              id={`${col.key}-${id}`}
                               name={col.key}
                               value={
                                 getExpenseItemValue(
@@ -4986,7 +4982,7 @@ export default function NewExpensePage() {
                                   e.target.value
                                 )
                               }
-                              className={`w-full min-h-[75px] ${errors[col.key]
+                              className={`w-full min-h-[75px] ${errors[`${col.key}-${id}`]
                                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                 : ""
                                 }`}
@@ -5042,8 +5038,8 @@ export default function NewExpensePage() {
                                     }
                                   >
                                     <SelectTrigger
-                                      id={col.key}
-                                      className={`w-full ${errors[col.key]
+                                      id={`${col.key}-${id}`}
+                                      className={`w-full ${errors[`${col.key}-${id}`]
                                         ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                                         : ""
                                         }`}
@@ -5201,13 +5197,13 @@ export default function NewExpensePage() {
                               })}
                             </div>
                           )}
-                          {errors[col.key] && (
+                          {errors[`${col.key}-${id}`] && (
                             <p
                               className="text-red-500 text-sm mt-1"
                               role="alert"
-                              id={`${col.key}-error`}
+                              id={`${col.key}-${id}-error`}
                             >
-                              {errors[col.key]}
+                              {errors[`${col.key}-${id}`]}
                             </p>
                           )}
                           {isProjectOfExpenseField && (
