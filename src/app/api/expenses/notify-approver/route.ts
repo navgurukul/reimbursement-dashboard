@@ -78,8 +78,8 @@ export async function POST(req: NextRequest) {
                 <div style="font-size: 18px; font-weight: 400;">Expense approval needed</div>
               </div>
               <div class="content">
-                <p>${approverGreeting}</p>
-                <p>${requesterLabel} has submitted a new expense for your review and approval.</p>
+                <h2 class="meta"><strong>${approverGreeting}</strong></h2>
+                <h3>${requesterLabel} has submitted a new expense for your review and approval.</h3>
                 <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
                 <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
                 <p><a class="cta" href="${expenseUrl}" style="color: white;">Review expense</a></p>

@@ -140,8 +140,8 @@ export async function POST(req: NextRequest) {
                 <div style="font-size: 18px; font-weight: 400;">Expense ${isPaymentProcessed ? "payment successful" : isPaymentNotProcessed ? "payment has been rejected" : isApproved ? (isCustomAmountApproval ? "approved with custom amount" : "approved") : "rejected"}</div>
               </div>
               <div class="content">
-                <p>${creatorGreeting}</p>
-                <p>${decisionLine}</p>
+                <h2 class="meta"><strong>${creatorGreeting}</strong></h2>
+                <h3>${decisionLine}</h3>
                 <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
                 <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
                 ${isApproved ? `<div class="meta"><strong>Approved Amount:</strong> ${approvedAmountLabel || amountLabel || "-"}</div>` : ""}
