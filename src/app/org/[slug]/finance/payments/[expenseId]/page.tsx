@@ -38,6 +38,7 @@ import { Table, TableBody } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useOrgStore } from "@/store/useOrgStore";
 
+import { sendExpenseNotification } from "@/lib/notify";
 /** One label/value pair in the expense details list. */
 function DetailItem({
   label,
@@ -231,10 +232,7 @@ export default function PaymentProcessingDetails() {
             ? await profiles.getById(currentUserId)
             : { data: null };
           if (creatorProfile?.email) {
-            await fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            await sendExpenseNotification("creator", {
                 expenseId,
                 creatorEmail: creatorProfile.email,
                 creatorName: creatorProfile.full_name,
@@ -247,8 +245,7 @@ export default function PaymentProcessingDetails() {
                 status: "payment_not_processed",
                 rejectionReason: comment,
                 decisionStage: "finance",
-              }),
-            });
+              });
           }
         }
       } catch (logErr) {
@@ -316,10 +313,7 @@ export default function PaymentProcessingDetails() {
             if (fullName) approverName = fullName;
           }
           if (creatorProfile?.email) {
-            await fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            await sendExpenseNotification("creator", {
                 expenseId,
                 creatorEmail: creatorProfile.email,
                 creatorName: creatorProfile.full_name,
@@ -331,8 +325,7 @@ export default function PaymentProcessingDetails() {
                 expenseType: expense.expense_type,
                 status: "payment_processed",
                 decisionStage: "finance",
-              }),
-            });
+              });
           }
         }
       } catch (notifyErr) {

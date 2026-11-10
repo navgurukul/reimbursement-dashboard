@@ -12,6 +12,7 @@ import {
   voucherAttachments,
 } from "@/lib/db";
 import { toast } from "sonner";
+import { sendExpenseNotification } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -310,20 +311,20 @@ export default function ViewExpensePage() {
       if (notifyApproverId) {
         const { data: approverProfile } = await profiles.getById(notifyApproverId);
         if (approverProfile?.email) {
-          await fetch("/api/expenses/notify-approver", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              expenseId,
-              approverEmail: approverProfile.email,
-              approverName: approverProfile.full_name,
-              requesterName: profile?.full_name || "Unknown User",
-              orgName: organization?.name,
-              slug,
-              amount: expense.amount,
-              expenseType: expense.expense_type,
-            }),
+          await sendExpenseNotification("approver", {
+            expenseId,
+            approverEmail: approverProfile.email,
+            approverName: approverProfile.full_name,
+            requesterName: profile?.full_name || "Unknown User",
+            orgName: organization?.name,
+            slug,
+            amount: expense.amount,
+            expenseType: expense.expense_type,
           });
+        } else {
+          toast.warning(
+            "Email notification could not be sent: the approver has no email address on file."
+          );
         }
       }
 
@@ -964,26 +965,10 @@ export default function ViewExpensePage() {
       );
 
       // Notify the second approver (best effort)
-      try {
-        if (secondProfile.email) {
-          await fetch("/api/expenses/notify-approver", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              expenseId,
-              approverEmail: secondProfile.email,
-              approverName: secondProfile.full_name,
-              requesterName: expense.creator?.full_name || "A teammate",
-              orgName: organization?.name,
-              slug,
-              amount: expense.amount,
-              expenseType: expense.expense_type,
-            }),
-          });
-        }
-      } catch (e) {
-        console.warn("Failed to notify second approver", e);
-      }
+      await sendExpenseNotification("transfer", {
+        expenseId,
+        firstApproverName: profile?.full_name || "",
+      });
 
       toast.success(`Expense transferred to ${secondName} for approval.`);
 
@@ -1138,10 +1123,7 @@ export default function ViewExpensePage() {
           currentUserId
         );
         if (creatorProfile?.email) {
-          await fetch("/api/expenses/notify-creator", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          await sendExpenseNotification("creator", {
               expenseId,
               creatorEmail: creatorProfile.email,
               creatorName: creatorProfile.full_name,
@@ -1152,8 +1134,7 @@ export default function ViewExpensePage() {
               approvedAmount,
               expenseType: expense.expense_type,
               status: "approved",
-            }),
-          });
+            });
         }
       } catch (e) {
         console.warn("Failed to send creator notification (custom)", e);
@@ -1430,10 +1411,7 @@ export default function ViewExpensePage() {
           currentUserId
         );
         if (creatorProfile?.email) {
-          await fetch("/api/expenses/notify-creator", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          await sendExpenseNotification("creator", {
               expenseId,
               creatorEmail: creatorProfile.email,
               creatorName: creatorProfile.full_name,
@@ -1444,8 +1422,7 @@ export default function ViewExpensePage() {
               approvedAmount: updateData.approved_amount,
               expenseType: expense.expense_type,
               status: "approved",
-            }),
-          });
+            });
         }
       } catch (e) {
         console.warn("Failed to send creator notification (approve)", e);
@@ -1581,10 +1558,7 @@ export default function ViewExpensePage() {
           currentUserId
         );
         if (creatorProfile?.email) {
-          await fetch("/api/expenses/notify-creator", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          await sendExpenseNotification("creator", {
               expenseId,
               creatorEmail: creatorProfile.email,
               creatorName: creatorProfile.full_name,
@@ -1594,8 +1568,7 @@ export default function ViewExpensePage() {
               amount: expense.amount,
               expenseType: expense.expense_type,
               status: "rejected",
-            }),
-          });
+            });
         }
       } catch (e) {
         console.warn("Failed to send creator notification (reject)", e);

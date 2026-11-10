@@ -54,6 +54,7 @@ import { Pagination, usePagination } from "@/components/pagination";
 import { isExportEnabled } from "@/lib/features";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import { sendExpenseNotification } from "@/lib/notify";
 const formatCurrency = (amount: number) => {
   if (isNaN(amount) || amount === null || amount === undefined) return "—";
   return new Intl.NumberFormat("en-IN", {
@@ -1151,10 +1152,7 @@ export default function PaymentProcessingOnly() {
     }
 
     try {
-      await fetch("/api/expenses/notify-creator", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await sendExpenseNotification("creator", {
           expenseId: expense.id,
           creatorEmail,
           creatorName,
@@ -1166,8 +1164,7 @@ export default function PaymentProcessingOnly() {
           expenseType: expense.expense_type,
           status: "payment_processed",
           decisionStage: "finance",
-        }),
-      });
+        });
     } catch (notifyErr) {
       console.error(
         `Failed to send payment notification for expense ${expense.id}:`,

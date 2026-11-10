@@ -65,6 +65,7 @@ import {
   uploadSignature,
 } from "@/lib/utils";
 
+import { sendExpenseNotification } from "@/lib/notify";
 interface Column {
   key: string;
   label: string;
@@ -1604,10 +1605,7 @@ export default function NewExpensePage() {
     if (!approverEmail) return;
 
     try {
-      await fetch("/api/expenses/notify-approver", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await sendExpenseNotification("approver", {
           expenseId,
           approverEmail,
           approverName,
@@ -1616,8 +1614,7 @@ export default function NewExpensePage() {
           slug,
           amount,
           expenseType,
-        }),
-      });
+        });
     } catch (err) {
       console.error("Failed to send approver notification", err);
     }

@@ -40,6 +40,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
+import { sendExpenseNotification } from "@/lib/notify";
 function SearchableDropdown({
   options,
   value,
@@ -1078,10 +1079,7 @@ export default function EditExpensePage() {
           if (notifyApproverId) {
             const { data: approverProfile } = await profiles.getById(notifyApproverId);
             if (approverProfile?.email) {
-              await fetch("/api/expenses/notify-approver", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+              await sendExpenseNotification("approver", {
                   expenseId,
                   approverEmail: approverProfile.email,
                   approverName: approverProfile.full_name,
@@ -1090,8 +1088,7 @@ export default function EditExpensePage() {
                   slug,
                   amount: updates.amount,
                   expenseType: updates.expense_type,
-                }),
-              });
+                });
             }
           }
         } catch (err) {
