@@ -195,6 +195,7 @@ export default function EditExpensePage() {
       "yourname",
       "voucherdate",
       "voucheramount",
+      "legacyinvoiceurl", // old Drive link; hidden here, still saved back unchanged
     ];
     return excluded.includes(norm);
   };
