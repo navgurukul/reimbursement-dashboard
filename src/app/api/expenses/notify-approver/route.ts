@@ -89,8 +89,8 @@ export async function POST(req: NextRequest) {
                 <div style="font-size: 18px; font-weight: 400;">Expense approval needed</div>
               </div>
               <div class="content">
-                <p>${escapeHtml(approverGreeting)}</p>
-                <p>${escapeHtml(requesterLabel)} has submitted a new expense for your review and approval.</p>
+                <h2>${escapeHtml(approverGreeting)}</h2>
+                <h3>${escapeHtml(requesterLabel)} has submitted a new expense for your review and approval.</h3>
                 <div class="meta"><strong>Expense Type:</strong> ${escapeHtml(expenseTypeLabel)}</div>
                 <div class="meta"><strong>Expense Amount:</strong> ${escapeHtml(amountLabel || "-")}</div>
                 <p><a class="cta" href="${escapeHtml(expenseUrl)}" style="color: white;">Review expense</a></p>

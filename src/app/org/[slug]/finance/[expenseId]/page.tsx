@@ -55,6 +55,7 @@ import supabase from "@/lib/supabase"; // Make sure this is correctly imported
 const nativeSelectClass =
   "block h-9 w-full max-w-xs min-w-0 rounded-md border border-input bg-transparent px-3 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30";
 
+import { sendExpenseNotification } from "@/lib/notify";
 /** One label/value pair in the expense details grid. */
 function DetailItem({
   label,
@@ -524,10 +525,7 @@ export default function FinanceExpenseDetails() {
             ? await profiles.getById(currentUserId)
             : { data: null };
           if (creatorProfile?.email) {
-            await fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            await sendExpenseNotification("creator", {
                 expenseId,
                 creatorEmail: creatorProfile.email,
                 creatorName: creatorProfile.full_name,
@@ -539,8 +537,7 @@ export default function FinanceExpenseDetails() {
                 expenseType: expense.expense_type,
                 status: "finance_approved",
                 decisionStage: "finance",
-              }),
-            });
+              });
           }
         }
       } catch (logErr) {
@@ -595,10 +592,7 @@ export default function FinanceExpenseDetails() {
             ? await profiles.getById(currentUserId)
             : { data: null };
           if (creatorProfile?.email) {
-            await fetch("/api/expenses/notify-creator", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            await sendExpenseNotification("creator", {
                 expenseId,
                 creatorEmail: creatorProfile.email,
                 creatorName: creatorProfile.full_name,
@@ -611,8 +605,7 @@ export default function FinanceExpenseDetails() {
                 status: "finance_rejected",
                 rejectionReason: comment,
                 decisionStage: "finance",
-              }),
-            });
+              });
           }
         }
       } catch (logErr) {

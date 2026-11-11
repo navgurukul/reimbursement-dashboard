@@ -728,7 +728,7 @@ export default function TeamPage() {
                             </Select>
                           ))}
 
-                        {(userRole === "owner" || userRole === "admin") &&
+                        {userRole === "owner" &&
                           m.role !== "owner" && (
                             <Button
                               type="button"

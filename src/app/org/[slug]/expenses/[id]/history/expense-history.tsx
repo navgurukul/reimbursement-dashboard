@@ -77,6 +77,12 @@ export default function ExpenseHistory({ expenseId }: ExpenseHistoryProps) {
       case "created":
         return `Expense created with amount ${newValue || "0"}`;
       case "updated":
+        if (
+          typeof newValue === "string" &&
+          newValue.startsWith("Transferred to second approver")
+        ) {
+          return newValue;
+        }
         if (oldValue && newValue) {
           // Check if the value starts with a field name, e.g. "Amount: 50"
           const oldMatch = typeof oldValue === "string" ? oldValue.match(/^([^:]+):\s*(.*)$/) : null;

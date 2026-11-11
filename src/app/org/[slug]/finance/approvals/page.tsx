@@ -44,6 +44,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+import { sendExpenseNotification } from "@/lib/notify";
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -510,10 +511,7 @@ export default function FinanceReview() {
           filteredExpenseList.map((expense) =>
             // Only send email if creator email exists
             (expense.creator?.email || expense.creator_email) ?
-              fetch("/api/expenses/notify-creator", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+              sendExpenseNotification("creator", {
                   expenseId: expense.id,
                   creatorEmail: expense.creator?.email || expense.creator_email,
                   creatorName: expense.creator_name,
@@ -524,8 +522,7 @@ export default function FinanceReview() {
                   expenseType: expense.expense_type,
                   status: "finance_approved",
                   decisionStage: "finance",
-                }),
-              }).catch((err) => {
+                }).catch((err) => {
                 console.error("Failed to send notification for expense:", expense.id, err);
               })
               : Promise.resolve()
