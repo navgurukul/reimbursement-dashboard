@@ -1,20 +1,23 @@
 // src/app/api/invite/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { invites } from "@/lib/db";
-import nodemailer from "nodemailer";
+import { createSmtpTransport, smtpFrom } from "@/lib/server/smtp";
+import {
+  INVITABLE_ROLES,
+  ORG_MANAGER_ROLES,
+  forbidden,
+  getOrgRole,
+  getSignedInUser,
+  unauthorized,
+  type OrgRole,
+} from "@/lib/server/auth";
 
-// Configure Nodemailer transporter with NEXT_PUBLIC_ prefixed variables
-const transporter = nodemailer.createTransport({
-  host: process.env.NEXT_PUBLIC_SMTP_HOST, // e.g., "smtp.gmail.com"
-  port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
-  secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true", // true for 465, false for other ports
-  auth: {
-    user: process.env.NEXT_PUBLIC_SMTP_USER, // your email address
-    pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD, // your email password or app password
-  },
-});
+const transporter = createSmtpTransport();
 
 export async function POST(req: NextRequest) {
+  const caller = await getSignedInUser();
+  if (!caller) return unauthorized();
+
   try {
     const { email, role, orgId, orgName } = await req.json();
 
@@ -26,15 +29,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Log SMTP configuration for debugging
-    // console.log("SMTP Configuration:", {
-    //   host: process.env.NEXT_PUBLIC_SMTP_HOST || "(not set)",
-    //   port: process.env.NEXT_PUBLIC_SMTP_PORT || "(not set)",
-    //   secure: process.env.NEXT_PUBLIC_SMTP_SECURE || "(not set)",
-    //   user: process.env.NEXT_PUBLIC_SMTP_USER ? "(set)" : "(not set)",
-    //   pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD ? "(set)" : "(not set)",
-    //   from: process.env.NEXT_PUBLIC_SMTP_FROM || "(not set)",
-    // });
+    if (!INVITABLE_ROLES.includes(role as OrgRole)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+
+    const callerRole = await getOrgRole(caller.id, orgId);
+    if (!callerRole || !ORG_MANAGER_ROLES.includes(callerRole)) return forbidden();
+
 
     // Create the invite in the database
     const { data: inviteRow, error: inviteError } = await invites.create(
@@ -54,9 +55,7 @@ export async function POST(req: NextRequest) {
 
     // Email content with responsive HTML template
     const mailOptions = {
-      from:
-        process.env.NEXT_PUBLIC_SMTP_FROM ||
-        `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      from: smtpFrom(),
       to: email,
       subject: `You've been invited to join ${orgName} on the Reimbursement App`,
       text: `You've been invited to join ${orgName} as a ${role} on the Reimbursement App. Click here to accept: ${signupUrl}`,

@@ -3200,7 +3200,9 @@ export default function ViewExpensePage() {
                           normalizedKey !== "transferred at" &&
                           normalizedKey !== "transferred from approver id" &&
                           normalizedKey !== "transferred to second approver" &&
-                          normalizedKey !== "description"
+                          normalizedKey !== "description" &&
+                          // Old Drive links from the legacy import; the stored receipt is the kept copy.
+                          normalizedKey !== "legacy invoice url"
                         );
                       }) // Exclude Project Of Expense and description
                       .map(([key, value]) => {

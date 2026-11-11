@@ -31,7 +31,8 @@ import { Pagination, usePagination } from "@/components/pagination";
 import { isExportEnabled } from "@/lib/features";
 import { toast } from "sonner";
 import { useOrgStore } from "@/store/useOrgStore";
-import { notFound, useRouter } from "next/navigation";
+import { notFound, useParams, useRouter } from "next/navigation";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Download, Pencil, Plus, Upload, AlertTriangle, CreditCard } from "lucide-react";
 import { bankDocumentFiles } from "@/lib/db";
 import { Spinner } from "@/components/ui/spinner";
@@ -88,11 +89,23 @@ type BankDetail = {
   user_id?: string | null;
 };
 
+// Wait until the org layout has loaded the role for this organisation before
+// deciding. Calling notFound() earlier shows the 404 page, which replaces the
+// layout, so the role would never load.
 export default function BankDetailsPage() {
-  const { userRole } = useOrgStore();
+  const { userRole, organization } = useOrgStore();
+  const params = useParams<{ slug: string }>();
+
+  if (!userRole || organization?.slug !== params?.slug) {
+    return <PageLoader />;
+  }
   if (userRole !== "owner" && userRole !== "admin") {
     notFound();
   }
+  return <BankDetails />;
+}
+
+function BankDetails() {
   const [data, setData] = useState<BankDetail[]>([]);
   const [allBankDetails, setAllBankDetails] = useState<BankDetail[]>([]);
   const [loading, setLoading] = useState(true);

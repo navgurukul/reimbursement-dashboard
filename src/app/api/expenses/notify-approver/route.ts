@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { createSmtpTransport, escapeHtml, isSmtpConfigured, smtpFrom } from "@/lib/server/smtp";
+import {
+    forbidden,
+    getExpenseOrg,
+    getOrgRole,
+    getSignedInUser,
+    isOrgMemberEmail,
+    unauthorized,
+} from "@/lib/server/auth";
 
-const transporter = nodemailer.createTransport({
-    host: process.env.NEXT_PUBLIC_SMTP_HOST,
-    port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
-    secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true",
-    auth: {
-        user: process.env.NEXT_PUBLIC_SMTP_USER,
-        pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD,
-    },
-});
+const transporter = createSmtpTransport();
 
 export async function POST(req: NextRequest) {
+    const caller = await getSignedInUser();
+    if (!caller) return unauthorized();
+
     try {
         const {
             expenseId,
@@ -31,27 +34,35 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        if (!process.env.NEXT_PUBLIC_SMTP_HOST || !process.env.NEXT_PUBLIC_SMTP_USER) {
+        if (!isSmtpConfigured()) {
             return NextResponse.json(
                 { error: "SMTP is not configured" },
                 { status: 500 }
             );
         }
 
+        // Only members of the expense's organisation can notify, and only another member.
+        const expense = await getExpenseOrg(expenseId);
+        if (!expense) {
+            return NextResponse.json({ error: "Expense not found" }, { status: 404 });
+        }
+        if (!(await getOrgRole(caller.id, expense.orgId))) return forbidden();
+        if (!(await isOrgMemberEmail(expense.orgId, String(approverEmail)))) {
+            return forbidden("The approver isn't a member of this organisation");
+        }
+
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-        const expenseUrl = `${baseUrl}/org/${slug}/expenses/${expenseId}`;
+        const expenseUrl = `${baseUrl}/org/${expense.orgSlug}/expenses/${expense.id}`;
         const approverGreeting = approverName ? `Hi ${approverName},` : "Hello,";
         const requesterLabel = requesterName || "A teammate";
-        const orgLabel = orgName || "your organization";
+        const orgLabel = expense.orgName || orgName || "your organization";
         const amountLabel = typeof amount === "number" ? amount.toFixed(2) : amount;
         const expenseTypeLabel = expenseType || "Expense";
 
         const subject = `${requesterLabel}'s ${expenseTypeLabel} expense is pending for your approval`;
 
         const mailOptions = {
-            from:
-                process.env.NEXT_PUBLIC_SMTP_FROM ||
-                `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+            from: smtpFrom(),
             to: approverEmail,
             subject,
             text: `${approverGreeting}\n\n${requesterLabel} submitted a new expense in ${orgLabel}.\nType: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}\n\nReview and take action: ${expenseUrl}\n\nThis link will take you directly to the expense detail page.`,
@@ -74,17 +85,17 @@ export async function POST(req: NextRequest) {
           <body>
             <div class="container">
               <div class="header">
-                <div style="font-size: 18px; font-weight: 600;">Organization Name: ${orgLabel}</div>
+                <div style="font-size: 18px; font-weight: 600;">Organization Name: ${escapeHtml(orgLabel)}</div>
                 <div style="font-size: 18px; font-weight: 400;">Expense approval needed</div>
               </div>
               <div class="content">
-                <h2 class="meta"><strong>${approverGreeting}</strong></h2>
-                <h3>${requesterLabel} has submitted a new expense for your review and approval.</h3>
-                <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
-                <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
-                <p><a class="cta" href="${expenseUrl}" style="color: white;">Review expense</a></p>
+                <h2>${escapeHtml(approverGreeting)}</h2>
+                <h3>${escapeHtml(requesterLabel)} has submitted a new expense for your review and approval.</h3>
+                <div class="meta"><strong>Expense Type:</strong> ${escapeHtml(expenseTypeLabel)}</div>
+                <div class="meta"><strong>Expense Amount:</strong> ${escapeHtml(amountLabel || "-")}</div>
+                <p><a class="cta" href="${escapeHtml(expenseUrl)}" style="color: white;">Review expense</a></p>
                 <p>If the button does not work, copy and paste this link:</p>
-                <p style="word-break: break-all; color: #2563eb;">${expenseUrl}</p>
+                <p style="word-break: break-all; color: #2563eb;">${escapeHtml(expenseUrl)}</p>
               </div>
               <div class="footer">This is an automated message from the reimbursement dashboard.</div>
             </div>

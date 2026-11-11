@@ -203,6 +203,7 @@ export default function EditExpensePage() {
       "yourname",
       "voucherdate",
       "voucheramount",
+      "legacyinvoiceurl", // old Drive link; hidden here, still saved back unchanged
     ];
     return excluded.includes(norm);
   };
@@ -564,9 +565,9 @@ export default function EditExpensePage() {
         : resolveIdsFromNames(activeEntry.approver_name))
       : [];
 
-    const allSecondApproverIds = normalizeIds(activeEntry.second_approver_id).length
-      ? normalizeIds(activeEntry.second_approver_id)
-      : resolveIdsFromNames(activeEntry.second_approver_name);
+    const allSecondApproverIds = normalizeIds(activeEntry?.second_approver_id).length
+      ? normalizeIds(activeEntry?.second_approver_id)
+      : resolveIdsFromNames(activeEntry?.second_approver_name);
 
     const isFirstApproverOnLeave = firstApproverIds.some((id) => {
       const opt = (allOptions as any[]).find((o) =>

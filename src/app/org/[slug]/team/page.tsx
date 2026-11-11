@@ -3,8 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useOrgStore } from "@/store/useOrgStore";
 import { toast } from "sonner";
-import { organizations, profiles, RemovedUsers, authUsers } from "@/lib/db";
-import { deleteUserAction } from "@/app/actions/deleteUser";
+import { organizations, profiles, RemovedUsers } from "@/lib/db";
 import {
   Card,
   CardContent,

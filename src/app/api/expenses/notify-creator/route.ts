@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { createSmtpTransport, escapeHtml, isSmtpConfigured, smtpFrom } from "@/lib/server/smtp";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { forbidden, getExpenseOrg, getOrgRole, getSignedInUser, unauthorized } from "@/lib/server/auth";
 
-const transporter = nodemailer.createTransport({
-  host: process.env.NEXT_PUBLIC_SMTP_HOST,
-  port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
-  secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true",
-  auth: {
-    user: process.env.NEXT_PUBLIC_SMTP_USER,
-    pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD,
-  },
-});
+const transporter = createSmtpTransport();
 
 export async function POST(req: NextRequest) {
+  const caller = await getSignedInUser();
+  if (!caller) return unauthorized();
+
   try {
     const {
       expenseId,
-      creatorEmail,
-      creatorName,
+      creatorName: requestCreatorName,
       approverName,
       orgName,
       slug,
@@ -28,24 +24,42 @@ export async function POST(req: NextRequest) {
       decisionStage, // optional override: "manager" | "finance"
     } = await req.json();
 
-    if (!expenseId || !creatorEmail || !slug || !status) {
+    if (!expenseId || !slug || !status) {
       return NextResponse.json(
-        { error: "expenseId, creatorEmail, slug and status are required" },
+        { error: "expenseId, slug and status are required" },
         { status: 400 }
       );
     }
 
-    if (!process.env.NEXT_PUBLIC_SMTP_HOST || !process.env.NEXT_PUBLIC_SMTP_USER) {
+    if (!isSmtpConfigured()) {
       return NextResponse.json(
         { error: "SMTP is not configured" },
         { status: 500 }
       );
     }
 
+    // Only members of the expense's organisation can notify, and the email always
+    // goes to the expense's creator, whatever address the request names.
+    const expense = await getExpenseOrg(expenseId);
+    if (!expense) {
+      return NextResponse.json({ error: "Expense not found" }, { status: 404 });
+    }
+    if (!(await getOrgRole(caller.id, expense.orgId))) return forbidden();
+    const { data: creator } = await getSupabaseAdmin()
+      .from("profiles")
+      .select("email, full_name")
+      .eq("user_id", expense.creatorId)
+      .maybeSingle();
+    if (!creator?.email) {
+      return NextResponse.json({ error: "Expense creator has no email" }, { status: 404 });
+    }
+    const creatorEmail: string = creator.email;
+    const creatorName: string | undefined = creator.full_name || requestCreatorName;
+
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const expenseUrl = `${baseUrl}/org/${slug}/expenses/${expenseId}`;
+    const expenseUrl = `${baseUrl}/org/${expense.orgSlug}/expenses/${expense.id}`;
     const creatorGreeting = creatorName ? `Hi ${creatorName},` : "Hello,";
-    const orgLabel = orgName || "your organization";
+    const orgLabel = expense.orgName || orgName || "your organization";
     const expenseTypeLabel = expenseType || "Expense";
     const amountLabel = typeof amount === "number" ? amount.toFixed(2) : amount;
     const approvedAmountLabel =
@@ -90,7 +104,7 @@ export async function POST(req: NextRequest) {
 
     const rejectionReasonHtml =
       !isApproved && !isPaymentProcessed && rejectionReason
-        ? `<div class="meta"><strong>Rejection Reason:</strong> ${rejectionReason}</div>`
+        ? `<div class="meta"><strong>Rejection Reason:</strong> ${escapeHtml(rejectionReason)}</div>`
         : "";
     const rejectionReasonText =
       !isApproved && !isPaymentProcessed && rejectionReason ? `\nRejection Reason: ${rejectionReason}` : "";
@@ -109,9 +123,7 @@ export async function POST(req: NextRequest) {
 
    
     const mailOptions = {
-      from:
-        process.env.NEXT_PUBLIC_SMTP_FROM ||
-        `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      from: smtpFrom(),
       to: creatorEmail,
       subject,
       text: `${creatorGreeting}\n\n${decisionLine}${rejectionReasonText}\nOrganization: ${orgLabel}\nType: ${expenseTypeLabel}\nAmount: ${amountLabel || "-"}${
@@ -136,20 +148,20 @@ export async function POST(req: NextRequest) {
           <body>
             <div class="container">
               <div class="header">
-                <div style="font-size: 18px; font-weight: 600;">Organization Name: ${orgLabel}</div>
+                <div style="font-size: 18px; font-weight: 600;">Organization Name: ${escapeHtml(orgLabel)}</div>
                 <div style="font-size: 18px; font-weight: 400;">Expense ${isPaymentProcessed ? "payment successful" : isPaymentNotProcessed ? "payment has been rejected" : isApproved ? (isCustomAmountApproval ? "approved with custom amount" : "approved") : "rejected"}</div>
               </div>
               <div class="content">
-                <h2 class="meta"><strong>${creatorGreeting}</strong></h2>
-                <h3>${decisionLine}</h3>
-                <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
-                <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
-                ${isApproved ? `<div class="meta"><strong>Approved Amount:</strong> ${approvedAmountLabel || amountLabel || "-"}</div>` : ""}
+                <h2>${escapeHtml(creatorGreeting)}</h2>
+                <h3>${escapeHtml(decisionLine)}</h3>
+                <div class="meta"><strong>Expense Type:</strong> ${escapeHtml(expenseTypeLabel)}</div>
+                <div class="meta"><strong>Expense Amount:</strong> ${escapeHtml(amountLabel || "-")}</div>
+                ${isApproved ? `<div class="meta"><strong>Approved Amount:</strong> ${escapeHtml(approvedAmountLabel || amountLabel || "-")}</div>` : ""}
                 <div class="meta"><strong>Expense Status:</strong> <span style="color: ${statusColor}; font-weight: 600;">${statusLabel}</span></div>
                 ${rejectionReasonHtml}
-                <p><a class="cta" href="${expenseUrl}" style="color: white;">View expense</a></p>
+                <p><a class="cta" href="${escapeHtml(expenseUrl)}" style="color: white;">View expense</a></p>
                 <p>If the button does not work, copy and paste this link:</p>
-                <p style="word-break: break-all; color: #2563eb;">${expenseUrl}</p>
+                <p style="word-break: break-all; color: #2563eb;">${escapeHtml(expenseUrl)}</p>
               </div>
               <div class="footer">This is an automated message from the reimbursement dashboard.</div>
             </div>

@@ -1,39 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  ORG_MANAGER_ROLES,
+  forbidden,
+  getSignedInUser,
+  unauthorized,
+} from "@/lib/server/auth";
 
 export async function POST(req: NextRequest) {
-
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY) {
-    return NextResponse.json({
-      error: "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY or URL missing",
-      debug: {
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
-        serviceRoleKeyAvailable: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
-      }
-    }, { status: 500 });
-  }
-
-  // Initialize Supabase Admin Client at runtime
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
-  );
+  const caller = await getSignedInUser();
+  if (!caller) return unauthorized();
 
   try {
     const { userId, email } = await req.json();
 
     if (!userId || typeof userId !== "string") {
-      return NextResponse.json(
-        {
-          error: "Valid userId required",
-          debug: {
-            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-            serviceRoleKeyAvailable: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
-          }
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Valid userId required" }, { status: 400 });
     }
+
+    const supabase = getSupabaseAdmin();
+
+    // The caller must be an owner or admin of an organisation the user belongs
+    // to, and the user must not be an owner there (same rule as the Team page).
+    const [{ data: callerOrgs, error: callerOrgsError }, { data: targetOrgs, error: targetOrgsError }] =
+      await Promise.all([
+        supabase
+          .from("organization_users")
+          .select("org_id")
+          .eq("user_id", caller.id)
+          .in("role", ORG_MANAGER_ROLES),
+        supabase
+          .from("organization_users")
+          .select("org_id, role")
+          .eq("user_id", userId),
+      ]);
+
+    if (callerOrgsError || targetOrgsError) {
+      console.error("Error checking permissions:", callerOrgsError || targetOrgsError);
+      return NextResponse.json({ error: "Could not check permissions" }, { status: 500 });
+    }
+
+    const managedOrgIds = new Set((callerOrgs ?? []).map((row) => row.org_id));
+    const canDelete = (targetOrgs ?? []).some(
+      (row) => managedOrgIds.has(row.org_id) && row.role !== "owner"
+    );
+    if (!canDelete) return forbidden();
 
     // All your deletion logic (organization_users, invites, vouchers, profiles, auth user)
     const { error: orgUserError } = await supabase
@@ -101,22 +113,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: authError.message }, { status: 500 });
     }
 
-    return NextResponse.json({
-      success: true,
-      debug: {
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        serviceRoleKeyAvailable: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
-      }
-    }, { status: 200 });
-
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (err: any) {
     console.error("Unexpected error in /api/delete-auth-user:", err);
-    return NextResponse.json({
-      error: "Internal server error",
-      debug: {
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        serviceRoleKeyAvailable: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
-      }
-    }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-};
+}

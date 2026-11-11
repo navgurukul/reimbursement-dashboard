@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { createSmtpTransport, isSmtpConfigured, smtpConfig, smtpFrom } from "@/lib/server/smtp";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { forbidden, getOrgRole, getSignedInUser, unauthorized } from "@/lib/server/auth";
 
 interface Recipient {
   email: string;
@@ -24,33 +25,20 @@ const escapeHtml = (value: string) =>
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-const transporter = nodemailer.createTransport({
-  host: process.env.NEXT_PUBLIC_SMTP_HOST,
-  port: parseInt(process.env.NEXT_PUBLIC_SMTP_PORT || "587"),
-  secure: process.env.NEXT_PUBLIC_SMTP_SECURE === "true",
-  auth: {
-    user: process.env.NEXT_PUBLIC_SMTP_USER,
-    pass: process.env.NEXT_PUBLIC_SMTP_PASSWORD,
-  },
-});
+const transporter = createSmtpTransport();
 
 export async function POST(req: NextRequest) {
+  const caller = await getSignedInUser();
+  if (!caller) return unauthorized();
+
   try {
-    const {
-      expenseId,
-      commentId,
-      commentContent,
-      commenterProfileId,
-      commenterUserId,
-      commenterName,
-      commenterEmail,
-    } = await req.json();
+    const { expenseId, commentId, commentContent } = await req.json();
 
     if (!expenseId || !commentContent) {
       return NextResponse.json({ error: "expenseId and commentContent required" }, { status: 400 });
     }
 
-    if (!process.env.NEXT_PUBLIC_SMTP_HOST || !process.env.NEXT_PUBLIC_SMTP_USER) {
+    if (!isSmtpConfigured()) {
       return NextResponse.json({ error: "SMTP is not configured" }, { status: 500 });
     }
 
@@ -69,6 +57,19 @@ export async function POST(req: NextRequest) {
     }
 
     const orgId = expenseData.org_id;
+
+    // Only members of the expense's organisation can send comment notifications.
+    if (!(await getOrgRole(caller.id, orgId))) return forbidden();
+
+    // The commenter is the signed-in user, not whoever the request names.
+    const { data: commenterProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name")
+      .eq("user_id", caller.id)
+      .maybeSingle();
+    const commenterUserId: string = caller.id;
+    const commenterEmail: string = commenterProfile?.email || caller.email || "";
+    const commenterName: string = commenterProfile?.full_name || "";
 
     // Get creator email
     const { data: creatorProfile } = await supabaseAdmin
@@ -394,11 +395,11 @@ export async function POST(req: NextRequest) {
 
 
     const mailOptions = {
-      from: process.env.NEXT_PUBLIC_SMTP_FROM || `"Reimbursement App" <${process.env.NEXT_PUBLIC_SMTP_USER}>`,
+      from: smtpFrom(),
       to:
         uniqueToRecipients.length > 0
           ? uniqueToRecipients.map((recipient) => recipient.email).join(", ")
-          : process.env.NEXT_PUBLIC_SMTP_USER,
+          : smtpConfig.user,
       cc:
         uniqueCcRecipients.length > 0
           ? uniqueCcRecipients.map((recipient) => recipient.email).join(", ")
@@ -429,8 +430,8 @@ export async function POST(req: NextRequest) {
                 <div class="content">
                   <h2><strong>${escapeHtml(greetingLine)}</strong></h2>
                   <h3 class="meta"><strong>${safeCommentDirectionLine}</strong></h3>
-                  <div class="meta"><strong>Expense Type:</strong> ${expenseTypeLabel}</div>
-                  <div class="meta"><strong>Expense Amount:</strong> ${amountLabel || "-"}</div>
+                  <div class="meta"><strong>Expense Type:</strong> ${escapeHtml(String(expenseTypeLabel))}</div>
+                  <div class="meta"><strong>Expense Amount:</strong> ${escapeHtml(String(amountLabel || "-"))}</div>
                   ${htmlComment}
                   <p><a class="cta" href="${expenseUrl}" style="color: white;">View expense</a></p>
                   <p>If the button does not work, copy and paste this link:</p>

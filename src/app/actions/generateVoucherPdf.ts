@@ -3,6 +3,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getOrgRole, getSignedInUser } from "@/lib/server/auth";
 
 export type GenerateVoucherPdfResult = {
 	success: boolean;
@@ -12,6 +13,11 @@ export type GenerateVoucherPdfResult = {
 };
 
 export async function generateVoucherPdf(voucherId: string): Promise<GenerateVoucherPdfResult> {
+	const caller = await getSignedInUser();
+	if (!caller) {
+		return { success: false, error: "Sign in required" };
+	}
+
 	const supabase = getSupabaseAdmin();
 
 	let signaturePath: string | null = null;
@@ -49,6 +55,11 @@ export async function generateVoucherPdf(voucherId: string): Promise<GenerateVou
 
 		if (eErr || !expense) {
 			return { success: false, error: eErr?.message || "Expense not found" };
+		}
+
+		// Only members of the expense's organisation may generate its voucher PDF.
+		if (!expense.org_id || !(await getOrgRole(caller.id, expense.org_id))) {
+			return { success: false, error: "You don't have permission to do this" };
 		}
 
 		// Get organization for name
