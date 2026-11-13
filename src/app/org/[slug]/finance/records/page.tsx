@@ -134,6 +134,11 @@ const withSerialNumbers = (sorted: any[]) =>
     return { ...r, serialNumber: useFrozen ? originalSerialNumber : index + 1 };
   });
 
+/** An "Advance"-type expense that was marked as advance: moves to Advance Payment. */
+const isAdvanceTypeMarked = (r: any) =>
+  String(r?.expense_type || "").trim().toLowerCase() === "advance" &&
+  r?.custom_fields?.marked_as_advance === true;
+
 /** REF No. by record id for one bank: persisted, or positional before the migration. */
 const bankRefNumbers = (rows: any[], bank: string) => {
   const map = new Map<string, number | null>();
@@ -1230,7 +1235,9 @@ export default function PaymentRecords() {
           });
 
           const sorted = sortByPaidApprovalTime(enriched);
-          const sortedWithSerial = withSerialNumbers(sorted);
+          const sortedWithSerial = withSerialNumbers(sorted).filter(
+            (r: any) => !isAdvanceTypeMarked(r)
+          );
 
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
@@ -1246,7 +1253,9 @@ export default function PaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
-          const fallbackWithSerial = withSerialNumbers(fallback);
+          const fallbackWithSerial = withSerialNumbers(fallback).filter(
+            (r: any) => !isAdvanceTypeMarked(r)
+          );
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
           setEventTitleLookup(eventTitleMap);
@@ -1658,14 +1667,21 @@ export default function PaymentRecords() {
 
       if (error) throw error;
 
-      // Update local state with the marked_as_advance flag
-      const updateList = (list: any[]) =>
-        list.map((r: any) =>
-          r.id === id ? { ...r, custom_fields: updatedCustomFields } : r
-        );
-
-      setRecords((prev) => updateList(prev));
-      setFilteredRecords((prev) => updateList(prev));
+      const updated = { ...record, custom_fields: updatedCustomFields };
+      if (isAdvanceTypeMarked(updated)) {
+        // Expense type is "Advance": it moves to Advance Payment, so drop it here.
+        setRecords((prev) => prev.filter((r: any) => r.id !== id));
+        setFilteredRecords((prev) => prev.filter((r: any) => r.id !== id));
+        reloadPageIfFastMode();
+      } else {
+        // Other types stay in Records, just flagged as advance.
+        const updateList = (list: any[]) =>
+          list.map((r: any) =>
+            r.id === id ? { ...r, custom_fields: updatedCustomFields } : r
+          );
+        setRecords((prev) => updateList(prev));
+        setFilteredRecords((prev) => updateList(prev));
+      }
       toast.success("Marked as Advance Payment");
       setMarkAdvanceModal({ open: false, id: null });
     } catch (err: any) {
