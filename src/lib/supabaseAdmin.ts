@@ -9,14 +9,12 @@ import { createClient } from "@supabase/supabase-js";
  */
 export function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  // SUPABASE_SERVICE_ROLE_KEY is the server-only name. The old NEXT_PUBLIC_ name
-  // is still read so existing deployments keep working until it is renamed.
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
+  // Server-only: never give this a NEXT_PUBLIC_ name, or Next.js can inline it
+  // into browser bundles.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url) throw new Error("SUPABASE URL is required");
-  if (!key) throw new Error("SUPABASE SERVICE ROLE KEY is required");
+  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required");
 
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
