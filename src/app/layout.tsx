@@ -6,6 +6,12 @@ import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Render every page per request so Next.js never marks HTML as cacheable by a
+// shared cache (it otherwise sends `s-maxage=31536000` for prerendered pages).
+// The middleware can attach session cookies to any page response, and a cached
+// copy would hand one visitor's session to the next.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Reimbursement Dashboard",
   description: "A dashboard for managing reimbursements",
