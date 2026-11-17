@@ -34,6 +34,7 @@ import { formatDateTime } from "@/lib/utils";
 import { isExportEnabled } from "@/lib/features";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { toast } from "sonner";
+import { checkUtrUnlockPassword } from "@/lib/utr-unlock";
 import { ExpenseStatusBadge } from "@/components/ExpenseStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -212,6 +213,25 @@ export default function AdvancePaymentRecords() {
   });
   const [enteredPassword, setEnteredPassword] = useState("");
 
+  // Checks the UTR unlock password on the server, then unlocks editing.
+  const unlockUtrEditing = async () => {
+    const result = await checkUtrUnlockPassword(String(slug), enteredPassword);
+    if (!result.ok) {
+      toast.error(result.error || "Incorrect password");
+      return;
+    }
+    setIsPasswordVerified(true);
+    if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+      const id = passwordModal.expenseId;
+      setEditingFields((prev) => ({
+        ...prev,
+        [id]: { ...(prev[id] || {}), utr: true },
+      }));
+    }
+    setPasswordModal({ open: false, expenseId: null });
+    toast.success("UTR editing unlocked");
+  };
+
   // Use pagination hook
   const pagination = usePagination(filteredRecords, 100);
 
@@ -379,7 +399,6 @@ export default function AdvancePaymentRecords() {
     ...allColumns,
   ]);
 
-  const ADMIN_PASSWORD = "admin"; // your password
 
   const getBaseAmount = (record: any) =>
     Number(record.approved_amount ?? record.amount ?? 0);
@@ -2769,25 +2788,7 @@ export default function AdvancePaymentRecords() {
               value={enteredPassword}
               onChange={(e) => setEnteredPassword(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  if (enteredPassword === ADMIN_PASSWORD) {
-                    setIsPasswordVerified(true);
-                    if (
-                      passwordModal.expenseId &&
-                      passwordModal.expenseId !== "unlock"
-                    ) {
-                      const id = passwordModal.expenseId;
-                      setEditingFields((prev) => ({
-                        ...prev,
-                        [id]: { ...(prev[id] || {}), utr: true },
-                      }));
-                    }
-                    setPasswordModal({ open: false, expenseId: null });
-                    toast.success("UTR editing unlocked");
-                  } else {
-                    toast.error("Incorrect password");
-                  }
-                }
+                if (e.key === "Enter") void unlockUtrEditing();
               }}
             />
             <p className="text-sm text-muted-foreground">
@@ -2796,25 +2797,7 @@ export default function AdvancePaymentRecords() {
           </div>
           <DialogFooter className="mt-4">
             <Button
-              onClick={() => {
-                if (enteredPassword === ADMIN_PASSWORD) {
-                  setIsPasswordVerified(true);
-                  if (
-                    passwordModal.expenseId &&
-                    passwordModal.expenseId !== "unlock"
-                  ) {
-                    const id = passwordModal.expenseId;
-                    setEditingFields((prev) => ({
-                      ...prev,
-                      [id]: { ...(prev[id] || {}), utr: true },
-                    }));
-                  }
-                  setPasswordModal({ open: false, expenseId: null });
-                  toast.success("UTR editing unlocked");
-                } else {
-                  toast.error("Incorrect password");
-                }
-              }}
+              onClick={() => void unlockUtrEditing()}
             >
               Confirm
             </Button>

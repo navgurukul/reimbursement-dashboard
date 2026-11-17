@@ -8,6 +8,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useEffect, useMemo, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { checkUtrUnlockPassword } from "@/lib/utr-unlock";
 import { Eye, Download, Pencil, Save, Filter, AlertTriangle, Loader2 } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { auth, profiles } from "@/lib/db";
@@ -192,13 +193,31 @@ export default function PaymentProcessingOnly() {
     ...allColumns,
   ]);
 
-  const ADMIN_PASSWORD = "admin"; // your password
 
   const [passwordModal, setPasswordModal] = useState({
     open: false,
     expenseId: null as null | string,
   });
   const [enteredPassword, setEnteredPassword] = useState("");
+
+  // Checks the UTR unlock password on the server, then unlocks editing.
+  const unlockUtrEditing = async () => {
+    const result = await checkUtrUnlockPassword(String(slug), enteredPassword);
+    if (!result.ok) {
+      toast.error(result.error || "Incorrect password");
+      return;
+    }
+    setIsPasswordVerified(true);
+    if (passwordModal.expenseId && passwordModal.expenseId !== "unlock") {
+      const id = passwordModal.expenseId;
+      setEditingFields((prev) => ({
+        ...prev,
+        [id]: { ...(prev[id] || {}), utr: true },
+      }));
+    }
+    setPasswordModal({ open: false, expenseId: null });
+    toast.success("UTR editing unlocked");
+  };
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
 
   const searchParams = useSearchParams();
@@ -2494,25 +2513,7 @@ export default function PaymentProcessingOnly() {
               value={enteredPassword}
               onChange={(e) => setEnteredPassword(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  if (enteredPassword === ADMIN_PASSWORD) {
-                    setIsPasswordVerified(true);
-                    if (
-                      passwordModal.expenseId &&
-                      passwordModal.expenseId !== "unlock"
-                    ) {
-                      const id = passwordModal.expenseId;
-                      setEditingFields((prev) => ({
-                        ...prev,
-                        [id]: { ...(prev[id] || {}), utr: true },
-                      }));
-                    }
-                    setPasswordModal({ open: false, expenseId: null });
-                    toast.success("UTR editing unlocked");
-                  } else {
-                    toast.error("Incorrect password");
-                  }
-                }
+                if (e.key === "Enter") void unlockUtrEditing();
               }}
             />
             <p className="text-sm text-muted-foreground">
@@ -2521,25 +2522,7 @@ export default function PaymentProcessingOnly() {
           </div>
           <DialogFooter>
             <Button
-              onClick={() => {
-                if (enteredPassword === ADMIN_PASSWORD) {
-                  setIsPasswordVerified(true);
-                  if (
-                    passwordModal.expenseId &&
-                    passwordModal.expenseId !== "unlock"
-                  ) {
-                    const id = passwordModal.expenseId;
-                    setEditingFields((prev) => ({
-                      ...prev,
-                      [id]: { ...(prev[id] || {}), utr: true },
-                    }));
-                  }
-                  setPasswordModal({ open: false, expenseId: null });
-                  toast.success("UTR editing unlocked");
-                } else {
-                  toast.error("Incorrect password");
-                }
-              }}
+              onClick={() => void unlockUtrEditing()}
             >
               Confirm
             </Button>
