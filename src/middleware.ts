@@ -2,6 +2,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+/**
+ * Every response that passes through here may carry a Set-Cookie with the
+ * visitor's session tokens. A shared cache (CloudFront) must never store it,
+ * or the next visitor to the same URL receives someone else's session.
+ */
+function noStore(response: NextResponse) {
+  response.headers.set("Cache-Control", "private, no-cache, no-store, max-age=0, must-revalidate");
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   // If Supabase auth magic link lands with ?code=..., normally we'd route to create-password.
   // But for Google OAuth flows, we should NOT redirect; the client handles redirecting.
@@ -15,7 +25,7 @@ export async function updateSession(request: NextRequest) {
     incomingUrl.searchParams.forEach((value, key) => {
       redirectUrl.searchParams.set(key, value);
     });
-    return NextResponse.redirect(redirectUrl);
+    return noStore(NextResponse.redirect(redirectUrl));
   }
 
   let supabaseResponse = NextResponse.next({
@@ -71,7 +81,7 @@ export async function updateSession(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = `/org/${subdomain}${pathname}`;
-    return NextResponse.redirect(url);
+    return noStore(NextResponse.redirect(url));
   }
 
   // Protected routes that require authentication
@@ -86,10 +96,10 @@ export async function updateSession(request: NextRequest) {
     // Clean the redirect path to prevent loops
     const cleanPathname = pathname.replace(/\/auth\/signin.*$/, "");
     redirectUrl.searchParams.set("redirectTo", cleanPathname);
-    return NextResponse.redirect(redirectUrl);
+    return noStore(NextResponse.redirect(redirectUrl));
   }
 
-  return supabaseResponse;
+  return noStore(supabaseResponse);
 }
 
 export async function middleware(request: NextRequest) {
