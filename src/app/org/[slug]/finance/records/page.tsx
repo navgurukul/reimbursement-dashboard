@@ -1684,6 +1684,36 @@ export default function PaymentRecords() {
       }
       toast.success("Marked as Advance Payment");
       setMarkAdvanceModal({ open: false, id: null });
+
+      // If this expense was created against an existing advance, adjust it
+      // there and email the creator. Failures don't undo the marking.
+      try {
+        const res = await fetch("/api/expenses/advance-adjustment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expenseId: id }),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error("Advance adjustment failed", { description: result?.error });
+        } else if (result?.adjusted) {
+          if (result.sent) toast.success("Advance updated and creator notified by email");
+          else toast.warning("Advance updated, but email was not sent", { description: result?.emailError });
+        } else if (result?.reason && result.reason !== "already_adjusted") {
+          const reasons: Record<string, string> = {
+            expense_is_advance: 'Expense type is "Advance", so it is a new advance (no adjustment email).',
+            no_advance_id: "This expense has no Advance Unique ID.",
+            not_against_advance: "This expense is not created against an Advance ID.",
+            no_existing_advance:
+              'No existing "Advance"-type expense marked as advance was found with this Advance Unique ID.',
+          };
+          toast.info("No advance adjustment / email", {
+            description: reasons[result.reason] || result.reason,
+          });
+        }
+      } catch (adjErr: any) {
+        toast.error("Advance adjustment failed", { description: adjErr?.message });
+      }
     } catch (err: any) {
       toast.error("Failed to mark as advance payment", {
         description: err.message,
