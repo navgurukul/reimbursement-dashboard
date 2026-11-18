@@ -90,26 +90,33 @@ export async function POST(req: NextRequest) {
       .or(Array.from(advanceIds).map((id) => `unique_id.ilike.${esc(id)}`).join(","));
     if (candErr) throw candErr;
 
-    // The advance(s): "Advance"-type expenses on those IDs, earliest marked
-    // first. Original amount is their total; the first one stores the totals.
-    const advances = (candidates || [])
-      .filter((r: any) => isAdvanceType(r.expense_type))
-      .sort((a: any, b: any) => {
-        const am = a.custom_fields?.marked_as_advance === true ? 0 : 1;
-        const bm = b.custom_fields?.marked_as_advance === true ? 0 : 1;
-        return am - bm || markedAt(a) - markedAt(b);
-      });
-    const advance = advances[0];
+    // The advance: the most recently marked "Advance"-type expense on those
+    // IDs. Only its own amount is used, not a total of all advances.
+    const advance = (candidates || [])
+      .filter(
+        (r: any) =>
+          isAdvanceType(r.expense_type) && r.custom_fields?.marked_as_advance === true
+      )
+      .sort((a: any, b: any) => markedAt(b) - markedAt(a))[0];
     if (!advance) return skip("no_existing_advance");
 
-    const original = advances.reduce((sum: number, r: any) => sum + amountOf(r), 0);
-    // Already adjusted expenses on this exact ID (not the current one).
+    const original = amountOf(advance);
+    // Remaining Amount: marked expenses already against this advance (same ID,
+    // marked after it; not the current one) with no return amount recorded.
+    const hasReturn = (r: any) => {
+      const v = r.custom_fields?.return_amount ?? r.custom_fields?.returned_amount;
+      return v !== null && v !== undefined && v !== "" && Number(v) > 0;
+    };
     const previouslyUtilized = (candidates || [])
       .filter(
         (r: any) =>
           String(r.unique_id || "").trim().toLowerCase() === uniqueId.toLowerCase() &&
           !isAdvanceType(r.expense_type) &&
-          r.custom_fields?.marked_as_advance === true
+          r.custom_fields?.marked_as_advance === true &&
+          // Only expenses against this advance: marked after it, so earlier
+          // advances' expenses on the same ID are left out.
+          markedAt(r) >= markedAt(advance) &&
+          !hasReturn(r)
       )
       .reduce((sum: number, r: any) => sum + amountOf(r), 0);
     const adjusted = amountOf(expense);
@@ -186,10 +193,10 @@ export async function POST(req: NextRequest) {
 
     const rows: [string, string][] = [
       ["Advance Unique ID", uniqueId],
-      ["Original Advance Amount", `₹${money(original)}`],
-      ["Previously Utilized Amount", `₹${money(previouslyUtilized)}`],
-      ["Newly Adjusted Expense Amount", `₹${money(adjusted)}`],
-      ["Total Utilized Amount", `₹${money(totalUtilized)}`],
+      ["Advance Amount", `₹${money(original)}`],
+      ["Total Amount Previously Used Against Advance", `₹${money(previouslyUtilized)}`],
+      ["New Expense Amount Against Advance", `₹${money(adjusted)}`],
+      ["Total Amount", `₹${money(totalUtilized)}`],
       ["Remaining Advance Amount", `₹${money(remaining)}`],
     ];
     const intro = "Your expense has been adjusted against your existing advance. Here are the updated advance details:";
@@ -198,7 +205,7 @@ export async function POST(req: NextRequest) {
       await transporter.sendMail({
         from: smtpFrom(),
         to: creator.email,
-        subject: `Advance Updated: ${uniqueId}`,
+        subject: "Reminder: Remaining Amount Against Advance",
         text: [`Hi ${name},`, "", intro, "", ...rows.map(([k, v]) => `${k} : ${v}`)].join("\n"),
         html: `<!DOCTYPE html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0;">
