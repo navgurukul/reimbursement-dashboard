@@ -198,10 +198,12 @@ export async function POST(req: NextRequest) {
       .filter((p) => p.remaining > 0)
       .sort((a, b) => (a.paidAt ? new Date(a.paidAt).getTime() : 0) - (b.paidAt ? new Date(b.paidAt).getTime() : 0));
 
-    const prevTotalAmount = previousAdvances.reduce((s, p) => s + p.amount, 0);
-    const prevTotalUsed = previousAdvances.reduce((s, p) => s + p.used, 0);
-    const combinedAdvance = prevTotalAmount + original;
-    const combinedPrevUsed = prevTotalUsed + previouslyUtilized;
+    // Total Advance = previous advances' remaining balances + new advance amount.
+    // The previous advances' used part is already out of their remaining, so only
+    // usage against the new advance counts as "previously used" (no double count).
+    const prevTotalRemaining = previousAdvances.reduce((s, p) => s + p.remaining, 0);
+    const combinedAdvance = prevTotalRemaining + original;
+    const combinedPrevUsed = previouslyUtilized;
     const combinedTotal = combinedPrevUsed + adjusted;
     const combinedRemaining = combinedAdvance - combinedTotal;
 
@@ -279,7 +281,7 @@ export async function POST(req: NextRequest) {
         "Advance Amount Summary",
         [
           ["Advance Unique ID", uniqueId],
-          ["Total Advance Amount(Previous Advance + New Advance)", `₹${money(combinedAdvance)}`],
+          ["Total Advance Amount(Previous Remaining + New Advance)", `₹${money(combinedAdvance)}`],
           ["Total Amount Previously Used Against Advance", `₹${money(combinedPrevUsed)}`],
           ["New Expense Amount Against Advance", `₹${money(adjusted)}`],
           ["Total Amount", `₹${money(combinedTotal)}`],
