@@ -134,6 +134,11 @@ const withSerialNumbers = (sorted: any[]) =>
     return { ...r, serialNumber: useFrozen ? originalSerialNumber : index + 1 };
   });
 
+/** An "Advance"-type expense that was marked as advance: moves to Advance Payment. */
+const isAdvanceTypeMarked = (r: any) =>
+  String(r?.expense_type || "").trim().toLowerCase() === "advance" &&
+  r?.custom_fields?.marked_as_advance === true;
+
 /** REF No. by record id for one bank: persisted, or positional before the migration. */
 const bankRefNumbers = (rows: any[], bank: string) => {
   const map = new Map<string, number | null>();
@@ -1230,7 +1235,9 @@ export default function PaymentRecords() {
           });
 
           const sorted = sortByPaidApprovalTime(enriched);
-          const sortedWithSerial = withSerialNumbers(sorted);
+          const sortedWithSerial = withSerialNumbers(sorted).filter(
+            (r: any) => !isAdvanceTypeMarked(r)
+          );
 
           setRecords(sortedWithSerial);
           setFilteredRecords(sortedWithSerial);
@@ -1246,7 +1253,9 @@ export default function PaymentRecords() {
               unique_id: r.unique_id || "N/A",
             }))
           );
-          const fallbackWithSerial = withSerialNumbers(fallback);
+          const fallbackWithSerial = withSerialNumbers(fallback).filter(
+            (r: any) => !isAdvanceTypeMarked(r)
+          );
           setRecords(fallbackWithSerial);
           setFilteredRecords(fallbackWithSerial);
           setEventTitleLookup(eventTitleMap);
@@ -1658,16 +1667,53 @@ export default function PaymentRecords() {
 
       if (error) throw error;
 
-      // Update local state with the marked_as_advance flag
-      const updateList = (list: any[]) =>
-        list.map((r: any) =>
-          r.id === id ? { ...r, custom_fields: updatedCustomFields } : r
-        );
-
-      setRecords((prev) => updateList(prev));
-      setFilteredRecords((prev) => updateList(prev));
+      const updated = { ...record, custom_fields: updatedCustomFields };
+      if (isAdvanceTypeMarked(updated)) {
+        // Expense type is "Advance": it moves to Advance Payment, so drop it here.
+        setRecords((prev) => prev.filter((r: any) => r.id !== id));
+        setFilteredRecords((prev) => prev.filter((r: any) => r.id !== id));
+        reloadPageIfFastMode();
+      } else {
+        // Other types stay in Records, just flagged as advance.
+        const updateList = (list: any[]) =>
+          list.map((r: any) =>
+            r.id === id ? { ...r, custom_fields: updatedCustomFields } : r
+          );
+        setRecords((prev) => updateList(prev));
+        setFilteredRecords((prev) => updateList(prev));
+      }
       toast.success("Marked as Advance Payment");
       setMarkAdvanceModal({ open: false, id: null });
+
+      // If this expense was created against an existing advance, adjust it
+      // there and email the creator. Failures don't undo the marking.
+      try {
+        const res = await fetch("/api/expenses/advance-adjustment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expenseId: id }),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error("Advance adjustment failed", { description: result?.error });
+        } else if (result?.adjusted) {
+          if (result.sent) toast.success("Advance updated and creator notified by email");
+          else toast.warning("Advance updated, but email was not sent", { description: result?.emailError });
+        } else if (result?.reason && result.reason !== "already_adjusted") {
+          const reasons: Record<string, string> = {
+            expense_is_advance: 'Expense type is "Advance", so it is a new advance (no adjustment email).',
+            no_advance_id: "This expense has no Advance Unique ID.",
+            not_against_advance: "This expense is not created against an Advance ID.",
+            no_existing_advance:
+              'No existing "Advance"-type expense marked as advance was found with this Advance Unique ID.',
+          };
+          toast.info("No advance adjustment / email", {
+            description: reasons[result.reason] || result.reason,
+          });
+        }
+      } catch (adjErr: any) {
+        toast.error("Advance adjustment failed", { description: adjErr?.message });
+      }
     } catch (err: any) {
       toast.error("Failed to mark as advance payment", {
         description: err.message,

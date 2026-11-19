@@ -193,6 +193,11 @@ export async function fetchPaymentRecordsPage(params: {
       .eq("payment_status", "paid")
       .eq("org_id", orgId);
     if (bank) q = q.eq("paid_by_bank", bank);
+    // Expenses of type "Advance" that were marked as advance live on the
+    // Advance Payment page, not here.
+    q = q.or(
+      "expense_type.is.null,expense_type.not.ilike.advance,custom_fields->>marked_as_advance.is.null,custom_fields->>marked_as_advance.neq.true"
+    );
     return q;
   };
 
