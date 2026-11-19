@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     const { data: candidates, error: candErr } = await supabase
       .from("expense_new")
-      .select("id, unique_id, expense_type, amount, approved_amount, custom_fields")
+      .select("id, unique_id, expense_type, amount, approved_amount, custom_fields, paid_approval_time")
       .eq("org_id", expense.org_id)
       .eq("payment_status", "paid")
       .neq("id", expense.id)
@@ -160,6 +160,51 @@ export async function POST(req: NextRequest) {
     if (advRes.error) throw advRes.error;
     if (expRes.error) throw expRes.error;
 
+    // Previous advances of this user that still have a remaining balance. Each
+    // is kept separate (own ID, amount, remaining, paid_approval_time); the
+    // current advance is excluded so nothing is double counted.
+    const { data: userAdvances, error: prevErr } = await supabase
+      .from("expense_new")
+      .select("id, unique_id, expense_type, amount, approved_amount, custom_fields, paid_approval_time")
+      .eq("org_id", expense.org_id)
+      .eq("user_id", expense.user_id)
+      .eq("payment_status", "paid")
+      .neq("id", advance.id)
+      .ilike("expense_type", "advance");
+    if (prevErr) throw prevErr;
+
+    const advTime = (r: any) =>
+      r.paid_approval_time ? new Date(r.paid_approval_time).getTime() : markedAt(r);
+    const previousAdvances = (userAdvances || [])
+      .filter(
+        (r: any) =>
+          isAdvanceType(r.expense_type) &&
+          r.custom_fields?.marked_as_advance === true &&
+          advTime(r) <= advTime(advance)
+      )
+      .map((r: any) => {
+        const amt = amountOf(r);
+        const rem = r.custom_fields?.advance_remaining_amount;
+        const remainingAmt =
+          rem !== null && rem !== undefined && rem !== "" ? Number(rem) || 0 : amt;
+        return {
+          uniqueId: String(r.unique_id || "").trim(),
+          amount: amt,
+          remaining: remainingAmt,
+          used: Math.max(amt - remainingAmt, 0),
+          paidAt: r.paid_approval_time as string | null,
+        };
+      })
+      .filter((p) => p.remaining > 0)
+      .sort((a, b) => (a.paidAt ? new Date(a.paidAt).getTime() : 0) - (b.paidAt ? new Date(b.paidAt).getTime() : 0));
+
+    const prevTotalAmount = previousAdvances.reduce((s, p) => s + p.amount, 0);
+    const prevTotalUsed = previousAdvances.reduce((s, p) => s + p.used, 0);
+    const combinedAdvance = prevTotalAmount + original;
+    const combinedPrevUsed = prevTotalUsed + previouslyUtilized;
+    const combinedTotal = combinedPrevUsed + adjusted;
+    const combinedRemaining = combinedAdvance - combinedTotal;
+
     const result = {
       advanceUniqueId: uniqueId,
       originalAmount: original,
@@ -191,22 +236,85 @@ export async function POST(req: NextRequest) {
     const orgName = org?.name || "";
     const name = creator.full_name || creator.email;
 
-    const rows: [string, string][] = [
-      ["Advance Unique ID", uniqueId],
-      ["Advance Amount", `₹${money(original)}`],
-      ["Total Amount Previously Used Against Advance", `₹${money(previouslyUtilized)}`],
-      ["New Expense Amount Against Advance", `₹${money(adjusted)}`],
-      ["Total Amount", `₹${money(totalUtilized)}`],
-      ["Remaining Advance Amount", `₹${money(remaining)}`],
-    ];
-    const intro = "Your expense has been adjusted against your existing advance. Here are the updated advance details:";
+    const fmtTime = (t: string | null | undefined) =>
+      t
+        ? new Date(t).toLocaleString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "Asia/Kolkata",
+          })
+        : "—";
+
+    const hasPrev = previousAdvances.length > 0;
+    // The ID of the advance record actually used (not the expense's own ID,
+    // which may carry the "advance_" prefix).
+    const newAdvanceId = String(advance.unique_id || "").trim() || uniqueId;
+    // Sections: [title, rows]. Without previous balances the original single
+    // advance layout is kept.
+    const sections: [string, [string, string][]][] = [];
+    if (hasPrev) {
+      previousAdvances.forEach((p, i) => {
+        sections.push([
+          previousAdvances.length > 1 ? `Previous Advance Details (${i + 1})` : "Previous Advance Details",
+          [
+            ["Previous Advance ID", p.uniqueId],
+            ["Previous Advance Amount", `₹${money(p.amount)}`],
+            ["Previous Remaining Amount", `₹${money(p.remaining)}`],
+            ["Paid Approval Time", fmtTime(p.paidAt)],
+          ],
+        ]);
+      });
+      sections.push([
+        "New Advance Details",
+        [
+          ["New Advance ID", newAdvanceId],
+          ["New Advance Amount", `₹${money(original)}`],
+          ["Paid Approval Time", fmtTime(advance.paid_approval_time)],
+        ],
+      ]);
+      sections.push([
+        "Advance Amount Summary",
+        [
+          ["Advance Unique ID", uniqueId],
+          ["Total Advance Amount(Previous Advance + New Advance)", `₹${money(combinedAdvance)}`],
+          ["Total Amount Previously Used Against Advance", `₹${money(combinedPrevUsed)}`],
+          ["New Expense Amount Against Advance", `₹${money(adjusted)}`],
+          ["Total Amount", `₹${money(combinedTotal)}`],
+          ["Remaining Advance Amount", `₹${money(combinedRemaining)}`],
+        ],
+      ]);
+    } else {
+      sections.push([
+        "",
+        [
+          ["Advance Unique ID", uniqueId],
+          ["Advance Amount", `₹${money(original)}`],
+          ["Paid Approval Time", fmtTime(advance.paid_approval_time)],
+          ["Total Amount Previously Used Against Advance", `₹${money(previouslyUtilized)}`],
+          ["New Expense Amount Against Advance", `₹${money(adjusted)}`],
+          ["Total Amount", `₹${money(totalUtilized)}`],
+          ["Remaining Advance Amount", `₹${money(remaining)}`],
+        ],
+      ]);
+    }
+    const intro = hasPrev
+      ? "Your new advance has been processed while you still have a remaining balance from your previous advance. Please find your previous and new advance details below."
+      : "Your expense has been adjusted against your existing advance. Here are the updated advance details:";
+    const note = "";
+    const textBody = sections.flatMap(([title, r]) => [
+      ...(title ? ["", title] : []),
+      ...r.map(([k, v]) => `${k} : ${v}`),
+    ]);
 
     try {
       await transporter.sendMail({
         from: smtpFrom(),
         to: creator.email,
         subject: "Reminder: Remaining Amount Against Advance",
-        text: [`Hi ${name},`, "", intro, "", ...rows.map(([k, v]) => `${k} : ${v}`)].join("\n"),
+        text: [`Hi ${name},`, "", intro, ...textBody, ...(note ? ["", note] : []), "", "Regards,", "Payment Dashboard"].join("\n"),
         html: `<!DOCTYPE html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0;">
   <div style="max-width: 640px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
@@ -214,14 +322,19 @@ export async function POST(req: NextRequest) {
     <div style="padding: 20px; color: #111827;">
       <p><strong>Hi ${escapeHtml(name)},</strong></p>
       <p>${escapeHtml(intro)}</p>
-      <table style="border-collapse: collapse; width: 100%;">
-        ${rows
-          .map(
-            ([k, v]) =>
-              `<tr><td style="padding: 8px; border: 1px solid #e5e7eb; background: #f9fafb;"><strong>${escapeHtml(k)}</strong></td><td style="padding: 8px; border: 1px solid #e5e7eb;">${escapeHtml(v)}</td></tr>`
-          )
-          .join("")}
-      </table>
+      ${sections
+        .map(
+          ([title, r]) =>
+            `${title ? `<h3 style="margin: 18px 0 8px; font-size: 15px;">${escapeHtml(title)}</h3>` : ""}<table style="border-collapse: collapse; width: 100%;">${r
+              .map(
+                ([k, v]) =>
+                  `<tr><td style="padding: 8px; border: 1px solid #e5e7eb; background: #f9fafb;"><strong>${escapeHtml(k)}</strong></td><td style="padding: 8px; border: 1px solid #e5e7eb;">${escapeHtml(v)}</td></tr>`
+              )
+              .join("")}</table>`
+        )
+        .join("")}
+      ${note ? `<p style="margin-top: 16px;"><strong>${escapeHtml(note)}</strong></p>` : ""}
+      <p style="margin-top: 16px;">Regards,<br/>Payment Dashboard</p>
     </div>
     <div style="padding: 12px 20px; font-size: 12px; color: #6b7280; background: #f9fafb;">This is an automated message from the reimbursement dashboard.</div>
   </div>
