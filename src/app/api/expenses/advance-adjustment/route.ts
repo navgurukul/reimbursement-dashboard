@@ -120,45 +120,7 @@ export async function POST(req: NextRequest) {
       )
       .reduce((sum: number, r: any) => sum + amountOf(r), 0);
     const adjusted = amountOf(expense);
-    const totalUtilized = previouslyUtilized + adjusted;
-    const remaining = original - totalUtilized;
     const at = new Date().toISOString();
-
-    // Update the advance record (what the Advance Payment page reads) and
-    // record the adjustment on the expense, which also guards against re-runs.
-    const [advRes, expRes] = await Promise.all([
-      supabase
-        .from("expense_new")
-        .update({
-          custom_fields: {
-            ...(advance.custom_fields || {}),
-            advance_utilized_amount: totalUtilized,
-            advance_remaining_amount: remaining,
-            advance_updated_at: at,
-          },
-        })
-        .eq("id", advance.id),
-      supabase
-        .from("expense_new")
-        .update({
-          custom_fields: {
-            ...cf,
-            advance_adjustment: {
-              advance_expense_id: advance.id,
-              advance_unique_id: uniqueId,
-              original_amount: original,
-              previously_utilized: previouslyUtilized,
-              adjusted_amount: adjusted,
-              total_utilized: totalUtilized,
-              remaining_amount: remaining,
-              adjusted_at: at,
-            },
-          },
-        })
-        .eq("id", expense.id),
-    ]);
-    if (advRes.error) throw advRes.error;
-    if (expRes.error) throw expRes.error;
 
     // Previous advances of this user that still have a remaining balance. Each
     // is kept separate (own ID, amount, remaining, paid_approval_time); the
@@ -188,6 +150,8 @@ export async function POST(req: NextRequest) {
         const remainingAmt =
           rem !== null && rem !== undefined && rem !== "" ? Number(rem) || 0 : amt;
         return {
+          id: r.id as string,
+          custom_fields: (r.custom_fields || {}) as Record<string, any>,
           uniqueId: String(r.unique_id || "").trim(),
           amount: amt,
           remaining: remainingAmt,
@@ -197,6 +161,75 @@ export async function POST(req: NextRequest) {
       })
       .filter((p) => p.remaining > 0)
       .sort((a, b) => (a.paidAt ? new Date(a.paidAt).getTime() : 0) - (b.paidAt ? new Date(b.paidAt).getTime() : 0));
+
+    // The new expense first uses up previous advances' remaining balances
+    // (oldest first); only what is left over is applied to the new advance.
+    let left = amountOf(expense);
+    const prevAllocations = previousAdvances.map((p) => {
+      const take = Math.min(left, p.remaining);
+      left -= take;
+      return { ...p, take };
+    });
+    const appliedToNew = left;
+
+    const totalUtilized = previouslyUtilized + appliedToNew;
+    const remaining = original - totalUtilized;
+    const prevUpdates = prevAllocations
+      .filter((p) => p.take > 0)
+      .map((p) =>
+        supabase
+          .from("expense_new")
+          .update({
+            custom_fields: {
+              ...p.custom_fields,
+              advance_utilized_amount: p.used + p.take,
+              advance_remaining_amount: p.remaining - p.take,
+              advance_updated_at: at,
+            },
+          })
+          .eq("id", p.id)
+      );
+
+    // Update the advance record (what the Advance Payment page reads) and
+    // record the adjustment on the expense, which also guards against re-runs.
+    const [advRes, expRes, ...prevRes] = await Promise.all([
+      supabase
+        .from("expense_new")
+        .update({
+          custom_fields: {
+            ...(advance.custom_fields || {}),
+            advance_utilized_amount: totalUtilized,
+            advance_remaining_amount: remaining,
+            advance_updated_at: at,
+          },
+        })
+        .eq("id", advance.id),
+      supabase
+        .from("expense_new")
+        .update({
+          custom_fields: {
+            ...cf,
+            advance_adjustment: {
+              advance_expense_id: advance.id,
+              advance_unique_id: uniqueId,
+              original_amount: original,
+              previously_utilized: previouslyUtilized,
+              adjusted_amount: adjusted,
+              applied_to_new: appliedToNew,
+              total_utilized: totalUtilized,
+              remaining_amount: remaining,
+              adjusted_at: at,
+            },
+          },
+        })
+        .eq("id", expense.id),
+      ...prevUpdates,
+    ]);
+    if (advRes.error) throw advRes.error;
+    if (expRes.error) throw expRes.error;
+    prevRes.forEach((r: any) => {
+      if (r?.error) throw r.error;
+    });
 
     // Total Advance = previous advances' remaining balances + new advance amount.
     // The previous advances' used part is already out of their remaining, so only
@@ -257,10 +290,13 @@ export async function POST(req: NextRequest) {
     // Sections: [title, rows]. The layout is always Previous / New / Summary;
     // "Previous Advance Details" shows N/A when no earlier balance is left.
     const sections: [string, [string, string][]][] = [];
-    if (hasPrev) {
-      previousAdvances.forEach((p, i) => {
+    // Every previous advance that had a balance before this expense is listed,
+    // including one this expense completes.
+    const shownPrev = prevAllocations;
+    if (shownPrev.length > 0) {
+      shownPrev.forEach((p, i) => {
         sections.push([
-          previousAdvances.length > 1 ? `Previous Advance Details (${i + 1})` : "Previous Advance Details",
+          shownPrev.length > 1 ? `Previous Advance Details (${i + 1})` : "Previous Advance Details",
           [
             ["Previous Advance ID", p.uniqueId],
             ["Previous Advance Amount", `₹${money(p.amount)}`],
@@ -302,7 +338,7 @@ export async function POST(req: NextRequest) {
         ["Remaining Advance Amount", `₹${money(combinedRemaining)}`],
       ],
     ]);
-    const intro = hasPrev
+    const intro = shownPrev.length > 0
       ? "Your new advance has been processed while you still have a remaining balance from your previous advance. Please find your previous and new advance details below."
       : "Your expense has been adjusted against your advance. Please find your advance details below.";
     const note = "";
@@ -315,12 +351,14 @@ export async function POST(req: NextRequest) {
       await transporter.sendMail({
         from: smtpFrom(),
         to: creator.email,
-        subject: "Reminder: Remaining Amount Against Advance",
+        // A per-send suffix keeps Gmail from threading these mails together and
+        // collapsing the repeated Previous/New sections behind "...".
+        subject: `Reminder: Remaining Amount Against Advance (${newAdvanceId} - ${fmtTime(at)})`,
         text: [`Hi ${name},`, "", intro, ...textBody, ...(note ? ["", note] : []), "", "Regards,", "Payment Dashboard"].join("\n"),
         html: `<!DOCTYPE html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0;">
   <div style="max-width: 640px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-    <div style="background: #111827; color: #ffffff; padding: 16px 20px;"><h1 style="margin:0;font-size:18px;">Advance payment update${orgName ? ` from ${escapeHtml(orgName)}` : ""}</h1></div>
+    <div style="background: #111827; color: #ffffff; padding: 16px 20px;"><h1 style="margin:0;font-size:18px;">Advance payment update${orgName ? ` from ${escapeHtml(orgName)}` : ""}</h1><div style="margin-top:4px;font-size:12px;color:#d1d5db;">${escapeHtml(`Advance ${newAdvanceId} · ${fmtTime(at)}`)}</div></div>
     <div style="padding: 20px; color: #111827;">
       <p><strong>Hi ${escapeHtml(name)},</strong></p>
       <p>${escapeHtml(intro)}</p>
@@ -338,7 +376,7 @@ export async function POST(req: NextRequest) {
       ${note ? `<p style="margin-top: 16px;"><strong>${escapeHtml(note)}</strong></p>` : ""}
       <p style="margin-top: 16px;">Regards,<br/>Payment Dashboard</p>
     </div>
-    <div style="padding: 12px 20px; font-size: 12px; color: #6b7280; background: #f9fafb;">This is an automated message from the reimbursement dashboard.</div>
+    <div style="padding: 12px 20px; font-size: 12px; color: #6b7280; background: #f9fafb;">This is an automated message from the reimbursement dashboard.<br/>${escapeHtml(`Ref: ${newAdvanceId} · ${fmtTime(at)} · ${expense.id}`)}</div>
   </div>
 </body></html>`,
       });
