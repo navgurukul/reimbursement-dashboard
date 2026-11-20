@@ -118,7 +118,12 @@ export async function POST(req: NextRequest) {
           markedAt(r) >= markedAt(advance) &&
           !hasReturn(r)
       )
-      .reduce((sum: number, r: any) => sum + amountOf(r), 0);
+      .reduce((sum: number, r: any) => {
+        // An expense absorbed by a previous advance's balance only counts for
+        // the part that was applied to this (new) advance.
+        const applied = r.custom_fields?.advance_adjustment?.applied_to_new;
+        return sum + (applied !== undefined && applied !== null ? Number(applied) || 0 : amountOf(r));
+      }, 0);
     const adjusted = amountOf(expense);
     const at = new Date().toISOString();
 
@@ -137,7 +142,7 @@ export async function POST(req: NextRequest) {
 
     const advTime = (r: any) =>
       r.paid_approval_time ? new Date(r.paid_approval_time).getTime() : markedAt(r);
-    const previousAdvances = (userAdvances || [])
+    const allPreviousAdvances = (userAdvances || [])
       .filter(
         (r: any) =>
           isAdvanceType(r.expense_type) &&
@@ -159,8 +164,10 @@ export async function POST(req: NextRequest) {
           paidAt: r.paid_approval_time as string | null,
         };
       })
-      .filter((p) => p.remaining > 0)
       .sort((a, b) => (a.paidAt ? new Date(a.paidAt).getTime() : 0) - (b.paidAt ? new Date(b.paidAt).getTime() : 0));
+    // Only advances that still had a balance take part in the allocation and the
+    // summary; completed ones stay listed (Remaining 0) but are not counted.
+    const previousAdvances = allPreviousAdvances.filter((p) => p.remaining > 0);
 
     // The new expense first uses up previous advances' remaining balances
     // (oldest first); only what is left over is applied to the new advance.
@@ -292,7 +299,7 @@ export async function POST(req: NextRequest) {
     const sections: [string, [string, string][]][] = [];
     // Every previous advance that had a balance before this expense is listed,
     // including one this expense completes.
-    const shownPrev = prevAllocations;
+    const shownPrev = allPreviousAdvances;
     if (shownPrev.length > 0) {
       shownPrev.forEach((p, i) => {
         sections.push([
@@ -338,7 +345,7 @@ export async function POST(req: NextRequest) {
         ["Remaining Advance Amount", `₹${money(combinedRemaining)}`],
       ],
     ]);
-    const intro = shownPrev.length > 0
+    const intro = hasPrev
       ? "Your new advance has been processed while you still have a remaining balance from your previous advance. Please find your previous and new advance details below."
       : "Your expense has been adjusted against your advance. Please find your advance details below.";
     const note = "";
