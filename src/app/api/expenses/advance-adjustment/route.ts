@@ -254,8 +254,8 @@ export async function POST(req: NextRequest) {
     // The ID of the advance record actually used (not the expense's own ID,
     // which may carry the "advance_" prefix).
     const newAdvanceId = String(advance.unique_id || "").trim() || uniqueId;
-    // Sections: [title, rows]. Without previous balances the original single
-    // advance layout is kept.
+    // Sections: [title, rows]. The layout is always Previous / New / Summary;
+    // "Previous Advance Details" shows N/A when no earlier balance is left.
     const sections: [string, [string, string][]][] = [];
     if (hasPrev) {
       previousAdvances.forEach((p, i) => {
@@ -269,42 +269,42 @@ export async function POST(req: NextRequest) {
           ],
         ]);
       });
-      sections.push([
-        "New Advance Details",
-        [
-          ["New Advance ID", newAdvanceId],
-          ["New Advance Amount", `₹${money(original)}`],
-          ["Paid Approval Time", fmtTime(advance.paid_approval_time)],
-        ],
-      ]);
-      sections.push([
-        "Advance Amount Summary",
-        [
-          ["Advance Unique ID", uniqueId],
-          ["Total Advance Amount(Previous Remaining + New Advance)", `₹${money(combinedAdvance)}`],
-          ["Total Amount Previously Used Against Advance", `₹${money(combinedPrevUsed)}`],
-          ["New Expense Amount Against Advance", `₹${money(adjusted)}`],
-          ["Total Amount", `₹${money(combinedTotal)}`],
-          ["Remaining Advance Amount", `₹${money(combinedRemaining)}`],
-        ],
-      ]);
     } else {
       sections.push([
-        "",
+        "Previous Advance Details",
         [
-          ["Advance Unique ID", uniqueId],
-          ["Advance Amount", `₹${money(original)}`],
-          ["Paid Approval Time", fmtTime(advance.paid_approval_time)],
-          ["Total Amount Previously Used Against Advance", `₹${money(previouslyUtilized)}`],
-          ["New Expense Amount Against Advance", `₹${money(adjusted)}`],
-          ["Total Amount", `₹${money(totalUtilized)}`],
-          ["Remaining Advance Amount", `₹${money(remaining)}`],
+          ["Previous Advance ID", "N/A"],
+          ["Previous Advance Amount", "N/A"],
+          ["Previous Remaining Amount", "N/A"],
+          ["Paid Approval Time", "N/A"],
         ],
       ]);
     }
+    sections.push([
+      "New Advance Details",
+      [
+        ["New Advance ID", newAdvanceId],
+        ["New Advance Amount", `₹${money(original)}`],
+        ["Paid Approval Time", fmtTime(advance.paid_approval_time)],
+      ],
+    ]);
+    sections.push([
+      "Advance Amount Summary",
+      [
+        ["Advance Unique ID", uniqueId],
+        [
+          hasPrev ? "Total Advance Amount(Previous Remaining + New Advance)" : "Total Advance Amount",
+          `₹${money(combinedAdvance)}`,
+        ],
+        ["Total Amount Previously Used Against Advance", `₹${money(combinedPrevUsed)}`],
+        ["New Expense Amount Against Advance", `₹${money(adjusted)}`],
+        ["Total Amount", `₹${money(combinedTotal)}`],
+        ["Remaining Advance Amount", `₹${money(combinedRemaining)}`],
+      ],
+    ]);
     const intro = hasPrev
       ? "Your new advance has been processed while you still have a remaining balance from your previous advance. Please find your previous and new advance details below."
-      : "Your expense has been adjusted against your existing advance. Here are the updated advance details:";
+      : "Your expense has been adjusted against your advance. Please find your advance details below.";
     const note = "";
     const textBody = sections.flatMap(([title, r]) => [
       ...(title ? ["", title] : []),
