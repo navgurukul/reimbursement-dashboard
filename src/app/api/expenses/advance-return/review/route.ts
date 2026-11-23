@@ -87,6 +87,12 @@ export async function POST(req: NextRequest) {
       .eq("id", advance.org_id)
       .maybeSingle();
     const orgName = org?.name || "";
+    const { data: reviewer } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("user_id", caller.id)
+      .maybeSingle();
+    const reviewerName = reviewer?.full_name || reviewer?.email || caller.email || "Finance";
     const name = creator.full_name || creator.email;
     const advanceUniqueId = String(advance.unique_id || "").trim() || advance.id;
 
@@ -94,9 +100,17 @@ export async function POST(req: NextRequest) {
     const returned = returns.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const rem = cf.advance_remaining_amount;
     const remaining = rem !== null && rem !== undefined && rem !== "" ? Number(rem) || 0 : original;
+    // Used against the advance: the stored utilized amount, else what is left
+    // after the remaining balance and the returned amount are taken out.
+    const util = cf.advance_utilized_amount;
+    const totalUsed =
+      util !== null && util !== undefined && util !== ""
+        ? Number(util) || 0
+        : Math.max(original - remaining - returned, 0);
     const rows: [string, string][] = [
       ["Advance ID", advanceUniqueId],
       ["Advance Amount", `₹${money(original)}`],
+      ["Total Amount Used Against Advance", `₹${money(totalUsed)}`],
       ["Returned Amount", `₹${money(returned)}`],
       ["Remaining Advance Amount", `₹${money(Math.max(remaining, 0))}`],
       ["Reviewed On", fmtTime(at)],
@@ -108,7 +122,7 @@ export async function POST(req: NextRequest) {
       await transporter.sendMail({
         from: smtpFrom(),
         to: creator.email,
-        subject: `Advance Completed: ${advanceUniqueId} (${fmtTime(at)})`,
+        subject: `Remaining Amount Return Reviewed by Finance - ${reviewerName}, ${fmtTime(at)}`,
         text: [
           `Hi ${name},`,
           "",
@@ -122,7 +136,7 @@ export async function POST(req: NextRequest) {
         html: `<!DOCTYPE html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0;">
   <div style="max-width: 640px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-    <div style="background: #111827; color: #ffffff; padding: 16px 20px;"><h1 style="margin:0;font-size:18px;">Advance completed${orgName ? ` · ${escapeHtml(orgName)}` : ""}</h1><div style="margin-top:4px;font-size:12px;color:#d1d5db;">${escapeHtml(`Advance ${advanceUniqueId} · ${fmtTime(at)}`)}</div></div>
+    <div style="background: #111827; color: #ffffff; padding: 16px 20px;"><h1 style="margin:0;font-size:18px;">Remaining Amount Return Reviewed ${orgName ? ` for ${orgName} Organization` : ""}</h1></div>
     <div style="padding: 20px; color: #111827;">
       <p><strong>Hi ${escapeHtml(name)},</strong></p>
       <p>${escapeHtml(intro)}</p>
