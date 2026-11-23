@@ -180,7 +180,9 @@ export async function POST(req: NextRequest) {
     const appliedToNew = left;
 
     const totalUtilized = previouslyUtilized + appliedToNew;
-    const remaining = original - totalUtilized;
+    // Amount the user already returned (with proof) against this advance.
+    const returnedBack = Number(advance.custom_fields?.advance_returned_amount) || 0;
+    const remaining = original - totalUtilized - returnedBack;
     const prevUpdates = prevAllocations
       .filter((p) => p.take > 0)
       .map((p) =>
@@ -242,7 +244,7 @@ export async function POST(req: NextRequest) {
     // The previous advances' used part is already out of their remaining, so only
     // usage against the new advance counts as "previously used" (no double count).
     const prevTotalRemaining = previousAdvances.reduce((s, p) => s + p.remaining, 0);
-    const combinedAdvance = prevTotalRemaining + original;
+    const combinedAdvance = prevTotalRemaining + original - returnedBack;
     const combinedPrevUsed = previouslyUtilized;
     const combinedTotal = combinedPrevUsed + adjusted;
     const combinedRemaining = combinedAdvance - combinedTotal;
