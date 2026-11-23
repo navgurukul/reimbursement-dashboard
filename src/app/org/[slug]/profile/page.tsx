@@ -64,6 +64,16 @@ export default function ProfilePage() {
   const [bankDetails, setBankDetails] = useState<any>(null);
   const [isDocumentValid, setIsDocumentValid] = useState<boolean | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [advances, setAdvances] = useState<
+    {
+      id: string;
+      uniqueId: string;
+      paidAt: string | null;
+      amount: number;
+      remaining: number | null;
+    }[]
+  >([]);
+  const [loadingAdvances, setLoadingAdvances] = useState(true);
   const isEditingRef = useRef(false);
   const [userProfile, setUserProfile] = useState<{
     id?: string;
@@ -209,6 +219,59 @@ export default function ProfilePage() {
 
     fetchUserSignature();
   }, [user?.id]);
+
+  // Fetch the user's paid advances (Advance Details table)
+  useEffect(() => {
+    async function fetchAdvances() {
+      if (!user?.id || !organization?.id) return;
+      setLoadingAdvances(true);
+      try {
+        const { data, error } = await supabase
+          .from("expense_new")
+          .select("id, unique_id, expense_type, amount, approved_amount, paid_approval_time, custom_fields")
+          .eq("org_id", organization.id)
+          .eq("user_id", user.id)
+          .eq("payment_status", "paid")
+          .ilike("expense_type", "advance")
+          .order("paid_approval_time", { ascending: false });
+        if (error) throw error;
+        setAdvances(
+          (data || [])
+            .filter((r: any) => r.custom_fields?.marked_as_advance === true)
+            .map((r: any) => {
+              const rem = r.custom_fields?.advance_remaining_amount;
+              const hasRem = rem !== null && rem !== undefined && rem !== "";
+              return {
+                id: r.id,
+                uniqueId: String(r.unique_id || "").trim() || "—",
+                paidAt: r.paid_approval_time ?? null,
+                amount: Number(r.approved_amount ?? r.amount ?? 0) || 0,
+                remaining: hasRem ? Number(rem) || 0 : null,
+              };
+            })
+        );
+      } catch (err) {
+        console.error("Failed to fetch advances:", err);
+      } finally {
+        setLoadingAdvances(false);
+      }
+    }
+    fetchAdvances();
+  }, [user?.id, organization?.id]);
+
+  const formatMoney = (n: number) =>
+    `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatTime = (t: string | null) =>
+    t
+      ? new Date(t).toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "Asia/Kolkata",
+        })
+      : "—";
 
   // Handle expense signature save - separate from voucher signature
   const handleExpenseSignatureSave = async (dataUrl: string) => {
@@ -820,6 +883,49 @@ export default function ProfilePage() {
               signature when you submit.
             </p>
           )}
+      </div>
+
+      {/* Advance Details */}
+      <div className="p-4 sm:p-6 bg-card rounded-xl border shadow-sm space-y-4">
+        <h2 className="card-title">Advance Details</h2>
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Advance ID</th>
+                <th className="px-4 py-3 font-semibold">Paid Approval Time</th>
+                <th className="px-4 py-3 font-semibold text-right">Advance Amount</th>
+                <th className="px-4 py-3 font-semibold text-right">Remaining Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingAdvances ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
+                    Loading advance details...
+                  </td>
+                </tr>
+              ) : advances.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
+                    No advance details available
+                  </td>
+                </tr>
+              ) : (
+                advances.map((a) => (
+                  <tr key={a.id} className="border-t">
+                    <td className="px-4 py-3">{a.uniqueId}</td>
+                    <td className="px-4 py-3">{formatTime(a.paidAt)}</td>
+                    <td className="px-4 py-3 text-right">{formatMoney(a.amount)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {a.remaining !== null ? formatMoney(a.remaining) : "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
