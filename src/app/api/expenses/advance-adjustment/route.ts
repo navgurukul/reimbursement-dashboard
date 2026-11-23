@@ -394,7 +394,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, adjusted: true, sent: 0, emailError: mailErr?.message || "Email failed", ...result });
     }
 
-    return NextResponse.json({ success: true, adjusted: true, sent: 1, ...result });
+    // The whole taken advance is now used up (remaining 0): tell the creator
+    // the advance is complete. A failure here never undoes the adjustment.
+    let completionSent = 0;
+    if (combinedRemaining <= 0.005) {
+      try {
+        const excess = Math.max(-combinedRemaining, 0);
+        const completionRows: [string, string][] = [
+          ["Advance ID", newAdvanceId],
+          ["Total Advance Amount", `₹${money(combinedAdvance)}`],
+          ["Total Amount Used Against Advance", `₹${money(combinedTotal)}`],
+          ["Remaining Advance Amount", `₹${money(Math.max(combinedRemaining, 0))}`],
+          ...(excess > 0.005 ? ([["Amount Beyond Advance", `₹${money(excess)}`]] as [string, string][]) : []),
+          ["Completed On", fmtTime(at)],
+        ];
+        const completionIntro =
+          "Your advance amount has been fully utilized. The expense(s) raised against it have used the complete advance, and the remaining advance amount is now ₹0.00.";
+        await transporter.sendMail({
+          from: smtpFrom(),
+          to: creator.email,
+          subject: `Advance Completed: ${newAdvanceId} - Remaining ₹0.00 (${fmtTime(at)})`,
+          text: [
+            `Hi ${name},`,
+            "",
+            completionIntro,
+            "",
+            ...completionRows.map(([k, v]) => `${k} : ${v}`),
+            "",
+            "Regards,",
+            "Payment Dashboard",
+          ].join("\n"),
+          html: `<!DOCTYPE html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0;">
+  <div style="max-width: 640px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+    <div style="background: #111827; color: #ffffff; padding: 16px 20px;"><h1 style="margin:0;font-size:18px;">Advance completed${orgName ? ` · ${escapeHtml(orgName)}` : ""}</h1><div style="margin-top:4px;font-size:12px;color:#d1d5db;">${escapeHtml(`Advance ${newAdvanceId} · ${fmtTime(at)}`)}</div></div>
+    <div style="padding: 20px; color: #111827;">
+      <p><strong>Hi ${escapeHtml(name)},</strong></p>
+      <p>${escapeHtml(completionIntro)}</p>
+      <table style="border-collapse: collapse; width: 100%;">${completionRows
+        .map(
+          ([k, v]) =>
+            `<tr><td style="padding: 8px; border: 1px solid #e5e7eb; background: #f9fafb;"><strong>${escapeHtml(k)}</strong></td><td style="padding: 8px; border: 1px solid #e5e7eb;">${escapeHtml(v)}</td></tr>`
+        )
+        .join("")}</table>
+      <p style="margin-top: 16px;">Regards,<br/>Payment Dashboard</p>
+    </div>
+    <div style="padding: 12px 20px; font-size: 12px; color: #6b7280; background: #f9fafb;">This is an automated message from the reimbursement dashboard.<br/>${escapeHtml(`Ref: ${newAdvanceId} · ${fmtTime(at)} · ${expense.id}`)}</div>
+  </div>
+</body></html>`,
+        });
+        completionSent = 1;
+      } catch (mailErr: any) {
+        console.error("Error sending advance completion email:", mailErr);
+      }
+    }
+
+    return NextResponse.json({ success: true, adjusted: true, sent: 1, completionSent, ...result });
   } catch (error: any) {
     console.error("Error adjusting advance:", error);
     return NextResponse.json(
