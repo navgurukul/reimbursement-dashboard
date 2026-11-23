@@ -1707,9 +1707,9 @@ export default function PaymentRecords() {
             no_existing_advance:
               'No existing "Advance"-type expense marked as advance was found with this Advance Unique ID.',
           };
-          toast.info("No advance adjustment / email", {
-            description: reasons[result.reason] || result.reason,
-          });
+          // toast.info("No advance adjustment / email", {
+          //   description: reasons[result.reason] || result.reason,
+          // });
         }
       } catch (adjErr: any) {
         toast.error("Advance adjustment failed", { description: adjErr?.message });
