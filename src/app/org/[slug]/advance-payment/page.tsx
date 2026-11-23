@@ -2274,15 +2274,17 @@ export default function AdvancePaymentRecords() {
               <TableHead className="text-center py-3">Payment Status</TableHead>
               <TableHead className="text-center py-3">Paid by bank</TableHead>
               <TableHead className="text-center py-3">Actions</TableHead>
+              <TableHead className="text-center py-3">Return Amount</TableHead>
+              <TableHead className="text-center py-3">Return Amount Proof</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={19} rows={5} />
+              <TableSkeleton colSpan={21} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={19} className="p-0">
+                <TableCell colSpan={21} className="p-0">
                   {/* Pinned to the visible width so it stays in view in this wide table */}
                   <EmptyState
                     icon={Wallet}
@@ -2586,6 +2588,45 @@ export default function AdvancePaymentRecords() {
                         </Tooltip>
                       </TooltipProvider>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const returned = Number(record.custom_fields?.advance_returned_amount) || 0;
+                      return returned > 0 ? formatCurrency(returned) : "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {Array.isArray(record.custom_fields?.advance_returns) &&
+                    record.custom_fields.advance_returns.length > 0 ? (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto font-normal cursor-pointer text-blue-600"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(
+                              `/api/expenses/advance-return?advanceId=${record.id}`
+                            );
+                            const json = await res.json();
+                            if (!res.ok) throw new Error(json.error || "Failed");
+                            const urls: string[] = (json.returns || [])
+                              .map((r: any) => r.proofUrl)
+                              .filter(Boolean);
+                            if (urls.length === 0) {
+                              toast.error("Proof not available");
+                              return;
+                            }
+                            urls.forEach((u) => window.open(u, "_blank"));
+                          } catch {
+                            toast.error("Failed to load proof");
+                          }
+                        }}
+                      >
+                        View
+                      </Button>
+                    ) : (
+                      "N/A"
+                    )}
                   </TableCell>
                 </TableRow>
               ))

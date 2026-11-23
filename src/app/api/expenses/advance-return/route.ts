@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSignedInUser, unauthorized } from "@/lib/server/auth";
+import { forbidden, getOrgRole, getSignedInUser, unauthorized } from "@/lib/server/auth";
 
 const BUCKET = "advance-return-proofs";
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -132,11 +132,15 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data: advance } = await supabase
     .from("expense_new")
-    .select("id, user_id, custom_fields")
+    .select("id, org_id, user_id, custom_fields")
     .eq("id", advanceId)
     .maybeSingle();
-  if (!advance || advance.user_id !== caller.id) {
+  if (!advance) {
     return NextResponse.json({ error: "Advance not found" }, { status: 404 });
+  }
+  // The owner, or any member of the advance's organisation (Finance views proofs).
+  if (advance.user_id !== caller.id && !(await getOrgRole(caller.id, advance.org_id))) {
+    return forbidden();
   }
   const list: any[] = Array.isArray(advance.custom_fields?.advance_returns)
     ? advance.custom_fields.advance_returns
