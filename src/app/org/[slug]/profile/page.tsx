@@ -79,6 +79,7 @@ export default function ProfilePage() {
       amount: number;
       remaining: number | null;
       hasReturns: boolean;
+      reviewed: boolean;
       returns: AdvanceReturn[];
     }[]
   >([]);
@@ -265,6 +266,7 @@ export default function ProfilePage() {
               paidAt: (r.paid_approval_time ?? null) as string | null,
               amount: Number(r.approved_amount ?? r.amount ?? 0) || 0,
               remaining: hasRem ? Number(rem) || 0 : null,
+              reviewed: r.custom_fields?.advance_return_reviewed === true,
               hasReturns:
                 Array.isArray(r.custom_fields?.advance_returns) &&
                 r.custom_fields.advance_returns.length > 0,
@@ -1054,7 +1056,10 @@ export default function ProfilePage() {
                             Return Remaining
                           </Button>
                         )}
-                        {a.returns.map((r, i) => (
+                        {a.reviewed && a.returns.length > 0 && (
+                          <span className="text-xs font-medium text-green-600">Reviewed</span>
+                        )}
+                        {!a.reviewed && a.returns.map((r, i) => (
                           <Button
                             key={i}
                             size="sm"
@@ -1073,7 +1078,7 @@ export default function ProfilePage() {
                             Edit{a.returns.length > 1 ? ` #${i + 1}` : ""}
                           </Button>
                         ))}
-                        {!(a.remaining !== null && a.remaining > 0) && a.returns.length === 0 && (
+                        {!(a.remaining !== null && a.remaining > 0) && a.returns.length === 0 && !a.reviewed && (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </div>

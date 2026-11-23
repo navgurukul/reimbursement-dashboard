@@ -140,6 +140,36 @@ const withRecordsSerialNumbers = (sorted: any[]) =>
 
 export default function AdvancePaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
+  const [reviewingReturnId, setReviewingReturnId] = useState<string | null>(null);
+
+  const reviewReturn = async (id: string) => {
+    setReviewingReturnId(id);
+    try {
+      const res = await fetch("/api/expenses/advance-return/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ advanceId: id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to review return");
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? { ...r, custom_fields: { ...(r.custom_fields || {}), advance_return_reviewed: true } }
+            : r
+        )
+      );
+      if (json.emailError) {
+        toast.warning(`Return reviewed, but email not sent: ${json.emailError}`);
+      } else {
+        toast.success("Return reviewed. Advance Completed email sent to the expense creator.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to review return");
+    } finally {
+      setReviewingReturnId(null);
+    }
+  };
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -2276,15 +2306,16 @@ export default function AdvancePaymentRecords() {
               <TableHead className="text-center py-3">Actions</TableHead>
               <TableHead className="text-center py-3">Return Amount</TableHead>
               <TableHead className="text-center py-3">Return Amount Proof</TableHead>
+              <TableHead className="text-center py-3">Review Return</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={21} rows={5} />
+              <TableSkeleton colSpan={22} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={21} className="p-0">
+                <TableCell colSpan={22} className="p-0">
                   {/* Pinned to the visible width so it stays in view in this wide table */}
                   <EmptyState
                     icon={Wallet}
@@ -2624,6 +2655,25 @@ export default function AdvancePaymentRecords() {
                       >
                         View
                       </Button>
+                    ) : (
+                      "N/A"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {Array.isArray(record.custom_fields?.advance_returns) &&
+                    record.custom_fields.advance_returns.length > 0 ? (
+                      record.custom_fields.advance_return_reviewed === true ? (
+                        <span className="text-sm font-medium text-green-600">Reviewed</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={reviewingReturnId === record.id}
+                          onClick={() => reviewReturn(record.id)}
+                        >
+                          {reviewingReturnId === record.id ? "Reviewing..." : "Review Return"}
+                        </Button>
+                      )
                     ) : (
                       "N/A"
                     )}

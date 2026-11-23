@@ -49,6 +49,12 @@ export async function PATCH(req: NextRequest) {
     }
     const cf = (advance.custom_fields || {}) as Record<string, any>;
     const returns: any[] = Array.isArray(cf.advance_returns) ? [...cf.advance_returns] : [];
+    if (cf.advance_return_reviewed === true) {
+      return NextResponse.json(
+        { error: "This return has been reviewed and can no longer be edited" },
+        { status: 403 }
+      );
+    }
     const entry = returns[index];
     if (!entry) {
       return NextResponse.json({ error: "Return not found" }, { status: 404 });
