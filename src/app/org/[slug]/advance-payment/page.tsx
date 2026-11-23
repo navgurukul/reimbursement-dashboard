@@ -2665,14 +2665,24 @@ export default function AdvancePaymentRecords() {
                       record.custom_fields.advance_return_reviewed === true ? (
                         <span className="text-sm font-medium text-green-600">Reviewed</span>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={reviewingReturnId === record.id}
-                          onClick={() => reviewReturn(record.id)}
-                        >
-                          {reviewingReturnId === record.id ? "Reviewing..." : "Review Return"}
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="Review Return"
+                                disabled={reviewingReturnId === record.id}
+                                onClick={() => reviewReturn(record.id)}
+                                className="p-1 rounded-md border border-transparent hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <CheckCircle className="w-5 h-5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Review Return</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )
                     ) : (
                       "N/A"
