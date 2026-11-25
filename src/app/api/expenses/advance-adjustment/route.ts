@@ -194,6 +194,11 @@ export async function POST(req: NextRequest) {
               advance_utilized_amount: p.used + p.take,
               advance_remaining_amount: p.remaining - p.take,
               advance_updated_at: at,
+              // Which expense used how much of this advance, and when.
+              advance_usages: [
+                ...(Array.isArray(p.custom_fields.advance_usages) ? p.custom_fields.advance_usages : []),
+                { expense_id: expense.id, amount: p.take, at },
+              ],
             },
           })
           .eq("id", p.id)
@@ -210,6 +215,16 @@ export async function POST(req: NextRequest) {
             advance_utilized_amount: totalUtilized,
             advance_remaining_amount: remaining,
             advance_updated_at: at,
+            ...(appliedToNew > 0
+              ? {
+                  advance_usages: [
+                    ...(Array.isArray(advance.custom_fields?.advance_usages)
+                      ? advance.custom_fields.advance_usages
+                      : []),
+                    { expense_id: expense.id, amount: appliedToNew, at },
+                  ],
+                }
+              : {}),
           },
         })
         .eq("id", advance.id),
@@ -292,6 +307,59 @@ export async function POST(req: NextRequest) {
           })
         : "—";
 
+    const fmtDate = (t: string | null | undefined) =>
+      t
+        ? new Date(t).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            timeZone: "Asia/Kolkata",
+          })
+        : "—";
+    // "₹10.00 on 23 Nov 2026; ₹5.00 on 24 Nov 2026"; N/A when nothing was used.
+    // One value: "₹10.00 (23 Nov 2026)", or for several uses
+    // "₹15.00 (₹10.00 on 23 Nov 2026; ₹5.00 on 24 Nov 2026)". With no dated
+    // log (older advances) only the amount is shown.
+    const usedWithDate = (
+      total: number,
+      usages: { amount: number; at: string | null | undefined }[] | null
+    ) => {
+      const list = (usages || [])
+        .filter((u) => u.amount > 0)
+        .sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
+      if (!list.length) return `₹${money(total)}`;
+      // One line per expense: amount with its date and time.
+      const lines = list.map((u) => `₹${money(u.amount)} – ${fmtTime(u.at)}`);
+      if (list.length > 1) lines.push(`Total: ₹${money(total)}`);
+      return lines.join("\n");
+    };
+
+    // Usage against the new advance: expenses already adjusted against it, plus
+    // this one.
+    const newAdvanceUsages = [
+      ...(candidates || [])
+        .filter(
+          (r: any) =>
+            String(r.unique_id || "").trim().toLowerCase() === uniqueId.toLowerCase() &&
+            !isAdvanceType(r.expense_type) &&
+            r.custom_fields?.marked_as_advance === true &&
+            markedAt(r) >= markedAt(advance) &&
+            !hasReturn(r)
+        )
+        .map((r: any) => {
+          const applied = r.custom_fields?.advance_adjustment?.applied_to_new;
+          return {
+            amount: applied !== undefined && applied !== null ? Number(applied) || 0 : amountOf(r),
+            at:
+              r.custom_fields?.advance_adjustment?.adjusted_at ||
+              r.custom_fields?.marked_as_advance_at ||
+              r.paid_approval_time,
+          };
+        }),
+      { amount: appliedToNew, at },
+    ];
+    const newAdvanceUsed = newAdvanceUsages.reduce((s, u) => s + u.amount, 0);
+
     const hasPrev = previousAdvances.length > 0;
     // The ID of the advance record actually used (not the expense's own ID,
     // which may carry the "advance_" prefix).
@@ -304,11 +372,26 @@ export async function POST(req: NextRequest) {
     const shownPrev = allPreviousAdvances;
     if (shownPrev.length > 0) {
       shownPrev.forEach((p, i) => {
+        const take = prevAllocations.find((a) => a.id === p.id)?.take || 0;
+        const stored: { amount: number; at: string }[] = Array.isArray(p.custom_fields.advance_usages)
+          ? p.custom_fields.advance_usages
+          : [];
+        const usedTotal = p.used + take;
+        // Older advances have no per-expense log: show the total used only.
+        const usages = [...stored, ...(take > 0 ? [{ amount: take, at }] : [])];
+        const loggedTotal = usages.reduce((s, u) => s + (Number(u.amount) || 0), 0);
+        const usedText = usedWithDate(
+          usedTotal,
+          usages.length && Math.abs(loggedTotal - usedTotal) < 0.005
+            ? usages.map((u) => ({ amount: Number(u.amount) || 0, at: u.at }))
+            : null
+        );
         sections.push([
           shownPrev.length > 1 ? `Previous Advance Details (${i + 1})` : "Previous Advance Details",
           [
             ["Previous Advance ID", p.uniqueId],
             ["Previous Advance Amount", `₹${money(p.amount)}`],
+            ["Amount Used Against Advance", usedText],
             ["Previous Remaining Amount", `₹${money(p.remaining)}`],
             ["Paid Approval Time", fmtTime(p.paidAt)],
           ],
@@ -330,6 +413,7 @@ export async function POST(req: NextRequest) {
       [
         ["New Advance ID", newAdvanceId],
         ["New Advance Amount", `₹${money(original)}`],
+        ["Amount Used Against Advance", usedWithDate(newAdvanceUsed, newAdvanceUsages)],
         ["Paid Approval Time", fmtTime(advance.paid_approval_time)],
       ],
     ]);
@@ -377,7 +461,7 @@ export async function POST(req: NextRequest) {
             `${title ? `<h3 style="margin: 18px 0 8px; font-size: 15px;">${escapeHtml(title)}</h3>` : ""}<table style="border-collapse: collapse; width: 100%;">${r
               .map(
                 ([k, v]) =>
-                  `<tr><td style="padding: 8px; border: 1px solid #e5e7eb; background: #f9fafb;"><strong>${escapeHtml(k)}</strong></td><td style="padding: 8px; border: 1px solid #e5e7eb;">${escapeHtml(v)}</td></tr>`
+                  `<tr><td style="padding: 8px; border: 1px solid #e5e7eb; background: #f9fafb;"><strong>${escapeHtml(k)}</strong></td><td style="padding: 8px; border: 1px solid #e5e7eb;">${v.split("\n").map(escapeHtml).join("<br/>")}</td></tr>`
               )
               .join("")}</table>`
         )
