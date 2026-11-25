@@ -322,15 +322,17 @@ export async function POST(req: NextRequest) {
     // log (older advances) only the amount is shown.
     const usedWithDate = (
       total: number,
-      usages: { amount: number; at: string | null | undefined }[] | null
+      usages: { amount: number; at: string | null | undefined }[] | null,
+      unlogged = 0
     ) => {
       const list = (usages || [])
         .filter((u) => u.amount > 0)
         .sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
-      if (!list.length) return `₹${money(total)}`;
+      if (!list.length && !(unlogged > 0)) return `₹${money(total)}`;
       // One line per expense: amount with its date and time.
       const lines = list.map((u) => `₹${money(u.amount)} – ${fmtTime(u.at)}`);
-      if (list.length > 1) lines.push(`Total: ₹${money(total)}`);
+      if (unlogged > 0) lines.push(`₹${money(unlogged)} – date not recorded`);
+      if (lines.length > 1) lines.push(`Total: ₹${money(total)}`);
       return lines.join("\n");
     };
 
@@ -380,11 +382,12 @@ export async function POST(req: NextRequest) {
         // Older advances have no per-expense log: show the total used only.
         const usages = [...stored, ...(take > 0 ? [{ amount: take, at }] : [])];
         const loggedTotal = usages.reduce((s, u) => s + (Number(u.amount) || 0), 0);
+        // Use recorded before per-expense dates were kept: shown as its own line.
+        const unlogged = Math.max(usedTotal - loggedTotal, 0);
         const usedText = usedWithDate(
           usedTotal,
-          usages.length && Math.abs(loggedTotal - usedTotal) < 0.005
-            ? usages.map((u) => ({ amount: Number(u.amount) || 0, at: u.at }))
-            : null
+          usages.map((u) => ({ amount: Number(u.amount) || 0, at: u.at })),
+          unlogged > 0.005 ? unlogged : 0
         );
         sections.push([
           shownPrev.length > 1 ? `Previous Advance Details (${i + 1})` : "Previous Advance Details",
