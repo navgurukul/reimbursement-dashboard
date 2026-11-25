@@ -45,6 +45,13 @@ import {
   getProfileAvatarUrl,
 } from "@/lib/utils";
 
+type AdvanceReturn = {
+  amount: number;
+  returnedAt: string;
+  proofUrl: string | null;
+  proofName: string;
+};
+
 export default function ProfilePage() {
   const router = useRouter();
   const params = useParams();
@@ -64,6 +71,29 @@ export default function ProfilePage() {
   const [bankDetails, setBankDetails] = useState<any>(null);
   const [isDocumentValid, setIsDocumentValid] = useState<boolean | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [advances, setAdvances] = useState<
+    {
+      id: string;
+      uniqueId: string;
+      paidAt: string | null;
+      amount: number;
+      remaining: number | null;
+      hasReturns: boolean;
+      reviewed: boolean;
+      returns: AdvanceReturn[];
+    }[]
+  >([]);
+  const [loadingAdvances, setLoadingAdvances] = useState(true);
+  const [advanceRefresh, setAdvanceRefresh] = useState(0);
+  const [returnTarget, setReturnTarget] = useState<{
+    id: string;
+    uniqueId: string;
+    remaining: number | null;
+    editIndex: number | null;
+  } | null>(null);
+  const [returnAmount, setReturnAmount] = useState("");
+  const [returnProof, setReturnProof] = useState<File | null>(null);
+  const [submittingReturn, setSubmittingReturn] = useState(false);
   const isEditingRef = useRef(false);
   const [userProfile, setUserProfile] = useState<{
     id?: string;
@@ -209,6 +239,124 @@ export default function ProfilePage() {
 
     fetchUserSignature();
   }, [user?.id]);
+
+  // Fetch the user's paid advances (Advance Details table)
+  useEffect(() => {
+    async function fetchAdvances() {
+      if (!user?.id || !organization?.id) return;
+      setLoadingAdvances(true);
+      try {
+        const { data, error } = await supabase
+          .from("expense_new")
+          .select("id, unique_id, expense_type, amount, approved_amount, paid_approval_time, custom_fields")
+          .eq("org_id", organization.id)
+          .eq("user_id", user.id)
+          .eq("payment_status", "paid")
+          .ilike("expense_type", "advance")
+          .order("paid_approval_time", { ascending: false });
+        if (error) throw error;
+        const rows = (data || [])
+          .filter((r: any) => r.custom_fields?.marked_as_advance === true)
+          .map((r: any) => {
+            const rem = r.custom_fields?.advance_remaining_amount;
+            const hasRem = rem !== null && rem !== undefined && rem !== "";
+            return {
+              id: r.id as string,
+              uniqueId: String(r.unique_id || "").trim() || "—",
+              paidAt: (r.paid_approval_time ?? null) as string | null,
+              amount: Number(r.approved_amount ?? r.amount ?? 0) || 0,
+              remaining: hasRem ? Number(rem) || 0 : null,
+              reviewed: r.custom_fields?.advance_return_reviewed === true,
+              hasReturns:
+                Array.isArray(r.custom_fields?.advance_returns) &&
+                r.custom_fields.advance_returns.length > 0,
+              returns: [] as AdvanceReturn[],
+            };
+          });
+        // Signed proof links for advances that have returns
+        await Promise.all(
+          rows
+            .filter((r) => r.hasReturns)
+            .map(async (r) => {
+              try {
+                const res = await fetch(`/api/expenses/advance-return?advanceId=${r.id}`);
+                if (res.ok) r.returns = (await res.json()).returns || [];
+              } catch {
+                /* proofs just won't show */
+              }
+            })
+        );
+        setAdvances(rows);
+      } catch (err) {
+        console.error("Failed to fetch advances:", err);
+      } finally {
+        setLoadingAdvances(false);
+      }
+    }
+    fetchAdvances();
+  }, [user?.id, organization?.id, advanceRefresh]);
+
+  const closeReturn = () => {
+    if (submittingReturn) return;
+    setReturnTarget(null);
+    setReturnAmount("");
+    setReturnProof(null);
+  };
+
+  const submitReturn = async () => {
+    if (!returnTarget || returnTarget.remaining === null) return;
+    const amt = Number(returnAmount);
+    if (!(amt > 0)) {
+      toast.error("Enter a valid return amount");
+      return;
+    }
+    if (amt > returnTarget.remaining + 0.001) {
+      toast.error(`Amount cannot exceed remaining ${formatMoney(returnTarget.remaining)}`);
+      return;
+    }
+    const isEdit = returnTarget.editIndex !== null;
+    if (!isEdit && !returnProof) {
+      toast.error("Please upload a proof");
+      return;
+    }
+    setSubmittingReturn(true);
+    try {
+      const fd = new FormData();
+      fd.append("advanceId", returnTarget.id);
+      fd.append("amount", String(amt));
+      if (returnProof) fd.append("proof", returnProof);
+      if (isEdit) fd.append("index", String(returnTarget.editIndex));
+      const res = await fetch("/api/expenses/advance-return", {
+        method: isEdit ? "PATCH" : "POST",
+        body: fd,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to save return");
+      toast.success(isEdit ? "Return updated successfully" : "Remaining amount returned successfully");
+      setSubmittingReturn(false);
+      setReturnTarget(null);
+      setReturnAmount("");
+      setReturnProof(null);
+      setAdvanceRefresh((n) => n + 1);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to return advance");
+      setSubmittingReturn(false);
+    }
+  };
+
+  const formatMoney = (n: number) =>
+    `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatTime = (t: string | null) =>
+    t
+      ? new Date(t).toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "Asia/Kolkata",
+        })
+      : "—";
 
   // Handle expense signature save - separate from voucher signature
   const handleExpenseSignatureSave = async (dataUrl: string) => {
@@ -821,6 +969,189 @@ export default function ProfilePage() {
             </p>
           )}
       </div>
+
+      {/* Advance Details */}
+      <div className="p-4 sm:p-6 bg-card rounded-xl border shadow-sm space-y-4">
+        <h2 className="card-title">Advance Details</h2>
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Advance ID</th>
+                <th className="px-4 py-3 font-semibold">Paid Approval Time</th>
+                <th className="px-4 py-3 font-semibold text-right">Advance Amount</th>
+                <th className="px-4 py-3 font-semibold text-right">Remaining Amount</th>
+                <th className="px-4 py-3 font-semibold">Returned / Proof</th>
+                <th className="px-4 py-3 font-semibold text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingAdvances ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                    Loading advance details...
+                  </td>
+                </tr>
+              ) : advances.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                    No advance details available
+                  </td>
+                </tr>
+              ) : (
+                advances.map((a) => (
+                  <tr key={a.id} className="border-t">
+                    <td className="px-4 py-3">{a.uniqueId}</td>
+                    <td className="px-4 py-3">{formatTime(a.paidAt)}</td>
+                    <td className="px-4 py-3 text-right">{formatMoney(a.amount)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {a.remaining !== null ? formatMoney(a.remaining) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {a.returns.length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <ul className="space-y-1">
+                          {a.returns.map((r, i) => (
+                            <li key={i} className="flex flex-wrap items-center gap-x-2">
+                              <span className="font-medium">{formatMoney(r.amount)}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatTime(r.returnedAt)}
+                              </span>
+                              {r.proofUrl ? (
+                                <a
+                                  href={r.proofUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  View proof
+                                </a>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Proof unavailable</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex flex-col items-end gap-1">
+                        {a.remaining !== null && a.remaining > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setReturnTarget({
+                                id: a.id,
+                                uniqueId: a.uniqueId,
+                                remaining: a.remaining,
+                                editIndex: null,
+                              });
+                              setReturnAmount(String(a.remaining));
+                              setReturnProof(null);
+                            }}
+                          >
+                            Return Remaining
+                          </Button>
+                        )}
+                        {a.reviewed && a.returns.length > 0 && (
+                          <span className="text-xs font-medium text-green-600">Reviewed</span>
+                        )}
+                        {!a.reviewed && a.returns.map((r, i) => (
+                          <Button
+                            key={i}
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setReturnTarget({
+                                id: a.id,
+                                uniqueId: a.uniqueId,
+                                remaining: (a.remaining ?? 0) + r.amount,
+                                editIndex: i,
+                              });
+                              setReturnAmount(String(r.amount));
+                              setReturnProof(null);
+                            }}
+                          >
+                            Edit{a.returns.length > 1 ? ` #${i + 1}` : ""}
+                          </Button>
+                        ))}
+                        {!(a.remaining !== null && a.remaining > 0) && a.returns.length === 0 && !a.reviewed && (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Return remaining advance modal */}
+      {returnTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closeReturn}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-card border shadow-lg p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="text-lg font-semibold">
+                {returnTarget.editIndex !== null ? "Edit Returned Amount" : "Return Remaining Advance"}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Advance {returnTarget.uniqueId} ·{" "}
+                {returnTarget.editIndex !== null ? "Max" : "Remaining"}{" "}
+                {formatMoney(returnTarget.remaining ?? 0)}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">Return Amount (₹)</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                max={returnTarget.remaining ?? undefined}
+                value={returnAmount}
+                onChange={(e) => setReturnAmount(e.target.value)}
+                className="w-full h-10 rounded-lg border px-3 bg-white text-[#111827]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">
+                Proof (image or PDF){" "}
+                {returnTarget.editIndex !== null ? (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    (optional – leave empty to keep current proof)
+                  </span>
+                ) : (
+                  <span className="text-red-500">*</span>
+                )}
+              </label>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) => setReturnProof(e.target.files?.[0] || null)}
+                className="w-full text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeReturn} disabled={submittingReturn}>
+                Cancel
+              </Button>
+              <Button onClick={submitReturn} disabled={submittingReturn}>
+                {submittingReturn ? "Submitting..." : "Submit"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -140,6 +140,36 @@ const withRecordsSerialNumbers = (sorted: any[]) =>
 
 export default function AdvancePaymentRecords() {
   const [records, setRecords] = useState<any[]>([]);
+  const [reviewingReturnId, setReviewingReturnId] = useState<string | null>(null);
+
+  const reviewReturn = async (id: string) => {
+    setReviewingReturnId(id);
+    try {
+      const res = await fetch("/api/expenses/advance-return/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ advanceId: id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to review return");
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? { ...r, custom_fields: { ...(r.custom_fields || {}), advance_return_reviewed: true } }
+            : r
+        )
+      );
+      if (json.emailError) {
+        toast.warning(`Return reviewed, but email not sent: ${json.emailError}`);
+      } else {
+        toast.success("Return reviewed. Advance Completed email sent to the expense creator.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to review return");
+    } finally {
+      setReviewingReturnId(null);
+    }
+  };
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -2274,15 +2304,18 @@ export default function AdvancePaymentRecords() {
               <TableHead className="text-center py-3">Payment Status</TableHead>
               <TableHead className="text-center py-3">Paid by bank</TableHead>
               <TableHead className="text-center py-3">Actions</TableHead>
+              <TableHead className="text-center py-3">Return Amount</TableHead>
+              <TableHead className="text-center py-3">Return Amount Proof</TableHead>
+              <TableHead className="text-center py-3">Review Return</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {loading ? (
-              <TableSkeleton colSpan={19} rows={5} />
+              <TableSkeleton colSpan={22} rows={5} />
             ) : filteredRecords.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={19} className="p-0">
+                <TableCell colSpan={22} className="p-0">
                   {/* Pinned to the visible width so it stays in view in this wide table */}
                   <EmptyState
                     icon={Wallet}
@@ -2586,6 +2619,74 @@ export default function AdvancePaymentRecords() {
                         </Tooltip>
                       </TooltipProvider>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {(() => {
+                      const returned = Number(record.custom_fields?.advance_returned_amount) || 0;
+                      return returned > 0 ? formatCurrency(returned) : "N/A";
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {Array.isArray(record.custom_fields?.advance_returns) &&
+                    record.custom_fields.advance_returns.length > 0 ? (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto font-normal cursor-pointer text-blue-600"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(
+                              `/api/expenses/advance-return?advanceId=${record.id}`
+                            );
+                            const json = await res.json();
+                            if (!res.ok) throw new Error(json.error || "Failed");
+                            const urls: string[] = (json.returns || [])
+                              .map((r: any) => r.proofUrl)
+                              .filter(Boolean);
+                            if (urls.length === 0) {
+                              toast.error("Proof not available");
+                              return;
+                            }
+                            urls.forEach((u) => window.open(u, "_blank"));
+                          } catch {
+                            toast.error("Failed to load proof");
+                          }
+                        }}
+                      >
+                        View
+                      </Button>
+                    ) : (
+                      "N/A"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    {Array.isArray(record.custom_fields?.advance_returns) &&
+                    record.custom_fields.advance_returns.length > 0 ? (
+                      record.custom_fields.advance_return_reviewed === true ? (
+                        <span className="text-sm font-medium text-green-600">Reviewed</span>
+                      ) : (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="Review Return"
+                                disabled={reviewingReturnId === record.id}
+                                onClick={() => reviewReturn(record.id)}
+                                className="p-1 rounded-md border border-transparent hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <CheckCircle className="w-5 h-5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Review Return</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )
+                    ) : (
+                      "N/A"
+                    )}
                   </TableCell>
                 </TableRow>
               ))
